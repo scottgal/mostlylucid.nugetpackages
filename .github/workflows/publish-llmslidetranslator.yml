@@ -1,0 +1,60 @@
+name: Publish Mostlylucid.LlmSlideTranslator
+
+on:
+  push:
+    tags:
+      - 'llmslide-v*.*.*'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Extract version from tag
+      id: get_version
+      run: |
+        TAG=${GITHUB_REF#refs/tags/llmslide-v}
+        echo "VERSION=$TAG" >> $GITHUB_OUTPUT
+        echo "Publishing version: $TAG"
+
+    - name: Restore dependencies
+      run: dotnet restore mostlylucid.llmslidetranslator/mostlylucid.llmslidetranslator.csproj
+
+    - name: Build
+      run: dotnet build mostlylucid.llmslidetranslator/mostlylucid.llmslidetranslator.csproj --configuration Release --no-restore
+
+    - name: Pack
+      run: dotnet pack mostlylucid.llmslidetranslator/mostlylucid.llmslidetranslator.csproj --configuration Release --no-build --output ./artifacts
+
+    - name: Login to NuGet (OIDC)
+      id: nuget_login
+      uses: NuGet/login@v1
+      with:
+        user: 'mostlylucid'
+
+    - name: Publish to NuGet (Trusted Publisher)
+      run: |
+        dotnet nuget push ./artifacts/*.nupkg \
+          --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
+          --source https://api.nuget.org/v3/index.json \
+          --skip-duplicate
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: nuget-package
+        path: ./artifacts/*.nupkg

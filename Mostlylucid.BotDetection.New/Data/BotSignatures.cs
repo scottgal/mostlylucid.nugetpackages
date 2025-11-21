@@ -1,0 +1,117 @@
+namespace Mostlylucid.BotDetection.Data;
+
+/// <summary>
+///     Known bot signatures and patterns
+///     Based on lists from matomo.org, Cloudflare, and other sources
+/// </summary>
+public static class BotSignatures
+{
+    /// <summary>
+    ///     Known good bots (search engines, monitoring tools, etc.)
+    /// </summary>
+    public static readonly Dictionary<string, string> GoodBots = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Search Engines
+        ["Googlebot"] = "Google Search",
+        ["Googlebot-Image"] = "Google Image Search",
+        ["Googlebot-News"] = "Google News",
+        ["Googlebot-Video"] = "Google Video Search",
+        ["Google-InspectionTool"] = "Google Search Console",
+        ["Google-Site-Verification"] = "Google Site Verification",
+        ["Storebot-Google"] = "Google Store Bot",
+        ["Bingbot"] = "Bing Search",
+        ["msnbot"] = "MSN Search",
+        ["BingPreview"] = "Bing Preview",
+        ["Slurp"] = "Yahoo Search",
+        ["DuckDuckBot"] = "DuckDuckGo",
+        ["Baiduspider"] = "Baidu Search",
+        ["YandexBot"] = "Yandex Search",
+        ["Sogou"] = "Sogou Search",
+        ["Exabot"] = "Exalead Search",
+
+        // Social Media
+        ["facebookexternalhit"] = "Facebook",
+        ["facebot"] = "Facebook Bot",
+        ["Twitterbot"] = "Twitter",
+        ["LinkedInBot"] = "LinkedIn",
+        ["Slackbot"] = "Slack",
+        ["Discordbot"] = "Discord",
+        ["TelegramBot"] = "Telegram",
+        ["WhatsApp"] = "WhatsApp",
+
+        // SEO & Monitoring
+        ["AhrefsBot"] = "Ahrefs SEO",
+        ["SemrushBot"] = "SEMrush",
+        ["MJ12bot"] = "Majestic SEO",
+        ["DotBot"] = "Moz",
+        ["Screaming Frog"] = "Screaming Frog SEO",
+        ["SEOkicks"] = "SEOkicks",
+        ["Uptimebot"] = "Uptime Monitor",
+        ["StatusCake"] = "StatusCake Monitor",
+        ["Pingdom"] = "Pingdom Monitor",
+
+        // Archives & Research
+        ["ia_archiver"] = "Internet Archive",
+        ["archive.org_bot"] = "Internet Archive",
+        ["Amazonbot"] = "Amazon",
+        ["AppleBot"] = "Apple",
+        ["Applebot-Extended"] = "Apple Extended",
+
+        // Development & Testing
+        ["curl"] = "cURL",
+        ["Wget"] = "GNU Wget",
+        ["python-requests"] = "Python Requests",
+        ["Postman"] = "Postman",
+        ["Insomnia"] = "Insomnia"
+    };
+
+    /// <summary>
+    ///     Known malicious or suspicious bot patterns
+    /// </summary>
+    public static readonly HashSet<string> MaliciousBotPatterns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "scrapy", "scraper", "spider", "crawler", "bot", "httrack", "harvest",
+        "extract", "grab", "suck", "reaper", "ninja", "leech", "sucker",
+        "mass", "download", "fetch", "go-http-client", "Java/", "python-urllib",
+        "libwww-perl", "urllib", "pycurl", "libcurl", "Mechanize", "WWW-Mechanize",
+        "NetcraftSurveyAgent", "ZmEu", "sqlmap", "nikto", "scan", "nmap",
+        "masscan", "nessus", "openvas", "acunetix", "vega/", "metis", "nsauditor",
+        "paros", "webshag", "w3af", "dirbuster", "havij", "zmeu"
+    };
+
+    /// <summary>
+    ///     Suspicious header combinations that indicate automation
+    /// </summary>
+    public static readonly List<string[]> SuspiciousHeaderPatterns = new()
+    {
+        // Missing common browser headers
+        new[] { "User-Agent", "!Accept-Language" },
+        new[] { "User-Agent", "!Accept-Encoding" },
+        new[] { "User-Agent", "!Accept" }
+
+        // Uncommon header orders (browsers send headers in consistent order)
+        // This would be checked programmatically
+    };
+
+    /// <summary>
+    ///     Common automation frameworks
+    /// </summary>
+    public static readonly HashSet<string> AutomationFrameworks = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Selenium", "WebDriver", "PhantomJS", "HeadlessChrome", "Puppeteer",
+        "Playwright", "Cypress", "Nightmare", "CasperJS", "SlimerJS",
+        "Zombie.js", "TestCafe", "Watir", "Mechanize", "Scrapy",
+        "BeautifulSoup", "jsdom", "cheerio", "HttpClient", "RestSharp"
+    };
+
+    /// <summary>
+    ///     Regex patterns for bot detection in User-Agent
+    /// </summary>
+    public static readonly string[] BotPatterns = new[]
+    {
+        @"\bbot\b", @"\bcrawl", @"\bspider\b", @"\bslurp\b", @"\barchive\b",
+        @"\bindex", @"\bscrape", @"\bfetch\b", @"http:\/\/", @"https:\/\/",
+        @"\+http", @"@", @"\.com", @"\.org", @"\.net",
+        @"^\w+\/[\d\.]+$" // Simple version patterns like "curl/7.68.0"
+    };
+}

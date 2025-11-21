@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>LLM Slide Translator Demo</title>
+    <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.0/dist/browser/signalr.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            resize: vertical;
+        }
+
+        input, select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .progress {
+            width: 100%;
+            height: 30px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: #007bff;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .log {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .translation-output {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: 'Georgia', serif;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+<h1>🌐 LLM Slide Translator Demo</h1>
+
+<div class="container">
+    <h2>Configuration</h2>
+    <label>
+        Document ID:
+        <input id="documentId" type="text" value="doc_001"/>
+    </label>
+    <label>
+        Source Language:
+        <input id="sourceLang" type="text" value="en"/>
+    </label>
+    <label>
+        Target Language:
+        <input id="targetLang" type="text" value="de"/>
+    </label>
+    <label>
+        Translation Method:
+        <select id="method">
+            <option value="0">LLM Only</option>
+            <option value="1">NMT Only</option>
+            <option value="2">NMT + LLM</option>
+            <option selected value="3">RAG + LLM (Recommended)</option>
+        </select>
+    </label>
+</div>
+
+<div class="container">
+    <h2>Input Document</h2>
+    <textarea id="markdown" placeholder="Enter markdown content here...">
+# My Technical Blog Post
+
+This is an introduction paragraph about building scalable web applications.
+
+## Architecture
+
+We use a microservices architecture with the following components:
+- API Gateway
+- User Service
+- Payment Service
+- Notification Service
+
+## Implementation Details
+
+The implementation uses Docker containers for deployment and Kubernetes for orchestration.
+
+### Database Schema
+
+Each service has its own PostgreSQL database to maintain separation of concerns.
+        </textarea>
+</div>
+
+<div class="container">
+    <h2>Translation</h2>
+    <button id="translateBtn" onclick="startTranslation()">🚀 Start Translation</button>
+    <button id="subscribeBtn" onclick="subscribeToUpdates()">📡 Subscribe to Updates</button>
+    <button id="unsubscribeBtn" onclick="unsubscribeFromUpdates()">🔇 Unsubscribe</button>
+
+    <div class="status info" id="statusBox" style="display: none;">
+        <strong id="statusText">Ready</strong>
+    </div>
+
+    <div class="progress" id="progressBox" style="display: none;">
+        <div class="progress-bar" id="progressBar" style="width: 0%">0%</div>
+    </div>
+</div>
+
+<div class="container">
+    <h2>Activity Log</h2>
+    <div class="log" id="log"></div>
+</div>
+
+<div class="container">
+    <h2>Translated Output</h2>
+    <div class="translation-output" id="output">Translation will appear here...</div>
+</div>
+
+<script>
+    let connection = null;
+    let isSubscribed = false;
+    let translatedBlocks = [];
+
+    // Initialize SignalR connection
+    async function initConnection() {
+        if (connection) return;
+
+        connection = new signalR.HubConnectionBuilder()
+            .withUrl("/hubs/translation")
+            .withAutomaticReconnect()
+            .build();
+
+        // Set up event handlers
+        connection.on("TranslationStarted", (data) => {
+            log(`Translation started: ${data.documentId} (${data.sourceLanguage} → ${data.targetLanguage})`);
+            showStatus("Translation started...", "info");
+        });
+
+        connection.on("ChunkingComplete", (data) => {
+            log(`Chunked into ${data.blockCount} blocks`);
+        });
+
+        connection.on("EmbeddingComplete", (data) => {
+            log(`Embeddings generated for ${data.documentId}`);
+        });
+
+        connection.on("BlockTranslationStarted", (data) => {
+            log(`Translating block ${data.blockIndex + 1}...`);
+        });
+
+        connection.on("BlockTranslationComplete", (data) => {
+            log(`✓ Block ${data.blockIndex + 1} complete`);
+            translatedBlocks[data.blockIndex] = data.translatedText;
+            updateOutput();
+        });
+
+        connection.on("TranslationComplete", (data) => {
+            log(`✅ Translation complete in ${data.duration.toFixed(2)}s`);
+            showStatus(`Translation completed successfully!`, "success");
+            document.getElementById("progressBox").style.display = "none";
+        });
+
+        connection.on("TranslationError", (data) => {
+            log(`❌ Error: ${data.error}`);
+            showStatus(`Error: ${data.error}`, "error");
+        });
+
+        try {
+            await connection.start();
+            log("✓ Connected to SignalR hub");
+        } catch (err) {
+            log(`✗ Connection error: ${err}`);
+        }
+    }
+
+    async function subscribeToUpdates() {
+        if (!connection) await initConnection();
+
+        const documentId = document.getElementById("documentId").value;
+        try {
+            await connection.invoke("SubscribeToDocument", documentId);
+            log(`📡 Subscribed to document: ${documentId}`);
+            isSubscribed = true;
+            document.getElementById("subscribeBtn").disabled = true;
+            document.getElementById("unsubscribeBtn").disabled = false;
+        } catch (err) {
+            log(`✗ Subscribe error: ${err}`);
+        }
+    }
+
+    async function unsubscribeFromUpdates() {
+        if (!connection) return;
+
+        const documentId = document.getElementById("documentId").value;
+        try {
+            await connection.invoke("UnsubscribeFromDocument", documentId);
+            log(`🔇 Unsubscribed from document: ${documentId}`);
+            isSubscribed = false;
+            document.getElementById("subscribeBtn").disabled = false;
+            document.getElementById("unsubscribeBtn").disabled = true;
+        } catch (err) {
+            log(`✗ Unsubscribe error: ${err}`);
+        }
+    }
+
+    async function startTranslation() {
+        const documentId = document.getElementById("documentId").value;
+        const markdown = document.getElementById("markdown").value;
+        const sourceLang = document.getElementById("sourceLang").value;
+        const targetLang = document.getElementById("targetLang").value;
+        const method = parseInt(document.getElementById("method").value);
+
+        translatedBlocks = [];
+        document.getElementById("output").textContent = "";
+        document.getElementById("progressBox").style.display = "block";
+
+        if (!isSubscribed) {
+            await subscribeToUpdates();
+        }
+
+        // Use fetch with streaming
+        const url = `/translate/stream/${documentId}?markdown=${encodeURIComponent(markdown)}&sourceLanguage=${sourceLang}&targetLanguage=${targetLang}&method=${method}`;
+
+        try {
+            const response = await fetch(url);
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            while (true) {
+                const {value, done} = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = JSON.parse(line.substring(6));
+                        handleStreamUpdate(data);
+                    }
+                }
+            }
+        } catch (err) {
+            log(`❌ Streaming error: ${err}`);
+            showStatus(`Error: ${err}`, "error");
+        }
+    }
+
+    function handleStreamUpdate(data) {
+        log(`[${data.status}] ${data.message}`);
+
+        if (data.progress) {
+            const percent = data.progress.percentComplete || 0;
+            document.getElementById("progressBar").style.width = `${percent}%`;
+            document.getElementById("progressBar").textContent = `${Math.round(percent)}%`;
+        }
+
+        if (data.data && data.data.translatedText) {
+            translatedBlocks[data.data.blockIndex] = data.data.translatedText;
+            updateOutput();
+        }
+
+        if (data.status === "Complete") {
+            showStatus(data.message, "success");
+        } else if (data.status === "Error") {
+            showStatus(data.message, "error");
+        } else {
+            showStatus(data.message, "info");
+        }
+    }
+
+    function updateOutput() {
+        const output = translatedBlocks.filter(b => b).join('\n\n');
+        document.getElementById("output").textContent = output;
+    }
+
+    function log(message) {
+        const logDiv = document.getElementById("log");
+        const entry = document.createElement("div");
+        entry.className = "log-entry";
+        entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+        logDiv.appendChild(entry);
+        logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function showStatus(text, type) {
+        const statusBox = document.getElementById("statusBox");
+        const statusText = document.getElementById("statusText");
+        statusBox.style.display = "block";
+        statusBox.className = `status ${type}`;
+        statusText.textContent = text;
+    }
+
+    // Initialize on page load
+    window.onload = () => {
+        log("Demo client loaded");
+        document.getElementById("unsubscribeBtn").disabled = true;
+    };
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+1.0.0
+Initial release of Mostlylucid.BotDetection.
+
+Features:
+- Multi-layered bot detection with configurable detection strategies
+- User-Agent analysis with known bot signature matching
+- Header inspection for suspicious patterns
+- IP-based detection with blocklist support
+- Behavioral analysis for request patterns
+- Optional LLM-based classification using Ollama
+- SQLite-based storage for bot signatures and blocklists
+- Background service for automatic bot list updates
+- ASP.NET Core middleware integration
+- Dependency injection support via IServiceCollection
+- Configurable options via BotDetectionOptions

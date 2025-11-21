@@ -1,0 +1,142 @@
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using mostlylucid.llmslidetranslator.Models;
+
+namespace mostlylucid.llmslidetranslator.Services;
+
+/// <summary>
+///     File-based vector store for embeddings
+/// </summary>
+public class FileVectorStore : IVectorStore
+{
+    private readonly string _dataPath;
+    private readonly IEmbeddingGenerator _embeddingGenerator;
+    private readonly SemaphoreSlim _fileLock = new(1, 1);
+    private readonly ILogger<FileVectorStore> _logger;
+
+    public FileVectorStore(
+        ILogger<FileVectorStore> logger,
+        IEmbeddingGenerator embeddingGenerator,
+        IOptions<LlmSlideTranslatorConfig> config)
+    {
+        _logger = logger;
+        _embeddingGenerator = embeddingGenerator;
+        _dataPath = config.Value.DataPath;
+
+        // Ensure data directory exists
+        Directory.CreateDirectory(_dataPath);
+    }
+
+    public async Task StoreAsync(
+        List<TranslationBlock> blocks,
+        string documentId,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Storing {Count} blocks for document {DocumentId}",
+            blocks.Count, documentId);
+
+        var filePath = GetDocumentPath(documentId);
+
+        await _fileLock.WaitAsync(cancellationToken);
+        try
+        {
+            var json = JsonSerializer.Serialize(blocks, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+
+            await File.WriteAllTextAsync(filePath, json, cancellationToken);
+
+            _logger.LogInformation("Stored blocks to {FilePath}", filePath);
+        }
+        finally
+        {
+            _fileLock.Release();
+        }
+    }
+
+    public async Task<List<(TranslationBlock Block, float Similarity)>> SearchAsync(
+        float[] queryEmbedding,
+        string documentId,
+        int topK,
+        float minSimilarity = 0.0f,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Searching for top {TopK} similar blocks in document {DocumentId}",
+            topK, documentId);
+
+        var blocks = await GetDocumentBlocksAsync(documentId, cancellationToken);
+
+        var results = blocks
+            .Where(b => b.Embedding != null)
+            .Select(b => new
+            {
+                Block = b,
+                Similarity = _embeddingGenerator.CalculateSimilarity(queryEmbedding, b.Embedding!)
+            })
+            .Where(r => r.Similarity >= minSimilarity)
+            .OrderByDescending(r => r.Similarity)
+            .Take(topK)
+            .Select(r => (r.Block, r.Similarity))
+            .ToList();
+
+        _logger.LogDebug("Found {Count} similar blocks above threshold {MinSimilarity}",
+            results.Count, minSimilarity);
+
+        return results;
+    }
+
+    public async Task<List<TranslationBlock>> GetDocumentBlocksAsync(
+        string documentId,
+        CancellationToken cancellationToken = default)
+    {
+        var filePath = GetDocumentPath(documentId);
+
+        if (!File.Exists(filePath))
+        {
+            _logger.LogWarning("Document {DocumentId} not found at {FilePath}",
+                documentId, filePath);
+            return new List<TranslationBlock>();
+        }
+
+        await _fileLock.WaitAsync(cancellationToken);
+        try
+        {
+            var json = await File.ReadAllTextAsync(filePath, cancellationToken);
+            var blocks = JsonSerializer.Deserialize<List<TranslationBlock>>(json);
+
+            return blocks ?? new List<TranslationBlock>();
+        }
+        finally
+        {
+            _fileLock.Release();
+        }
+    }
+
+    public async Task ClearDocumentAsync(string documentId, CancellationToken cancellationToken = default)
+    {
+        var filePath = GetDocumentPath(documentId);
+
+        if (File.Exists(filePath))
+        {
+            await _fileLock.WaitAsync(cancellationToken);
+            try
+            {
+                File.Delete(filePath);
+                _logger.LogInformation("Cleared document {DocumentId}", documentId);
+            }
+            finally
+            {
+                _fileLock.Release();
+            }
+        }
+    }
+
+    private string GetDocumentPath(string documentId)
+    {
+        // Sanitize document ID for use as filename
+        var safeDocId = string.Join("_", documentId.Split(Path.GetInvalidFileNameChars()));
+        return Path.Combine(_dataPath, $"{safeDocId}.json");
+    }
+}

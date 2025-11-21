@@ -1,0 +1,11 @@
+1.0.0
+Initial release of Mostlylucid.LlmAltText.
+
+Features:
+- AI-powered alt text generation using Florence-2 Vision Language Model
+- OCR text extraction from images
+- Automatic model download on first use (~800MB)
+- Support for common image formats (PNG, JPEG, WebP, GIF, BMP)
+- Dependency injection integration with IServiceCollection
+- Configurable options via AltTextOptions
+- Async processing with proper cancellation support

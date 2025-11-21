@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AssemblyName>Mostlylucid.AltText.Demo</AssemblyName>
+        <RootNamespace>Mostlylucid.AltText.Demo</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Reference the LlmAltText package directly to avoid build/publish loop -->
+        <ProjectReference Include="..\Mostlylucid.LlmAltText\Mostlylucid.LlmAltText.csproj"/>
+
+        <!-- Optional: TesseractOCR for comparison (not used by default) -->
+        <PackageReference Include="TesseractOCR" Version="5.5.1"/>
+    </ItemGroup>
+
+</Project>

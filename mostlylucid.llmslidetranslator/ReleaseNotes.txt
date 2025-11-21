@@ -1,0 +1,23 @@
+Version 1.0.0 - Initial Release
+
+Features:
+- RAG-assisted translation using small local LLMs
+- Multiple translation methods (RAG+LLM, LLM-only, NMT+LLM, NMT-only)
+- Sliding-window context for translation continuity
+- Vector similarity search for terminology consistency
+- File-based and Qdrant vector store providers
+- Markdown-aware chunking that preserves document structure
+- Translation comparison functionality
+- Integration with Ollama for local LLM inference
+- Integration with Opus-MT NMT service (mostlyucid-nmt)
+- LlamaSharp-based embedding generation
+- ASP.NET Minimal API demo with SignalR streaming
+- Real-time translation progress tracking
+- Server-sent events (SSE) streaming endpoint
+
+Requirements:
+- .NET 9.0 or later
+- Ollama with a local model (e.g., llama3.2:3b)
+- Embedding model in GGUF format (e.g., nomic-embed-text-v1.5)
+- Optional: Qdrant vector database
+- Optional: NMT service from mostlyucid-nmt
