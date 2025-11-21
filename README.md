@@ -144,50 +144,76 @@ public class MyController : Controller
 
 ## Mostlylucid.GeoDetection
 
-Geographic location detection and country-based routing middleware for ASP.NET Core.
+Geographic location detection and country-based routing middleware for ASP.NET Core. **Works out of the box** with free ip-api.com provider - no account required!
 
 ### Features
 
-- **IP-to-location lookup** with caching
+- **Multiple Providers**: ip-api.com (free, no setup), MaxMind GeoLite2 (local), or simple mock
 - **Country-based access control** (allow/block by country code)
 - **GeoRoute attribute** for endpoint-level restrictions
 - **Reverse proxy support** (X-Forwarded-For, CF-Connecting-IP headers)
-- **ISO 3166-1 alpha-2** country codes
+- **Memory caching** by default, optional SQLite/EF Core persistent cache
+- **Test mode** for simulating different countries during development
+
+### Providers
+
+| Provider | Setup | Best For |
+|----------|-------|----------|
+| **IpApi** | None | Quick start, development |
+| **DataHubCsv** | None | Production, local, country-level |
+| **MaxMindLocal** | Free account | Production, city-level precision |
+| **Simple** | None | Testing |
+
+**DataHub** uses [free GeoIP2-IPv4 CSV data](https://datahub.io/core/geoip2-ipv4) - local lookup, no account, auto-updates weekly.
+
+### Quick Start (Zero Configuration)
+
+```csharp
+// Works immediately - uses ip-api.com, no account needed
+builder.Services.AddGeoRoutingWithIpApi();
+
+app.UseForwardedHeaders();
+app.UseGeoRouting();
+
+// Country-restricted endpoint
+app.MapGet("/us-only", () => "US Content").RequireCountry("US");
+```
+
+### Production Setup (Local Database - No Account)
+
+```csharp
+// DataHub CSV - free local database, country-level, ~27MB, auto-updates weekly
+builder.Services.AddGeoRoutingWithDataHub();
+```
+
+### Production Setup (MaxMind - City-Level)
+
+```csharp
+builder.Services.AddGeoRouting(
+    configureProvider: options =>
+    {
+        options.Provider = GeoProvider.MaxMindLocal;
+        options.AccountId = 123456;  // Free from maxmind.com
+        options.LicenseKey = "your-key";
+    }
+);
+```
 
 ### GeoLocation Data
 
 ```csharp
 public class GeoLocation
 {
-    public string CountryCode { get; set; }      // "US", "GB", etc.
+    public string CountryCode { get; set; }   // "US", "GB", etc.
     public string CountryName { get; set; }
-    public string ContinentCode { get; set; }
-    public string RegionCode { get; set; }
-    public string City { get; set; }
-    public double Latitude { get; set; }
-    public double Longitude { get; set; }
-    public string Timezone { get; set; }
+    public string? ContinentCode { get; set; }
+    public string? City { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public string? TimeZone { get; set; }
     public bool IsVpn { get; set; }
-    public bool IsProxy { get; set; }
     public bool IsHosting { get; set; }
 }
-```
-
-### Quick Start
-
-```csharp
-// Program.cs
-builder.Services.AddGeoDetection(options =>
-{
-    options.AllowedCountries = new[] { "US", "CA", "GB" };
-    options.BlockedCountries = new[] { "XX" };
-});
-
-app.UseGeoDetection();
-
-// Attribute-based routing
-[GeoRoute(AllowedCountries = new[] { "US", "CA" })]
-public IActionResult UsOnlyContent() => View();
 ```
 
 ---
@@ -261,6 +287,10 @@ Web UI demonstration with drag-and-drop image upload, live alt text generation, 
 
 Interactive demo to test different User-Agent strings and view detection statistics.
 
+### Mostlylucid.GeoDetection.Demo
+
+Interactive demo for IP geolocation with test mode to simulate different countries. Works out of the box!
+
 ### mostlylucid.llmslidetranslator.Demo
 
 Minimal API demonstration with SignalR real-time updates and translation comparison endpoints.
@@ -281,6 +311,7 @@ mostlylucid.nugetpackages/
 │
 ├── Mostlylucid.GeoDetection/         # Geo detection package
 ├── Mostlylucid.GeoDetection.Test/    # Unit tests
+├── Mostlylucid.GeoDetection.Demo/    # Demo application
 │
 ├── mostlylucid.llmslidetranslator/   # Translation package
 └── mostlylucid.llmslidetranslator.Demo/ # Demo application

@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /b)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:awaescher.github.io)",
+      "WebFetch(domain:qdrant.tech)",
+      "WebFetch(domain:api.qdrant.tech)",
+      "Bash(dotnet build:*)",
+      "Bash(dir:*)",
+      "Bash(dotnet sln add:*)",
+      "WebFetch(domain:datahub.io)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
