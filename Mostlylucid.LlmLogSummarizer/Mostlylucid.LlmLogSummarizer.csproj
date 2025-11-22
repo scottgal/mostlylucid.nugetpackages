@@ -1,0 +1,69 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <LangVersion>12</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+
+        <IsPackable>true</IsPackable>
+        <PackageId>Mostlylucid.LlmLogSummarizer</PackageId>
+        <Authors>Scott Galloway</Authors>
+        <PackageIcon>icon.png</PackageIcon>
+        <RepositoryUrl>https://github.com/scottgal/mostlylucid.nugetpackages</RepositoryUrl>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
+        <PackageTags>llm;logs;summarizer;monitoring;exceptions;serilog;ollama;diagnostics</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <Description>
+            AI-powered log summarization using local LLMs. Clusters similar exceptions, identifies error patterns, and generates human-readable digests from Serilog, text files, and Application Insights logs.
+        </Description>
+        <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildProjectDirectory)/ReleaseNotes.txt"))</PackageReleaseNotes>
+        <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <RootNamespace>Mostlylucid.LlmLogSummarizer</RootNamespace>
+    </PropertyGroup>
+    <PropertyGroup>
+        <MinVerTagPrefix>llmlogsummarizer-v</MinVerTagPrefix>
+    </PropertyGroup>
+    <PropertyGroup>
+        <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Microsoft Extensions -->
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.10"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.10"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.10"/>
+        <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.10"/>
+        <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.10"/>
+
+        <!-- JSON -->
+        <PackageReference Include="System.Text.Json" Version="9.0.10"/>
+
+        <!-- Serilog file reading support -->
+        <PackageReference Include="Serilog.Formatting.Compact.Reader" Version="3.0.1"/>
+
+        <!-- Email support -->
+        <PackageReference Include="MailKit" Version="4.12.1"/>
+
+        <!-- Versioning -->
+        <PackageReference Include="MinVer" Version="6.0.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Remove="ReleaseNotes.txt"/>
+        <Content Include="ReleaseNotes.txt">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+    <ItemGroup>
+        <None Include=".\icon.png" Pack="true" PackagePath="">
+            <Link>Properties\icon.png</Link>
+        </None>
+        <None Include=".\README.md" Pack="true" PackagePath="">
+            <Link>Properties\README.md</Link>
+        </None>
+    </ItemGroup>
+</Project>
