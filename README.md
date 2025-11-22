@@ -4,6 +4,30 @@
 
 A collection of *highly experimental* ASP.NET Core middleware and services for accessibility, security, compliance, and internationalization. All packages leverage local AI models (primarily via [Ollama](https://ollama.ai/)) for privacy-focused solutions - **no data ever leaves your infrastructure**.
 
+---
+
+## Table of Contents
+
+- [Target Frameworks](#target-frameworks)
+- [License](#license)
+- [Prerequisites](#prerequisites)
+- **Packages:**
+  - [Mostlylucid.Common](#mostlylucidcommon) - Shared utilities
+  - [Mostlylucid.BotDetection](#mostlylucidbotdetection) - Bot detection
+  - [Mostlylucid.GeoDetection](#mostlylucidgeodetection) - Geo-location routing
+  - [Mostlylucid.LlmAltText](#mostlylucidllmalttext) - Alt text generation
+  - [Mostlylucid.LlmPiiRedactor](#mostlylucidllmpiiredactor) - PII redaction
+  - [Mostlylucid.LLMContentModeration](#mostlylucidllmcontentmoderation) - Content moderation
+  - [Mostlylucid.LlmAccessibilityAuditor](#mostlylucidllmaccessibilityauditor) - Accessibility auditing
+  - [Mostlylucid.LlmLogSummarizer](#mostlylucidllmlogsummarizer) - Log summarization
+  - [Mostlylucid.LlmSeoMetadata](#mostlylucidllmseometadata) - SEO metadata
+  - [Mostlylucid.LlmSlideTranslator](#mostlylucidllmslidetranslator) - Document translation
+  - [Mostlylucid.LlmI18nAssistant](#mostlylucidllmi18nassistant) - Resource localization
+- [Project Structure](#project-structure)
+- [Contributing](#contributing)
+
+---
+
 ## Target Frameworks
 
 All packages support:
@@ -18,19 +42,19 @@ All packages are released under the [Unlicense](https://unlicense.org/) (Public 
 
 ## Packages Overview
 
-| Package | Description |
-|---------|-------------|
-| [**Mostlylucid.Common**](#mostlylucidcommon) | Shared abstractions, caching, and utilities |
-| [**Mostlylucid.BotDetection**](#mostlylucidbotdetection) | Multi-strategy bot detection middleware |
-| [**Mostlylucid.GeoDetection**](#mostlylucidgeodetection) | IP-based geo-location and country routing |
-| [**Mostlylucid.LlmAltText**](#mostlylucidllmalttext) | AI-powered alt text generation and OCR |
-| [**Mostlylucid.LlmPiiRedactor**](#mostlylucidllmpiiredactor) | PII detection and redaction |
-| [**Mostlylucid.LLMContentModeration**](#mostlylucidllmcontentmoderation) | LLM-powered content moderation |
-| [**Mostlylucid.LlmAccessibilityAuditor**](#mostlylucidllmaccessibilityauditor) | HTML accessibility auditing |
-| [**Mostlylucid.LlmLogSummarizer**](#mostlylucidllmlogsummarizer) | AI-powered log analysis and summarization |
-| [**Mostlylucid.LlmSeoMetadata**](#mostlylucidllmseometadata) | SEO metadata generation |
-| [**Mostlylucid.LlmSlideTranslator**](#mostlylucidllmslidetranslator) | RAG-assisted document translation |
-| [**Mostlylucid.LlmI18nAssistant**](#mostlylucidllmi18nassistant) | Short-string localization helper |
+| Package | Description | Source |
+|---------|-------------|--------|
+| **Mostlylucid.Common** | Shared abstractions, caching, and utilities | [Source](./Mostlylucid.Common) |
+| **Mostlylucid.BotDetection** | Multi-strategy bot detection middleware | [Source](./Mostlylucid.BotDetection) |
+| **Mostlylucid.GeoDetection** | IP-based geo-location and country routing | [Source](./Mostlylucid.GeoDetection) |
+| **Mostlylucid.LlmAltText** | AI-powered alt text generation and OCR | [Source](./Mostlylucid.LlmAltText) |
+| **Mostlylucid.LlmPiiRedactor** | PII detection and redaction | [Source](./Mostlylucid.LlmPiiRedactor) |
+| **Mostlylucid.LLMContentModeration** | LLM-powered content moderation | [Source](./Mostlylucid.LLMContentModeration) |
+| **Mostlylucid.LlmAccessibilityAuditor** | HTML accessibility auditing | [Source](./Mostlylucid.LlmAccessibilityAuditor) |
+| **Mostlylucid.LlmLogSummarizer** | AI-powered log analysis and summarization | [Source](./Mostlylucid.LlmLogSummarizer) |
+| **Mostlylucid.LlmSeoMetadata** | SEO metadata generation | [Source](./Mostlylucid.LlmSeoMetadata) |
+| **Mostlylucid.LlmSlideTranslator** | RAG-assisted document translation | [Source](./mostlylucid.llmslidetranslator) |
+| **Mostlylucid.LlmI18nAssistant** | Short-string localization helper | [Source](./mostlylucid.llmi18nassistant) |
 
 ---
 
