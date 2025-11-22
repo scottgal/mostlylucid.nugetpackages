@@ -1514,6 +1514,36 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
 
     private static string CleanMarkdown(string markdown)
     {
+        // Remove leading whitespace from each line (except code blocks)
+        // This fixes old HTML that had indented content which markdown interprets as code blocks
+        var lines = markdown.Split('\n');
+        var cleanedLines = new List<string>();
+        var inCodeBlock = false;
+
+        foreach (var line in lines)
+        {
+            // Track fenced code blocks
+            if (line.TrimStart().StartsWith("```"))
+            {
+                inCodeBlock = !inCodeBlock;
+                cleanedLines.Add(line.TrimStart());
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                // Preserve code block content as-is
+                cleanedLines.Add(line);
+            }
+            else
+            {
+                // Strip leading whitespace from non-code content
+                cleanedLines.Add(line.TrimStart());
+            }
+        }
+
+        markdown = string.Join('\n', cleanedLines);
+
         // Remove excessive blank lines
         markdown = Regex.Replace(markdown, @"\n{3,}", "\n\n");
 
