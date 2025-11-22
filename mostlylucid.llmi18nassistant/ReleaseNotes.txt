@@ -1,0 +1,10 @@
+v0.1.0 - Initial Release
+- Resource file translation for .resx and JSON formats
+- LLM-assisted translation with Ollama integration
+- NMT baseline support with LLM post-editing
+- Optional consistency mode with RAG over existing translations
+- Glossary support for terminology alignment
+- Key stability preservation (only transforms values)
+- Format string and placeholder preservation
+- CLI tool for offline resource generation
+- Minimal API endpoint for on-demand translation
