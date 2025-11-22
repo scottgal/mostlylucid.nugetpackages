@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+        <LangVersion>12</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>Mostlylucid.LlmI18nAssistant.Cli</RootNamespace>
+
+        <!-- Tool settings -->
+        <PackAsTool>true</PackAsTool>
+        <ToolCommandName>llm-i18n</ToolCommandName>
+        <PackageOutputPath>./nupkg</PackageOutputPath>
+
+        <!-- NuGet package settings -->
+        <IsPackable>true</IsPackable>
+        <PackageId>Mostlylucid.LlmI18nAssistant.Cli</PackageId>
+        <Authors>Scott Galloway</Authors>
+        <PackageIcon>icon.png</PackageIcon>
+        <RepositoryUrl>https://github.com/scottgal/mostlylucidweb/tree/main/mostlylucid.llmi18nassistant.cli</RepositoryUrl>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
+        <PackageTags>llm;translation;i18n;localization;resx;json;cli;tool</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <Description>
+            CLI tool for LLM-assisted localization of .resx and JSON resource files.
+            Uses local LLM/NMT with optional RAG consistency mode.
+        </Description>
+
+        <!-- Versioning -->
+        <MinVerTagPrefix>i18n-cli-v</MinVerTagPrefix>
+        <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1"/>
+        <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.10"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.10"/>
+        <PackageReference Include="MinVer" Version="6.0.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\mostlylucid.llmi18nassistant\mostlylucid.llmi18nassistant.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="..\mostlylucid.llmi18nassistant\icon.png" Pack="true" PackagePath="">
+            <Link>Properties\icon.png</Link>
+        </None>
+        <None Include="README.md" Pack="true" PackagePath="">
+            <Link>Properties\README.md</Link>
+        </None>
+    </ItemGroup>
+</Project>
