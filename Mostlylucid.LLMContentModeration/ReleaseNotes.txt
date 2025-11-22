@@ -1,0 +1,9 @@
+v1.0.0
+- Initial release
+- LLM-powered content classification (toxicity, spam, self-harm, NSFW)
+- PII detection (email, phone, address, IBAN, credit card)
+- Three moderation modes: DetectOnly, Block, MaskAndAllow
+- ASP.NET Core middleware for request/response interception
+- Per-route policy configuration via attributes
+- Ollama integration for local LLM inference
+- No data leaves the server - fully local processing
