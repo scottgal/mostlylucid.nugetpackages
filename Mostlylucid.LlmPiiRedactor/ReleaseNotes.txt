@@ -1,0 +1,11 @@
+v1.0.0
+- Initial release
+- PII detection for emails, phone numbers, credit cards, SSNs, IP addresses
+- Name detection using pattern matching and common name databases
+- Address and postcode detection
+- Configurable redaction styles: Full mask, Partial mask, Tokenized
+- ASP.NET Core middleware for request/response redaction
+- ILogger integration with RedactingLoggerProvider
+- Serilog enricher and destructuring policy for automatic redaction
+- Exception filter for redacted error pages
+- Thread-safe with high-performance regex caching
