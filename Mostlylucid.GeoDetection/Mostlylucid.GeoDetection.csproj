@@ -51,6 +51,10 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
     </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Mostlylucid.Common\Mostlylucid.Common.csproj" />
+    </ItemGroup>
     <ItemGroup>
         <None Include=".\icon.png" Pack="true" PackagePath="">
             <Link>Properties\icon.png</Link>

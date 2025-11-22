@@ -1,5 +1,7 @@
 # Mostlylucid NuGet Packages
 
+**NOTE: These will be nuget packages when I'm happy they're ready. I'll update this readme with the links when that happens**
+
 A collection *highly experimental* ASP.NET Core middleware and services for accessibility, security, compliance, and internationalization. All packages leverage local AI models for privacy-focused solutions.
 
 ## Packages

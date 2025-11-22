@@ -10,7 +10,10 @@
       "Bash(dotnet build:*)",
       "Bash(dir:*)",
       "Bash(dotnet sln add:*)",
-      "WebFetch(domain:datahub.io)"
+      "WebFetch(domain:datahub.io)",
+      "Bash(dotnet sln:*)",
+      "Bash(dotnet test:*)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []
