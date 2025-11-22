@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM SEO Metadata Demo</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+            color: #333;
+        }
+        h1 {
+            color: #2563eb;
+            border-bottom: 3px solid #2563eb;
+            padding-bottom: 10px;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        textarea {
+            min-height: 150px;
+            resize: vertical;
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        button:disabled {
+            background: #93c5fd;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            background: #64748b;
+        }
+        .btn-secondary:hover {
+            background: #475569;
+        }
+        .result {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 15px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            font-family: monospace;
+            font-size: 13px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        .stat-item {
+            background: #eff6ff;
+            padding: 15px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2563eb;
+        }
+        .stat-label {
+            color: #64748b;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        .status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-ready {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .status-error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .loading {
+            display: none;
+            color: #64748b;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #e2e8f0;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+        }
+        .tab:hover {
+            background: #f1f5f9;
+        }
+        .tab.active {
+            border-bottom-color: #2563eb;
+            color: #2563eb;
+            font-weight: 600;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>LLM SEO Metadata Generator</h1>
+
+    <div class="card">
+        <h2>Service Status</h2>
+        <div class="stats" id="stats">
+            <div class="stat-item">
+                <div class="stat-value" id="status">--</div>
+                <div class="stat-label">Status</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="total-requests">0</div>
+                <div class="stat-label">Total Requests</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="cache-hits">0</div>
+                <div class="stat-label">Cache Hits</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="avg-time">0ms</div>
+                <div class="stat-label">Avg Generation Time</div>
+            </div>
+        </div>
+        <button onclick="refreshStats()" class="btn-secondary" style="margin-top: 15px;">Refresh Stats</button>
+    </div>
+
+    <div class="card">
+        <h2>Generate SEO Metadata</h2>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('custom')">Custom Content</div>
+            <div class="tab" onclick="switchTab('demo')">Demo Content</div>
+            <div class="tab" onclick="switchTab('product')">Product Demo</div>
+        </div>
+
+        <div id="tab-custom" class="tab-content active">
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" id="title" placeholder="Enter page title" value="Introduction to Machine Learning">
+                </div>
+                <div class="form-group">
+                    <label>Content Type</label>
+                    <select id="content-type">
+                        <option value="Article">Article</option>
+                        <option value="BlogPosting" selected>Blog Posting</option>
+                        <option value="NewsArticle">News Article</option>
+                        <option value="Product">Product</option>
+                        <option value="Service">Service</option>
+                        <option value="Event">Event</option>
+                        <option value="Recipe">Recipe</option>
+                        <option value="HowTo">How-To</option>
+                        <option value="FAQPage">FAQ Page</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Content</label>
+                <textarea id="content" placeholder="Enter your content...">Machine learning is a subset of artificial intelligence that enables computers to learn and improve from experience without being explicitly programmed. This comprehensive guide covers the fundamentals of ML, including supervised learning, unsupervised learning, and neural networks. We'll explore practical applications in image recognition, natural language processing, and predictive analytics. By the end of this article, you'll understand how to implement basic ML models using popular frameworks like TensorFlow and PyTorch.</textarea>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>URL</label>
+                    <input type="text" id="url" placeholder="https://example.com/post" value="https://example.com/blog/ml-introduction">
+                </div>
+                <div class="form-group">
+                    <label>Author</label>
+                    <input type="text" id="author" placeholder="Author name" value="Tech Writer">
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Category</label>
+                    <input type="text" id="category" placeholder="Category" value="Technology">
+                </div>
+                <div class="form-group">
+                    <label>Tags (comma-separated)</label>
+                    <input type="text" id="tags" placeholder="tag1, tag2, tag3" value="machine learning, AI, tutorial, programming">
+                </div>
+            </div>
+
+            <button onclick="generateCustom()" id="btn-generate">Generate SEO Metadata</button>
+            <span class="loading" id="loading">Generating... (this may take 10-30 seconds)</span>
+        </div>
+
+        <div id="tab-demo" class="tab-content">
+            <p>Click the button to generate SEO metadata for a sample blog post about AI-powered SEO.</p>
+            <button onclick="generateDemo()">Generate Demo Content</button>
+            <span class="loading" id="loading-demo">Generating...</span>
+        </div>
+
+        <div id="tab-product" class="tab-content">
+            <p>Click the button to generate SEO metadata for a sample product (wireless headphones).</p>
+            <button onclick="generateProduct()">Generate Product Demo</button>
+            <span class="loading" id="loading-product">Generating...</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Generated Result</h2>
+        <div class="result" id="result">Results will appear here...</div>
+    </div>
+
+    <div class="card">
+        <h2>API Endpoints</h2>
+        <ul>
+            <li><code>GET /api/health</code> - Health check</li>
+            <li><code>GET /api/stats</code> - Service statistics</li>
+            <li><code>POST /api/generate</code> - Generate complete SEO metadata</li>
+            <li><code>POST /api/meta-description</code> - Generate meta description only</li>
+            <li><code>POST /api/opengraph</code> - Generate OpenGraph tags only</li>
+            <li><code>POST /api/jsonld</code> - Generate JSON-LD only</li>
+            <li><code>POST /api/keywords</code> - Generate keywords only</li>
+            <li><code>GET /api/demo</code> - Demo with sample blog content</li>
+            <li><code>GET /api/demo/product</code> - Demo with sample product</li>
+            <li><code>GET /api/render</code> - Render HTML with SEO tags</li>
+        </ul>
+    </div>
+
+    <script>
+        const contentTypeMap = {
+            'Article': 0,
+            'BlogPosting': 1,
+            'NewsArticle': 2,
+            'Product': 3,
+            'Service': 4,
+            'Organization': 5,
+            'Person': 6,
+            'Event': 7,
+            'Recipe': 8,
+            'FAQPage': 9,
+            'HowTo': 10,
+            'WebPage': 11
+        };
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelector(`[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+
+        async function refreshStats() {
+            try {
+                const healthResponse = await fetch('/api/health');
+                const health = await healthResponse.json();
+                document.getElementById('status').innerHTML = health.ready
+                    ? '<span class="status status-ready">Ready</span>'
+                    : '<span class="status status-error">Not Ready</span>';
+
+                const statsResponse = await fetch('/api/stats');
+                const stats = await statsResponse.json();
+                document.getElementById('total-requests').textContent = stats.totalRequests || 0;
+                document.getElementById('cache-hits').textContent = stats.cacheHits || 0;
+                document.getElementById('avg-time').textContent = Math.round(stats.averageGenerationTimeMs || 0) + 'ms';
+            } catch (error) {
+                document.getElementById('status').innerHTML = '<span class="status status-error">Error</span>';
+            }
+        }
+
+        async function generateCustom() {
+            const btn = document.getElementById('btn-generate');
+            const loading = document.getElementById('loading');
+            btn.disabled = true;
+            loading.style.display = 'inline';
+
+            const tags = document.getElementById('tags').value
+                .split(',')
+                .map(t => t.trim())
+                .filter(t => t);
+
+            const contentTypeKey = document.getElementById('content-type').value;
+
+            const request = {
+                content: {
+                    title: document.getElementById('title').value,
+                    content: document.getElementById('content').value,
+                    contentType: contentTypeMap[contentTypeKey],
+                    url: document.getElementById('url').value,
+                    author: document.getElementById('author').value,
+                    category: document.getElementById('category').value,
+                    tags: tags,
+                    language: 'en'
+                },
+                generateMetaDescription: true,
+                generateOpenGraph: true,
+                generateJsonLd: true,
+                generateKeywords: true,
+                useCache: true
+            };
+
+            await callApi('/api/generate', request, 'loading');
+            btn.disabled = false;
+            loading.style.display = 'none';
+        }
+
+        async function generateDemo() {
+            const loading = document.getElementById('loading-demo');
+            loading.style.display = 'inline';
+            await callApi('/api/demo', null, 'loading-demo', 'GET');
+            loading.style.display = 'none';
+        }
+
+        async function generateProduct() {
+            const loading = document.getElementById('loading-product');
+            loading.style.display = 'inline';
+            await callApi('/api/demo/product', null, 'loading-product', 'GET');
+            loading.style.display = 'none';
+        }
+
+        async function callApi(url, body, loadingId, method = 'POST') {
+            try {
+                const options = {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' }
+                };
+                if (body) {
+                    options.body = JSON.stringify(body);
+                }
+
+                const response = await fetch(url, options);
+                const result = await response.json();
+
+                document.getElementById('result').textContent = JSON.stringify(result, null, 2);
+                refreshStats();
+            } catch (error) {
+                document.getElementById('result').textContent = 'Error: ' + error.message;
+            }
+        }
+
+        // Initial load
+        refreshStats();
+    </script>
+</body>
+</html>

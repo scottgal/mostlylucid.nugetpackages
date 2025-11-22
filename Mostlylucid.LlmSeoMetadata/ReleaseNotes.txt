@@ -1,0 +1,9 @@
+v1.0.0 - Initial Release
+- Generate meta descriptions using local LLMs (Ollama)
+- Generate OpenGraph tags (og:title, og:description, og:type, og:image)
+- Generate JSON-LD structured data (Article, BlogPosting, Product)
+- Two modes: design-time template generation and runtime suggestion endpoint
+- Database caching for CMS integration
+- ASP.NET Core TagHelpers for easy Razor integration
+- Configurable prompts and model selection
+- Support for multiple content types

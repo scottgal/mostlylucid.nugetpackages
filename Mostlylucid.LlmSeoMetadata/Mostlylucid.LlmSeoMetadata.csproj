@@ -1,0 +1,76 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <LangVersion>12</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+
+        <IsPackable>true</IsPackable>
+        <PackageId>Mostlylucid.LlmSeoMetadata</PackageId>
+        <Authors>Scott Galloway</Authors>
+        <PackageIcon>icon.png</PackageIcon>
+        <RepositoryUrl>https://github.com/scottgal/mostlylucid.nugetpackages</RepositoryUrl>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
+        <PackageTags>ai;seo;metadata;llm;ollama;opengraph;json-ld;meta-description;local-llm</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <Description>
+            AI-powered SEO metadata generation using local LLMs via Ollama. Generate meta descriptions, OpenGraph tags, and JSON-LD structured data without sending content to external SaaS services.
+        </Description>
+        <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildProjectDirectory)/ReleaseNotes.txt"))</PackageReleaseNotes>
+        <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <AssemblyName>mostlylucid.llmseometadata</AssemblyName>
+    </PropertyGroup>
+    <PropertyGroup>
+        <MinVerTagPrefix>llmseometadata-v</MinVerTagPrefix>
+    </PropertyGroup>
+    <PropertyGroup>
+        <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Ollama LLM Client -->
+        <PackageReference Include="OllamaSharp" Version="4.0.1"/>
+
+        <!-- Microsoft Extensions -->
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.10"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.10"/>
+        <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.10"/>
+        <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.10"/>
+        <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.10"/>
+        <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.10"/>
+
+        <!-- Entity Framework Core (for database caching) -->
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.5"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.5"/>
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4"/>
+
+        <!-- ASP.NET Core (for TagHelper) -->
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+
+        <!-- Versioning -->
+        <PackageReference Include="MinVer" Version="6.0.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Mostlylucid.Common\Mostlylucid.Common.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Remove="ReleaseNotes.txt"/>
+        <Content Include="ReleaseNotes.txt">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+    <ItemGroup>
+        <None Include=".\icon.png" Pack="true" PackagePath="">
+            <Link>Properties\icon.png</Link>
+        </None>
+        <None Include=".\README.md" Pack="true" PackagePath="">
+            <Link>Properties\README.md</Link>
+        </None>
+    </ItemGroup>
+</Project>
