@@ -1,17 +1,32 @@
 # Mostlylucid NuGet Packages
 
-**NOTE: These will be nuget packages when I'm happy they're ready. I'll update this readme with the links when that happens**
+> **IMPORTANT: These packages are NOT yet published to NuGet.** This repository contains draft/work-in-progress packages that I'm developing. They will be published to NuGet when they're ready. Until then, reference the projects directly or build locally.
 
-A collection *highly experimental* ASP.NET Core middleware and services for accessibility, security, compliance, and internationalization. All packages leverage local AI models for privacy-focused solutions.
+A collection of *highly experimental* ASP.NET Core middleware and services for accessibility, security, compliance, and internationalization. All packages leverage local AI models (primarily via [Ollama](https://ollama.ai/)) for privacy-focused solutions - **no data ever leaves your infrastructure**.
 
-## Packages
+---
 
-| Package | Description |
-|---------|-------------|
-| **Mostlylucid.LlmAltText** | AI-powered alt text generation and OCR using Florence-2 |
-| **Mostlylucid.BotDetection** | Multi-strategy bot detection middleware |
-| **Mostlylucid.GeoDetection** | IP-based geo-location and country routing |
-| **Mostlylucid.LlmSlideTranslator** | RAG-assisted document translation |
+## Table of Contents
+
+- [Target Frameworks](#target-frameworks)
+- [License](#license)
+- [Prerequisites](#prerequisites)
+- **Packages:**
+  - [Mostlylucid.Common](#mostlylucidcommon) - Shared utilities
+  - [Mostlylucid.BotDetection](#mostlylucidbotdetection) - Bot detection
+  - [Mostlylucid.GeoDetection](#mostlylucidgeodetection) - Geo-location routing
+  - [Mostlylucid.LlmAltText](#mostlylucidllmalttext) - Alt text generation
+  - [Mostlylucid.LlmPiiRedactor](#mostlylucidllmpiiredactor) - PII redaction
+  - [Mostlylucid.LLMContentModeration](#mostlylucidllmcontentmoderation) - Content moderation
+  - [Mostlylucid.LlmAccessibilityAuditor](#mostlylucidllmaccessibilityauditor) - Accessibility auditing
+  - [Mostlylucid.LlmLogSummarizer](#mostlylucidllmlogsummarizer) - Log summarization
+  - [Mostlylucid.LlmSeoMetadata](#mostlylucidllmseometadata) - SEO metadata
+  - [Mostlylucid.LlmSlideTranslator](#mostlylucidllmslidetranslator) - Document translation
+  - [Mostlylucid.LlmI18nAssistant](#mostlylucidllmi18nassistant) - Resource localization
+- [Project Structure](#project-structure)
+- [Contributing](#contributing)
+
+---
 
 ## Target Frameworks
 
@@ -25,101 +40,78 @@ All packages are released under the [Unlicense](https://unlicense.org/) (Public 
 
 ---
 
-## Mostlylucid.LlmAltText
+## Packages Overview
 
-AI-powered alt text generation and OCR for images using Microsoft's Florence-2 Vision Language Model.
+| Package | Description | Source |
+|---------|-------------|--------|
+| **Mostlylucid.Common** | Shared abstractions, caching, and utilities | [Source](./Mostlylucid.Common) |
+| **Mostlylucid.BotDetection** | Multi-strategy bot detection middleware | [Source](./Mostlylucid.BotDetection) |
+| **Mostlylucid.GeoDetection** | IP-based geo-location and country routing | [Source](./Mostlylucid.GeoDetection) |
+| **Mostlylucid.LlmAltText** | AI-powered alt text generation and OCR | [Source](./Mostlylucid.LlmAltText) |
+| **Mostlylucid.LlmPiiRedactor** | PII detection and redaction | [Source](./Mostlylucid.LlmPiiRedactor) |
+| **Mostlylucid.LLMContentModeration** | LLM-powered content moderation | [Source](./Mostlylucid.LLMContentModeration) |
+| **Mostlylucid.LlmAccessibilityAuditor** | HTML accessibility auditing | [Source](./Mostlylucid.LlmAccessibilityAuditor) |
+| **Mostlylucid.LlmLogSummarizer** | AI-powered log analysis and summarization | [Source](./Mostlylucid.LlmLogSummarizer) |
+| **Mostlylucid.LlmSeoMetadata** | SEO metadata generation | [Source](./Mostlylucid.LlmSeoMetadata) |
+| **Mostlylucid.LlmSlideTranslator** | RAG-assisted document translation | [Source](./mostlylucid.llmslidetranslator) |
+| **Mostlylucid.LlmI18nAssistant** | Short-string localization helper | [Source](./mostlylucid.llmi18nassistant) |
+
+---
+
+## Mostlylucid.Common
+
+Shared abstractions, base classes, and utilities for all Mostlylucid packages.
 
 ### Features
 
-- **Automatic alt text generation** for accessibility-friendly image descriptions
-- **OCR text extraction** from images
-- **Image content classification** (photograph, document, screenshot, chart, illustration, diagram)
-- **ASP.NET Core TagHelper** to automatically populate missing alt text on `<img>` tags
-- **Database caching** (SQLite or PostgreSQL) to avoid regenerating alt text
-- **Multiple caption types**: CAPTION, DETAILED_CAPTION, MORE_DETAILED_CAPTION
+- Generic caching service with memory cache implementation
+- Statistics tracking interfaces
+- Periodic update service for background operations
+- Middleware base classes with test mode support
+- IP address extraction helpers (proxy/CDN aware)
 
 ### Quick Start
 
 ```csharp
-// Program.cs
-builder.Services.AddImageAnalysisServices(options =>
+// Register caching service
+services.AddMemoryCachingService<MyData>(options =>
 {
-    options.ModelPath = "path/to/florence2/model";
+    options.DefaultExpiration = TimeSpan.FromMinutes(30);
+    options.MaxEntries = 5000;
 });
 
-// Usage
+// Use in your service
 public class MyService
 {
-    private readonly IImageAnalysisService _imageService;
+    private readonly ICachingService<MyData> _cache;
 
-    public async Task<string> GetAltText(Stream imageStream)
+    public async Task<MyData?> GetDataAsync(string key)
     {
-        var result = await _imageService.AnalyzeImageAsync(imageStream, ImageTask.Caption);
-        return result.AltText;
+        return await _cache.GetOrAddAsync(key, async () =>
+        {
+            return await FetchFromSourceAsync(key);
+        });
     }
 }
 ```
 
-### TagHelper Usage
-
-The TagHelper works automatically on all `<img>` tags in your Razor views. It will generate alt text for any image that doesn't already have an `alt` attribute.
-
-```html
-<!-- Alt text is auto-generated for this image -->
-<img src="/images/photo.jpg" />
-
-<!-- Use data-skip-alt to skip processing -->
-<img src="/images/decorative.jpg" data-skip-alt="true" />
-
-<!-- Images with existing alt text are left unchanged -->
-<img src="/images/hero.jpg" alt="Custom description" />
-```
-
-Enable the TagHelper in your `_ViewImports.cshtml`:
-```csharp
-@addTagHelper *, Mostlylucid.LlmAltText
-```
-
-### Notes
-
-- First run downloads ~800MB of model files (cached locally)
-- All processing is done locally - no cloud API calls
+[Full documentation](Mostlylucid.Common/README.md)
 
 ---
 
 ## Mostlylucid.BotDetection
 
-Multi-strategy bot detection middleware for ASP.NET Core with behavioral analysis and optional LLM classification.
+Multi-strategy bot detection middleware with behavioral analysis and optional LLM classification.
 
 ### Features
 
-- **Multi-Strategy Detection**:
-  - User-Agent analysis (500+ known bot signatures)
-  - HTTP header inspection for suspicious patterns
-  - IP-based detection (datacenter/cloud provider ranges)
-  - Behavioral analysis (request frequency, timing patterns)
-  - Optional LLM-based classification via Ollama
-
-- **Automatic bot list updates** (every 24 hours)
-- **Flexible response options**: block, rate-limit, or detect-only
-- **Results caching** with configurable duration
-- **Confidence scoring** (0.0-1.0) with detailed reasons
-
-### Bot Types
-
-```csharp
-public enum BotType
-{
-    Unknown,
-    SearchEngine,
-    SocialMediaBot,
-    MonitoringBot,
-    Scraper,
-    MaliciousBot,
-    GoodBot,
-    VerifiedBot
-}
-```
+- **User-Agent Analysis**: 500+ known bot signatures
+- **Header Inspection**: Suspicious pattern detection
+- **IP Detection**: Datacenter/cloud provider ranges
+- **Behavioral Analysis**: Request frequency and timing
+- **LLM Classification**: Optional Ollama-based detection
+- **Auto-updating Blocklists**: 24-hour refresh cycle
+- **Confidence Scoring**: 0.0-1.0 with detailed reasons
 
 ### Quick Start
 
@@ -127,64 +119,47 @@ public enum BotType
 // Program.cs
 builder.Services.AddBotDetection(options =>
 {
-    options.EnableLlmDetection = false; // Set true to use Ollama
-    options.CacheDuration = TimeSpan.FromMinutes(30);
+    options.EnableBehavioralAnalysis = true;
+    options.EnableLlmDetection = false; // Optional: requires Ollama
+    options.BlockBots = false;          // Just detect, don't block
 });
 
 app.UseBotDetection();
 
 // Usage in controller
-public class MyController : Controller
+public async Task<IActionResult> Index()
 {
-    private readonly IBotDetectionService _botService;
-
-    public async Task<IActionResult> Index()
+    var result = await _botService.DetectAsync(HttpContext);
+    if (result.IsBot && result.BotType == BotType.MaliciousBot)
     {
-        var result = await _botService.DetectAsync(HttpContext);
-        if (result.IsBot && result.BotType == BotType.MaliciousBot)
-        {
-            return StatusCode(403);
-        }
-        return View();
+        return StatusCode(403);
     }
+    return View();
 }
 ```
 
-### Performance
+**Performance**: 1-5ms without LLM, 50-200ms with LLM
 
-- 1-5ms detection without LLM
-- 50-200ms with LLM enabled (optional)
+[Full documentation](Mostlylucid.BotDetection/README.md)
 
 ---
 
 ## Mostlylucid.GeoDetection
 
-Geographic location detection and country-based routing middleware for ASP.NET Core. **Works out of the box** with free ip-api.com provider - no account required!
+Geographic location detection and country-based routing. **Works out of the box** with free ip-api.com - no account required!
 
 ### Features
 
-- **Multiple Providers**: ip-api.com (free, no setup), MaxMind GeoLite2 (local), or simple mock
-- **Country-based access control** (allow/block by country code)
-- **GeoRoute attribute** for endpoint-level restrictions
-- **Reverse proxy support** (X-Forwarded-For, CF-Connecting-IP headers)
-- **Memory caching** by default, optional SQLite/EF Core persistent cache
-- **Test mode** for simulating different countries during development
+- **Multiple Providers**: ip-api.com (free), DataHub CSV (local), MaxMind GeoLite2
+- **Country-based Access Control**: Allow/block by country code
+- **GeoRoute Attribute**: Endpoint-level restrictions
+- **Reverse Proxy Support**: X-Forwarded-For, CF-Connecting-IP
+- **Memory + Database Caching**: Optional SQLite/EF Core persistence
 
-### Providers
-
-| Provider | Setup | Best For |
-|----------|-------|----------|
-| **IpApi** | None | Quick start, development |
-| **DataHubCsv** | None | Production, local, country-level |
-| **MaxMindLocal** | Free account | Production, city-level precision |
-| **Simple** | None | Testing |
-
-**DataHub** uses [free GeoIP2-IPv4 CSV data](https://datahub.io/core/geoip2-ipv4) - local lookup, no account, auto-updates weekly.
-
-### Quick Start (Zero Configuration)
+### Quick Start
 
 ```csharp
-// Works immediately - uses ip-api.com, no account needed
+// Zero configuration - uses ip-api.com, no account needed
 builder.Services.AddGeoRoutingWithIpApi();
 
 app.UseForwardedHeaders();
@@ -192,123 +167,412 @@ app.UseGeoRouting();
 
 // Country-restricted endpoint
 app.MapGet("/us-only", () => "US Content").RequireCountry("US");
+
+// MVC attribute
+[GeoRoute(AllowedCountries = new[] { "US", "CA" })]
+public class NorthAmericaController : Controller { }
 ```
 
-### Production Setup (Local Database - No Account)
+| Provider | Setup | Best For |
+|----------|-------|----------|
+| **IpApi** | None | Quick start, development |
+| **DataHubCsv** | None | Production, local, country-level |
+| **MaxMindLocal** | Free account | Production, city-level precision |
 
-```csharp
-// DataHub CSV - free local database, country-level, ~27MB, auto-updates weekly
-builder.Services.AddGeoRoutingWithDataHub();
-```
-
-### Production Setup (MaxMind - City-Level)
-
-```csharp
-builder.Services.AddGeoRouting(
-    configureProvider: options =>
-    {
-        options.Provider = GeoProvider.MaxMindLocal;
-        options.AccountId = 123456;  // Free from maxmind.com
-        options.LicenseKey = "your-key";
-    }
-);
-```
-
-### GeoLocation Data
-
-```csharp
-public class GeoLocation
-{
-    public string CountryCode { get; set; }   // "US", "GB", etc.
-    public string CountryName { get; set; }
-    public string? ContinentCode { get; set; }
-    public string? City { get; set; }
-    public double? Latitude { get; set; }
-    public double? Longitude { get; set; }
-    public string? TimeZone { get; set; }
-    public bool IsVpn { get; set; }
-    public bool IsHosting { get; set; }
-}
-```
+[Full documentation](Mostlylucid.GeoDetection/README.md)
 
 ---
 
-## Mostlylucid.LlmSlideTranslator
+## Mostlylucid.LlmAltText
 
-RAG-assisted translation for long documents using small local LLMs with sliding-window context and vector similarity search.
+AI-powered alt text generation and OCR using Microsoft's Florence-2 Vision Language Model.
 
 ### Features
 
-- **RAG-Enhanced Translation**: Retrieves similar earlier blocks to maintain terminology consistency
-- **Sliding Window Context**: Includes previous translated block for continuity
-- **Multiple Translation Methods**:
-  - RAG + LLM (recommended for consistency)
-  - LLM only (creative but may drift)
-  - NMT baseline + LLM post-editing
-  - NMT only (baseline quality, fastest)
-
-- **Markdown-Aware Chunking**: Intelligently splits content while preserving structure
-- **Vector Store Support**: File-based (default) or Qdrant database
-- **Real-time Progress**: SignalR support for streaming updates
-
-### How It Works
-
-1. Chunk markdown into translatable blocks
-2. Generate vector embeddings for each block
-3. Store blocks and embeddings in vector database
-4. For each block: retrieve similar blocks (RAG) + include previous block
-5. Translate with LLM using retrieved context
-6. Output aligned block-by-block translation
+- **Automatic Alt Text Generation**: Accessibility-friendly descriptions
+- **OCR Text Extraction**: High-accuracy text extraction
+- **Image Classification**: Photograph, document, screenshot, chart, etc.
+- **ASP.NET Core TagHelper**: Auto-populates missing `<img>` alt text
+- **Database Caching**: SQLite or PostgreSQL
 
 ### Quick Start
 
 ```csharp
 // Program.cs
-builder.Services.AddLlmSlideTranslator(options =>
+builder.Services.AddAltTextGeneration(options =>
 {
-    options.SourceLanguage = "en";
-    options.TargetLanguage = "fr";
-    options.EmbeddingProvider = EmbeddingProvider.Ollama;
-    options.VectorStoreProvider = VectorStoreProvider.File;
+    options.EnableTagHelper = true;
+    options.EnableDatabase = true;
+    options.DbProvider = AltTextDbProvider.Sqlite;
 });
 
-// Usage
-public class TranslationService
-{
-    private readonly ILlmSlideTranslator _translator;
+// Migrate database
+await app.Services.MigrateAltTextDatabaseAsync();
 
-    public async Task<string> TranslateDocument(string markdown)
-    {
-        var result = await _translator.TranslateAsync(markdown);
-        return result.TranslatedContent;
-    }
-}
+// Enable TagHelper in _ViewImports.cshtml
+@addTagHelper *, Mostlylucid.LlmAltText
 ```
 
-### Embedding Providers
+```html
+<!-- Alt text auto-generated -->
+<img src="/images/photo.jpg" />
 
-- **Ollama** - Via local Ollama API
-- **LlamaSharp** - Direct GGUF model inference
+<!-- Skip with data attribute -->
+<img src="/images/decorative.jpg" data-skip-alt="true" />
+```
+
+**Note**: First run downloads ~800MB of model files (cached locally).
+
+[Full documentation](Mostlylucid.LlmAltText/README.md)
 
 ---
 
-## Demo Applications
+## Mostlylucid.LlmPiiRedactor
 
-### Mostlylucid.AltText.Demo
+Comprehensive PII detection and redaction for ASP.NET Core applications.
 
-Web UI demonstration with drag-and-drop image upload, live alt text generation, and OCR capabilities.
+### Features
 
-### Mostlylucid.BotDetection.Demo
+- **Multi-Type Detection**: Emails, phones, credit cards, SSNs, IPs, names, addresses, postcodes, bank accounts, API keys
+- **Redaction Styles**: Full mask, partial mask, tokenized, type labels, hashed, removal
+- **ASP.NET Integration**: Request/response body, headers, query strings
+- **Logging Integration**: ILogger wrapper, Serilog enricher
+- **Compliance Presets**: GDPR and PCI-DSS configurations
 
-Interactive demo to test different User-Agent strings and view detection statistics.
+### Quick Start
 
-### Mostlylucid.GeoDetection.Demo
+```csharp
+// Program.cs
+builder.Services.AddPiiRedaction(
+    configureRedaction: options =>
+    {
+        options.DefaultStyle = RedactionStyle.PartialMask;
+        options.DetectionTypes = PiiType.Email | PiiType.CreditCard | PiiType.PhoneNumber;
+    },
+    configureMiddleware: options =>
+    {
+        options.RedactRequestBody = true;
+        options.RedactResponseBody = true;
+    }
+);
 
-Interactive demo for IP geolocation with test mode to simulate different countries. Works out of the box!
+app.UsePiiRedaction();
 
-### mostlylucid.llmslidetranslator.Demo
+// Direct usage
+var result = _redactionService.Redact("Contact john@example.com");
+// Result: "Contact jo****@example.com"
+```
 
-Minimal API demonstration with SignalR real-time updates and translation comparison endpoints.
+```
+Original: Contact john.doe@example.com or call +1-555-123-4567
+
+Full Mask:     Contact ********************* or call **************
+Partial Mask:  Contact jo****@example.com or call ****-****-****-4567
+Tokenized:     Contact [EMAIL_001] or call [PHONE_001]
+```
+
+[Full documentation](Mostlylucid.LlmPiiRedactor/README.md)
+
+---
+
+## Mostlylucid.LLMContentModeration
+
+Local LLM-powered content moderation. All processing happens on your server - no data ever leaves your infrastructure.
+
+### Features
+
+- **Content Classification**: Toxicity, abuse, spam, self-harm, NSFW
+- **PII Detection**: Email, phone, address, IBAN, credit cards
+- **Three Modes**: DetectOnly, Block, MaskAndAllow
+- **Per-Route Policies**: Configure different levels per controller/action
+- **Privacy-First**: All processing via local Ollama
+
+### Quick Start
+
+```csharp
+// Program.cs
+builder.Services.AddLLMContentModeration(options =>
+{
+    options.Ollama.Endpoint = "http://localhost:11434";
+    options.Ollama.Model = "llama3.2:3b";
+    options.DefaultMode = ModerationMode.Block;
+});
+
+app.UseContentModeration();
+
+// Per-route policy
+[ModerationPolicy(ModerationMode.Block, EnablePii = true, EnableToxicity = true)]
+public class CommentsController : Controller { }
+
+// Direct usage
+var result = await _moderation.ModerateAsync(content);
+if (result.IsFlagged)
+{
+    foreach (var flag in result.Flags)
+        Console.WriteLine($"{flag.Category}: {flag.Confidence:P}");
+}
+```
+
+[Full documentation](Mostlylucid.LLMContentModeration/README.md)
+
+---
+
+## Mostlylucid.LlmAccessibilityAuditor
+
+LLM-powered HTML accessibility auditor with rule-based and AI analysis.
+
+### Features
+
+- **Rule-based Analysis**: Fast HTML parsing for common issues
+- **LLM Analysis**: Ollama-powered detection of subtle issues
+- **Detected Issues**: Missing ARIA labels, heading hierarchy, contrast, click targets, forms, tables
+- **ASP.NET Middleware**: Auto-audit HTML responses in development
+- **Diagnostic Dashboard**: Web UI and JSON API
+- **Inline Widget**: Floating issues display on pages
+- **WCAG References**: Guideline mappings included
+
+### Quick Start
+
+```csharp
+// Program.cs
+builder.Services.AddAccessibilityAuditor(options =>
+{
+    options.Enabled = true;
+    options.OnlyInDevelopment = true;
+    options.EnableLlmAnalysis = true;
+    options.EnableInlineReport = true;
+
+    options.Ollama.Endpoint = "http://localhost:11434";
+    options.Ollama.Model = "llama3.2:3b";
+});
+
+app.UseAccessibilityAudit();
+app.MapAccessibilityDiagnostics(); // /_accessibility dashboard
+```
+
+```html
+@addTagHelper *, Mostlylucid.LlmAccessibilityAuditor
+
+<!-- Inline display -->
+<accessibility-warnings inline="true" min-severity="Serious" />
+```
+
+[Full documentation](Mostlylucid.LlmAccessibilityAuditor/README.md)
+
+---
+
+## Mostlylucid.LlmLogSummarizer
+
+AI-powered log summarization using local LLMs. Clusters similar exceptions, identifies error patterns, and generates human-readable digests.
+
+### Features
+
+- **Background Service**: Nightly/periodic summarization
+- **Multiple Sources**: Serilog JSON, plain text, Azure Application Insights
+- **Exception Clustering**: Fingerprinting and Levenshtein distance
+- **LLM Summarization**: Local Ollama for privacy
+- **Multiple Outputs**: Markdown, Email, Slack webhooks, custom webhooks
+- **Trend Analysis**: New error types, increasing/decreasing rates
+
+### Quick Start
+
+```csharp
+// Minimal setup
+builder.Services.AddLlmLogSummarizer(
+    serilogPath: "logs/*.json",
+    outputDirectory: "./logs/summaries");
+
+// Full configuration
+builder.Services.AddLlmLogSummarizer(options =>
+{
+    options.SummarizationInterval = TimeSpan.FromHours(24);
+    options.DailyRunTime = TimeSpan.FromHours(2); // 2 AM
+
+    options.Sources.SerilogFiles.Add(new SerilogSourceConfig
+    {
+        Name = "Application",
+        Path = "logs/*.json"
+    });
+
+    options.Ollama.Endpoint = "http://localhost:11434";
+    options.Ollama.Model = "llama3.2:3b";
+
+    options.Output.Slack = new SlackOutputConfig
+    {
+        Enabled = true,
+        WebhookUrl = "https://hooks.slack.com/..."
+    };
+});
+```
+
+[Full documentation](Mostlylucid.LlmLogSummarizer/README.md)
+
+---
+
+## Mostlylucid.LlmSeoMetadata
+
+AI-powered SEO metadata generation using local LLMs via Ollama.
+
+### Features
+
+- **Meta Description Generation**: SEO-optimized descriptions
+- **OpenGraph Tags**: og:title, og:description, og:type, Twitter Cards
+- **JSON-LD Structured Data**: Article, BlogPosting, Product, Service, Event, Recipe, FAQPage, HowTo
+- **Two Modes**: Design-time templates or runtime generation
+- **Database Caching**: SQLite or PostgreSQL
+- **TagHelper**: Easy Razor integration
+
+### Quick Start
+
+```csharp
+// Program.cs
+builder.Services.AddSeoMetadata(options =>
+{
+    options.OllamaEndpoint = "http://localhost:11434";
+    options.Model = "llama3.2:3b";
+    options.SiteName = "My Blog";
+    options.TwitterSite = "@myblog";
+});
+
+// Generate metadata
+var request = new GenerationRequest
+{
+    Content = new ContentInput
+    {
+        Title = post.Title,
+        Content = post.Body,
+        ContentType = SeoContentType.BlogPosting,
+        Url = $"https://myblog.com/posts/{slug}"
+    }
+};
+
+var result = await _seoService.GenerateMetadataAsync(request);
+```
+
+```html
+@addTagHelper *, Mostlylucid.LlmSeoMetadata
+
+<head>
+    <seo-metadata
+        title="@Model.Title"
+        content="@Model.Content"
+        content-type="BlogPosting"
+        url="@Model.Url" />
+</head>
+```
+
+[Full documentation](Mostlylucid.LlmSeoMetadata/README.md)
+
+---
+
+## Mostlylucid.LlmSlideTranslator
+
+RAG-assisted translation for long documents using small local LLMs with sliding-window context.
+
+### Features
+
+- **RAG-Enhanced Translation**: Maintains terminology consistency across documents
+- **Sliding Window Context**: Previous translated block always included
+- **Multiple Methods**: RAG+LLM, LLM only, NMT+LLM, NMT only
+- **Vector Store Support**: File-based or Qdrant database
+- **Markdown-Aware Chunking**: Preserves document structure
+- **Real-time Progress**: SignalR streaming updates
+- **Cross-Document Learning**: Experimental mode for book series/documentation sets
+
+### Quick Start
+
+```csharp
+// Program.cs
+builder.Services.AddLlmSlideTranslator(builder.Configuration);
+
+// Translate document
+var result = await translator.TranslateAsync(
+    markdown: "# My Document\n\nThis is content to translate...",
+    documentId: "doc_001",
+    sourceLanguage: "en",
+    targetLanguage: "de",
+    method: TranslationMethod.RagLlm
+);
+
+Console.WriteLine(result.GetTranslatedText());
+```
+
+**Why Context Preservation Matters:**
+```
+Without context:
+- Block 1: "The mayor announced..." -> "Der Bürgermeister..."
+- Block 15: "...the mayor spoke..." -> "...der Oberbürgermeister..."  // Different!
+
+With RAG + sliding window:
+- All blocks consistently use "Bürgermeister"
+```
+
+[Full documentation](mostlylucid.llmslidetranslator/README.md)
+
+---
+
+## Mostlylucid.LlmI18nAssistant
+
+LLM-assisted localization helper for short-string app resources. Complements LlmSlideTranslator for UI copy.
+
+### Features
+
+- **Resource File Support**: `.resx` (XML) and JSON files
+- **Key Stability**: Only values transformed, keys unchanged
+- **LLM + NMT Combo**: Local LLM with optional NMT baseline
+- **Consistency Mode**: RAG over translations/glossary
+- **Format Preservation**: Placeholders (`{0}`), HTML tags maintained
+- **CLI Tool**: `dotnet tool` for offline generation
+- **API Endpoint**: Minimal API for on-demand translation
+
+### Quick Start
+
+```csharp
+// Program.cs
+builder.Services.AddLlmI18nAssistant(builder.Configuration);
+
+// Translate resource file
+var result = await i18nAssistant.TranslateResourceFileAsync(
+    filePath: "Resources/Strings.resx",
+    sourceLanguage: "en",
+    targetLanguages: ["de", "fr", "es"],
+    options: new TranslationOptions
+    {
+        UseConsistencyMode = true,
+        PreserveFormatStrings = true
+    });
+
+// Save translated files
+foreach (var translation in result.Translations)
+{
+    await translation.SaveAsync($"Resources/Strings.{translation.Language}.resx");
+}
+```
+
+```bash
+# CLI usage
+llm-i18n translate Resources/Strings.resx --source en --target de,fr,es
+```
+
+[Full documentation](mostlylucid.llmi18nassistant/README.md)
+
+---
+
+## Prerequisites
+
+Most LLM-powered packages require [Ollama](https://ollama.ai/) running locally:
+
+```bash
+# Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Pull recommended models
+ollama pull llama3.2:3b          # For text analysis
+ollama pull nomic-embed-text     # For embeddings (translation packages)
+
+# Start the server
+ollama serve
+```
 
 ---
 
@@ -316,20 +580,46 @@ Minimal API demonstration with SignalR real-time updates and translation compari
 
 ```
 mostlylucid.nugetpackages/
-├── Mostlylucid.LlmAltText/           # Alt text generation package
-├── Mostlylucid.LlmAltText.Test/      # Unit tests
-├── Mostlylucid.AltText.Demo/         # Demo application
+├── Mostlylucid.Common/                    # Shared utilities
 │
-├── Mostlylucid.BotDetection/         # Bot detection package
-├── Mostlylucid.BotDetection.Test/    # Unit tests
-├── Mostlylucid.BotDetection.Demo/    # Demo application
+├── Mostlylucid.BotDetection/              # Bot detection
+├── Mostlylucid.BotDetection.Test/
+├── Mostlylucid.BotDetection.Demo/
 │
-├── Mostlylucid.GeoDetection/         # Geo detection package
-├── Mostlylucid.GeoDetection.Test/    # Unit tests
-├── Mostlylucid.GeoDetection.Demo/    # Demo application
+├── Mostlylucid.GeoDetection/              # Geo detection
+├── Mostlylucid.GeoDetection.Test/
+├── Mostlylucid.GeoDetection.Demo/
 │
-├── mostlylucid.llmslidetranslator/   # Translation package
-└── mostlylucid.llmslidetranslator.Demo/ # Demo application
+├── Mostlylucid.LlmAltText/                # Alt text generation
+├── Mostlylucid.LlmAltText.Test/
+├── Mostlylucid.AltText.Demo/
+│
+├── Mostlylucid.LlmPiiRedactor/            # PII redaction
+├── Mostlylucid.LlmPiiRedactor.Tests/
+├── Mostlylucid.LlmPiiRedactor.Demo/
+│
+├── Mostlylucid.LLMContentModeration/      # Content moderation
+├── Mostlylucid.LLMContentModeration.Test/
+├── Mostlylucid.LLMContentModeration.Demo/
+│
+├── Mostlylucid.LlmAccessibilityAuditor/   # Accessibility auditing
+├── Mostlylucid.LlmAccessibilityAuditor.Test/
+├── Mostlylucid.LlmAccessibilityAuditor.Demo/
+│
+├── Mostlylucid.LlmLogSummarizer/          # Log summarization
+├── Mostlylucid.LlmLogSummarizer.Test/
+├── Mostlylucid.LlmLogSummarizer.Demo/
+│
+├── Mostlylucid.LlmSeoMetadata/            # SEO metadata
+├── Mostlylucid.LlmSeoMetadata.Test/
+├── Mostlylucid.LlmSeoMetadata.Demo/
+│
+├── mostlylucid.llmslidetranslator/        # Document translation
+├── mostlylucid.llmslidetranslator.Demo/
+│
+├── mostlylucid.llmi18nassistant/          # Resource localization
+├── mostlylucid.llmi18nassistant.cli/      # CLI tool
+└── mostlylucid.llmi18nassistant.demo/
 ```
 
 ---
