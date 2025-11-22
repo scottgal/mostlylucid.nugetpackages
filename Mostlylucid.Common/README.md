@@ -145,6 +145,33 @@ public class CachedItem : ICachedEntity
 }
 ```
 
+### OpenTelemetry Support
+
+Base classes and helpers for OpenTelemetry instrumentation across all Mostlylucid packages:
+
+```csharp
+using Mostlylucid.Common.Telemetry;
+
+// Get all Mostlylucid activity source names for OpenTelemetry configuration
+var sources = TelemetryExtensions.GetMostlylucidActivitySourceNames();
+foreach (var source in sources)
+{
+    tracing.AddSource(source);
+}
+
+// Activity source names are available as constants
+// ActivitySources.BotDetection = "Mostlylucid.BotDetection"
+// ActivitySources.GeoDetection = "Mostlylucid.GeoDetection"
+// etc.
+```
+
+Available telemetry utilities:
+- `TelemetryActivitySource` - Wrapper for System.Diagnostics.ActivitySource
+- `TelemetryOptions` - Configuration for telemetry behavior
+- `TelemetryConstants` - Standard attribute names following OpenTelemetry semantic conventions
+- `TelemetryExtensions` - Helper methods for service registration
+- `ActivityExtensions` - Extension methods for recording results and exceptions
+
 ## Installation
 
 ```bash

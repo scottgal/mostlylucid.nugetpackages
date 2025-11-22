@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using Florence2;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.LlmAltText.Models;
+using Mostlylucid.LlmAltText.Telemetry;
 
 namespace Mostlylucid.LlmAltText.Services;
 
@@ -67,31 +69,35 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
         await EnsureInitializedAsync();
 
         var task = ResolveTaskType(taskType, TaskTypes.MORE_DETAILED_CAPTION);
+        using var activity = LlmAltTextTelemetry.StartGenerateAltTextActivity(taskType);
 
         try
         {
             LogInfo($"Generating alt text using task type: {task}");
-            var startTime = DateTime.UtcNow;
+            var startTime = Stopwatch.GetTimestamp();
 
             var results = _model!.Run(task, new[] { imageStream }, _options.AltTextPrompt, CancellationToken.None);
             var altText = results.FirstOrDefault()?.PureText;
 
-            var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            var duration = Stopwatch.GetElapsedTime(startTime).TotalMilliseconds;
             LogInfo($"Alt text generated in {duration:F0}ms");
 
             if (string.IsNullOrWhiteSpace(altText))
             {
                 _logger.LogWarning("No alt text generated for image");
+                LlmAltTextTelemetry.RecordAltTextResult(activity, 0, duration);
                 return "No description available";
             }
 
             var normalized = NormalizeAltText(altText);
             LogInfo($"Generated alt text: {normalized.Substring(0, Math.Min(50, normalized.Length))}...");
 
+            LlmAltTextTelemetry.RecordAltTextResult(activity, normalized.Length, duration);
             return normalized;
         }
         catch (Exception ex)
         {
+            LlmAltTextTelemetry.RecordException(activity, ex);
             _logger.LogError(ex, "Error generating alt text");
             throw;
         }
@@ -100,31 +106,35 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
     public async Task<string> ExtractTextAsync(Stream imageStream)
     {
         await EnsureInitializedAsync();
+        using var activity = LlmAltTextTelemetry.StartExtractTextActivity();
 
         try
         {
             LogInfo("Extracting text from image using OCR");
-            var startTime = DateTime.UtcNow;
+            var startTime = Stopwatch.GetTimestamp();
 
             var results = _model!.Run(TaskTypes.OCR, new[] { imageStream }, string.Empty, CancellationToken.None);
             var ocrText = results.FirstOrDefault()?.PureText;
 
-            var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            var duration = Stopwatch.GetElapsedTime(startTime).TotalMilliseconds;
             LogInfo($"Text extracted in {duration:F0}ms");
 
             if (string.IsNullOrWhiteSpace(ocrText))
             {
                 LogInfo("No text found in image");
+                LlmAltTextTelemetry.RecordExtractTextResult(activity, 0, false, duration);
                 return "No text found";
             }
 
             var trimmed = ocrText.Trim();
             LogInfo($"Extracted {trimmed.Length} characters of text");
 
+            LlmAltTextTelemetry.RecordExtractTextResult(activity, trimmed.Length, true, duration);
             return trimmed;
         }
         catch (Exception ex)
         {
+            LlmAltTextTelemetry.RecordException(activity, ex);
             _logger.LogError(ex, "Error extracting text from image");
             throw;
         }
@@ -133,16 +143,18 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
     public async Task<(string AltText, string ExtractedText)> AnalyzeImageAsync(Stream imageStream)
     {
         await EnsureInitializedAsync();
+        using var activity = LlmAltTextTelemetry.StartAnalyzeImageActivity();
 
         try
         {
             LogInfo("Starting complete image analysis (alt text + OCR)");
-            var startTime = DateTime.UtcNow;
+            var startTime = Stopwatch.GetTimestamp();
 
             // Create a memory stream to allow multiple reads
             using var memoryStream = new MemoryStream();
             await imageStream.CopyToAsync(memoryStream);
             LogInfo($"Image loaded: {memoryStream.Length:N0} bytes");
+            LlmAltTextTelemetry.RecordImageSize(activity, memoryStream.Length);
 
             // Generate alt text
             memoryStream.Position = 0;
@@ -152,13 +164,19 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
             memoryStream.Position = 0;
             var extractedText = await ExtractTextAsync(memoryStream);
 
-            var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            var duration = Stopwatch.GetElapsedTime(startTime).TotalMilliseconds;
             LogInfo($"Complete image analysis finished in {duration:F0}ms");
+
+            activity?.SetTag("llmalttext.alt_text_length", altText.Length);
+            activity?.SetTag("llmalttext.extracted_text_length", extractedText.Length);
+            activity?.SetTag("llmalttext.duration_ms", duration);
+            activity?.SetTag("llmalttext.success", true);
 
             return (altText, extractedText);
         }
         catch (Exception ex)
         {
+            LlmAltTextTelemetry.RecordException(activity, ex);
             _logger.LogError(ex, "Error analyzing image");
             throw;
         }
@@ -167,16 +185,18 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
     public async Task<ImageAnalysisResult> AnalyzeWithClassificationAsync(Stream imageStream)
     {
         await EnsureInitializedAsync();
+        using var activity = LlmAltTextTelemetry.StartAnalyzeWithClassificationActivity();
 
         try
         {
             LogInfo("Starting complete image analysis with classification");
-            var startTime = DateTime.UtcNow;
+            var startTime = Stopwatch.GetTimestamp();
 
             // Create a memory stream to allow multiple reads
             using var memoryStream = new MemoryStream();
             await imageStream.CopyToAsync(memoryStream);
             LogInfo($"Image loaded: {memoryStream.Length:N0} bytes");
+            LlmAltTextTelemetry.RecordImageSize(activity, memoryStream.Length);
 
             // Generate alt text
             memoryStream.Position = 0;
@@ -193,10 +213,10 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
                                      extractedText != "No text found" &&
                                      extractedText.Length > 20;
 
-            var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            var duration = Stopwatch.GetElapsedTime(startTime).TotalMilliseconds;
             LogInfo($"Complete analysis with classification finished in {duration:F0}ms - Type: {contentType}");
 
-            return new ImageAnalysisResult
+            var result = new ImageAnalysisResult
             {
                 AltText = altText,
                 ExtractedText = extractedText,
@@ -204,9 +224,13 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
                 ContentTypeConfidence = confidence,
                 HasSignificantText = hasSignificantText
             };
+
+            LlmAltTextTelemetry.RecordAnalysisResult(activity, result, duration);
+            return result;
         }
         catch (Exception ex)
         {
+            LlmAltTextTelemetry.RecordException(activity, ex);
             _logger.LogError(ex, "Error analyzing image with classification");
             throw;
         }
@@ -215,14 +239,17 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
     public async Task<(ImageContentType Type, double Confidence)> ClassifyContentTypeAsync(Stream imageStream)
     {
         await EnsureInitializedAsync();
+        using var activity = LlmAltTextTelemetry.StartClassifyContentTypeActivity();
 
         try
         {
             LogInfo("Classifying image content type");
+            var startTime = Stopwatch.GetTimestamp();
 
             // Create a memory stream to allow multiple reads
             using var memoryStream = new MemoryStream();
             await imageStream.CopyToAsync(memoryStream);
+            LlmAltTextTelemetry.RecordImageSize(activity, memoryStream.Length);
 
             // Get alt text for classification
             memoryStream.Position = 0;
@@ -232,10 +259,15 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
             memoryStream.Position = 0;
             var extractedText = await ExtractTextAsync(memoryStream);
 
-            return ClassifyFromResults(altText, extractedText, memoryStream.Length);
+            var (contentType, confidence) = ClassifyFromResults(altText, extractedText, memoryStream.Length);
+            var duration = Stopwatch.GetElapsedTime(startTime).TotalMilliseconds;
+
+            LlmAltTextTelemetry.RecordClassificationResult(activity, contentType, confidence, duration);
+            return (contentType, confidence);
         }
         catch (Exception ex)
         {
+            LlmAltTextTelemetry.RecordException(activity, ex);
             _logger.LogError(ex, "Error classifying image content type");
             throw;
         }

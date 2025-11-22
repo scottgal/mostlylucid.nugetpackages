@@ -5,6 +5,7 @@ using Mostlylucid.LlmLogSummarizer.Clustering;
 using Mostlylucid.LlmLogSummarizer.Models;
 using Mostlylucid.LlmLogSummarizer.Outputs;
 using Mostlylucid.LlmLogSummarizer.Sources;
+using Mostlylucid.LlmLogSummarizer.Telemetry;
 
 namespace Mostlylucid.LlmLogSummarizer.Services;
 
@@ -44,25 +45,44 @@ public class LogSummarizationOrchestrator : ILogSummarizationOrchestrator
         var totalStopwatch = Stopwatch.StartNew();
         var report = new SummaryReport();
 
+        var now = DateTimeOffset.UtcNow;
+        report.PeriodEnd = now;
+        report.PeriodStart = now - _options.LookbackPeriod;
+
+        using var activity = LogSummarizerTelemetry.StartSummarizationActivity(report.PeriodStart, report.PeriodEnd);
+
         try
         {
-            var now = DateTimeOffset.UtcNow;
-            report.PeriodEnd = now;
-            report.PeriodStart = now - _options.LookbackPeriod;
-
             _logger.LogInformation(
                 "Starting log summarization for period {Start} to {End}",
                 report.PeriodStart, report.PeriodEnd);
 
             // Step 1: Collect logs
-            var collectionStopwatch = Stopwatch.StartNew();
-            var entries = await CollectLogsAsync(report, cancellationToken);
-            report.ProcessingStats.CollectionDuration = collectionStopwatch.Elapsed;
+            List<LogEntry> entries;
+            using (var collectionActivity = LogSummarizerTelemetry.StartCollectionActivity())
+            {
+                var collectionStopwatch = Stopwatch.StartNew();
+                entries = await CollectLogsAsync(report, cancellationToken);
+                report.ProcessingStats.CollectionDuration = collectionStopwatch.Elapsed;
+                LogSummarizerTelemetry.RecordCollectionResult(
+                    collectionActivity,
+                    entries.Count,
+                    report.SourcesAnalyzed.Count,
+                    report.ProcessingStats.CollectionDuration);
+            }
 
             // Step 2: Cluster exceptions
-            var clusteringStopwatch = Stopwatch.StartNew();
-            var clusters = ClusterLogs(entries, report);
-            report.ProcessingStats.ClusteringDuration = clusteringStopwatch.Elapsed;
+            List<ExceptionCluster> clusters;
+            using (var clusteringActivity = LogSummarizerTelemetry.StartClusteringActivity())
+            {
+                var clusteringStopwatch = Stopwatch.StartNew();
+                clusters = ClusterLogs(entries, report);
+                report.ProcessingStats.ClusteringDuration = clusteringStopwatch.Elapsed;
+                LogSummarizerTelemetry.RecordClusteringResult(
+                    clusteringActivity,
+                    clusters.Count,
+                    report.ProcessingStats.ClusteringDuration);
+            }
 
             // Step 3: Calculate trends
             _clusterer.CalculateTrends(clusters, _previousPeriodClusters);
@@ -74,15 +94,30 @@ public class LogSummarizationOrchestrator : ILogSummarizationOrchestrator
             CategorizeReport(report, clusters);
 
             // Step 4: LLM Summarization
-            var llmStopwatch = Stopwatch.StartNew();
-            await EnrichWithLlmAsync(report, cancellationToken);
-            report.ProcessingStats.LlmSummarizationDuration = llmStopwatch.Elapsed;
+            using (var llmActivity = LogSummarizerTelemetry.StartLlmEnrichmentActivity())
+            {
+                var llmStopwatch = Stopwatch.StartNew();
+                var llmAvailable = await _summarizer.IsAvailableAsync(cancellationToken);
+                await EnrichWithLlmAsync(report, cancellationToken);
+                report.ProcessingStats.LlmSummarizationDuration = llmStopwatch.Elapsed;
+                LogSummarizerTelemetry.RecordLlmEnrichmentResult(
+                    llmActivity,
+                    report.ProcessingStats.LlmCallCount,
+                    report.ProcessingStats.LlmSummarizationDuration,
+                    llmAvailable);
+            }
 
             // Step 5: Output results
-            await OutputReportAsync(report, cancellationToken);
+            using (var outputActivity = LogSummarizerTelemetry.StartOutputActivity())
+            {
+                var enabledProviderCount = await OutputReportAsync(report, cancellationToken);
+                LogSummarizerTelemetry.RecordOutputResult(outputActivity, enabledProviderCount);
+            }
 
             totalStopwatch.Stop();
             report.ProcessingStats.TotalDuration = totalStopwatch.Elapsed;
+
+            LogSummarizerTelemetry.RecordResult(activity, report);
 
             _logger.LogInformation(
                 "Log summarization completed in {Duration:F2}s - {Errors} errors, {Clusters} patterns, Health: {Health}",
@@ -95,6 +130,7 @@ public class LogSummarizationOrchestrator : ILogSummarizationOrchestrator
         }
         catch (Exception ex)
         {
+            LogSummarizerTelemetry.RecordException(activity, ex);
             _logger.LogError(ex, "Log summarization failed");
             throw;
         }
@@ -247,7 +283,7 @@ public class LogSummarizationOrchestrator : ILogSummarizationOrchestrator
         };
     }
 
-    private async Task OutputReportAsync(SummaryReport report, CancellationToken cancellationToken)
+    private async Task<int> OutputReportAsync(SummaryReport report, CancellationToken cancellationToken)
     {
         var enabledProviders = _outputProviders.Where(p => p.IsEnabled).ToList();
 
@@ -266,6 +302,8 @@ public class LogSummarizationOrchestrator : ILogSummarizationOrchestrator
                 _logger.LogError(ex, "Failed to output to {Provider}", provider.Name);
             }
         }
+
+        return enabledProviders.Count;
     }
 }
 

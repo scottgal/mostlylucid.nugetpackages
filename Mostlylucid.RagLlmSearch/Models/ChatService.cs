@@ -7,6 +7,7 @@ using Mostlylucid.RagLlmSearch.Conversation;
 using Mostlylucid.RagLlmSearch.LlmServices;
 using Mostlylucid.RagLlmSearch.Rag;
 using Mostlylucid.RagLlmSearch.SearchProviders;
+using Mostlylucid.RagLlmSearch.Telemetry;
 
 namespace Mostlylucid.RagLlmSearch.Models;
 
@@ -81,8 +82,16 @@ public class ChatService : IChatService
 
     public async Task<ChatResponse> ChatAsync(ChatRequest request, CancellationToken cancellationToken = default)
     {
+        using var activity = RagSearchTelemetry.StartChatActivity(
+            request.ConversationId,
+            request.EnableRag,
+            request.EnableWebSearch);
+
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var response = new ChatResponse();
+        var triggeredSearch = false;
+        var usedRag = false;
+        string? searchProvider = null;
 
         try
         {
@@ -100,7 +109,16 @@ public class ChatService : IChatService
             await _conversationService.AddMessageAsync(conversation.Id, userMessage, cancellationToken);
 
             // Gather context
-            var (context, sources, triggeredSearch, usedRag) = await GatherContextAsync(request, cancellationToken);
+            List<SourceReference> sources;
+            string? context;
+            (context, sources, triggeredSearch, usedRag) = await GatherContextAsync(request, cancellationToken);
+
+            if (triggeredSearch)
+            {
+                searchProvider = string.IsNullOrEmpty(request.SearchProvider)
+                    ? _searchProviderFactory.GetDefaultProvider().Name
+                    : request.SearchProvider;
+            }
 
             // Get conversation history
             var messages = await _conversationService.GetMessagesAsync(conversation.Id, cancellationToken: cancellationToken);
@@ -124,15 +142,27 @@ public class ChatService : IChatService
             response.Message = assistantMessage;
             response.Sources = sources;
             response.IsComplete = true;
+
+            stopwatch.Stop();
+            response.ResponseTimeMs = stopwatch.ElapsedMilliseconds;
+
+            RagSearchTelemetry.RecordChatResult(
+                activity,
+                response.ResponseTimeMs,
+                sources.Count,
+                triggeredSearch,
+                usedRag,
+                searchProvider);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing chat request");
             response.Error = ex.Message;
+            RagSearchTelemetry.RecordException(activity, ex);
+            stopwatch.Stop();
+            response.ResponseTimeMs = stopwatch.ElapsedMilliseconds;
         }
 
-        stopwatch.Stop();
-        response.ResponseTimeMs = stopwatch.ElapsedMilliseconds;
         return response;
     }
 
@@ -231,7 +261,19 @@ public class ChatService : IChatService
             ? _searchProviderFactory.GetDefaultProvider()
             : _searchProviderFactory.GetProvider(provider) ?? _searchProviderFactory.GetDefaultProvider();
 
-        return await searchProvider.SearchAsync(query, _options.MaxSearchResults, cancellationToken);
+        using var activity = RagSearchTelemetry.StartSearchActivity(query, searchProvider.Name, _options.MaxSearchResults);
+
+        try
+        {
+            var response = await searchProvider.SearchAsync(query, _options.MaxSearchResults, cancellationToken);
+            RagSearchTelemetry.RecordSearchResult(activity, response);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            RagSearchTelemetry.RecordException(activity, ex);
+            throw;
+        }
     }
 
     public IEnumerable<string> GetAvailableProviders()
