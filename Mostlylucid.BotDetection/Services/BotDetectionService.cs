@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Detectors;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.BotDetection.Telemetry;
 
 namespace Mostlylucid.BotDetection.Services;
 
@@ -25,6 +26,10 @@ public class BotDetectionService(
         CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();
+        var clientIp = context.Connection.RemoteIpAddress?.ToString();
+        var userAgent = context.Request.Headers.UserAgent.ToString();
+
+        using var activity = BotDetectionTelemetry.StartDetectActivity(clientIp, userAgent);
 
         try
         {
@@ -33,8 +38,12 @@ public class BotDetectionService(
             if (cache.TryGetValue<BotDetectionResult>(cacheKey, out var cachedResult) && cachedResult != null)
             {
                 logger.LogDebug("Returning cached bot detection result");
+                activity?.SetTag("mostlylucid.botdetection.cache_hit", true);
+                BotDetectionTelemetry.RecordResult(activity, cachedResult);
                 return cachedResult;
             }
+
+            activity?.SetTag("mostlylucid.botdetection.cache_hit", false);
 
             var result = new BotDetectionResult();
             var detectorResults = new List<DetectorResult>();
@@ -69,12 +78,16 @@ public class BotDetectionService(
                 "Bot detection complete: IsBot={IsBot}, Confidence={Confidence:F2}, Time={Time}ms",
                 result.IsBot, result.ConfidenceScore, result.ProcessingTimeMs);
 
+            activity?.SetTag("mostlylucid.botdetection.detector_count", detectors.Count());
+            BotDetectionTelemetry.RecordResult(activity, result);
+
             return result;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Bot detection failed");
             sw.Stop();
+            BotDetectionTelemetry.RecordException(activity, ex);
             return new BotDetectionResult
             {
                 IsBot = false,

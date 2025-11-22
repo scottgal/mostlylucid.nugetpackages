@@ -3,6 +3,8 @@ using Mostlylucid.RagLlmSearch.LlmServices;
 using Mostlylucid.RagLlmSearch.Models;
 using Mostlylucid.RagLlmSearch.Rag;
 
+using ConversationModel = Mostlylucid.RagLlmSearch.Models.Conversation;
+
 namespace Mostlylucid.RagLlmSearch.Demo.Controllers;
 
 /// <summary>
@@ -47,9 +49,9 @@ public class ChatController : ControllerBase
     /// Gets a conversation by ID
     /// </summary>
     [HttpGet("conversations/{conversationId}")]
-    [ProducesResponseType(typeof(Conversation), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ConversationModel), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<Conversation>> GetConversation(string conversationId)
+    public async Task<ActionResult<ConversationModel>> GetConversation(string conversationId)
     {
         var conversation = await _chatService.GetConversationAsync(conversationId);
         if (conversation == null)
@@ -63,8 +65,8 @@ public class ChatController : ControllerBase
     /// Gets all conversations for a user
     /// </summary>
     [HttpGet("conversations/user/{userId}")]
-    [ProducesResponseType(typeof(List<Conversation>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<List<Conversation>>> GetUserConversations(string userId)
+    [ProducesResponseType(typeof(List<ConversationModel>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<ConversationModel>>> GetUserConversations(string userId)
     {
         var conversations = await _chatService.GetUserConversationsAsync(userId);
         return Ok(conversations);

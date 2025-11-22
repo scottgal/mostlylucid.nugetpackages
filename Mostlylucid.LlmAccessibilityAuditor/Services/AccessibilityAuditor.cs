@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.LlmAccessibilityAuditor.Models;
+using Mostlylucid.LlmAccessibilityAuditor.Telemetry;
 
 namespace Mostlylucid.LlmAccessibilityAuditor.Services;
 
@@ -32,6 +33,8 @@ public class AccessibilityAuditor : IAccessibilityAuditor
         string? pageUrl = null,
         CancellationToken cancellationToken = default)
     {
+        using var activity = AccessibilityAuditorTelemetry.StartAuditActivity(pageUrl, html.Length);
+
         var stopwatch = Stopwatch.StartNew();
         var report = new AccessibilityAuditReport
         {
@@ -108,11 +111,14 @@ public class AccessibilityAuditor : IAccessibilityAuditor
             {
                 report.HumanSummary = GenerateFallbackSummary(report);
             }
+
+            AccessibilityAuditorTelemetry.RecordResult(activity, report);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during accessibility audit");
             report.Errors.Add($"Audit error: {ex.Message}");
+            AccessibilityAuditorTelemetry.RecordException(activity, ex);
         }
 
         stopwatch.Stop();
@@ -128,8 +134,20 @@ public class AccessibilityAuditor : IAccessibilityAuditor
         string html,
         CancellationToken cancellationToken = default)
     {
-        var issues = await _htmlParser.ParseAndAnalyzeAsync(html, cancellationToken);
-        return new AuditResult { Issues = issues };
+        using var activity = AccessibilityAuditorTelemetry.StartQuickAuditActivity(html.Length);
+
+        try
+        {
+            var issues = await _htmlParser.ParseAndAnalyzeAsync(html, cancellationToken);
+            var result = new AuditResult { Issues = issues };
+            AccessibilityAuditorTelemetry.RecordQuickAuditResult(activity, result);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            AccessibilityAuditorTelemetry.RecordException(activity, ex);
+            throw;
+        }
     }
 
     public async Task<bool> IsReadyAsync(CancellationToken cancellationToken = default)

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.LlmSeoMetadata.Models;
+using Mostlylucid.LlmSeoMetadata.Telemetry;
 using OllamaSharp;
 
 namespace Mostlylucid.LlmSeoMetadata.Services;
@@ -44,6 +45,10 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
     /// <inheritdoc />
     public async Task<GenerationResponse> GenerateMetadataAsync(GenerationRequest request, CancellationToken cancellationToken = default)
     {
+        using var activity = SeoMetadataTelemetry.StartGenerateMetadataActivity(
+            request.Content.ContentType,
+            request.Content.Title);
+
         Interlocked.Increment(ref _totalRequests);
         var stopwatch = Stopwatch.StartNew();
 
@@ -58,7 +63,8 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
                 if (cached != null)
                 {
                     Interlocked.Increment(ref _cacheHits);
-                    return new GenerationResponse
+                    SeoMetadataTelemetry.RecordCacheHit(activity, cacheKey);
+                    var cacheResponse = new GenerationResponse
                     {
                         Success = true,
                         Metadata = cached,
@@ -66,8 +72,12 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
                         CacheKey = cacheKey,
                         GenerationTimeMs = stopwatch.ElapsedMilliseconds
                     };
+                    SeoMetadataTelemetry.RecordResult(activity, cacheResponse);
+                    return cacheResponse;
                 }
             }
+
+            SeoMetadataTelemetry.RecordCacheMiss(activity);
 
             var metadata = new SeoMetadata
             {
@@ -131,7 +141,7 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
             _lastSuccessfulGeneration = DateTime.UtcNow;
             _llmHealthy = true;
 
-            return new GenerationResponse
+            var response = new GenerationResponse
             {
                 Success = true,
                 Metadata = metadata,
@@ -139,12 +149,15 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
                 CacheKey = cacheKey,
                 GenerationTimeMs = stopwatch.ElapsedMilliseconds
             };
+            SeoMetadataTelemetry.RecordResult(activity, response);
+            return response;
         }
         catch (Exception ex)
         {
             stopwatch.Stop();
             Interlocked.Increment(ref _failedGenerations);
             _logger.LogError(ex, "Failed to generate SEO metadata");
+            SeoMetadataTelemetry.RecordException(activity, ex);
 
             return new GenerationResponse
             {
@@ -419,6 +432,8 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
 
     private async Task<string?> CallLlmAsync(string prompt, CancellationToken cancellationToken)
     {
+        using var activity = SeoMetadataTelemetry.StartLlmCallActivity(_options.Model);
+
         if (!IsReady)
         {
             _logger.LogWarning("SEO metadata service not ready - Ollama endpoint not configured");
@@ -455,18 +470,23 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
                 _logger.LogDebug("Received response from Ollama:\n{Response}", response);
             }
 
+            activity?.SetTag("mostlylucid.seometadata.llm_response_length", response.Length);
+            activity?.SetStatus(ActivityStatusCode.Ok);
+
             return response;
         }
         catch (OperationCanceledException)
         {
             _logger.LogWarning("LLM request timed out after {Timeout}s", _options.TimeoutSeconds);
             _llmHealthy = false;
+            SeoMetadataTelemetry.RecordTimeout(activity, _options.TimeoutSeconds);
             return null;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error calling Ollama API");
             _llmHealthy = false;
+            SeoMetadataTelemetry.RecordException(activity, ex);
             return null;
         }
     }

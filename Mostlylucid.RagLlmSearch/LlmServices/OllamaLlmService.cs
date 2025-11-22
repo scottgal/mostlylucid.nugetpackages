@@ -65,7 +65,11 @@ public class OllamaLlmService : ILlmService
         // Add all messages to the chat
         foreach (var msg in ollamaMessages.Take(ollamaMessages.Count - 1))
         {
-            await chat.SendAsync(msg.Content?.ToString() ?? string.Empty, cancellationToken);
+            // Consume the async enumerable to ensure the message is sent
+            await foreach (var _ in chat.SendAsync(msg.Content?.ToString() ?? string.Empty, cancellationToken))
+            {
+                // Just consume the stream
+            }
         }
 
         // Stream the response for the last message
@@ -158,7 +162,8 @@ public class OllamaLlmService : ILlmService
 
         try
         {
-            var response = await _client.GenerateAsync(new OllamaSharp.Models.GenerateRequest
+            var responses = new List<OllamaSharp.Models.GenerateResponseStream?>();
+            await foreach (var chunk in _client.GenerateAsync(new OllamaSharp.Models.GenerateRequest
             {
                 Model = _options.ChatModel,
                 Prompt = prompt,
@@ -167,9 +172,12 @@ public class OllamaLlmService : ILlmService
                     Temperature = 0.1f,
                     NumPredict = 10
                 }
-            }, cancellationToken).ToListAsync(cancellationToken);
+            }, cancellationToken))
+            {
+                responses.Add(chunk);
+            }
 
-            var result = string.Join("", response.Select(r => r.Response)).Trim().ToUpperInvariant();
+            var result = string.Join("", responses.Where(r => r != null).Select(r => r!.Response)).Trim().ToUpperInvariant();
             return result.Contains("YES");
         }
         catch (Exception ex)
@@ -190,7 +198,7 @@ public class OllamaLlmService : ILlmService
             systemPrompt += $"\n\n## Search Context\nUse the following search results to inform your response:\n\n{context}";
         }
 
-        ollamaMessages.Add(new Message(ChatRole.System, systemPrompt));
+        ollamaMessages.Add(new Message(OllamaSharp.Models.Chat.ChatRole.System, systemPrompt));
 
         // Add conversation history
         foreach (var msg in messages)

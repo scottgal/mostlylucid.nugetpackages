@@ -1,74 +1,58 @@
+using System.Diagnostics;
 using Florence2;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.LlmAltText.Models;
+using Mostlylucid.LlmAltText.Telemetry;
 
 namespace Mostlylucid.LlmAltText.Services;
 
 /// <summary>
 ///     Florence-2 Vision Language Model implementation for alt text generation and OCR
 /// </summary>
-public class Florence2ImageAnalysisService(
-    ILogger<Florence2ImageAnalysisService> logger,
-    IOptions<AltTextOptions> options) : IImageAnalysisService, IDisposable
+public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
 {
     private readonly SemaphoreSlim _initLock = new(1, 1);
-    private readonly (bool IsInitialized, Florence2Model? Model) _initResult = InitializeModel(logger, options.Value);
-    private readonly AltTextOptions _options = options.Value;
+    private readonly bool _isInitialized;
+    private readonly ILogger<Florence2ImageAnalysisService> _logger;
+    private readonly Florence2Model? _model;
+    private readonly AltTextOptions _options;
 
-    private bool _isInitialized => _initResult.IsInitialized;
-    private Florence2Model? _model => _initResult.Model;
-
-    private static (bool IsInitialized, Florence2Model? Model) InitializeModel(ILogger<Florence2ImageAnalysisService> logger, AltTextOptions options)
+    public Florence2ImageAnalysisService(
+        ILogger<Florence2ImageAnalysisService> logger,
+        IOptions<AltTextOptions> options)
     {
+        _logger = logger;
+        _options = options.Value;
+
         try
         {
-            if (options.EnableDiagnosticLogging)
-            {
-                logger.LogInformation("Initializing Florence-2 Vision Language Model...");
-                logger.LogInformation($"Model path: {options.ModelPath}");
-                logger.LogInformation("Note: Models (~800MB) will be downloaded on first use if not present");
-            }
+            LogInfo("Initializing Florence-2 Vision Language Model...");
+            LogInfo($"Model path: {_options.ModelPath}");
+            LogInfo("Note: Models (~800MB) will be downloaded on first use if not present");
 
-            var modelSource = new FlorenceModelDownloader(options.ModelPath);
+            var modelSource = new FlorenceModelDownloader(_options.ModelPath);
 
             // Download models if not already present
-            if (options.EnableDiagnosticLogging) logger.LogInformation("Checking for model files...");
+            LogInfo("Checking for model files...");
             modelSource
                 .DownloadModelsAsync(
-                    status => LogModelDownloadStatusStatic(logger, options, status),
-                    logger,
+                    status => LogModelDownloadStatus(status),
+                    _logger,
                     CancellationToken.None)
                 .GetAwaiter()
                 .GetResult();
 
-            var model = new Florence2Model(modelSource);
+            _model = new Florence2Model(modelSource);
+            _isInitialized = true;
 
-            if (options.EnableDiagnosticLogging)
-            {
-                logger.LogInformation("Florence-2 model initialized successfully");
-                logger.LogInformation("Available task types: CAPTION, DETAILED_CAPTION, MORE_DETAILED_CAPTION, OCR");
-            }
-            return (true, model);
+            LogInfo("Florence-2 model initialized successfully");
+            LogInfo("Available task types: CAPTION, DETAILED_CAPTION, MORE_DETAILED_CAPTION, OCR");
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to initialize Florence-2 model. Alt text generation will not be available.");
-            return (false, null);
-        }
-    }
-
-    private static void LogModelDownloadStatusStatic(ILogger logger, AltTextOptions options, IStatus status)
-    {
-        if (options.EnableDiagnosticLogging)
-        {
-            if (!string.IsNullOrEmpty(status.Error))
-                logger.LogError("Model download error: {Error}", status.Error);
-            else
-                logger.LogInformation(
-                    "Model download progress: {Progress:P1} - {Message}",
-                    status.Progress,
-                    status.Message ?? "Processing");
+            _logger.LogError(ex, "Failed to initialize Florence-2 model. Alt text generation will not be available.");
+            _isInitialized = false;
         }
     }
 
@@ -85,32 +69,36 @@ public class Florence2ImageAnalysisService(
         await EnsureInitializedAsync();
 
         var task = ResolveTaskType(taskType, TaskTypes.MORE_DETAILED_CAPTION);
+        using var activity = LlmAltTextTelemetry.StartGenerateAltTextActivity(taskType);
 
         try
         {
             LogInfo($"Generating alt text using task type: {task}");
-            var startTime = DateTime.UtcNow;
+            var startTime = Stopwatch.GetTimestamp();
 
             var results = _model!.Run(task, new[] { imageStream }, _options.AltTextPrompt, CancellationToken.None);
             var altText = results.FirstOrDefault()?.PureText;
 
-            var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            var duration = Stopwatch.GetElapsedTime(startTime).TotalMilliseconds;
             LogInfo($"Alt text generated in {duration:F0}ms");
 
             if (string.IsNullOrWhiteSpace(altText))
             {
-                logger.LogWarning("No alt text generated for image");
+                _logger.LogWarning("No alt text generated for image");
+                LlmAltTextTelemetry.RecordAltTextResult(activity, 0, duration);
                 return "No description available";
             }
 
             var normalized = NormalizeAltText(altText);
             LogInfo($"Generated alt text: {normalized.Substring(0, Math.Min(50, normalized.Length))}...");
 
+            LlmAltTextTelemetry.RecordAltTextResult(activity, normalized.Length, duration);
             return normalized;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error generating alt text");
+            LlmAltTextTelemetry.RecordException(activity, ex);
+            _logger.LogError(ex, "Error generating alt text");
             throw;
         }
     }
@@ -118,32 +106,36 @@ public class Florence2ImageAnalysisService(
     public async Task<string> ExtractTextAsync(Stream imageStream)
     {
         await EnsureInitializedAsync();
+        using var activity = LlmAltTextTelemetry.StartExtractTextActivity();
 
         try
         {
             LogInfo("Extracting text from image using OCR");
-            var startTime = DateTime.UtcNow;
+            var startTime = Stopwatch.GetTimestamp();
 
             var results = _model!.Run(TaskTypes.OCR, new[] { imageStream }, string.Empty, CancellationToken.None);
             var ocrText = results.FirstOrDefault()?.PureText;
 
-            var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            var duration = Stopwatch.GetElapsedTime(startTime).TotalMilliseconds;
             LogInfo($"Text extracted in {duration:F0}ms");
 
             if (string.IsNullOrWhiteSpace(ocrText))
             {
                 LogInfo("No text found in image");
+                LlmAltTextTelemetry.RecordExtractTextResult(activity, 0, false, duration);
                 return "No text found";
             }
 
             var trimmed = ocrText.Trim();
             LogInfo($"Extracted {trimmed.Length} characters of text");
 
+            LlmAltTextTelemetry.RecordExtractTextResult(activity, trimmed.Length, true, duration);
             return trimmed;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error extracting text from image");
+            LlmAltTextTelemetry.RecordException(activity, ex);
+            _logger.LogError(ex, "Error extracting text from image");
             throw;
         }
     }
@@ -151,16 +143,18 @@ public class Florence2ImageAnalysisService(
     public async Task<(string AltText, string ExtractedText)> AnalyzeImageAsync(Stream imageStream)
     {
         await EnsureInitializedAsync();
+        using var activity = LlmAltTextTelemetry.StartAnalyzeImageActivity();
 
         try
         {
             LogInfo("Starting complete image analysis (alt text + OCR)");
-            var startTime = DateTime.UtcNow;
+            var startTime = Stopwatch.GetTimestamp();
 
             // Create a memory stream to allow multiple reads
             using var memoryStream = new MemoryStream();
             await imageStream.CopyToAsync(memoryStream);
             LogInfo($"Image loaded: {memoryStream.Length:N0} bytes");
+            LlmAltTextTelemetry.RecordImageSize(activity, memoryStream.Length);
 
             // Generate alt text
             memoryStream.Position = 0;
@@ -170,14 +164,20 @@ public class Florence2ImageAnalysisService(
             memoryStream.Position = 0;
             var extractedText = await ExtractTextAsync(memoryStream);
 
-            var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            var duration = Stopwatch.GetElapsedTime(startTime).TotalMilliseconds;
             LogInfo($"Complete image analysis finished in {duration:F0}ms");
+
+            activity?.SetTag("llmalttext.alt_text_length", altText.Length);
+            activity?.SetTag("llmalttext.extracted_text_length", extractedText.Length);
+            activity?.SetTag("llmalttext.duration_ms", duration);
+            activity?.SetTag("llmalttext.success", true);
 
             return (altText, extractedText);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error analyzing image");
+            LlmAltTextTelemetry.RecordException(activity, ex);
+            _logger.LogError(ex, "Error analyzing image");
             throw;
         }
     }
@@ -185,16 +185,18 @@ public class Florence2ImageAnalysisService(
     public async Task<ImageAnalysisResult> AnalyzeWithClassificationAsync(Stream imageStream)
     {
         await EnsureInitializedAsync();
+        using var activity = LlmAltTextTelemetry.StartAnalyzeWithClassificationActivity();
 
         try
         {
             LogInfo("Starting complete image analysis with classification");
-            var startTime = DateTime.UtcNow;
+            var startTime = Stopwatch.GetTimestamp();
 
             // Create a memory stream to allow multiple reads
             using var memoryStream = new MemoryStream();
             await imageStream.CopyToAsync(memoryStream);
             LogInfo($"Image loaded: {memoryStream.Length:N0} bytes");
+            LlmAltTextTelemetry.RecordImageSize(activity, memoryStream.Length);
 
             // Generate alt text
             memoryStream.Position = 0;
@@ -211,10 +213,10 @@ public class Florence2ImageAnalysisService(
                                      extractedText != "No text found" &&
                                      extractedText.Length > 20;
 
-            var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            var duration = Stopwatch.GetElapsedTime(startTime).TotalMilliseconds;
             LogInfo($"Complete analysis with classification finished in {duration:F0}ms - Type: {contentType}");
 
-            return new ImageAnalysisResult
+            var result = new ImageAnalysisResult
             {
                 AltText = altText,
                 ExtractedText = extractedText,
@@ -222,10 +224,14 @@ public class Florence2ImageAnalysisService(
                 ContentTypeConfidence = confidence,
                 HasSignificantText = hasSignificantText
             };
+
+            LlmAltTextTelemetry.RecordAnalysisResult(activity, result, duration);
+            return result;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error analyzing image with classification");
+            LlmAltTextTelemetry.RecordException(activity, ex);
+            _logger.LogError(ex, "Error analyzing image with classification");
             throw;
         }
     }
@@ -233,14 +239,17 @@ public class Florence2ImageAnalysisService(
     public async Task<(ImageContentType Type, double Confidence)> ClassifyContentTypeAsync(Stream imageStream)
     {
         await EnsureInitializedAsync();
+        using var activity = LlmAltTextTelemetry.StartClassifyContentTypeActivity();
 
         try
         {
             LogInfo("Classifying image content type");
+            var startTime = Stopwatch.GetTimestamp();
 
             // Create a memory stream to allow multiple reads
             using var memoryStream = new MemoryStream();
             await imageStream.CopyToAsync(memoryStream);
+            LlmAltTextTelemetry.RecordImageSize(activity, memoryStream.Length);
 
             // Get alt text for classification
             memoryStream.Position = 0;
@@ -250,11 +259,16 @@ public class Florence2ImageAnalysisService(
             memoryStream.Position = 0;
             var extractedText = await ExtractTextAsync(memoryStream);
 
-            return ClassifyFromResults(altText, extractedText, memoryStream.Length);
+            var (contentType, confidence) = ClassifyFromResults(altText, extractedText, memoryStream.Length);
+            var duration = Stopwatch.GetElapsedTime(startTime).TotalMilliseconds;
+
+            LlmAltTextTelemetry.RecordClassificationResult(activity, contentType, confidence, duration);
+            return (contentType, confidence);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error classifying image content type");
+            LlmAltTextTelemetry.RecordException(activity, ex);
+            _logger.LogError(ex, "Error classifying image content type");
             throw;
         }
     }
@@ -358,7 +372,7 @@ public class Florence2ImageAnalysisService(
     {
         if (Enum.TryParse<TaskTypes>(taskType, true, out var parsed)) return parsed;
 
-        logger.LogWarning("Unknown task type '{TaskType}'; using fallback '{Fallback}'", taskType, fallback);
+        _logger.LogWarning("Unknown task type '{TaskType}'; using fallback '{Fallback}'", taskType, fallback);
         return fallback;
     }
 
@@ -372,15 +386,29 @@ public class Florence2ImageAnalysisService(
         // Check word count and warn if exceeding recommendation
         var wordCount = normalized.Split(new[] { ' ', '\t', '\n' }, StringSplitOptions.RemoveEmptyEntries).Length;
         if (wordCount > _options.MaxWords)
-            logger.LogWarning(
+            _logger.LogWarning(
                 "Generated alt text has {WordCount} words, exceeding recommended maximum of {MaxWords}",
                 wordCount, _options.MaxWords);
 
         return normalized;
     }
 
+    private void LogModelDownloadStatus(IStatus status)
+    {
+        if (_options.EnableDiagnosticLogging)
+        {
+            if (!string.IsNullOrEmpty(status.Error))
+                _logger.LogError("Model download error: {Error}", status.Error);
+            else
+                _logger.LogInformation(
+                    "Model download progress: {Progress:P1} - {Message}",
+                    status.Progress,
+                    status.Message ?? "Processing");
+        }
+    }
+
     private void LogInfo(string message)
     {
-        if (_options.EnableDiagnosticLogging) logger.LogInformation(message);
+        if (_options.EnableDiagnosticLogging) _logger.LogInformation(message);
     }
 }

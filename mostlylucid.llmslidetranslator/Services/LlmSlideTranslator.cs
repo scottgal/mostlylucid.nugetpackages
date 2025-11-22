@@ -2,22 +2,40 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using mostlylucid.llmslidetranslator.Models;
+using mostlylucid.llmslidetranslator.Telemetry;
 
 namespace mostlylucid.llmslidetranslator.Services;
 
 /// <summary>
 ///     Main translation service orchestrating RAG-assisted LLM translation
 /// </summary>
-public class LlmSlideTranslator(
-    ILogger<LlmSlideTranslator> logger,
-    IMarkdownChunker chunker,
-    IEmbeddingGenerator embeddingGenerator,
-    IVectorStore vectorStore,
-    IOllamaClient ollamaClient,
-    INmtClient nmtClient,
-    IOptions<LlmSlideTranslatorConfig> config) : ILlmSlideTranslator
+public class LlmSlideTranslator : ILlmSlideTranslator
 {
-    private readonly LlmSlideTranslatorConfig config = config.Value;
+    private readonly IMarkdownChunker _chunker;
+    private readonly LlmSlideTranslatorConfig _config;
+    private readonly IEmbeddingGenerator _embeddingGenerator;
+    private readonly ILogger<LlmSlideTranslator> _logger;
+    private readonly INmtClient _nmtClient;
+    private readonly IOllamaClient _ollamaClient;
+    private readonly IVectorStore _vectorStore;
+
+    public LlmSlideTranslator(
+        ILogger<LlmSlideTranslator> logger,
+        IMarkdownChunker chunker,
+        IEmbeddingGenerator embeddingGenerator,
+        IVectorStore vectorStore,
+        IOllamaClient ollamaClient,
+        INmtClient nmtClient,
+        IOptions<LlmSlideTranslatorConfig> config)
+    {
+        _logger = logger;
+        _chunker = chunker;
+        _embeddingGenerator = embeddingGenerator;
+        _vectorStore = vectorStore;
+        _ollamaClient = ollamaClient;
+        _nmtClient = nmtClient;
+        _config = config.Value;
+    }
 
     public async Task<TranslationResult> TranslateAsync(
         string markdown,
@@ -27,9 +45,12 @@ public class LlmSlideTranslator(
         TranslationMethod method = TranslationMethod.RagLlm,
         CancellationToken cancellationToken = default)
     {
+        using var activity = SlideTranslatorTelemetry.StartTranslateDocumentActivity(
+            documentId, sourceLanguage, targetLanguage, method);
+
         var stopwatch = Stopwatch.StartNew();
 
-        logger.LogInformation(
+        _logger.LogInformation(
             "Starting translation of document {DocumentId} from {Source} to {Target} using {Method}",
             documentId, sourceLanguage, targetLanguage, method);
 
@@ -44,21 +65,21 @@ public class LlmSlideTranslator(
         try
         {
             // Step 1: Chunk the markdown
-            var blocks = await chunker.ChunkAsync(
+            var blocks = await _chunker.ChunkAsync(
                 markdown,
                 documentId,
                 sourceLanguage,
                 targetLanguage,
                 cancellationToken);
 
-            logger.LogInformation("Chunked document into {Count} blocks", blocks.Count);
+            _logger.LogInformation("Chunked document into {Count} blocks", blocks.Count);
 
             // Step 2: Generate embeddings
-            blocks = await embeddingGenerator.GenerateEmbeddingsAsync(blocks, cancellationToken);
-            logger.LogInformation("Generated embeddings for all blocks");
+            blocks = await _embeddingGenerator.GenerateEmbeddingsAsync(blocks, cancellationToken);
+            _logger.LogInformation("Generated embeddings for all blocks");
 
             // Step 3: Store blocks with embeddings
-            await vectorStore.StoreAsync(blocks, documentId, cancellationToken);
+            await _vectorStore.StoreAsync(blocks, documentId, cancellationToken);
 
             // Step 4: Translate based on method
             switch (method)
@@ -82,20 +103,23 @@ public class LlmSlideTranslator(
             }
 
             // Step 5: Update stored blocks with translations
-            await vectorStore.StoreAsync(blocks, documentId, cancellationToken);
+            await _vectorStore.StoreAsync(blocks, documentId, cancellationToken);
 
             result.Blocks = blocks;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error translating document {DocumentId}", documentId);
+            _logger.LogError(ex, "Error translating document {DocumentId}", documentId);
             result.Errors.Add(ex.Message);
+            SlideTranslatorTelemetry.RecordException(activity, ex);
         }
 
         stopwatch.Stop();
         result.Duration = stopwatch.Elapsed;
 
-        logger.LogInformation(
+        SlideTranslatorTelemetry.RecordResult(activity, result);
+
+        _logger.LogInformation(
             "Translation completed in {Duration:F2}s for document {DocumentId}",
             result.Duration.TotalSeconds, documentId);
 
@@ -107,49 +131,62 @@ public class LlmSlideTranslator(
         TranslationBlock? previousBlock = null,
         CancellationToken cancellationToken = default)
     {
-        if (!block.ShouldTranslate)
+        using var activity = SlideTranslatorTelemetry.StartTranslateBlockActivity(
+            block.DocumentId, block.Index, block.SourceLanguage, block.TargetLanguage);
+
+        try
         {
-            block.TranslatedText = block.Text;
+            if (!block.ShouldTranslate)
+            {
+                block.TranslatedText = block.Text;
+                SlideTranslatorTelemetry.RecordBlockResult(activity, block);
+                return block;
+            }
+
+            // Get RAG context
+            var similarBlocks = new List<TranslationBlock>();
+            if (block.Embedding != null)
+            {
+                var searchResults = await _vectorStore.SearchAsync(
+                    block.Embedding,
+                    block.DocumentId,
+                    _config.Rag.TopK,
+                    _config.Rag.MinSimilarity,
+                    cancellationToken);
+
+                similarBlocks = searchResults
+                    .Where(r => r.Block.Index < block.Index) // Only use earlier blocks
+                    .Select(r => r.Block)
+                    .ToList();
+            }
+
+            // Build translation context
+            var context = new TranslationContext
+            {
+                CurrentBlock = block,
+                PreviousBlock = _config.Rag.UseSlidingWindow ? previousBlock : null,
+                SimilarBlocks = similarBlocks.Take(_config.Rag.MaxContextBlocks).ToList()
+            };
+
+            // Translate with LLM
+            var translatedText = await _ollamaClient.TranslateWithContextAsync(context, cancellationToken);
+            block.TranslatedText = translatedText;
+
+            SlideTranslatorTelemetry.RecordBlockResult(activity, block);
             return block;
         }
-
-        // Get RAG context
-        var similarBlocks = new List<TranslationBlock>();
-        if (block.Embedding != null)
+        catch (Exception ex)
         {
-            var searchResults = await vectorStore.SearchAsync(
-                block.Embedding,
-                block.DocumentId,
-                config.Rag.TopK,
-                config.Rag.MinSimilarity,
-                cancellationToken);
-
-            similarBlocks = searchResults
-                .Where(r => r.Block.Index < block.Index) // Only use earlier blocks
-                .Select(r => r.Block)
-                .ToList();
+            SlideTranslatorTelemetry.RecordException(activity, ex);
+            throw;
         }
-
-        // Build translation context
-        var context = new TranslationContext
-        {
-            CurrentBlock = block,
-            PreviousBlock = config.Rag.UseSlidingWindow ? previousBlock : null,
-            SimilarBlocks = similarBlocks.Take(config.Rag.MaxContextBlocks).ToList()
-        };
-
-        // Translate with LLM
-        var translatedText = await ollamaClient.TranslateWithContextAsync(context, cancellationToken);
-        block.TranslatedText = translatedText;
-
-        return block;
     }
 
     public async Task<TranslationProgress> GetProgressAsync(
         string documentId,
         CancellationToken cancellationToken = default)
     {
-        var blocks = await vectorStore.GetDocumentBlocksAsync(documentId, cancellationToken);
+        var blocks = await _vectorStore.GetDocumentBlocksAsync(documentId, cancellationToken);
 
         var translatedCount = blocks.Count(b => !string.IsNullOrEmpty(b.TranslatedText));
 
@@ -165,15 +202,15 @@ public class LlmSlideTranslator(
         List<TranslationBlock> blocks,
         CancellationToken cancellationToken)
     {
-        logger.LogInformation("Translating with NMT only");
-        return await nmtClient.TranslateBatchAsync(blocks, cancellationToken);
+        _logger.LogInformation("Translating with NMT only");
+        return await _nmtClient.TranslateBatchAsync(blocks, cancellationToken);
     }
 
     private async Task<List<TranslationBlock>> TranslateWithLlmOnlyAsync(
         List<TranslationBlock> blocks,
         CancellationToken cancellationToken)
     {
-        logger.LogInformation("Translating with LLM only (no RAG)");
+        _logger.LogInformation("Translating with LLM only (no RAG)");
 
         TranslationBlock? previousBlock = null;
 
@@ -192,7 +229,7 @@ public class LlmSlideTranslator(
                 PreviousBlock = previousBlock
             };
 
-            block.TranslatedText = await ollamaClient.TranslateWithContextAsync(context, cancellationToken);
+            block.TranslatedText = await _ollamaClient.TranslateWithContextAsync(context, cancellationToken);
             previousBlock = block;
         }
 
@@ -203,10 +240,10 @@ public class LlmSlideTranslator(
         List<TranslationBlock> blocks,
         CancellationToken cancellationToken)
     {
-        logger.LogInformation("Translating with NMT + LLM post-editing");
+        _logger.LogInformation("Translating with NMT + LLM post-editing");
 
         // First pass: NMT baseline
-        blocks = await nmtClient.TranslateBatchAsync(blocks, cancellationToken);
+        blocks = await _nmtClient.TranslateBatchAsync(blocks, cancellationToken);
 
         // Second pass: LLM post-editing with RAG
         return await TranslateWithRagLlmAsync(blocks, cancellationToken);
@@ -216,7 +253,7 @@ public class LlmSlideTranslator(
         List<TranslationBlock> blocks,
         CancellationToken cancellationToken)
     {
-        logger.LogInformation("Translating with RAG-enhanced LLM");
+        _logger.LogInformation("Translating with RAG-enhanced LLM");
 
         TranslationBlock? previousBlock = null;
 

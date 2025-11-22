@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.LlmI18nAssistant.Models;
+using Mostlylucid.LlmI18nAssistant.Telemetry;
 
 namespace Mostlylucid.LlmI18nAssistant.Services;
 
@@ -44,6 +45,9 @@ public class LlmI18nAssistantService : ILlmI18nAssistant
         TranslationOptions? options = null,
         CancellationToken cancellationToken = default)
     {
+        using var activity = I18nAssistantTelemetry.StartTranslateResourceFileActivity(
+            filePath, sourceLanguage, targetLanguage);
+
         options ??= new TranslationOptions();
         var stopwatch = Stopwatch.StartNew();
 
@@ -61,11 +65,13 @@ public class LlmI18nAssistantService : ILlmI18nAssistant
                 resourceFile, sourceLanguage, targetLanguage, options, cancellationToken);
 
             result.Duration = stopwatch.Elapsed;
+            I18nAssistantTelemetry.RecordResult(activity, result);
             return result;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to translate resource file {FilePath}", filePath);
+            I18nAssistantTelemetry.RecordException(activity, ex);
             return new TranslationResult
             {
                 SourceFile = new ResourceFile { FilePath = filePath },
@@ -87,6 +93,9 @@ public class LlmI18nAssistantService : ILlmI18nAssistant
         TranslationOptions? options = null,
         CancellationToken cancellationToken = default)
     {
+        using var activity = I18nAssistantTelemetry.StartTranslateStreamActivity(
+            fileType, sourceLanguage, targetLanguage);
+
         options ??= new TranslationOptions();
         var stopwatch = Stopwatch.StartNew();
 
@@ -99,11 +108,13 @@ public class LlmI18nAssistantService : ILlmI18nAssistant
                 resourceFile, sourceLanguage, targetLanguage, options, cancellationToken);
 
             result.Duration = stopwatch.Elapsed;
+            I18nAssistantTelemetry.RecordResult(activity, result);
             return result;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to translate resource stream");
+            I18nAssistantTelemetry.RecordException(activity, ex);
             return new TranslationResult
             {
                 SourceFile = new ResourceFile { FileType = fileType },
@@ -124,35 +135,48 @@ public class LlmI18nAssistantService : ILlmI18nAssistant
         TranslationOptions? options = null,
         CancellationToken cancellationToken = default)
     {
+        var languages = targetLanguages.ToList();
+        using var activity = I18nAssistantTelemetry.StartTranslateMultipleLanguagesActivity(
+            filePath, sourceLanguage, languages.Count);
+
         options ??= new TranslationOptions();
         var stopwatch = Stopwatch.StartNew();
 
-        var resourceFile = await _parser.ParseAsync(filePath, cancellationToken);
-        resourceFile.SourceLanguage = sourceLanguage;
-
-        var result = new MultiLanguageTranslationResult
+        try
         {
-            SourceFile = resourceFile,
-            SourceLanguage = sourceLanguage
-        };
+            var resourceFile = await _parser.ParseAsync(filePath, cancellationToken);
+            resourceFile.SourceLanguage = sourceLanguage;
 
-        var languages = targetLanguages.ToList();
-        _logger.LogInformation("Translating {FilePath} to {Count} languages: {Languages}",
-            filePath, languages.Count, string.Join(", ", languages));
+            var result = new MultiLanguageTranslationResult
+            {
+                SourceFile = resourceFile,
+                SourceLanguage = sourceLanguage
+            };
 
-        // Translate to each language
-        foreach (var targetLanguage in languages)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
+            _logger.LogInformation("Translating {FilePath} to {Count} languages: {Languages}",
+                filePath, languages.Count, string.Join(", ", languages));
 
-            var translation = await TranslateResourceFileInternalAsync(
-                resourceFile, sourceLanguage, targetLanguage, options, cancellationToken);
+            // Translate to each language
+            foreach (var targetLanguage in languages)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
 
-            result.Results[targetLanguage] = translation;
+                var translation = await TranslateResourceFileInternalAsync(
+                    resourceFile, sourceLanguage, targetLanguage, options, cancellationToken);
+
+                result.Results[targetLanguage] = translation;
+            }
+
+            result.TotalDuration = stopwatch.Elapsed;
+            I18nAssistantTelemetry.RecordMultiLanguageResult(activity, result);
+            return result;
         }
-
-        result.TotalDuration = stopwatch.Elapsed;
-        return result;
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to translate resource file to multiple languages {FilePath}", filePath);
+            I18nAssistantTelemetry.RecordException(activity, ex);
+            throw;
+        }
     }
 
     /// <inheritdoc />
@@ -165,6 +189,9 @@ public class LlmI18nAssistantService : ILlmI18nAssistant
     {
         if (string.IsNullOrWhiteSpace(text))
             return text;
+
+        using var activity = I18nAssistantTelemetry.StartTranslateStringActivity(
+            sourceLanguage, targetLanguage, text.Length);
 
         _logger.LogDebug("Translating single string from {Source} to {Target}: {Text}",
             sourceLanguage, targetLanguage, text.Length > 50 ? text[..50] + "..." : text);
@@ -192,11 +219,13 @@ public class LlmI18nAssistantService : ILlmI18nAssistant
                 context,
                 cancellationToken);
 
+            I18nAssistantTelemetry.RecordStringResult(activity, translation.Length);
             return translation;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to translate string");
+            I18nAssistantTelemetry.RecordException(activity, ex);
             throw;
         }
     }
@@ -209,41 +238,54 @@ public class LlmI18nAssistantService : ILlmI18nAssistant
         TranslationOptions? options = null,
         CancellationToken cancellationToken = default)
     {
+        using var activity = I18nAssistantTelemetry.StartTranslateBatchActivity(
+            sourceLanguage, targetLanguage, entries.Count);
+
         options ??= new TranslationOptions();
 
-        var result = new Dictionary<string, string>();
-        var total = entries.Count;
-        var current = 0;
-
-        foreach (var (key, value) in entries)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            var result = new Dictionary<string, string>();
+            var total = entries.Count;
+            var current = 0;
 
-            current++;
-            options.OnProgress?.Invoke(new TranslationProgress
+            foreach (var (key, value) in entries)
             {
-                CurrentIndex = current,
-                TotalCount = total,
-                CurrentKey = key,
-                CurrentValue = value,
-                TargetLanguage = targetLanguage,
-                Status = $"Translating entry {current}/{total}"
-            });
+                cancellationToken.ThrowIfCancellationRequested();
 
-            try
-            {
-                var translated = await TranslateStringAsync(value, sourceLanguage, targetLanguage,
-                    $"Resource key: {key}", cancellationToken);
-                result[key] = translated;
+                current++;
+                options.OnProgress?.Invoke(new TranslationProgress
+                {
+                    CurrentIndex = current,
+                    TotalCount = total,
+                    CurrentKey = key,
+                    CurrentValue = value,
+                    TargetLanguage = targetLanguage,
+                    Status = $"Translating entry {current}/{total}"
+                });
+
+                try
+                {
+                    var translated = await TranslateStringAsync(value, sourceLanguage, targetLanguage,
+                        $"Resource key: {key}", cancellationToken);
+                    result[key] = translated;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to translate key {Key}, using original value", key);
+                    result[key] = value;
+                }
             }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to translate key {Key}, using original value", key);
-                result[key] = value;
-            }
+
+            I18nAssistantTelemetry.RecordBatchResult(activity, result.Count, total);
+            return result;
         }
-
-        return result;
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to translate batch");
+            I18nAssistantTelemetry.RecordException(activity, ex);
+            throw;
+        }
     }
 
     /// <inheritdoc />

@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.RagLlmSearch.Models;
 
+using ConversationModel = Mostlylucid.RagLlmSearch.Models.Conversation;
+
 namespace Mostlylucid.RagLlmSearch.SignalR;
 
 /// <summary>
@@ -48,7 +50,7 @@ public class ChatHub : Hub<IChatHubClient>
     /// Gets conversation history
     /// </summary>
     /// <param name="conversationId">The conversation ID</param>
-    public async Task<Conversation?> GetConversation(string conversationId)
+    public async Task<ConversationModel?> GetConversation(string conversationId)
     {
         return await _chatService.GetConversationAsync(conversationId, Context.ConnectionAborted);
     }
@@ -57,7 +59,7 @@ public class ChatHub : Hub<IChatHubClient>
     /// Gets all conversations for the current user
     /// </summary>
     /// <param name="userId">The user ID</param>
-    public async Task<List<Conversation>> GetUserConversations(string userId)
+    public async Task<List<ConversationModel>> GetUserConversations(string userId)
     {
         return await _chatService.GetUserConversationsAsync(userId, Context.ConnectionAborted);
     }

@@ -5,30 +5,36 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.GeoDetection.Models;
+using Mostlylucid.GeoDetection.Telemetry;
 
 namespace Mostlylucid.GeoDetection.Services;
 
 /// <summary>
 ///     GeoLocation service using MaxMind GeoLite2 local database
 /// </summary>
-public class MaxMindGeoLocationService(
-    ILogger<MaxMindGeoLocationService> logger,
-    IOptions<GeoLite2Options> options,
-    IMemoryCache cache,
-    IGeoLocationService? fallbackService = null) : IGeoLocationService, IDisposable
+public class MaxMindGeoLocationService : IGeoLocationService, IDisposable
 {
-    private readonly GeoLite2Options _options = options.Value;
+    private readonly IMemoryCache _cache;
+    private readonly GeoLite2Options _options;
+    private readonly ILogger<MaxMindGeoLocationService> _logger;
     private readonly GeoLocationStatistics _stats = new();
     private readonly SemaphoreSlim _readerLock = new(1, 1);
+    private readonly IGeoLocationService? _fallbackService;
 
     private DatabaseReader? _reader;
     private DateTime _lastReaderUpdate = DateTime.MinValue;
-    private bool _initialized;
 
-    private void EnsureInitialized()
+    public MaxMindGeoLocationService(
+        ILogger<MaxMindGeoLocationService> logger,
+        IOptions<GeoLite2Options> options,
+        IMemoryCache cache,
+        IGeoLocationService? fallbackService = null)
     {
-        if (_initialized) return;
-        _initialized = true;
+        _logger = logger;
+        _options = options.Value;
+        _cache = cache;
+        _fallbackService = fallbackService;
+
         InitializeReader();
     }
 
@@ -41,11 +47,11 @@ public class MaxMindGeoLocationService(
             {
                 _reader = new DatabaseReader(dbPath);
                 _lastReaderUpdate = File.GetLastWriteTimeUtc(dbPath);
-                logger.LogInformation("MaxMind GeoLite2 database loaded from {Path}", dbPath);
+                _logger.LogInformation("MaxMind GeoLite2 database loaded from {Path}", dbPath);
             }
             else
             {
-                logger.LogWarning("MaxMind GeoLite2 database not found at {Path}. " +
+                _logger.LogWarning("MaxMind GeoLite2 database not found at {Path}. " +
                     "Configure GeoLite2Options with AccountId and LicenseKey to enable auto-download, " +
                     "or download manually from https://dev.maxmind.com/geoip/geolite2-free-geolocation-data",
                     dbPath);
@@ -53,7 +59,7 @@ public class MaxMindGeoLocationService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to initialize MaxMind database reader");
+            _logger.LogError(ex, "Failed to initialize MaxMind database reader");
         }
     }
 
@@ -77,44 +83,56 @@ public class MaxMindGeoLocationService(
 
     public async Task<GeoLocation?> GetLocationAsync(string ipAddress, CancellationToken cancellationToken = default)
     {
-        EnsureInitialized();
-        _stats.TotalLookups++;
+        using var activity = GeoDetectionTelemetry.StartGetLocationActivity(ipAddress);
 
-        // Check cache first
-        var cacheKey = $"geo:{ipAddress}";
-        if (cache.TryGetValue(cacheKey, out GeoLocation? cached))
+        try
         {
-            _stats.CacheHits++;
-            return cached;
+            _stats.TotalLookups++;
+
+            // Check cache first
+            var cacheKey = $"geo:{ipAddress}";
+            if (_cache.TryGetValue(cacheKey, out GeoLocation? cached))
+            {
+                _stats.CacheHits++;
+                GeoDetectionTelemetry.RecordResult(activity, cached, cacheHit: true);
+                GeoDetectionTelemetry.RecordCacheSource(activity, "memory");
+                return cached;
+            }
+
+            // Try MaxMind lookup
+            var location = await LookupMaxMindAsync(ipAddress, cancellationToken);
+
+            // Fall back to simple service if configured
+            if (location == null && _options.FallbackToSimple && _fallbackService != null)
+            {
+                _logger.LogDebug("Falling back to simple geo service for {IP}", ipAddress);
+                location = await _fallbackService.GetLocationAsync(ipAddress, cancellationToken);
+            }
+
+            // Cache the result
+            if (location != null)
+            {
+                var cacheOptions = new MemoryCacheEntryOptions()
+                    .SetAbsoluteExpiration(_options.CacheDuration)
+                    .SetSize(1);
+                _cache.Set(cacheKey, location, cacheOptions);
+            }
+
+            GeoDetectionTelemetry.RecordResult(activity, location, cacheHit: false);
+            return location;
         }
-
-        // Try MaxMind lookup
-        var location = await LookupMaxMindAsync(ipAddress, cancellationToken);
-
-        // Fall back to simple service if configured
-        if (location == null && _options.FallbackToSimple && fallbackService != null)
+        catch (Exception ex)
         {
-            logger.LogDebug("Falling back to simple geo service for {IP}", ipAddress);
-            location = await fallbackService.GetLocationAsync(ipAddress, cancellationToken);
+            GeoDetectionTelemetry.RecordException(activity, ex);
+            throw;
         }
-
-        // Cache the result
-        if (location != null)
-        {
-            var cacheOptions = new MemoryCacheEntryOptions()
-                .SetAbsoluteExpiration(_options.CacheDuration)
-                .SetSize(1);
-            cache.Set(cacheKey, location, cacheOptions);
-        }
-
-        return location;
     }
 
     private Task<GeoLocation?> LookupMaxMindAsync(string ipAddress, CancellationToken cancellationToken)
     {
         if (_reader == null)
         {
-            logger.LogDebug("MaxMind reader not available for lookup of {IP}", ipAddress);
+            _logger.LogDebug("MaxMind reader not available for lookup of {IP}", ipAddress);
             return Task.FromResult<GeoLocation?>(null);
         }
 
@@ -122,7 +140,7 @@ public class MaxMindGeoLocationService(
         {
             if (!IPAddress.TryParse(ipAddress, out var ip))
             {
-                logger.LogWarning("Invalid IP address format: {IP}", ipAddress);
+                _logger.LogWarning("Invalid IP address format: {IP}", ipAddress);
                 return Task.FromResult<GeoLocation?>(null);
             }
 
@@ -148,12 +166,12 @@ public class MaxMindGeoLocationService(
         }
         catch (AddressNotFoundException)
         {
-            logger.LogDebug("IP address not found in database: {IP}", ipAddress);
+            _logger.LogDebug("IP address not found in database: {IP}", ipAddress);
             return Task.FromResult<GeoLocation?>(null);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error looking up IP {IP} in MaxMind database", ipAddress);
+            _logger.LogError(ex, "Error looking up IP {IP} in MaxMind database", ipAddress);
             return Task.FromResult<GeoLocation?>(null);
         }
     }
@@ -229,8 +247,21 @@ public class MaxMindGeoLocationService(
     public async Task<bool> IsFromCountryAsync(string ipAddress, string countryCode,
         CancellationToken cancellationToken = default)
     {
-        var location = await GetLocationAsync(ipAddress, cancellationToken);
-        return location?.CountryCode.Equals(countryCode, StringComparison.OrdinalIgnoreCase) ?? false;
+        using var activity = GeoDetectionTelemetry.StartIsFromCountryActivity(ipAddress, countryCode);
+
+        try
+        {
+            var location = await GetLocationAsync(ipAddress, cancellationToken);
+            var isFromCountry = location?.CountryCode.Equals(countryCode, StringComparison.OrdinalIgnoreCase) ?? false;
+
+            GeoDetectionTelemetry.RecordCountryCheckResult(activity, isFromCountry, location?.CountryCode);
+            return isFromCountry;
+        }
+        catch (Exception ex)
+        {
+            GeoDetectionTelemetry.RecordException(activity, ex);
+            throw;
+        }
     }
 
     public GeoLocationStatistics GetStatistics()

@@ -40,7 +40,7 @@
         <PackageReference Include="System.Text.Json" Version="9.0.10"/>
 
         <!-- Serilog file reading support -->
-        <PackageReference Include="Serilog.Formatting.Compact.Reader" Version="3.0.1"/>
+        <PackageReference Include="Serilog.Formatting.Compact.Reader" Version="4.0.0"/>
 
         <!-- Email support -->
         <PackageReference Include="MailKit" Version="4.12.1"/>
