@@ -223,6 +223,7 @@ static async Task RunFullPipelineAsync(IServiceProvider services, CancellationTo
             {
                 try
                 {
+                    logger.LogDebug("Converting: {File}", Path.GetFileName(filePath));
                     var articles = await converter.ConvertFileAsync(filePath, cancellationToken);
                     convertStats.Successful += articles.Count;
 
@@ -233,7 +234,12 @@ static async Task RunFullPipelineAsync(IServiceProvider services, CancellationTo
                     }
                     else if (articles.Count == 1)
                     {
-                        logger.LogDebug("Converted: {File}", Path.GetFileName(filePath));
+                        logger.LogInformation("Converted: {File} -> {Output}",
+                            Path.GetFileName(filePath), articles[0].OutputFilePath);
+                    }
+                    else
+                    {
+                        logger.LogDebug("Skipped (no articles): {File}", Path.GetFileName(filePath));
                     }
                 }
                 catch (Exception ex)
@@ -259,6 +265,21 @@ static async Task RunFullPipelineAsync(IServiceProvider services, CancellationTo
 
         logger.LogInformation("Download output: {Dir}", downloadOptions.OutputDirectory);
         logger.LogInformation("Markdown output: {Dir}", convertOptions.OutputDirectory);
+
+        // First, queue any existing HTML files that haven't been converted yet
+        var existingHtmlFiles = Directory.GetFiles(downloadOptions.OutputDirectory, "*.html");
+        if (existingHtmlFiles.Length > 0)
+        {
+            logger.LogInformation("Found {Count} existing HTML files, queueing unconverted ones...", existingHtmlFiles.Length);
+            var queuedCount = 0;
+            foreach (var htmlFile in existingHtmlFiles)
+            {
+                // Queue for conversion - the converter will skip if already done
+                await channel.Writer.WriteAsync(htmlFile, cancellationToken);
+                queuedCount++;
+            }
+            logger.LogInformation("Queued {Count} existing files for conversion", queuedCount);
+        }
 
         var cdxClient = services.GetRequiredService<ICdxApiClient>();
         logger.LogInformation("Fetching CDX records...");
@@ -293,7 +314,12 @@ static async Task RunFullPipelineAsync(IServiceProvider services, CancellationTo
                 // Send to converter if we have a file path
                 if (!string.IsNullOrEmpty(result.FilePath) && File.Exists(result.FilePath))
                 {
+                    // Always queue - the converter will skip if already converted or should be filtered
                     await channel.Writer.WriteAsync(result.FilePath, cancellationToken);
+                }
+                else
+                {
+                    logger.LogWarning("Download succeeded but no file path: {Url}", record.OriginalUrl);
                 }
             }
             else

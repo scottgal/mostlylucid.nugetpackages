@@ -119,34 +119,43 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             var metadata = ExtractArchiveMetadata(html);
 
             // Check if this is an index/archive page that should be skipped
-            if (ShouldSkipUrl(metadata.originalUrl))
+            var fileName = Path.GetFileName(htmlFilePath);
+            if (ShouldSkipUrl(metadata.originalUrl) || ShouldSkipUrl(fileName))
             {
-                _logger.LogDebug("Skipping index/archive page: {Url}", metadata.originalUrl);
+                _logger.LogInformation("Skipping index/archive page: {File}", fileName);
                 return articles;
             }
 
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
 
-            // Remove unwanted elements
-            RemoveUnwantedElements(doc);
+            // IMPORTANT: Extract content FIRST before removing elements
+            // (because form removal would destroy div.post which is inside the form)
+            var contentNode = ExtractMainContent(doc);
+            if (contentNode == null)
+            {
+                _logger.LogWarning("Could not find main content in {File}", htmlFilePath);
+                return articles;
+            }
 
             // Check if this is a multi-post page
             if (!string.IsNullOrEmpty(_options.PostSelector))
             {
-                var postNodes = SelectNodes(doc.DocumentNode, _options.PostSelector);
-                if (postNodes != null && postNodes.Count > 1)
+                var postNodes = SelectNodesList(contentNode, _options.PostSelector);
+                if (postNodes.Count > 1)
                 {
                     // This looks like an index page with multiple posts - skip it
-                    // The individual posts should have their own archived pages
                     _logger.LogInformation("Skipping multi-post page ({Count} posts) - likely an index: {Url}",
                         postNodes.Count, metadata.originalUrl);
                     return articles;
                 }
             }
 
+            // Now remove unwanted elements from within the content node
+            RemoveUnwantedElementsFromNode(contentNode);
+
             // Single post page - use original logic
-            var singleArticle = await ConvertSinglePageAsync(doc, html, metadata, htmlFilePath, cancellationToken);
+            var singleArticle = await ConvertSinglePageAsync(contentNode, doc, html, metadata, htmlFilePath, cancellationToken);
             if (singleArticle != null)
             {
                 // Check minimum content length
@@ -287,7 +296,11 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
     /// <summary>
     /// Convert a single-post page (original logic)
     /// </summary>
+    /// <summary>
+    /// Convert a single-post page to markdown
+    /// </summary>
     private async Task<MarkdownArticle?> ConvertSinglePageAsync(
+        HtmlNode contentNode,
         HtmlDocument doc,
         string html,
         (string originalUrl, DateTime archiveDate) metadata,
@@ -301,27 +314,47 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
         {
             var htmlLastWrite = File.GetLastWriteTimeUtc(htmlFilePath);
             var mdLastWrite = File.GetLastWriteTimeUtc(potentialOutputPath);
-            if (mdLastWrite >= htmlLastWrite)
+
+            // Check if this archive is newer by looking at the archive date in the existing markdown
+            var existingMd = await File.ReadAllTextAsync(potentialOutputPath, cancellationToken);
+            var existingArchiveDateMatch = Regex.Match(existingMd, @"archiveDate:\s*(\d{4}-\d{2}-\d{2})");
+            if (existingArchiveDateMatch.Success &&
+                DateTime.TryParse(existingArchiveDateMatch.Groups[1].Value, out var existingArchiveDate))
             {
-                _logger.LogDebug("Skipping already converted: {File}", htmlFilePath);
+                if (metadata.archiveDate > existingArchiveDate)
+                {
+                    _logger.LogInformation("Newer archive found ({New:yyyy-MM-dd} > {Old:yyyy-MM-dd}), re-converting: {File}",
+                        metadata.archiveDate, existingArchiveDate, Path.GetFileName(htmlFilePath));
+                    // Continue to re-convert
+                }
+                else if (mdLastWrite >= htmlLastWrite)
+                {
+                    _logger.LogDebug("Skipping already converted (archive {Date:yyyy-MM-dd}): {File}",
+                        existingArchiveDate, Path.GetFileName(htmlFilePath));
+                    return null;
+                }
+            }
+            else if (mdLastWrite >= htmlLastWrite)
+            {
+                _logger.LogDebug("Skipping already converted: {File}", Path.GetFileName(htmlFilePath));
                 return null;
             }
         }
 
-        // Extract the main content
-        var contentNode = ExtractMainContent(doc);
-        if (contentNode == null)
-        {
-            _logger.LogWarning("Could not find main content in {File}", htmlFilePath);
-            return null;
-        }
+        // Content node is already extracted and passed in
 
-        // Extract title
+        // Extract title (before removing it from content)
         var title = ExtractTitle(doc, contentNode);
         if (string.IsNullOrEmpty(title))
         {
             title = Path.GetFileNameWithoutExtension(htmlFilePath);
         }
+
+        // Remove title element from content (it goes in frontmatter)
+        RemoveTitleFromContent(contentNode);
+
+        // Remove date/footer elements from content (date goes in frontmatter)
+        RemoveDateFooterFromContent(contentNode);
 
         // Rewrite links to be blog-relative
         RewriteLinks(contentNode, metadata.originalUrl);
@@ -457,22 +490,58 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
     /// <summary>
     /// Helper to select nodes using CSS-like selectors
     /// </summary>
-    private static HtmlNodeCollection? SelectNodes(HtmlNode node, string selector)
+    private static List<HtmlNode> SelectNodesList(HtmlNode node, string selector)
     {
         // Handle class selector (e.g., .post)
         if (selector.StartsWith('.'))
         {
             var className = selector.TrimStart('.');
-            return node.SelectNodes($".//*[contains(@class, '{className}')]");
+            return node.Descendants()
+                .Where(n => HasExactClass(n, className))
+                .ToList();
         }
         // Handle ID selector (e.g., #content)
         if (selector.StartsWith('#'))
         {
             var id = selector.TrimStart('#');
-            return node.SelectNodes($".//*[@id='{id}']");
+            var result = node.Descendants()
+                .FirstOrDefault(n => n.GetAttributeValue("id", "") == id);
+            return result != null ? [result] : [];
+        }
+        // Handle element.class selector (e.g., div.post)
+        if (selector.Contains('.') && !selector.StartsWith('.'))
+        {
+            var parts = selector.Split('.', 2);
+            var elementName = parts[0];
+            var className = parts[1];
+            return node.Descendants()
+                .Where(n =>
+                    n.Name.Equals(elementName, StringComparison.OrdinalIgnoreCase) &&
+                    HasExactClass(n, className))
+                .ToList();
         }
         // Handle element selector (e.g., article)
-        return node.SelectNodes($".//{selector}");
+        return node.Descendants()
+            .Where(n => n.Name.Equals(selector, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Helper to select nodes - returns HtmlNodeCollection-like wrapper for compatibility
+    /// </summary>
+    private static HtmlNodeCollection? SelectNodes(HtmlNode node, string selector)
+    {
+        var list = SelectNodesList(node, selector);
+        if (list.Count == 0)
+            return null;
+
+        // Create a collection from the list
+        var collection = new HtmlNodeCollection(node);
+        foreach (var item in list)
+        {
+            collection.Add(item);
+        }
+        return collection;
     }
 
     /// <summary>
@@ -484,16 +553,30 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
         if (selector.StartsWith('.'))
         {
             var className = selector.TrimStart('.');
-            return node.SelectSingleNode($".//*[contains(@class, '{className}')]");
+            return node.Descendants()
+                .FirstOrDefault(n => HasExactClass(n, className));
         }
         // Handle ID selector
         if (selector.StartsWith('#'))
         {
             var id = selector.TrimStart('#');
-            return node.SelectSingleNode($".//*[@id='{id}']");
+            return node.Descendants()
+                .FirstOrDefault(n => n.GetAttributeValue("id", "") == id);
+        }
+        // Handle element.class selector (e.g., div.post)
+        if (selector.Contains('.') && !selector.StartsWith('.'))
+        {
+            var parts = selector.Split('.', 2);
+            var elementName = parts[0];
+            var className = parts[1];
+            return node.Descendants()
+                .FirstOrDefault(n =>
+                    n.Name.Equals(elementName, StringComparison.OrdinalIgnoreCase) &&
+                    HasExactClass(n, className));
         }
         // Handle element selector
-        return node.SelectSingleNode($".//{selector}");
+        return node.Descendants()
+            .FirstOrDefault(n => n.Name.Equals(selector, StringComparison.OrdinalIgnoreCase));
     }
 
     private static (string originalUrl, DateTime archiveDate) ExtractArchiveMetadata(string html)
@@ -558,91 +641,309 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
         }
     }
 
+    /// <summary>
+    /// Remove unwanted elements from within a specific node (not the whole document)
+    /// Uses HtmlAgilityPack Descendants for reliable element matching
+    /// </summary>
+    private void RemoveUnwantedElementsFromNode(HtmlNode contentNode)
+    {
+        foreach (var selector in _options.RemoveSelectors)
+        {
+            var nodesToRemove = new List<HtmlNode>();
+
+            // Handle class selector (e.g., .sidebar)
+            if (selector.StartsWith('.'))
+            {
+                var className = selector.TrimStart('.');
+                nodesToRemove.AddRange(contentNode.Descendants()
+                    .Where(n => HasExactClass(n, className)));
+            }
+            // Handle ID selector (e.g., #header)
+            else if (selector.StartsWith('#'))
+            {
+                var id = selector.TrimStart('#');
+                var node = contentNode.Descendants()
+                    .FirstOrDefault(n => n.GetAttributeValue("id", "") == id);
+                if (node != null)
+                    nodesToRemove.Add(node);
+            }
+            // Handle element selector (e.g., nav, script, form)
+            else
+            {
+                nodesToRemove.AddRange(contentNode.Descendants()
+                    .Where(n => n.Name.Equals(selector, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            foreach (var node in nodesToRemove)
+            {
+                node.Remove();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Remove the title h2 element from content (since title goes in frontmatter)
+    /// </summary>
+    private static void RemoveTitleFromContent(HtmlNode contentNode)
+    {
+        // Remove h2.postTitle (2005+ template)
+        var h2PostTitle = contentNode.Descendants("h2")
+            .FirstOrDefault(n => HasExactClass(n, "postTitle"));
+        h2PostTitle?.Remove();
+
+        // Remove div.posttitle (singlepost template)
+        var divPostTitle = contentNode.Descendants("div")
+            .FirstOrDefault(n => HasExactClass(n, "posttitle"));
+        divPostTitle?.Remove();
+
+        // Remove first h2 if it exists (2003-2004 template) - but only if it's the title
+        // Check if the h2 is at the start of the content
+        var firstH2 = contentNode.Descendants("h2").FirstOrDefault();
+        if (firstH2 != null)
+        {
+            // Only remove if it's near the start of the content (within first few elements)
+            var childIndex = contentNode.ChildNodes.ToList().IndexOf(firstH2);
+            if (childIndex >= 0 && childIndex < 3)
+            {
+                firstH2.Remove();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Remove date/footer elements from content (since date goes in frontmatter)
+    /// </summary>
+    private static void RemoveDateFooterFromContent(HtmlNode contentNode)
+    {
+        // Remove .postfoot (2003-2004 template)
+        var postfoot = contentNode.Descendants()
+            .Where(n => HasExactClass(n, "postfoot"))
+            .ToList();
+        foreach (var node in postfoot)
+        {
+            node.Remove();
+        }
+
+        // Remove .postfooter (2005+ template)
+        var postfooter = contentNode.Descendants()
+            .Where(n => HasExactClass(n, "postfooter"))
+            .ToList();
+        foreach (var node in postfooter)
+        {
+            node.Remove();
+        }
+
+        // Remove p.postfooter
+        var pPostfooter = contentNode.Descendants("p")
+            .Where(n => HasExactClass(n, "postfooter"))
+            .ToList();
+        foreach (var node in pPostfooter)
+        {
+            node.Remove();
+        }
+
+        // Remove .itemdesc (singlepost template)
+        var itemdesc = contentNode.Descendants()
+            .Where(n => HasExactClass(n, "itemdesc"))
+            .ToList();
+        foreach (var node in itemdesc)
+        {
+            node.Remove();
+        }
+    }
+
     private HtmlNode? ExtractMainContent(HtmlDocument doc)
     {
         // Try configured selector first
         if (!string.IsNullOrEmpty(_options.ContentSelector))
         {
+            var selector = _options.ContentSelector;
             HtmlNode? node = null;
 
-            // Handle ID selector (e.g., #PostBody)
-            if (_options.ContentSelector.StartsWith('#'))
+            _logger.LogDebug("Looking for content with selector: '{Selector}'", selector);
+
+            // Handle element.class format (e.g., div.post)
+            if (selector.Contains('.') && !selector.StartsWith('.') && !selector.StartsWith('#'))
             {
-                var id = _options.ContentSelector.TrimStart('#');
-                node = doc.DocumentNode.SelectSingleNode($"//*[@id='{id}']");
+                var parts = selector.Split('.', 2);
+                var elementName = parts[0].ToLowerInvariant();
+                var className = parts[1];
+
+                _logger.LogDebug("Parsed as element.class: element='{Element}', class='{Class}'",
+                    elementName, className);
+
+                // List all divs with their classes for debugging
+                var allDivs = doc.DocumentNode.Descendants("div").ToList();
+                _logger.LogDebug("Found {Count} div elements in document", allDivs.Count);
+
+                foreach (var div in allDivs.Take(10))
+                {
+                    var cls = div.GetAttributeValue("class", "(no class)");
+                    _logger.LogDebug("  div class='{Class}'", cls);
+                }
+
+                // Use HtmlAgilityPack's Descendants to find the element
+                node = doc.DocumentNode.Descendants()
+                    .FirstOrDefault(n =>
+                        n.Name.Equals(elementName, StringComparison.OrdinalIgnoreCase) &&
+                        HasExactClass(n, className));
+
+                if (node != null)
+                {
+                    _logger.LogInformation("Found content using selector '{Selector}', node has {Length} chars",
+                        selector, node.InnerHtml.Length);
+                    return node;
+                }
+
+                // Try fallback selectors for different template versions
+                // 2003-2004 used div.post, another 2003 version used div.singlepost, 2005+ used div.blogpost
+                var fallbackSelectors = new[] { "div.blogpost", "div.singlepost", "div.post-content", "article" };
+                foreach (var fallback in fallbackSelectors)
+                {
+                    var fallbackParts = fallback.Split('.', 2);
+                    if (fallbackParts.Length == 2)
+                    {
+                        var fbElement = fallbackParts[0];
+                        var fbClass = fallbackParts[1];
+                        node = doc.DocumentNode.Descendants()
+                            .FirstOrDefault(n =>
+                                n.Name.Equals(fbElement, StringComparison.OrdinalIgnoreCase) &&
+                                HasExactClass(n, fbClass));
+                    }
+                    else
+                    {
+                        node = doc.DocumentNode.Descendants()
+                            .FirstOrDefault(n => n.Name.Equals(fallback, StringComparison.OrdinalIgnoreCase));
+                    }
+
+                    if (node != null)
+                    {
+                        _logger.LogInformation("Found content using fallback selector '{Selector}', node has {Length} chars",
+                            fallback, node.InnerHtml.Length);
+                        return node;
+                    }
+                }
+
+                _logger.LogWarning("No element found matching selector '{Selector}' or fallbacks", selector);
+            }
+            // Handle ID selector (e.g., #PostBody)
+            else if (selector.StartsWith('#'))
+            {
+                var id = selector.TrimStart('#');
+                node = doc.DocumentNode.Descendants()
+                    .FirstOrDefault(n => n.GetAttributeValue("id", "") == id);
             }
             // Handle class selector (e.g., .post-content)
-            else if (_options.ContentSelector.StartsWith('.'))
+            else if (selector.StartsWith('.'))
             {
-                var className = _options.ContentSelector.TrimStart('.');
-                node = doc.DocumentNode.SelectSingleNode($"//*[contains(@class, '{className}')]");
+                var className = selector.TrimStart('.');
+                node = doc.DocumentNode.Descendants()
+                    .FirstOrDefault(n => HasExactClass(n, className));
             }
             // Handle element selector (e.g., article)
             else
             {
-                node = doc.DocumentNode.SelectSingleNode($"//{_options.ContentSelector}");
+                node = doc.DocumentNode.Descendants()
+                    .FirstOrDefault(n => n.Name.Equals(selector, StringComparison.OrdinalIgnoreCase));
             }
 
             if (node != null)
+            {
+                _logger.LogInformation("Found content using selector '{Selector}', node has {Length} chars",
+                    selector, node.InnerHtml.Length);
                 return node;
+            }
+
+            _logger.LogWarning("ContentSelector '{Selector}' not found, falling back", selector);
         }
 
-        // Try common content selectors
-        var commonSelectors = new[]
+        // Try common content selectors using Descendants
+        var commonSelectors = new (string elementName, string? className, string? id)[]
         {
-            "//article",
-            "//main",
-            "//*[@id='content']",
-            "//*[@id='main-content']",
-            "//*[@id='PostBody']",
-            "//*[contains(@class, 'post-content')]",
-            "//*[contains(@class, 'entry-content')]",
-            "//*[contains(@class, 'article-content')]",
-            "//*[contains(@class, 'blog-post')]",
-            "//div[@role='main']"
+            ("article", null, null),
+            ("main", null, null),
+            (null!, null, "content"),
+            (null!, null, "main-content"),
+            (null!, null, "PostBody"),
+            (null!, "post-content", null),
+            (null!, "entry-content", null),
+            (null!, "article-content", null),
+            (null!, "blog-post", null),
         };
 
-        foreach (var selector in commonSelectors)
+        foreach (var (elementName, className, id) in commonSelectors)
         {
-            var node = doc.DocumentNode.SelectSingleNode(selector);
+            HtmlNode? node = null;
+
+            if (!string.IsNullOrEmpty(id))
+            {
+                node = doc.DocumentNode.Descendants()
+                    .FirstOrDefault(n => n.GetAttributeValue("id", "") == id);
+            }
+            else if (!string.IsNullOrEmpty(className))
+            {
+                node = doc.DocumentNode.Descendants()
+                    .FirstOrDefault(n => HasExactClass(n, className));
+            }
+            else if (!string.IsNullOrEmpty(elementName))
+            {
+                node = doc.DocumentNode.Descendants()
+                    .FirstOrDefault(n => n.Name.Equals(elementName, StringComparison.OrdinalIgnoreCase));
+            }
+
             if (node != null)
                 return node;
         }
 
         // Fall back to body
-        return doc.DocumentNode.SelectSingleNode("//body");
+        return doc.DocumentNode.Descendants()
+            .FirstOrDefault(n => n.Name.Equals("body", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Check if a node has an exact class match (not partial substring)
+    /// </summary>
+    private static bool HasExactClass(HtmlNode node, string className)
+    {
+        var classAttr = node.GetAttributeValue("class", "");
+        if (string.IsNullOrEmpty(classAttr))
+            return false;
+
+        // Split class attribute and check for exact match
+        var classes = classAttr.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return classes.Contains(className, StringComparer.OrdinalIgnoreCase);
     }
 
     private static string ExtractTitle(HtmlDocument doc, HtmlNode contentNode)
     {
-        // Try h1 in content
-        var h1 = contentNode.SelectSingleNode(".//h1");
+        // Look for h2 inside the content node (the blog post title)
+        // Try h2.postTitle first (2005+ template)
+        var h2PostTitle = contentNode.Descendants("h2")
+            .FirstOrDefault(n => HasExactClass(n, "postTitle"));
+        if (h2PostTitle != null)
+            return HttpUtility.HtmlDecode(h2PostTitle.InnerText.Trim());
+
+        // Try div.posttitle with a.singleposttitle (another 2003 template)
+        var divPostTitle = contentNode.Descendants("div")
+            .FirstOrDefault(n => HasExactClass(n, "posttitle"));
+        if (divPostTitle != null)
+            return HttpUtility.HtmlDecode(divPostTitle.InnerText.Trim());
+
+        // Try a.singleposttitle directly
+        var aSinglePostTitle = contentNode.Descendants("a")
+            .FirstOrDefault(n => HasExactClass(n, "singleposttitle"));
+        if (aSinglePostTitle != null)
+            return HttpUtility.HtmlDecode(aSinglePostTitle.InnerText.Trim());
+
+        // Regular h2 (2003-2004 template)
+        var h2 = contentNode.Descendants("h2").FirstOrDefault();
+        if (h2 != null)
+            return HttpUtility.HtmlDecode(h2.InnerText.Trim());
+
+        // Fallback to h1 in content
+        var h1 = contentNode.Descendants("h1").FirstOrDefault();
         if (h1 != null)
             return HttpUtility.HtmlDecode(h1.InnerText.Trim());
-
-        // Try title tag
-        var title = doc.DocumentNode.SelectSingleNode("//title");
-        if (title != null)
-        {
-            var titleText = HttpUtility.HtmlDecode(title.InnerText.Trim());
-            // Remove common suffixes
-            var separators = new[] { " | ", " - ", " :: ", " » " };
-            foreach (var sep in separators)
-            {
-                var idx = titleText.IndexOf(sep, StringComparison.Ordinal);
-                if (idx > 0)
-                {
-                    titleText = titleText[..idx].Trim();
-                    break;
-                }
-            }
-            return titleText;
-        }
-
-        // Try og:title
-        var ogTitle = doc.DocumentNode.SelectSingleNode("//meta[@property='og:title']");
-        if (ogTitle != null)
-            return HttpUtility.HtmlDecode(ogTitle.GetAttributeValue("content", string.Empty));
 
         return string.Empty;
     }
@@ -941,16 +1242,35 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
                 // Download if not already exists
                 if (!File.Exists(localPath))
                 {
+                    var downloaded = false;
+
+                    // Try Archive.org Wayback Machine first (original images are likely 404)
+                    var waybackUrl = $"https://web.archive.org/web/{absoluteUrl}";
                     try
                     {
-                        var imageData = await _httpClient.GetByteArrayAsync(absoluteUrl, cancellationToken);
+                        var imageData = await _httpClient.GetByteArrayAsync(waybackUrl, cancellationToken);
                         await File.WriteAllBytesAsync(localPath, imageData, cancellationToken);
-                        imageInfo.Downloaded = true;
+                        downloaded = true;
+                        _logger.LogDebug("Downloaded image from Wayback: {Url}", absoluteUrl);
                     }
-                    catch (Exception ex)
+                    catch
                     {
-                        _logger.LogWarning(ex, "Failed to download image: {Url}", absoluteUrl);
+                        // Wayback failed, try original URL as fallback
+                        try
+                        {
+                            var imageData = await _httpClient.GetByteArrayAsync(absoluteUrl, cancellationToken);
+                            await File.WriteAllBytesAsync(localPath, imageData, cancellationToken);
+                            downloaded = true;
+                            _logger.LogDebug("Downloaded image from original: {Url}", absoluteUrl);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning("Failed to download image from both Wayback and original: {Url} - {Error}",
+                                absoluteUrl, ex.Message);
+                        }
                     }
+
+                    imageInfo.Downloaded = downloaded;
                 }
                 else
                 {
@@ -1032,7 +1352,8 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             }
         }
 
-        // Try common date meta tags
+        // Try common date meta tags and class selectors
+        // Include templates: .postfoot (2003-2004), .postfooter (2005+), .itemdesc (singlepost)
         var metaSelectors = new[]
         {
             "//meta[@property='article:published_time']",
@@ -1043,7 +1364,10 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             "//*[@class='date']",
             "//*[@class='post-date']",
             "//*[@class='entry-date']",
-            "//*[@class='postfoot']"
+            "//*[@class='postfoot']",
+            "//*[@class='postfooter']",
+            "//p[contains(@class, 'postfooter')]",
+            "//*[@class='itemdesc']"
         };
 
         foreach (var selector in metaSelectors)
