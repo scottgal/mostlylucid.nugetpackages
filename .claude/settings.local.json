@@ -13,7 +13,14 @@
       "WebFetch(domain:datahub.io)",
       "Bash(dotnet sln:*)",
       "Bash(dotnet test:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(findstr:*)",
+      "Bash(ren:*)",
+      "Bash(taskkill /F /PID 67516 2)",
+      "Bash(nul)",
+      "Bash(Start-Sleep -Seconds 1)",
+      "Bash(taskkill:*)",
+      "Bash(wmic process where \"processid=67516\" delete 2)"
     ],
     "deny": [],
     "ask": []

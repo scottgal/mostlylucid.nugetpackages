@@ -79,19 +79,34 @@ public class IpApiGeoLocationServiceTests
     }
 
     [Fact]
-    public async Task GetLocationAsync_FailedResponse_ReturnsNull()
+    public async Task GetLocationAsync_PrivateIp_ReturnsPrivateNetwork()
     {
-        // Arrange
+        // Arrange - Private IPs are handled locally, not sent to API
+        var service = CreateService();
+
+        // Act
+        var result = await service.GetLocationAsync("192.168.1.1");
+
+        // Assert - Private IPs return a special "Private Network" location
+        Assert.NotNull(result);
+        Assert.Equal("XX", result.CountryCode);
+        Assert.Equal("Private Network", result.CountryName);
+    }
+
+    [Fact]
+    public async Task GetLocationAsync_FailedApiResponse_ReturnsNull()
+    {
+        // Arrange - API returns failure for invalid IPs
         var apiResponse = new
         {
             status = "fail",
-            message = "private range"
+            message = "invalid query"
         };
 
         var service = CreateServiceWithResponse(apiResponse);
 
         // Act
-        var result = await service.GetLocationAsync("192.168.1.1");
+        var result = await service.GetLocationAsync("8.8.8.8");
 
         // Assert
         Assert.Null(result);

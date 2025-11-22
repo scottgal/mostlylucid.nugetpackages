@@ -62,9 +62,22 @@ public class MyService
 
 ### TagHelper Usage
 
+The TagHelper works automatically on all `<img>` tags in your Razor views. It will generate alt text for any image that doesn't already have an `alt` attribute.
+
 ```html
-<!-- Automatically generates alt text for images without one -->
-<img src="/images/photo.jpg" alt-text-auto />
+<!-- Alt text is auto-generated for this image -->
+<img src="/images/photo.jpg" />
+
+<!-- Use data-skip-alt to skip processing -->
+<img src="/images/decorative.jpg" data-skip-alt="true" />
+
+<!-- Images with existing alt text are left unchanged -->
+<img src="/images/hero.jpg" alt="Custom description" />
+```
+
+Enable the TagHelper in your `_ViewImports.cshtml`:
+```csharp
+@addTagHelper *, Mostlylucid.LlmAltText
 ```
 
 ### Notes

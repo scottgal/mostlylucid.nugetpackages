@@ -8,7 +8,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionFolder", "SolutionF
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.BotDetection.Demo", "Mostlylucid.BotDetection.Demo\Mostlylucid.BotDetection.Demo.csproj", "{98CBEEC8-A949-4C42-B826-EEB4774095D6}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.BotDetection", "Mostlylucid.BotDetection.New\Mostlylucid.BotDetection.csproj", "{1A4C4918-422F-481D-8A47-9C20F17C4E5F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.BotDetection", "Mostlylucid.BotDetection\Mostlylucid.BotDetection.csproj", "{1A4C4918-422F-481D-8A47-9C20F17C4E5F}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.GeoDetection", "Mostlylucid.GeoDetection\Mostlylucid.GeoDetection.csproj", "{717FC120-E341-47F2-8635-57AF746931EB}"
 EndProject
