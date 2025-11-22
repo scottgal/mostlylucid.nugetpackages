@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <LangVersion>12</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+
+        <IsPackable>true</IsPackable>
+        <PackageId>Mostlylucid.LLMContentModeration</PackageId>
+        <Authors>Scott Galloway</Authors>
+        <PackageIcon>icon.png</PackageIcon>
+        <RepositoryUrl>https://github.com/scottgal/mostlylucidweb/tree/main/Mostlylucid.LLMContentModeration</RepositoryUrl>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
+        <PackageTags>llm;moderation;content-moderation;ollama;pii;toxicity;spam;nsfw;security;compliance</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <Description>
+            Local LLM-powered content moderation for ASP.NET Core. Detects toxicity, spam, self-harm, NSFW content and PII (email, phone, address, IBAN) using Ollama. Supports detect-only, block, and mask modes with per-route policies. No data leaves your server.
+        </Description>
+        <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildProjectDirectory)/ReleaseNotes.txt"))</PackageReleaseNotes>
+        <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <RootNamespace>Mostlylucid.LLMContentModeration</RootNamespace>
+    </PropertyGroup>
+    <PropertyGroup>
+        <MinVerTagPrefix>llmmoderation-v</MinVerTagPrefix>
+    </PropertyGroup>
+    <PropertyGroup>
+        <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Core dependencies -->
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0"/>
+        <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.2.0"/>
+
+        <!-- JSON -->
+        <PackageReference Include="System.Text.Json" Version="9.0.0"/>
+
+        <!-- Versioning -->
+        <PackageReference Include="MinVer" Version="6.0.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Remove="ReleaseNotes.txt"/>
+        <Content Include="ReleaseNotes.txt">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+    <ItemGroup>
+        <None Include=".\icon.png" Pack="true" PackagePath="">
+            <Link>Properties\icon.png</Link>
+        </None>
+        <None Include=".\README.md" Pack="true" PackagePath="">
+            <Link>Properties\README.md</Link>
+        </None>
+    </ItemGroup>
+</Project>
