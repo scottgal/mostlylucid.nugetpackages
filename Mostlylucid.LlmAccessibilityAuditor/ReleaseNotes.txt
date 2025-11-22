@@ -1,0 +1,15 @@
+Initial release of Mostlylucid.LlmAccessibilityAuditor
+
+Features:
+- LLM-powered HTML accessibility auditing
+- Detects missing/empty ARIA labels on interactive elements
+- Identifies bad heading hierarchy (h1 → h4 → h2, etc.)
+- Flags suspicious contrast issues by class/role analysis
+- Detects click targets without visible text
+- Machine-readable JSON reports
+- Human-readable HTML summary reports
+- ASP.NET middleware for automatic response auditing
+- Configurable to run in debug mode or via special header
+- Diagnostic web endpoint for viewing audit results
+- Razor TagHelper for dev toolbar warnings
+- Ollama integration for LLM-powered analysis
