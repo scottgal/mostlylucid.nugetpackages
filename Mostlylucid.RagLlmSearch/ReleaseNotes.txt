@@ -1,0 +1,11 @@
+1.0.0
+Initial release of Mostlylucid.RagLlmSearch.
+
+Features:
+- Multiple search provider support (DuckDuckGo, Brave, Tavily, SerpApi)
+- Ollama LLM integration for chat and embeddings
+- RAG (Retrieval Augmented Generation) with SQLite vector storage
+- Conversation history with persistent storage
+- SignalR hub for real-time streaming responses
+- Fact-checking capabilities with source citations
+- Easy ASP.NET Core integration via extension methods
