@@ -1,0 +1,10 @@
+Initial release of Mostlylucid.LlmLogSummarizer
+
+Features:
+- Background service for periodic log summarization
+- Multiple log source support (Serilog JSON, text files, Application Insights)
+- Exception clustering using similarity algorithms
+- Local LLM summarization via Ollama
+- Multiple output providers (Markdown, Email, Slack/Webhook)
+- Configurable summarization schedules
+- Statistics tracking and reporting
