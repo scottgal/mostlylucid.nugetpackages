@@ -62,13 +62,20 @@ public class MarkdownArticle
     public string ToFullMarkdown()
     {
         var effectiveDate = PublishDate ?? ArchiveDate;
-        var categories = Categories.Count > 0 ? string.Join(", ", Categories) : "Imported";
+
+        // Always include base categories + any LLM-generated ones
+        var allCategories = new List<string> { "mostlylucidcouk", "Imported" };
+        if (Categories.Count > 0)
+        {
+            allCategories.AddRange(Categories.Where(c => !allCategories.Contains(c, StringComparer.OrdinalIgnoreCase)));
+        }
+        var categoryString = string.Join(", ", allCategories);
 
         return $"""
                 # {Title}
 
                 <datetime class="hidden">{effectiveDate:yyyy-MM-ddTHH:mm}</datetime>
-                <!-- category -- {categories} -->
+                <!-- category -- {categoryString} -->
 
                 {MarkdownContent}
                 """;
