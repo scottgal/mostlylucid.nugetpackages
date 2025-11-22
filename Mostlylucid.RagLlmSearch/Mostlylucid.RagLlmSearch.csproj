@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <LangVersion>12</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>true</IsPackable>
+        <PackageId>mostlylucid.ragllmsearch</PackageId>
+        <Authors>Scott Galloway</Authors>
+        <PackageIcon>icon.png</PackageIcon>
+        <RepositoryUrl>https://github.com/scottgal/mostlylucid.nugetpackages</RepositoryUrl>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
+        <PackageTags>rag;llm;search;duckduckgo;brave;ollama;ai;chat;signalr;streaming</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <Description>A lightweight RAG-enabled LLM package with multiple search provider support (DuckDuckGo, Brave, Tavily, SerpApi), conversation history, and SignalR streaming for ASP.NET Core applications.</Description>
+        <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildProjectDirectory)/ReleaseNotes.txt"))</PackageReleaseNotes>
+        <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <MinVerTagPrefix>ragllmsearch-v</MinVerTagPrefix>
+        <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="icon.png" Pack="true" PackagePath=""/>
+        <None Include="README.md" Pack="true" PackagePath=""/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.1"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.1"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.1"/>
+        <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.1"/>
+        <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.1"/>
+        <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.1"/>
+        <PackageReference Include="OllamaSharp" Version="5.1.12"/>
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.1"/>
+        <PackageReference Include="Microsoft.SemanticKernel.Connectors.Sqlite" Version="1.54.0-alpha"/>
+        <PackageReference Include="MinVer" Version="6.0.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+</Project>

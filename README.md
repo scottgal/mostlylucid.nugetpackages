@@ -23,6 +23,7 @@ A collection of *highly experimental* ASP.NET Core middleware and services for a
   - [Mostlylucid.LlmSeoMetadata](#mostlylucidllmseometadata) - SEO metadata
   - [Mostlylucid.LlmSlideTranslator](#mostlylucidllmslidetranslator) - Document translation
   - [Mostlylucid.LlmI18nAssistant](#mostlylucidllmi18nassistant) - Resource localization
+  - [Mostlylucid.RagLlmSearch](#mostlylucidragllmsearch) - RAG-enabled chat with web search
 - [Project Structure](#project-structure)
 - [Contributing](#contributing)
 
@@ -55,6 +56,7 @@ All packages are released under the [Unlicense](https://unlicense.org/) (Public 
 | **Mostlylucid.LlmSeoMetadata** | SEO metadata generation | [Source](./Mostlylucid.LlmSeoMetadata) |
 | **Mostlylucid.LlmSlideTranslator** | RAG-assisted document translation | [Source](./mostlylucid.llmslidetranslator) |
 | **Mostlylucid.LlmI18nAssistant** | Short-string localization helper | [Source](./mostlylucid.llmi18nassistant) |
+| **Mostlylucid.RagLlmSearch** | RAG-enabled chat with multi-provider search | [Source](./Mostlylucid.RagLlmSearch) |
 
 ---
 
@@ -558,6 +560,76 @@ llm-i18n translate Resources/Strings.resx --source en --target de,fr,es
 
 ---
 
+## Mostlylucid.RagLlmSearch
+
+RAG-enabled AI chat with multiple search provider support, conversation history, and real-time streaming via SignalR.
+
+### Features
+
+- **Multiple Search Providers**: DuckDuckGo (free), Brave, Tavily, SerpApi
+- **Ollama LLM Integration**: Local chat and embeddings
+- **RAG (Retrieval Augmented Generation)**: SQLite vector storage with cosine similarity
+- **Conversation History**: Persistent storage with full message history
+- **SignalR Streaming**: Real-time response streaming
+- **Fact Checking**: Automatic web search for current information
+- **Source Citations**: All responses include source references
+
+### Quick Start
+
+```csharp
+// Program.cs
+builder.Services.AddRagLlmSearch(
+    options =>
+    {
+        options.OllamaEndpoint = "http://localhost:11434";
+        options.ChatModel = "llama3.2";
+        options.EmbeddingModel = "nomic-embed-text";
+    },
+    searchProviders =>
+    {
+        searchProviders.DefaultProvider = SearchProviderType.DuckDuckGo;
+        // Optional: configure other providers with API keys
+        searchProviders.Brave.ApiKey = "your-brave-api-key";
+    });
+
+await app.InitializeRagLlmSearchAsync();
+app.MapChatHub("/chathub");
+
+// Direct service usage
+var response = await chatService.ChatAsync(new ChatRequest
+{
+    Message = "What's the latest news on AI?",
+    EnableWebSearch = true,
+    EnableRag = true
+});
+```
+
+```javascript
+// SignalR client
+const connection = new signalR.HubConnectionBuilder()
+    .withUrl('/chathub')
+    .build();
+
+connection.on('ReceiveChunk', (chunk) => {
+    console.log(chunk.content);
+    if (chunk.isFinal) console.log('Sources:', chunk.sources);
+});
+
+await connection.start();
+await connection.invoke('SendMessage', { message: "Hello!" });
+```
+
+| Provider | Free Tier | API Key |
+|----------|-----------|---------|
+| **DuckDuckGo** | Unlimited | None |
+| **Brave** | 2000/month | Required |
+| **Tavily** | Limited | Required |
+| **SerpApi** | 100/month | Required |
+
+[Full documentation](Mostlylucid.RagLlmSearch/README.md)
+
+---
+
 ## Prerequisites
 
 Most LLM-powered packages require [Ollama](https://ollama.ai/) running locally:
@@ -619,7 +691,10 @@ mostlylucid.nugetpackages/
 │
 ├── mostlylucid.llmi18nassistant/          # Resource localization
 ├── mostlylucid.llmi18nassistant.cli/      # CLI tool
-└── mostlylucid.llmi18nassistant.demo/
+├── mostlylucid.llmi18nassistant.demo/
+│
+├── Mostlylucid.RagLlmSearch/              # RAG-enabled chat
+└── Mostlylucid.RagLlmSearch.Demo/
 ```
 
 ---
