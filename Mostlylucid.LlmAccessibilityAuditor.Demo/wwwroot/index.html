@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Accessibility Auditor Demo</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #f3f4f6;
+            color: #1f2937;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+        h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+            color: #111827;
+        }
+        .subtitle {
+            color: #6b7280;
+            margin-bottom: 32px;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        h2 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            color: #374151;
+        }
+        .demo-links {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .demo-link {
+            display: block;
+            padding: 20px;
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.15s;
+        }
+        .demo-link:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+        .demo-link h3 {
+            color: #111827;
+            margin-bottom: 4px;
+        }
+        .demo-link p {
+            font-size: 14px;
+            color: #6b7280;
+        }
+        .demo-link.good { border-left: 4px solid #10b981; }
+        .demo-link.bad { border-left: 4px solid #ef4444; }
+        .demo-link.mixed { border-left: 4px solid #f59e0b; }
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 13px;
+            resize: vertical;
+        }
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-primary:disabled { background: #9ca3af; cursor: not-allowed; }
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+        }
+        .btn-secondary:hover { background: #d1d5db; }
+        #results {
+            margin-top: 24px;
+            display: none;
+        }
+        #results.show { display: block; }
+        .result-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .score-circle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 700;
+        }
+        .score-good { background: #d1fae5; color: #065f46; }
+        .score-ok { background: #fef3c7; color: #92400e; }
+        .score-bad { background: #fee2e2; color: #991b1b; }
+        .summary {
+            background: #f9fafb;
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+        .badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .badge-critical { background: #fee2e2; color: #991b1b; }
+        .badge-serious { background: #ffedd5; color: #9a3412; }
+        .badge-moderate { background: #fef3c7; color: #92400e; }
+        .badge-minor { background: #dbeafe; color: #1e40af; }
+        .badge-info { background: #f3f4f6; color: #374151; }
+        .issues-list {
+            margin-top: 20px;
+        }
+        .issue {
+            border-left: 3px solid #d1d5db;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            background: #f9fafb;
+            border-radius: 0 8px 8px 0;
+        }
+        .issue.critical { border-color: #ef4444; }
+        .issue.serious { border-color: #f97316; }
+        .issue.moderate { border-color: #eab308; }
+        .issue.minor { border-color: #3b82f6; }
+        .issue-type {
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 4px;
+        }
+        .issue-desc {
+            color: #4b5563;
+            font-size: 14px;
+        }
+        .issue-fix {
+            margin-top: 8px;
+            padding: 8px;
+            background: #d1fae5;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #065f46;
+        }
+        .loading {
+            display: none;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: #eff6ff;
+            border-radius: 8px;
+            color: #1e40af;
+        }
+        .loading.show { display: flex; }
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #93c5fd;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .links {
+            display: flex;
+            gap: 16px;
+            margin-top: 16px;
+        }
+        .links a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+        .links a:hover { text-decoration: underline; }
+        .api-info {
+            background: #f9fafb;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .api-info code {
+            background: #e5e7eb;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <h1>LLM Accessibility Auditor</h1>
+        <p class="subtitle">AI-powered HTML accessibility analysis using rule-based checks and Ollama LLM</p>
+
+        <div class="card">
+            <h2>Demo Pages</h2>
+            <p style="margin-bottom: 16px;">Click on a demo page to see it with the accessibility audit widget:</p>
+            <div class="demo-links">
+                <a href="/demo/good" class="demo-link good">
+                    <h3>Good Accessibility</h3>
+                    <p>A well-structured page following WCAG guidelines</p>
+                </a>
+                <a href="/demo/bad" class="demo-link bad">
+                    <h3>Poor Accessibility</h3>
+                    <p>Multiple accessibility issues for testing</p>
+                </a>
+                <a href="/demo/mixed" class="demo-link mixed">
+                    <h3>Mixed Accessibility</h3>
+                    <p>Some good practices, some issues</p>
+                </a>
+            </div>
+            <div class="links">
+                <a href="/_accessibility">View Audit Dashboard</a>
+                <a href="/api/health">Check API Health</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Audit Custom HTML</h2>
+            <p style="margin-bottom: 16px;">Paste HTML code to analyze for accessibility issues:</p>
+            <textarea id="htmlInput" placeholder="Paste your HTML here..."><!DOCTYPE html>
+<html>
+<head><title>Test Page</title></head>
+<body>
+    <h1>Welcome</h1>
+    <img src="photo.jpg">
+    <button></button>
+    <a href="/more"></a>
+    <input type="text" placeholder="Enter name">
+</body>
+</html></textarea>
+            <div class="btn-group">
+                <button id="auditBtn" class="btn-primary">Audit with LLM</button>
+                <button id="quickAuditBtn" class="btn-secondary">Quick Audit (No LLM)</button>
+            </div>
+
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <span>Analyzing HTML for accessibility issues...</span>
+            </div>
+
+            <div id="results">
+                <div class="result-header">
+                    <div id="scoreCircle" class="score-circle"></div>
+                    <div style="flex: 1;">
+                        <strong>Accessibility Score</strong>
+                        <div id="summaryText" class="summary"></div>
+                    </div>
+                </div>
+                <div id="badges" class="badges"></div>
+                <div id="issuesList" class="issues-list"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>API Endpoints</h2>
+            <div class="api-info">
+                <p><strong>POST /api/audit</strong> - Full audit with LLM analysis</p>
+                <p><strong>POST /api/audit/quick</strong> - Quick audit (rule-based only)</p>
+                <p><strong>GET /api/health</strong> - Check service health</p>
+                <p><strong>GET /_accessibility</strong> - View audit dashboard</p>
+                <p><strong>GET /_accessibility/api/reports</strong> - Get recent audit reports (JSON)</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const htmlInput = document.getElementById('htmlInput');
+        const auditBtn = document.getElementById('auditBtn');
+        const quickAuditBtn = document.getElementById('quickAuditBtn');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+
+        async function doAudit(endpoint) {
+            const html = htmlInput.value.trim();
+            if (!html) {
+                alert('Please enter some HTML to audit');
+                return;
+            }
+
+            loading.classList.add('show');
+            results.classList.remove('show');
+            auditBtn.disabled = true;
+            quickAuditBtn.disabled = true;
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/html' },
+                    body: html
+                });
+
+                const data = await response.json();
+                displayResults(data);
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                loading.classList.remove('show');
+                auditBtn.disabled = false;
+                quickAuditBtn.disabled = false;
+            }
+        }
+
+        function displayResults(data) {
+            // Handle both full report and quick audit result
+            const issues = data.issues || [];
+            const score = data.overallScore ?? calculateScore(issues);
+            const summary = data.humanSummary || (issues.length === 0 ? 'No issues found!' : `Found ${issues.length} issues`);
+
+            // Score circle
+            const scoreCircle = document.getElementById('scoreCircle');
+            scoreCircle.textContent = score;
+            scoreCircle.className = 'score-circle ' + (score >= 80 ? 'score-good' : score >= 50 ? 'score-ok' : 'score-bad');
+
+            // Summary
+            document.getElementById('summaryText').textContent = summary;
+
+            // Badges
+            const badges = document.getElementById('badges');
+            badges.innerHTML = '';
+
+            const counts = {
+                critical: issues.filter(i => i.severity === 'Critical').length,
+                serious: issues.filter(i => i.severity === 'Serious').length,
+                moderate: issues.filter(i => i.severity === 'Moderate').length,
+                minor: issues.filter(i => i.severity === 'Minor').length,
+                info: issues.filter(i => i.severity === 'Info').length
+            };
+
+            if (counts.critical) badges.innerHTML += `<span class="badge badge-critical">${counts.critical} Critical</span>`;
+            if (counts.serious) badges.innerHTML += `<span class="badge badge-serious">${counts.serious} Serious</span>`;
+            if (counts.moderate) badges.innerHTML += `<span class="badge badge-moderate">${counts.moderate} Moderate</span>`;
+            if (counts.minor) badges.innerHTML += `<span class="badge badge-minor">${counts.minor} Minor</span>`;
+            if (counts.info) badges.innerHTML += `<span class="badge badge-info">${counts.info} Info</span>`;
+
+            // Issues list
+            const issuesList = document.getElementById('issuesList');
+            issuesList.innerHTML = issues.map(issue => `
+                <div class="issue ${issue.severity.toLowerCase()}">
+                    <div class="issue-type">${issue.type}</div>
+                    <div class="issue-desc">${escapeHtml(issue.description)}</div>
+                    ${issue.suggestedFix ? `<div class="issue-fix">Fix: ${escapeHtml(issue.suggestedFix)}</div>` : ''}
+                </div>
+            `).join('');
+
+            results.classList.add('show');
+        }
+
+        function calculateScore(issues) {
+            let score = 100;
+            issues.forEach(issue => {
+                switch(issue.severity) {
+                    case 'Critical': score -= 15; break;
+                    case 'Serious': score -= 8; break;
+                    case 'Moderate': score -= 4; break;
+                    case 'Minor': score -= 2; break;
+                    case 'Info': score -= 0.5; break;
+                }
+            });
+            return Math.max(0, Math.min(100, Math.round(score)));
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        auditBtn.addEventListener('click', () => doAudit('/api/audit'));
+        quickAuditBtn.addEventListener('click', () => doAudit('/api/audit/quick'));
+    </script>
+</body>
+</html>
