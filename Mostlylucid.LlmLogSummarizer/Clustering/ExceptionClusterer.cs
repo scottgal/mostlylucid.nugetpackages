@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Mostlylucid.LlmLogSummarizer.Models;
+using ModelLogLevel = Mostlylucid.LlmLogSummarizer.Models.LogLevel;
 
 namespace Mostlylucid.LlmLogSummarizer.Clustering;
 
@@ -18,7 +19,7 @@ public class ExceptionClusterer : IExceptionClusterer
     public List<ExceptionCluster> ClusterExceptions(IEnumerable<LogEntry> entries, ClusteringOptions options)
     {
         var errorEntries = entries
-            .Where(e => e.Level >= LogLevel.Warning)
+            .Where(e => e.Level >= ModelLogLevel.Warning)
             .ToList();
 
         _logger.LogDebug("Clustering {Count} error/warning entries", errorEntries.Count);
@@ -163,7 +164,7 @@ public class ExceptionClusterer : IExceptionClusterer
     private static void AssignSeverity(ExceptionCluster cluster)
     {
         // Base severity on count and log levels
-        var hasCritical = cluster.Entries.Any(e => e.Level == LogLevel.Critical);
+        var hasCritical = cluster.Entries.Any(e => e.Level == ModelLogLevel.Critical);
         var errorCount = cluster.Count;
 
         cluster.Severity = (hasCritical, errorCount) switch

@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Mostlylucid.LlmPiiRedactor.Detectors;
 using Mostlylucid.LlmPiiRedactor.Models;
+using Xunit;
 
 namespace Mostlylucid.LlmPiiRedactor.Tests.Detectors;
 

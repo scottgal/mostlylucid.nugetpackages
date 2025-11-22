@@ -137,24 +137,24 @@ public class ModerationOllamaClient : IModerationOllamaClient
         if (options.EnableSelfHarm) categories.Add("self_harm");
         if (options.EnableNsfw) categories.Add("nsfw");
 
-        return $"""
-            You are a content moderation assistant. Analyze the following text and classify it for: {string.Join(", ", categories)}.
+        return $$"""
+            You are a content moderation assistant. Analyze the following text and classify it for: {{string.Join(", ", categories)}}.
 
             For each category, provide a confidence score from 0.0 to 1.0 and a brief explanation if flagged.
 
             Respond ONLY with valid JSON in this exact format:
-            {{
+            {
               "classifications": [
-                {{"category": "toxicity", "confidence": 0.0, "explanation": null}},
-                {{"category": "spam", "confidence": 0.0, "explanation": null}},
-                {{"category": "self_harm", "confidence": 0.0, "explanation": null}},
-                {{"category": "nsfw", "confidence": 0.0, "explanation": null}}
+                {"category": "toxicity", "confidence": 0.0, "explanation": null},
+                {"category": "spam", "confidence": 0.0, "explanation": null},
+                {"category": "self_harm", "confidence": 0.0, "explanation": null},
+                {"category": "nsfw", "confidence": 0.0, "explanation": null}
               ]
-            }}
+            }
 
             Content to analyze:
             ---
-            {content}
+            {{content}}
             ---
             """;
     }
@@ -165,7 +165,7 @@ public class ModerationOllamaClient : IModerationOllamaClient
             ? $"Already detected: {string.Join(", ", regexMatches.Select(m => $"{m.Type}: {m.OriginalValue}"))}"
             : "No PII detected by regex patterns.";
 
-        return $"""
+        return $$"""
             You are a PII detection assistant. Review the following text for any personal identifiable information that may have been missed.
 
             Look for:
@@ -177,20 +177,20 @@ public class ModerationOllamaClient : IModerationOllamaClient
             - Social security numbers
             - Other sensitive personal data
 
-            {existingFindings}
+            {{existingFindings}}
 
             Respond ONLY with valid JSON in this exact format:
-            {{
+            {
               "additional_pii": [
-                {{"type": "email|phone|address|iban|credit_card|ssn|other", "value": "the PII found", "confidence": 0.0}}
+                {"type": "email|phone|address|iban|credit_card|ssn|other", "value": "the PII found", "confidence": 0.0}
               ]
-            }}
+            }
 
-            If no additional PII is found, return: {{"additional_pii": []}}
+            If no additional PII is found, return: {"additional_pii": []}
 
             Content to analyze:
             ---
-            {content}
+            {{content}}
             ---
             """;
     }

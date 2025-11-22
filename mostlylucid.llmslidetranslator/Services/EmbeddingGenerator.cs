@@ -10,39 +10,38 @@ namespace mostlylucid.llmslidetranslator.Services;
 /// <summary>
 ///     Generates embeddings using LlamaSharp (local) or Ollama (API)
 /// </summary>
-public class EmbeddingGenerator : IEmbeddingGenerator, IDisposable
+public class EmbeddingGenerator(
+    ILogger<EmbeddingGenerator> logger,
+    IOptions<LlmSlideTranslatorConfig> options,
+    IHttpClientFactory? httpClientFactory = null) : IEmbeddingGenerator, IDisposable
 {
-    private readonly LlmSlideTranslatorConfig _config;
-    private readonly HttpClient _httpClient;
-    private readonly SemaphoreSlim _initLock = new(1, 1);
-    private readonly ILogger<EmbeddingGenerator> _logger;
+    private readonly LlmSlideTranslatorConfig config = options.Value;
+    private readonly HttpClient httpClient = ConfigureHttpClient(
+        httpClientFactory?.CreateClient("EmbeddingGenerator") ?? new HttpClient(),
+        options.Value);
+    private readonly SemaphoreSlim initLock = new(1, 1);
     private LLamaEmbedder? _embedder;
     private bool _initialized;
     private bool _useOllama;
 
-    public EmbeddingGenerator(
-        ILogger<EmbeddingGenerator> logger,
-        IOptions<LlmSlideTranslatorConfig> config,
-        IHttpClientFactory? httpClientFactory = null)
+    private static HttpClient ConfigureHttpClient(HttpClient client, LlmSlideTranslatorConfig config)
     {
-        _logger = logger;
-        _config = config.Value;
-        _httpClient = httpClientFactory?.CreateClient("EmbeddingGenerator") ?? new HttpClient();
-        _httpClient.BaseAddress = new Uri(_config.Ollama.Endpoint);
-        _httpClient.Timeout = TimeSpan.FromSeconds(_config.Ollama.TimeoutSeconds);
+        client.BaseAddress = new Uri(config.Ollama.Endpoint);
+        client.Timeout = TimeSpan.FromSeconds(config.Ollama.TimeoutSeconds);
+        return client;
     }
 
     public void Dispose()
     {
         _embedder?.Dispose();
-        _initLock.Dispose();
+        initLock.Dispose();
     }
 
     public async Task<float[]> GenerateEmbeddingAsync(string text, CancellationToken cancellationToken = default)
     {
         await EnsureInitializedAsync();
 
-        _logger.LogDebug("Generating embedding for text of length {Length}", text.Length);
+        logger.LogDebug("Generating embedding for text of length {Length}", text.Length);
 
         try
         {
@@ -59,7 +58,7 @@ public class EmbeddingGenerator : IEmbeddingGenerator, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error generating embedding");
+            logger.LogError(ex, "Error generating embedding");
             throw;
         }
     }
@@ -68,11 +67,11 @@ public class EmbeddingGenerator : IEmbeddingGenerator, IDisposable
     {
         var requestBody = new
         {
-            model = _config.Embedding.OllamaModel,
+            model = config.Embedding.OllamaModel,
             prompt = text
         };
 
-        var response = await _httpClient.PostAsJsonAsync("/api/embeddings", requestBody, cancellationToken);
+        var response = await httpClient.PostAsJsonAsync("/api/embeddings", requestBody, cancellationToken);
         response.EnsureSuccessStatusCode();
 
         var result = await response.Content.ReadFromJsonAsync<OllamaEmbeddingResponse>(cancellationToken);
@@ -89,7 +88,7 @@ public class EmbeddingGenerator : IEmbeddingGenerator, IDisposable
     {
         await EnsureInitializedAsync();
 
-        _logger.LogInformation("Generating embeddings for {Count} blocks using {Provider}",
+        logger.LogInformation("Generating embeddings for {Count} blocks using {Provider}",
             blocks.Count, _useOllama ? "Ollama" : "Local LlamaSharp");
 
         var tasks = blocks.Select(async block =>
@@ -132,42 +131,42 @@ public class EmbeddingGenerator : IEmbeddingGenerator, IDisposable
         if (_initialized)
             return;
 
-        await _initLock.WaitAsync();
+        await initLock.WaitAsync();
         try
         {
             if (_initialized)
                 return;
 
-            var provider = _config.Embedding.Provider?.ToLowerInvariant() ?? "ollama";
+            var provider = config.Embedding.Provider?.ToLowerInvariant() ?? "ollama";
             _useOllama = provider == "ollama";
 
             if (_useOllama)
             {
-                _logger.LogInformation("Using Ollama for embeddings with model {Model}",
-                    _config.Embedding.OllamaModel);
+                logger.LogInformation("Using Ollama for embeddings with model {Model}",
+                    config.Embedding.OllamaModel);
 
                 // Verify Ollama is available and model exists
-                var response = await _httpClient.GetAsync("/api/tags");
+                var response = await httpClient.GetAsync("/api/tags");
                 if (!response.IsSuccessStatusCode)
                     throw new InvalidOperationException(
-                        $"Ollama is not available at {_config.Ollama.Endpoint}");
+                        $"Ollama is not available at {config.Ollama.Endpoint}");
 
-                _logger.LogInformation("Ollama embedding provider initialized successfully");
+                logger.LogInformation("Ollama embedding provider initialized successfully");
             }
             else
             {
-                _logger.LogInformation("Initializing local embedding model from {ModelPath}",
-                    _config.Embedding.ModelPath);
+                logger.LogInformation("Initializing local embedding model from {ModelPath}",
+                    config.Embedding.ModelPath);
 
-                if (!File.Exists(_config.Embedding.ModelPath))
+                if (!File.Exists(config.Embedding.ModelPath))
                     throw new FileNotFoundException(
-                        $"Embedding model not found at {_config.Embedding.ModelPath}. " +
+                        $"Embedding model not found at {config.Embedding.ModelPath}. " +
                         "Please download a GGUF embedding model (e.g., nomic-embed-text) " +
                         "or set Embedding.Provider to 'Ollama' to use Ollama embeddings.");
 
-                var parameters = new ModelParams(_config.Embedding.ModelPath)
+                var parameters = new ModelParams(config.Embedding.ModelPath)
                 {
-                    ContextSize = (uint)_config.Embedding.ContextSize,
+                    ContextSize = (uint)config.Embedding.ContextSize,
                     Embeddings = true,
                     GpuLayerCount = 0 // Use CPU for embeddings
                 };
@@ -175,14 +174,14 @@ public class EmbeddingGenerator : IEmbeddingGenerator, IDisposable
                 var weights = LLamaWeights.LoadFromFile(parameters);
                 _embedder = new LLamaEmbedder(weights, parameters);
 
-                _logger.LogInformation("Local embedding model initialized successfully");
+                logger.LogInformation("Local embedding model initialized successfully");
             }
 
             _initialized = true;
         }
         finally
         {
-            _initLock.Release();
+            initLock.Release();
         }
     }
 

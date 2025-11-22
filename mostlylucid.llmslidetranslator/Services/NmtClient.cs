@@ -9,23 +9,14 @@ namespace mostlylucid.llmslidetranslator.Services;
 ///     Client for NMT (Neural Machine Translation) service
 ///     Based on https://github.com/scottgal/mostlyucid-nmt (Opus-MT)
 /// </summary>
-public class NmtClient : INmtClient
+public class NmtClient(
+    ILogger<NmtClient> logger,
+    HttpClient httpClient,
+    IOptions<LlmSlideTranslatorConfig> config) : INmtClient
 {
-    private readonly LlmSlideTranslatorConfig _config;
-    private readonly object _endpointLock = new();
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<NmtClient> _logger;
+    private readonly LlmSlideTranslatorConfig config = config.Value;
+    private readonly object endpointLock = new();
     private int _currentEndpointIndex;
-
-    public NmtClient(
-        ILogger<NmtClient> logger,
-        HttpClient httpClient,
-        IOptions<LlmSlideTranslatorConfig> config)
-    {
-        _logger = logger;
-        _httpClient = httpClient;
-        _config = config.Value;
-    }
 
     public async Task<string> TranslateAsync(
         string text,
@@ -33,9 +24,9 @@ public class NmtClient : INmtClient
         string targetLanguage,
         CancellationToken cancellationToken = default)
     {
-        if (!_config.Nmt.Enabled) throw new InvalidOperationException("NMT is not enabled in configuration");
+        if (!config.Nmt.Enabled) throw new InvalidOperationException("NMT is not enabled in configuration");
 
-        _logger.LogDebug("Translating text from {Source} to {Target} using NMT",
+        logger.LogDebug("Translating text from {Source} to {Target} using NMT",
             sourceLanguage, targetLanguage);
 
         var endpoint = GetNextEndpoint();
@@ -49,7 +40,7 @@ public class NmtClient : INmtClient
 
         try
         {
-            var response = await _httpClient.PostAsJsonAsync(
+            var response = await httpClient.PostAsJsonAsync(
                 $"{endpoint}/translate",
                 requestBody,
                 cancellationToken);
@@ -65,7 +56,7 @@ public class NmtClient : INmtClient
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error translating with NMT at endpoint {Endpoint}", endpoint);
+            logger.LogError(ex, "Error translating with NMT at endpoint {Endpoint}", endpoint);
             throw;
         }
     }
@@ -74,7 +65,7 @@ public class NmtClient : INmtClient
         List<TranslationBlock> blocks,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Translating {Count} blocks with NMT", blocks.Count);
+        logger.LogInformation("Translating {Count} blocks with NMT", blocks.Count);
 
         var translatedBlocks = new List<TranslationBlock>();
 
@@ -99,7 +90,7 @@ public class NmtClient : INmtClient
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error translating block {BlockId}", block.BlockId);
+                logger.LogError(ex, "Error translating block {BlockId}", block.BlockId);
                 // Keep original text if translation fails
                 block.TranslatedText = block.Text;
                 translatedBlocks.Add(block);
@@ -111,30 +102,30 @@ public class NmtClient : INmtClient
 
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
     {
-        if (!_config.Nmt.Enabled || _config.Nmt.ServiceEndpoints.Count == 0) return false;
+        if (!config.Nmt.Enabled || config.Nmt.ServiceEndpoints.Count == 0) return false;
 
         try
         {
-            var endpoint = _config.Nmt.ServiceEndpoints[0];
-            var response = await _httpClient.GetAsync($"{endpoint}/health", cancellationToken);
+            var endpoint = config.Nmt.ServiceEndpoints[0];
+            var response = await httpClient.GetAsync($"{endpoint}/health", cancellationToken);
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "NMT service not available");
+            logger.LogWarning(ex, "NMT service not available");
             return false;
         }
     }
 
     private string GetNextEndpoint()
     {
-        if (_config.Nmt.ServiceEndpoints.Count == 0)
+        if (config.Nmt.ServiceEndpoints.Count == 0)
             throw new InvalidOperationException("No NMT service endpoints configured");
 
-        lock (_endpointLock)
+        lock (endpointLock)
         {
-            var endpoint = _config.Nmt.ServiceEndpoints[_currentEndpointIndex];
-            _currentEndpointIndex = (_currentEndpointIndex + 1) % _config.Nmt.ServiceEndpoints.Count;
+            var endpoint = config.Nmt.ServiceEndpoints[_currentEndpointIndex];
+            _currentEndpointIndex = (_currentEndpointIndex + 1) % config.Nmt.ServiceEndpoints.Count;
             return endpoint;
         }
     }

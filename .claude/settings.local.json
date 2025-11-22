@@ -20,7 +20,9 @@
       "Bash(nul)",
       "Bash(Start-Sleep -Seconds 1)",
       "Bash(taskkill:*)",
-      "Bash(wmic process where \"processid=67516\" delete 2)"
+      "Bash(wmic process where \"processid=67516\" delete 2)",
+      "Bash(tasklist:*)",
+      "Bash(powershell -Command \"Stop-Process -Name testhost -Force -ErrorAction SilentlyContinue; Start-Sleep 2; dotnet build ''D:/Source/mostlylucid.nugetpackages/mostlylucid.nugetpackages.sln'' --verbosity minimal\")"
     ],
     "deny": [],
     "ask": []

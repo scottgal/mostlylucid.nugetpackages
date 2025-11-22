@@ -29,13 +29,17 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <!-- ASP.NET Core Framework Reference for middleware support -->
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <!-- Core dependencies -->
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0"/>
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0"/>
         <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.0"/>
         <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0"/>
         <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0"/>
-        <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.2.0"/>
 
         <!-- JSON -->
         <PackageReference Include="System.Text.Json" Version="9.0.0"/>

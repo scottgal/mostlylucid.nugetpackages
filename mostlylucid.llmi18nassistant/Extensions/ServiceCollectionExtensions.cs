@@ -39,7 +39,7 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient<EmbeddingGenerator>();
 
         // Register main service (scoped - per-request in web context)
-        services.AddScoped<ILlmI18nAssistant, LlmI18nAssistant>();
+        services.AddScoped<ILlmI18nAssistant, LlmI18nAssistantService>();
 
         return services;
     }
@@ -71,7 +71,7 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient<EmbeddingGenerator>();
 
         // Register main service (scoped - per-request in web context)
-        services.AddScoped<ILlmI18nAssistant, LlmI18nAssistant>();
+        services.AddScoped<ILlmI18nAssistant, LlmI18nAssistantService>();
 
         return services;
     }

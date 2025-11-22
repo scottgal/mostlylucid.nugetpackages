@@ -516,26 +516,26 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
                 .Replace("{contentType}", content.ContentType.ToString());
         }
 
-        return $"""
+        return $$"""
             Generate OpenGraph metadata for social media sharing.
 
-            Title: {content.Title}
-            Content Type: {content.ContentType}
-            Language: {content.Language}
+            Title: {{content.Title}}
+            Content Type: {{content.ContentType}}
+            Language: {{content.Language}}
 
             Content Summary:
-            {TruncateForPrompt(content.Content)}
+            {{TruncateForPrompt(content.Content)}}
 
             Respond with a JSON object in this exact format:
-            {{
+            {
               "title": "engaging title for social sharing (max 70 chars)",
-              "description": "compelling description for social sharing (max {_options.MaxOgDescriptionLength} chars)"
-            }}
+              "description": "compelling description for social sharing (max {{_options.MaxOgDescriptionLength}} chars)"
+            }
 
             Requirements:
             - Title should be catchy and engaging
             - Description should encourage sharing and clicks
-            - Use the same language as the content ({content.Language})
+            - Use the same language as the content ({{content.Language}})
             """;
     }
 
@@ -550,25 +550,25 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
                 .Replace("{language}", content.Language);
         }
 
-        return $"""
+        return $$"""
             Generate a description for JSON-LD structured data (schema.org).
 
-            Title: {content.Title}
-            Content Type: {content.ContentType} (schema.org type: {MapContentTypeToSchemaType(content.ContentType)})
-            Language: {content.Language}
+            Title: {{content.Title}}
+            Content Type: {{content.ContentType}} (schema.org type: {{MapContentTypeToSchemaType(content.ContentType)}})
+            Language: {{content.Language}}
 
             Content Summary:
-            {TruncateForPrompt(content.Content)}
+            {{TruncateForPrompt(content.Content)}}
 
             Respond with a JSON object in this exact format:
-            {{
+            {
               "description": "informative description suitable for schema.org structured data (max 300 chars)"
-            }}
+            }
 
             Requirements:
             - Description should be factual and informative
             - Suitable for search engine rich snippets
-            - Use the same language as the content ({content.Language})
+            - Use the same language as the content ({{content.Language}})
             """;
     }
 

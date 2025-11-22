@@ -9,49 +9,45 @@ namespace mostlylucid.llmslidetranslator.Services;
 /// <summary>
 ///     Client for Ollama LLM API
 /// </summary>
-public class OllamaClient : IOllamaClient
+public class OllamaClient(
+    ILogger<OllamaClient> logger,
+    HttpClient httpClient,
+    IOptions<LlmSlideTranslatorConfig> options) : IOllamaClient
 {
-    private readonly LlmSlideTranslatorConfig _config;
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<OllamaClient> _logger;
+    private readonly LlmSlideTranslatorConfig config = options.Value;
+    private readonly HttpClient httpClient = ConfigureHttpClient(httpClient, options.Value);
 
-    public OllamaClient(
-        ILogger<OllamaClient> logger,
-        HttpClient httpClient,
-        IOptions<LlmSlideTranslatorConfig> config)
+    private static HttpClient ConfigureHttpClient(HttpClient client, LlmSlideTranslatorConfig config)
     {
-        _logger = logger;
-        _httpClient = httpClient;
-        _config = config.Value;
-
-        _httpClient.BaseAddress = new Uri(_config.Ollama.Endpoint);
-        _httpClient.Timeout = TimeSpan.FromSeconds(_config.Ollama.TimeoutSeconds);
+        client.BaseAddress = new Uri(config.Ollama.Endpoint);
+        client.Timeout = TimeSpan.FromSeconds(config.Ollama.TimeoutSeconds);
+        return client;
     }
 
     public async Task<string> TranslateWithContextAsync(
         TranslationContext context,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Translating block {BlockId} with Ollama",
+        logger.LogInformation("Translating block {BlockId} with Ollama",
             context.CurrentBlock.BlockId);
 
         var prompt = BuildPrompt(context);
 
         var requestBody = new
         {
-            model = _config.Ollama.Model,
+            model = config.Ollama.Model,
             prompt,
             stream = false,
             options = new
             {
-                temperature = _config.Ollama.Temperature,
-                num_predict = _config.Ollama.MaxTokens
+                temperature = config.Ollama.Temperature,
+                num_predict = config.Ollama.MaxTokens
             }
         };
 
         try
         {
-            var response = await _httpClient.PostAsJsonAsync(
+            var response = await httpClient.PostAsJsonAsync(
                 "/api/generate",
                 requestBody,
                 cancellationToken);
@@ -63,14 +59,14 @@ public class OllamaClient : IOllamaClient
 
             if (result?.Response == null) throw new InvalidOperationException("Ollama returned null response");
 
-            _logger.LogDebug("Ollama translation completed for block {BlockId}",
+            logger.LogDebug("Ollama translation completed for block {BlockId}",
                 context.CurrentBlock.BlockId);
 
             return result.Response.Trim();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error translating with Ollama for block {BlockId}",
+            logger.LogError(ex, "Error translating with Ollama for block {BlockId}",
                 context.CurrentBlock.BlockId);
             throw;
         }
@@ -80,13 +76,13 @@ public class OllamaClient : IOllamaClient
     {
         try
         {
-            var response = await _httpClient.GetAsync("/api/tags", cancellationToken);
+            var response = await httpClient.GetAsync("/api/tags", cancellationToken);
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Ollama service not available at {Endpoint}",
-                _config.Ollama.Endpoint);
+            logger.LogWarning(ex, "Ollama service not available at {Endpoint}",
+                config.Ollama.Endpoint);
             return false;
         }
     }
@@ -95,7 +91,7 @@ public class OllamaClient : IOllamaClient
     {
         try
         {
-            var response = await _httpClient.GetAsync("/api/tags", cancellationToken);
+            var response = await httpClient.GetAsync("/api/tags", cancellationToken);
             response.EnsureSuccessStatusCode();
 
             var result = await response.Content.ReadFromJsonAsync<OllamaModelsResponse>(
@@ -105,7 +101,7 @@ public class OllamaClient : IOllamaClient
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting models from Ollama");
+            logger.LogError(ex, "Error getting models from Ollama");
             return new List<string>();
         }
     }

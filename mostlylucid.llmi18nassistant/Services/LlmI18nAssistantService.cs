@@ -8,18 +8,18 @@ namespace Mostlylucid.LlmI18nAssistant.Services;
 /// <summary>
 ///     Main service for LLM-assisted i18n translation
 /// </summary>
-public class LlmI18nAssistant : ILlmI18nAssistant
+public class LlmI18nAssistantService : ILlmI18nAssistant
 {
     private readonly LlmI18nAssistantConfig _config;
     private readonly IConsistencyModeService _consistencyService;
-    private readonly ILogger<LlmI18nAssistant> _logger;
+    private readonly ILogger<LlmI18nAssistantService> _logger;
     private readonly INmtClient _nmtClient;
     private readonly IOllamaClient _ollamaClient;
     private readonly IResourceFileParser _parser;
     private readonly IValueTransformer _valueTransformer;
 
-    public LlmI18nAssistant(
-        ILogger<LlmI18nAssistant> logger,
+    public LlmI18nAssistantService(
+        ILogger<LlmI18nAssistantService> logger,
         IOptions<LlmI18nAssistantConfig> config,
         IResourceFileParser parser,
         IOllamaClient ollamaClient,
@@ -476,9 +476,8 @@ public class LlmI18nAssistant : ILlmI18nAssistant
                 ? TranslationMethod.NmtPlusLlm
                 : TranslationMethod.LlmOnly;
 
-        return entry.WithTranslation(translated, actualMethod) with
-        {
-            ContextUsed = contextEntries
-        };
+        var translatedEntry = entry.WithTranslation(translated, actualMethod);
+        translatedEntry.ContextUsed = contextEntries;
+        return translatedEntry;
     }
 }

@@ -12,28 +12,23 @@ namespace Mostlylucid.GeoDetection.Services;
 ///     GeoLocation service using ip-api.com free API (no account required)
 ///     Rate limit: 45 requests/minute for free tier
 /// </summary>
-public class IpApiGeoLocationService : IGeoLocationService
+public class IpApiGeoLocationService(
+    ILogger<IpApiGeoLocationService> logger,
+    IOptions<GeoLite2Options> options,
+    IHttpClientFactory httpClientFactory,
+    IMemoryCache cache) : IGeoLocationService
 {
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IMemoryCache _cache;
-    private readonly GeoLite2Options _options;
-    private readonly ILogger<IpApiGeoLocationService> _logger;
+    private readonly GeoLite2Options _options = options.Value;
     private readonly GeoLocationStatistics _stats = new();
     private readonly SemaphoreSlim _rateLimiter = new(45, 45); // 45 requests per minute
+    private bool _rateLimiterStarted;
 
     private const string BaseUrl = "http://ip-api.com/json";
 
-    public IpApiGeoLocationService(
-        ILogger<IpApiGeoLocationService> logger,
-        IOptions<GeoLite2Options> options,
-        IHttpClientFactory httpClientFactory,
-        IMemoryCache cache)
+    private void EnsureRateLimiterStarted()
     {
-        _logger = logger;
-        _options = options.Value;
-        _httpClientFactory = httpClientFactory;
-        _cache = cache;
-
+        if (_rateLimiterStarted) return;
+        _rateLimiterStarted = true;
         // Start rate limiter replenishment
         _ = ReplenishRateLimitAsync();
     }
@@ -53,11 +48,12 @@ public class IpApiGeoLocationService : IGeoLocationService
 
     public async Task<GeoLocation?> GetLocationAsync(string ipAddress, CancellationToken cancellationToken = default)
     {
+        EnsureRateLimiterStarted();
         _stats.TotalLookups++;
 
         // Check cache first
         var cacheKey = $"ipapi:{ipAddress}";
-        if (_cache.TryGetValue(cacheKey, out GeoLocation? cached))
+        if (cache.TryGetValue(cacheKey, out GeoLocation? cached))
         {
             _stats.CacheHits++;
             return cached;
@@ -77,20 +73,20 @@ public class IpApiGeoLocationService : IGeoLocationService
         // Wait for rate limit permit
         if (!await _rateLimiter.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken))
         {
-            _logger.LogWarning("ip-api.com rate limit reached, request dropped");
+            logger.LogWarning("ip-api.com rate limit reached, request dropped");
             return null;
         }
 
         try
         {
-            using var client = _httpClientFactory.CreateClient("IpApi");
+            using var client = httpClientFactory.CreateClient("IpApi");
             var url = $"{BaseUrl}/{ipAddress}?fields=status,message,continent,continentCode,country,countryCode,region,regionName,city,lat,lon,timezone,hosting,proxy";
 
             var response = await client.GetAsync(url, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("ip-api.com returned {StatusCode} for {IP}", response.StatusCode, ipAddress);
+                logger.LogWarning("ip-api.com returned {StatusCode} for {IP}", response.StatusCode, ipAddress);
                 return null;
             }
 
@@ -99,7 +95,7 @@ public class IpApiGeoLocationService : IGeoLocationService
 
             if (result == null || result.Status != "success")
             {
-                _logger.LogWarning("ip-api.com lookup failed for {IP}: {Message}", ipAddress, result?.Message);
+                logger.LogWarning("ip-api.com lookup failed for {IP}: {Message}", ipAddress, result?.Message);
                 return null;
             }
 
@@ -118,16 +114,16 @@ public class IpApiGeoLocationService : IGeoLocationService
             };
 
             // Cache the result
-            var cacheOptions = new MemoryCacheEntryOptions()
+            var memoryCacheOptions = new MemoryCacheEntryOptions()
                 .SetAbsoluteExpiration(_options.CacheDuration)
                 .SetSize(1);
-            _cache.Set(cacheKey, location, cacheOptions);
+            cache.Set(cacheKey, location, memoryCacheOptions);
 
             return location;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error looking up {IP} via ip-api.com", ipAddress);
+            logger.LogError(ex, "Error looking up {IP} via ip-api.com", ipAddress);
             return null;
         }
     }

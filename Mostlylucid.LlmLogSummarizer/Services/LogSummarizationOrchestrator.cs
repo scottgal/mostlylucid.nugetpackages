@@ -5,6 +5,7 @@ using Mostlylucid.LlmLogSummarizer.Clustering;
 using Mostlylucid.LlmLogSummarizer.Models;
 using Mostlylucid.LlmLogSummarizer.Outputs;
 using Mostlylucid.LlmLogSummarizer.Sources;
+using ModelLogLevel = Mostlylucid.LlmLogSummarizer.Models.LogLevel;
 
 namespace Mostlylucid.LlmLogSummarizer.Services;
 
@@ -120,9 +121,9 @@ public class LogSummarizationOrchestrator : ILogSummarizationOrchestrator
         report.SourcesAnalyzed = sources.ToList();
 
         // Count by level
-        report.ErrorCount = entries.Count(e => e.Level == LogLevel.Error);
-        report.WarningCount = entries.Count(e => e.Level == LogLevel.Warning);
-        report.CriticalCount = entries.Count(e => e.Level == LogLevel.Critical);
+        report.ErrorCount = entries.Count(e => e.Level == ModelLogLevel.Error);
+        report.WarningCount = entries.Count(e => e.Level == ModelLogLevel.Warning);
+        report.CriticalCount = entries.Count(e => e.Level == ModelLogLevel.Critical);
 
         _logger.LogDebug(
             "Collected {Total} logs: {Errors} errors, {Warnings} warnings, {Critical} critical",

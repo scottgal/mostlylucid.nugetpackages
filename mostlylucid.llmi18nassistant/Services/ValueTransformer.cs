@@ -101,12 +101,17 @@ public partial class ValueTransformer : IValueTransformer
         ref int tokenIndex,
         string prefix)
     {
-        return pattern.Replace(input, match =>
+        // Copy ref parameter to local variable for use in lambda
+        var currentIndex = tokenIndex;
+        var result = pattern.Replace(input, match =>
         {
-            var placeholder = $"[[{prefix}{tokenIndex++}]]";
+            var placeholder = $"[[{prefix}{currentIndex++}]]";
             protectedTokens[placeholder] = match.Value;
             return placeholder;
         });
+        // Update the ref parameter with the final value
+        tokenIndex = currentIndex;
+        return result;
     }
 
     // Matches .NET format strings like {0}, {1:N2}, {0:yyyy-MM-dd HH:mm}

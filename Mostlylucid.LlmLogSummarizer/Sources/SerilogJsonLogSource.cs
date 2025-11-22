@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.LlmLogSummarizer.Models;
+using ModelLogLevel = Mostlylucid.LlmLogSummarizer.Models.LogLevel;
 
 namespace Mostlylucid.LlmLogSummarizer.Sources;
 
@@ -252,17 +253,17 @@ public class SerilogJsonLogSource : ILogSource
         }
     }
 
-    private static LogLevel ParseLogLevel(string? level)
+    private static ModelLogLevel ParseLogLevel(string? level)
     {
         return level?.ToLowerInvariant() switch
         {
-            "verbose" or "trace" => LogLevel.Trace,
-            "debug" => LogLevel.Debug,
-            "information" or "info" => LogLevel.Information,
-            "warning" or "warn" => LogLevel.Warning,
-            "error" or "err" => LogLevel.Error,
-            "fatal" or "critical" => LogLevel.Critical,
-            _ => LogLevel.Information
+            "verbose" or "trace" => ModelLogLevel.Trace,
+            "debug" => ModelLogLevel.Debug,
+            "information" or "info" => ModelLogLevel.Information,
+            "warning" or "warn" => ModelLogLevel.Warning,
+            "error" or "err" => ModelLogLevel.Error,
+            "fatal" or "critical" => ModelLogLevel.Critical,
+            _ => ModelLogLevel.Information
         };
     }
 

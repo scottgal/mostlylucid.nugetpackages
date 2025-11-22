@@ -1,6 +1,9 @@
-# Mostlylucid NuGet Packages
+# mostlylucid's playground lab
 
-> **IMPORTANT: These packages are NOT yet published to NuGet.** This repository contains draft/work-in-progress packages that I'm developing. They will be published to NuGet when they're ready. Until then, reference the projects directly or build locally.
+
+> **IMPORTANT: Despite the name of the repo this is likely SUPER broken. It's the lab where I experiement with features before deciding if I break them out to actual packages. YOU HAVE BEEN WARNED**
+
+
 
 A collection of *highly experimental* ASP.NET Core middleware and services for accessibility, security, compliance, and internationalization. All packages leverage local AI models (primarily via [Ollama](https://ollama.ai/)) for privacy-focused solutions - **no data ever leaves your infrastructure**.
 

@@ -8,49 +8,67 @@ namespace Mostlylucid.LlmAltText.Services;
 /// <summary>
 ///     Florence-2 Vision Language Model implementation for alt text generation and OCR
 /// </summary>
-public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
+public class Florence2ImageAnalysisService(
+    ILogger<Florence2ImageAnalysisService> logger,
+    IOptions<AltTextOptions> options) : IImageAnalysisService, IDisposable
 {
     private readonly SemaphoreSlim _initLock = new(1, 1);
-    private readonly bool _isInitialized;
-    private readonly ILogger<Florence2ImageAnalysisService> _logger;
-    private readonly Florence2Model? _model;
-    private readonly AltTextOptions _options;
+    private readonly (bool IsInitialized, Florence2Model? Model) _initResult = InitializeModel(logger, options.Value);
+    private readonly AltTextOptions _options = options.Value;
 
-    public Florence2ImageAnalysisService(
-        ILogger<Florence2ImageAnalysisService> logger,
-        IOptions<AltTextOptions> options)
+    private bool _isInitialized => _initResult.IsInitialized;
+    private Florence2Model? _model => _initResult.Model;
+
+    private static (bool IsInitialized, Florence2Model? Model) InitializeModel(ILogger<Florence2ImageAnalysisService> logger, AltTextOptions options)
     {
-        _logger = logger;
-        _options = options.Value;
-
         try
         {
-            LogInfo("Initializing Florence-2 Vision Language Model...");
-            LogInfo($"Model path: {_options.ModelPath}");
-            LogInfo("Note: Models (~800MB) will be downloaded on first use if not present");
+            if (options.EnableDiagnosticLogging)
+            {
+                logger.LogInformation("Initializing Florence-2 Vision Language Model...");
+                logger.LogInformation($"Model path: {options.ModelPath}");
+                logger.LogInformation("Note: Models (~800MB) will be downloaded on first use if not present");
+            }
 
-            var modelSource = new FlorenceModelDownloader(_options.ModelPath);
+            var modelSource = new FlorenceModelDownloader(options.ModelPath);
 
             // Download models if not already present
-            LogInfo("Checking for model files...");
+            if (options.EnableDiagnosticLogging) logger.LogInformation("Checking for model files...");
             modelSource
                 .DownloadModelsAsync(
-                    status => LogModelDownloadStatus(status),
-                    _logger,
+                    status => LogModelDownloadStatusStatic(logger, options, status),
+                    logger,
                     CancellationToken.None)
                 .GetAwaiter()
                 .GetResult();
 
-            _model = new Florence2Model(modelSource);
-            _isInitialized = true;
+            var model = new Florence2Model(modelSource);
 
-            LogInfo("Florence-2 model initialized successfully");
-            LogInfo("Available task types: CAPTION, DETAILED_CAPTION, MORE_DETAILED_CAPTION, OCR");
+            if (options.EnableDiagnosticLogging)
+            {
+                logger.LogInformation("Florence-2 model initialized successfully");
+                logger.LogInformation("Available task types: CAPTION, DETAILED_CAPTION, MORE_DETAILED_CAPTION, OCR");
+            }
+            return (true, model);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to initialize Florence-2 model. Alt text generation will not be available.");
-            _isInitialized = false;
+            logger.LogError(ex, "Failed to initialize Florence-2 model. Alt text generation will not be available.");
+            return (false, null);
+        }
+    }
+
+    private static void LogModelDownloadStatusStatic(ILogger logger, AltTextOptions options, IStatus status)
+    {
+        if (options.EnableDiagnosticLogging)
+        {
+            if (!string.IsNullOrEmpty(status.Error))
+                logger.LogError("Model download error: {Error}", status.Error);
+            else
+                logger.LogInformation(
+                    "Model download progress: {Progress:P1} - {Message}",
+                    status.Progress,
+                    status.Message ?? "Processing");
         }
     }
 
@@ -81,7 +99,7 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
 
             if (string.IsNullOrWhiteSpace(altText))
             {
-                _logger.LogWarning("No alt text generated for image");
+                logger.LogWarning("No alt text generated for image");
                 return "No description available";
             }
 
@@ -92,7 +110,7 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error generating alt text");
+            logger.LogError(ex, "Error generating alt text");
             throw;
         }
     }
@@ -125,7 +143,7 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error extracting text from image");
+            logger.LogError(ex, "Error extracting text from image");
             throw;
         }
     }
@@ -159,7 +177,7 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error analyzing image");
+            logger.LogError(ex, "Error analyzing image");
             throw;
         }
     }
@@ -207,7 +225,7 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error analyzing image with classification");
+            logger.LogError(ex, "Error analyzing image with classification");
             throw;
         }
     }
@@ -236,7 +254,7 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error classifying image content type");
+            logger.LogError(ex, "Error classifying image content type");
             throw;
         }
     }
@@ -340,7 +358,7 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
     {
         if (Enum.TryParse<TaskTypes>(taskType, true, out var parsed)) return parsed;
 
-        _logger.LogWarning("Unknown task type '{TaskType}'; using fallback '{Fallback}'", taskType, fallback);
+        logger.LogWarning("Unknown task type '{TaskType}'; using fallback '{Fallback}'", taskType, fallback);
         return fallback;
     }
 
@@ -354,29 +372,15 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
         // Check word count and warn if exceeding recommendation
         var wordCount = normalized.Split(new[] { ' ', '\t', '\n' }, StringSplitOptions.RemoveEmptyEntries).Length;
         if (wordCount > _options.MaxWords)
-            _logger.LogWarning(
+            logger.LogWarning(
                 "Generated alt text has {WordCount} words, exceeding recommended maximum of {MaxWords}",
                 wordCount, _options.MaxWords);
 
         return normalized;
     }
 
-    private void LogModelDownloadStatus(IStatus status)
-    {
-        if (_options.EnableDiagnosticLogging)
-        {
-            if (!string.IsNullOrEmpty(status.Error))
-                _logger.LogError("Model download error: {Error}", status.Error);
-            else
-                _logger.LogInformation(
-                    "Model download progress: {Progress:P1} - {Message}",
-                    status.Progress,
-                    status.Message ?? "Processing");
-        }
-    }
-
     private void LogInfo(string message)
     {
-        if (_options.EnableDiagnosticLogging) _logger.LogInformation(message);
+        if (_options.EnableDiagnosticLogging) logger.LogInformation(message);
     }
 }

@@ -11,32 +11,22 @@ namespace Mostlylucid.GeoDetection.Services;
 /// <summary>
 ///     Background service for downloading and updating GeoLite2 databases
 /// </summary>
-public class GeoLite2UpdateService : BackgroundService
+public class GeoLite2UpdateService(
+    ILogger<GeoLite2UpdateService> logger,
+    IOptions<GeoLite2Options> options,
+    IHttpClientFactory httpClientFactory,
+    IGeoLocationService geoService) : BackgroundService
 {
-    private readonly ILogger<GeoLite2UpdateService> _logger;
-    private readonly GeoLite2Options _options;
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly MaxMindGeoLocationService? _geoService;
+    private readonly GeoLite2Options _options = options.Value;
+    private readonly MaxMindGeoLocationService? _geoService = geoService as MaxMindGeoLocationService;
 
     private const string DownloadBaseUrl = "https://download.maxmind.com/geoip/databases";
-
-    public GeoLite2UpdateService(
-        ILogger<GeoLite2UpdateService> logger,
-        IOptions<GeoLite2Options> options,
-        IHttpClientFactory httpClientFactory,
-        IGeoLocationService geoService)
-    {
-        _logger = logger;
-        _options = options.Value;
-        _httpClientFactory = httpClientFactory;
-        _geoService = geoService as MaxMindGeoLocationService;
-    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!_options.IsAutoDownloadConfigured)
         {
-            _logger.LogInformation(
+            logger.LogInformation(
                 "GeoLite2 auto-update disabled. Configure AccountId and LicenseKey in GeoLite2Options " +
                 "to enable automatic database downloads. Get a free account at https://www.maxmind.com/en/geolite2/signup");
             return;
@@ -44,7 +34,7 @@ public class GeoLite2UpdateService : BackgroundService
 
         if (!_options.EnableAutoUpdate)
         {
-            _logger.LogInformation("GeoLite2 auto-update is disabled in configuration");
+            logger.LogInformation("GeoLite2 auto-update is disabled in configuration");
             return;
         }
 
@@ -54,7 +44,7 @@ public class GeoLite2UpdateService : BackgroundService
             var dbPath = GetDatabasePath();
             if (!File.Exists(dbPath))
             {
-                _logger.LogInformation("GeoLite2 database not found, downloading...");
+                logger.LogInformation("GeoLite2 database not found, downloading...");
                 await DownloadDatabaseAsync(stoppingToken);
             }
         }
@@ -73,7 +63,7 @@ public class GeoLite2UpdateService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error during GeoLite2 update check");
+                logger.LogError(ex, "Error during GeoLite2 update check");
             }
         }
     }
@@ -83,7 +73,7 @@ public class GeoLite2UpdateService : BackgroundService
         var dbPath = GetDatabasePath();
         if (!File.Exists(dbPath))
         {
-            _logger.LogInformation("GeoLite2 database missing, downloading...");
+            logger.LogInformation("GeoLite2 database missing, downloading...");
             await DownloadDatabaseAsync(cancellationToken);
             return;
         }
@@ -94,7 +84,7 @@ public class GeoLite2UpdateService : BackgroundService
         // GeoLite2 updates weekly, so check if database is older than 7 days
         if (age > TimeSpan.FromDays(7))
         {
-            _logger.LogInformation("GeoLite2 database is {Age:F1} days old, checking for updates...", age.TotalDays);
+            logger.LogInformation("GeoLite2 database is {Age:F1} days old, checking for updates...", age.TotalDays);
             await DownloadDatabaseAsync(cancellationToken);
         }
     }
@@ -106,7 +96,7 @@ public class GeoLite2UpdateService : BackgroundService
     {
         if (!_options.IsAutoDownloadConfigured)
         {
-            _logger.LogWarning("Cannot download GeoLite2 database: AccountId and LicenseKey not configured");
+            logger.LogWarning("Cannot download GeoLite2 database: AccountId and LicenseKey not configured");
             return false;
         }
 
@@ -122,9 +112,9 @@ public class GeoLite2UpdateService : BackgroundService
 
             var downloadUrl = $"{DownloadBaseUrl}/{dbName}/download?suffix=tar.gz";
 
-            _logger.LogInformation("Downloading GeoLite2 database from MaxMind...");
+            logger.LogInformation("Downloading GeoLite2 database from MaxMind...");
 
-            using var client = _httpClientFactory.CreateClient("GeoLite2");
+            using var client = httpClientFactory.CreateClient("GeoLite2");
 
             // Set up Basic Authentication
             var credentials = Convert.ToBase64String(
@@ -136,7 +126,7 @@ public class GeoLite2UpdateService : BackgroundService
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogError("Failed to download GeoLite2 database: {StatusCode} {Reason}",
+                logger.LogError("Failed to download GeoLite2 database: {StatusCode} {Reason}",
                     response.StatusCode, response.ReasonPhrase);
                 return false;
             }
@@ -155,7 +145,7 @@ public class GeoLite2UpdateService : BackgroundService
                     await response.Content.CopyToAsync(fileStream, cancellationToken);
                 }
 
-                _logger.LogDebug("Downloaded {Size} bytes to {Path}",
+                logger.LogDebug("Downloaded {Size} bytes to {Path}",
                     new FileInfo(tarGzPath).Length, tarGzPath);
 
                 // Extract tar.gz
@@ -163,7 +153,7 @@ public class GeoLite2UpdateService : BackgroundService
 
                 if (extractedMmdb == null)
                 {
-                    _logger.LogError("Failed to extract .mmdb file from downloaded archive");
+                    logger.LogError("Failed to extract .mmdb file from downloaded archive");
                     return false;
                 }
 
@@ -183,7 +173,7 @@ public class GeoLite2UpdateService : BackgroundService
 
                 File.Move(extractedMmdb, dbPath);
 
-                _logger.LogInformation("GeoLite2 database updated successfully at {Path}", dbPath);
+                logger.LogInformation("GeoLite2 database updated successfully at {Path}", dbPath);
 
                 // Reload the database reader
                 if (_geoService != null)
@@ -205,13 +195,13 @@ public class GeoLite2UpdateService : BackgroundService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to cleanup temp directory {Path}", tempDir);
+                    logger.LogWarning(ex, "Failed to cleanup temp directory {Path}", tempDir);
                 }
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to download GeoLite2 database");
+            logger.LogError(ex, "Failed to download GeoLite2 database");
             return false;
         }
     }

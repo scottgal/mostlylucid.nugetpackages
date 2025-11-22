@@ -8,24 +8,19 @@ namespace mostlylucid.llmslidetranslator.Services;
 /// <summary>
 ///     File-based vector store for embeddings
 /// </summary>
-public class FileVectorStore : IVectorStore
+public class FileVectorStore(
+    ILogger<FileVectorStore> logger,
+    IEmbeddingGenerator embeddingGenerator,
+    IOptions<LlmSlideTranslatorConfig> config) : IVectorStore
 {
-    private readonly string _dataPath;
-    private readonly IEmbeddingGenerator _embeddingGenerator;
-    private readonly SemaphoreSlim _fileLock = new(1, 1);
-    private readonly ILogger<FileVectorStore> _logger;
+    private readonly string dataPath = InitializeDataPath(config.Value.DataPath);
+    private readonly SemaphoreSlim fileLock = new(1, 1);
 
-    public FileVectorStore(
-        ILogger<FileVectorStore> logger,
-        IEmbeddingGenerator embeddingGenerator,
-        IOptions<LlmSlideTranslatorConfig> config)
+    private static string InitializeDataPath(string path)
     {
-        _logger = logger;
-        _embeddingGenerator = embeddingGenerator;
-        _dataPath = config.Value.DataPath;
-
         // Ensure data directory exists
-        Directory.CreateDirectory(_dataPath);
+        Directory.CreateDirectory(path);
+        return path;
     }
 
     public async Task StoreAsync(
@@ -33,12 +28,12 @@ public class FileVectorStore : IVectorStore
         string documentId,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Storing {Count} blocks for document {DocumentId}",
+        logger.LogInformation("Storing {Count} blocks for document {DocumentId}",
             blocks.Count, documentId);
 
         var filePath = GetDocumentPath(documentId);
 
-        await _fileLock.WaitAsync(cancellationToken);
+        await fileLock.WaitAsync(cancellationToken);
         try
         {
             var json = JsonSerializer.Serialize(blocks, new JsonSerializerOptions
@@ -48,11 +43,11 @@ public class FileVectorStore : IVectorStore
 
             await File.WriteAllTextAsync(filePath, json, cancellationToken);
 
-            _logger.LogInformation("Stored blocks to {FilePath}", filePath);
+            logger.LogInformation("Stored blocks to {FilePath}", filePath);
         }
         finally
         {
-            _fileLock.Release();
+            fileLock.Release();
         }
     }
 
@@ -63,7 +58,7 @@ public class FileVectorStore : IVectorStore
         float minSimilarity = 0.0f,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Searching for top {TopK} similar blocks in document {DocumentId}",
+        logger.LogDebug("Searching for top {TopK} similar blocks in document {DocumentId}",
             topK, documentId);
 
         var blocks = await GetDocumentBlocksAsync(documentId, cancellationToken);
@@ -73,7 +68,7 @@ public class FileVectorStore : IVectorStore
             .Select(b => new
             {
                 Block = b,
-                Similarity = _embeddingGenerator.CalculateSimilarity(queryEmbedding, b.Embedding!)
+                Similarity = embeddingGenerator.CalculateSimilarity(queryEmbedding, b.Embedding!)
             })
             .Where(r => r.Similarity >= minSimilarity)
             .OrderByDescending(r => r.Similarity)
@@ -81,7 +76,7 @@ public class FileVectorStore : IVectorStore
             .Select(r => (r.Block, r.Similarity))
             .ToList();
 
-        _logger.LogDebug("Found {Count} similar blocks above threshold {MinSimilarity}",
+        logger.LogDebug("Found {Count} similar blocks above threshold {MinSimilarity}",
             results.Count, minSimilarity);
 
         return results;
@@ -95,12 +90,12 @@ public class FileVectorStore : IVectorStore
 
         if (!File.Exists(filePath))
         {
-            _logger.LogWarning("Document {DocumentId} not found at {FilePath}",
+            logger.LogWarning("Document {DocumentId} not found at {FilePath}",
                 documentId, filePath);
             return new List<TranslationBlock>();
         }
 
-        await _fileLock.WaitAsync(cancellationToken);
+        await fileLock.WaitAsync(cancellationToken);
         try
         {
             var json = await File.ReadAllTextAsync(filePath, cancellationToken);
@@ -110,7 +105,7 @@ public class FileVectorStore : IVectorStore
         }
         finally
         {
-            _fileLock.Release();
+            fileLock.Release();
         }
     }
 
@@ -120,15 +115,15 @@ public class FileVectorStore : IVectorStore
 
         if (File.Exists(filePath))
         {
-            await _fileLock.WaitAsync(cancellationToken);
+            await fileLock.WaitAsync(cancellationToken);
             try
             {
                 File.Delete(filePath);
-                _logger.LogInformation("Cleared document {DocumentId}", documentId);
+                logger.LogInformation("Cleared document {DocumentId}", documentId);
             }
             finally
             {
-                _fileLock.Release();
+                fileLock.Release();
             }
         }
     }
@@ -137,6 +132,6 @@ public class FileVectorStore : IVectorStore
     {
         // Sanitize document ID for use as filename
         var safeDocId = string.Join("_", documentId.Split(Path.GetInvalidFileNameChars()));
-        return Path.Combine(_dataPath, $"{safeDocId}.json");
+        return Path.Combine(dataPath, $"{safeDocId}.json");
     }
 }

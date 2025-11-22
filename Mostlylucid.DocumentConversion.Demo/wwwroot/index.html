@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Conversion Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-center mb-8">Document Conversion Service Demo</h1>
+
+        <div class="grid md:grid-cols-2 gap-6">
+            <!-- Word to Markdown -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4">Word to Markdown</h2>
+                <form id="wordToMdForm" class="space-y-4">
+                    <input type="file" accept=".docx" id="wordToMdFile" class="block w-full text-sm border rounded p-2">
+                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Convert</button>
+                </form>
+                <div id="wordToMdResult" class="mt-4 hidden">
+                    <h3 class="font-medium mb-2">Result:</h3>
+                    <pre class="bg-gray-100 p-3 rounded text-sm overflow-auto max-h-64"></pre>
+                    <button class="mt-2 bg-green-500 text-white px-3 py-1 rounded text-sm download-btn">Download .md</button>
+                </div>
+            </div>
+
+            <!-- Word to PDF -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4">Word to PDF</h2>
+                <form id="wordToPdfForm" class="space-y-4">
+                    <input type="file" accept=".docx" id="wordToPdfFile" class="block w-full text-sm border rounded p-2">
+                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Convert</button>
+                </form>
+                <div id="wordToPdfResult" class="mt-4 hidden">
+                    <p class="text-green-600">PDF generated successfully!</p>
+                </div>
+            </div>
+
+            <!-- Markdown to Word -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4">Markdown to Word</h2>
+                <form id="mdToWordForm" class="space-y-4">
+                    <textarea id="mdToWordInput" rows="6" placeholder="Enter Markdown content..."
+                        class="w-full border rounded p-2 text-sm font-mono"># Sample Document
+
+This is a **bold** and *italic* text.
+
+## Features
+
+- Item 1
+- Item 2
+- Item 3
+
+```csharp
+Console.WriteLine("Hello World!");
+```</textarea>
+                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Convert</button>
+                </form>
+            </div>
+
+            <!-- Markdown to PDF -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4">Markdown to PDF</h2>
+                <form id="mdToPdfForm" class="space-y-4">
+                    <textarea id="mdToPdfInput" rows="6" placeholder="Enter Markdown content..."
+                        class="w-full border rounded p-2 text-sm font-mono"># Report Title
+
+## Introduction
+
+This document demonstrates Markdown to PDF conversion.
+
+| Column 1 | Column 2 |
+|----------|----------|
+| Data A   | Data B   |
+| Data C   | Data D   |
+
+## Conclusion
+
+PDF generation using QuestPDF.</textarea>
+                    <div class="flex gap-4">
+                        <select id="pageSize" class="border rounded p-2">
+                            <option value="A4">A4</option>
+                            <option value="Letter">Letter</option>
+                            <option value="A3">A3</option>
+                            <option value="A5">A5</option>
+                        </select>
+                        <select id="orientation" class="border rounded p-2">
+                            <option value="Portrait">Portrait</option>
+                            <option value="Landscape">Landscape</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Convert</button>
+                </form>
+            </div>
+
+            <!-- Extract Elements -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4">Extract Elements</h2>
+                <form id="extractElementsForm" class="space-y-4">
+                    <input type="file" accept=".docx,.md,.txt" id="extractElementsFile" class="block w-full text-sm border rounded p-2">
+                    <button type="submit" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600">Extract</button>
+                </form>
+                <div id="extractElementsResult" class="mt-4 hidden">
+                    <h3 class="font-medium mb-2">Elements (<span class="count"></span>):</h3>
+                    <div class="bg-gray-100 p-3 rounded text-sm overflow-auto max-h-64 elements-list"></div>
+                </div>
+            </div>
+
+            <!-- Extract Images -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4">Extract Images</h2>
+                <form id="extractImagesForm" class="space-y-4">
+                    <input type="file" accept=".docx" id="extractImagesFile" class="block w-full text-sm border rounded p-2">
+                    <button type="submit" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600">Extract</button>
+                </form>
+                <div id="extractImagesResult" class="mt-4 hidden">
+                    <h3 class="font-medium mb-2">Images (<span class="count"></span>):</h3>
+                    <div class="grid grid-cols-3 gap-2 images-grid"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Supported Formats -->
+        <div class="mt-8 bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold mb-4">Supported Formats</h2>
+            <div id="formats" class="text-sm text-gray-600">Loading...</div>
+        </div>
+    </div>
+
+    <script>
+        // Load supported formats
+        fetch('/api/conversion/formats')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('formats').innerHTML = `
+                    <p><strong>Readable:</strong> ${data.readable.join(', ')}</p>
+                    <p><strong>Writable:</strong> ${data.writable.join(', ')}</p>
+                `;
+            });
+
+        // Word to Markdown
+        document.getElementById('wordToMdForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const file = document.getElementById('wordToMdFile').files[0];
+            if (!file) return alert('Please select a file');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const res = await fetch('/api/conversion/word-to-markdown', { method: 'POST', body: formData });
+            const data = await res.json();
+
+            const result = document.getElementById('wordToMdResult');
+            result.classList.remove('hidden');
+            result.querySelector('pre').textContent = data.markdown;
+            result.querySelector('.download-btn').onclick = () => {
+                const blob = new Blob([data.markdown], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = data.fileName;
+                a.click();
+            };
+        });
+
+        // Word to PDF
+        document.getElementById('wordToPdfForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const file = document.getElementById('wordToPdfFile').files[0];
+            if (!file) return alert('Please select a file');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const res = await fetch('/api/conversion/word-to-pdf', { method: 'POST', body: formData });
+            const blob = await res.blob();
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = file.name.replace('.docx', '.pdf');
+            a.click();
+
+            document.getElementById('wordToPdfResult').classList.remove('hidden');
+        });
+
+        // Markdown to Word
+        document.getElementById('mdToWordForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const markdown = document.getElementById('mdToWordInput').value;
+
+            const res = await fetch('/api/conversion/markdown-to-word', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ markdown, fileName: 'document' })
+            });
+            const blob = await res.blob();
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'document.docx';
+            a.click();
+        });
+
+        // Markdown to PDF
+        document.getElementById('mdToPdfForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const markdown = document.getElementById('mdToPdfInput').value;
+            const pageSize = document.getElementById('pageSize').value;
+            const orientation = document.getElementById('orientation').value;
+
+            const pageSizeMap = { 'A4': 0, 'A3': 1, 'A5': 2, 'Letter': 3, 'Legal': 4 };
+            const orientationMap = { 'Portrait': 0, 'Landscape': 1 };
+
+            const res = await fetch('/api/conversion/markdown-to-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    markdown,
+                    fileName: 'document',
+                    pageSize: pageSizeMap[pageSize],
+                    orientation: orientationMap[orientation]
+                })
+            });
+            const blob = await res.blob();
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'document.pdf';
+            a.click();
+        });
+
+        // Extract Elements
+        document.getElementById('extractElementsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const file = document.getElementById('extractElementsFile').files[0];
+            if (!file) return alert('Please select a file');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const res = await fetch('/api/conversion/extract-elements', { method: 'POST', body: formData });
+            const data = await res.json();
+
+            const result = document.getElementById('extractElementsResult');
+            result.classList.remove('hidden');
+            result.querySelector('.count').textContent = data.elementCount;
+            result.querySelector('.elements-list').innerHTML = data.elements
+                .map(e => `<div class="mb-1"><span class="text-blue-600">${e.type}</span>: ${e.content}</div>`)
+                .join('');
+        });
+
+        // Extract Images
+        document.getElementById('extractImagesForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const file = document.getElementById('extractImagesFile').files[0];
+            if (!file) return alert('Please select a file');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const res = await fetch('/api/conversion/extract-images', { method: 'POST', body: formData });
+            const data = await res.json();
+
+            const result = document.getElementById('extractImagesResult');
+            result.classList.remove('hidden');
+            result.querySelector('.count').textContent = data.imageCount;
+            result.querySelector('.images-grid').innerHTML = data.images
+                .map(img => `<img src="${img.dataUri}" alt="${img.fileName}" class="w-full rounded border" title="${img.width}x${img.height}">`)
+                .join('');
+        });
+    </script>
+</body>
+</html>

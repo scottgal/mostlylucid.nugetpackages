@@ -252,11 +252,12 @@ internal class NullLogSource : ILogSource
     public string Name => "None";
     public bool IsAvailable => false;
 
-    public IAsyncEnumerable<LogEntry> GetEntriesAsync(
+    public async IAsyncEnumerable<LogEntry> GetEntriesAsync(
         DateTimeOffset from, DateTimeOffset to, int maxEntries,
-        System.Threading.CancellationToken cancellationToken = default)
+        [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken cancellationToken = default)
     {
-        return AsyncEnumerable.Empty<LogEntry>();
+        await Task.CompletedTask;
+        yield break;
     }
 
     public Task<bool> TestConnectionAsync(System.Threading.CancellationToken cancellationToken = default)

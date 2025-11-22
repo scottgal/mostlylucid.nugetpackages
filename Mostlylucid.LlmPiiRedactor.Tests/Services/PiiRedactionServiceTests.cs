@@ -5,6 +5,7 @@ using Moq;
 using Mostlylucid.LlmPiiRedactor.Detectors;
 using Mostlylucid.LlmPiiRedactor.Models;
 using Mostlylucid.LlmPiiRedactor.Services;
+using Xunit;
 
 namespace Mostlylucid.LlmPiiRedactor.Tests.Services;
 
@@ -62,7 +63,7 @@ public class PiiRedactionServiceTests
         result.ContainedPii.Should().BeTrue();
         result.RedactedText.Should().NotContain("john@example.com");
         result.RedactedText.Should().NotContain("555-123-4567");
-        result.Matches.Should().HaveCountGreaterOrEqualTo(2);
+        result.Matches.Should().HaveCountGreaterThanOrEqualTo(2);
     }
 
     [Fact]
@@ -115,7 +116,7 @@ public class PiiRedactionServiceTests
 
         var matches = _service.Detect(text);
 
-        matches.Should().HaveCountGreaterOrEqualTo(2);
+        matches.Should().HaveCountGreaterThanOrEqualTo(2);
         matches.Should().Contain(m => m.Type == PiiType.Email);
         matches.Should().Contain(m => m.Type == PiiType.PhoneNumber);
     }
@@ -128,7 +129,7 @@ public class PiiRedactionServiceTests
 
         var stats = _service.GetStatistics();
 
-        stats.TotalScans.Should().BeGreaterOrEqualTo(2);
-        stats.TotalRedactions.Should().BeGreaterOrEqualTo(2);
+        stats.TotalScans.Should().BeGreaterThanOrEqualTo(2);
+        stats.TotalRedactions.Should().BeGreaterThanOrEqualTo(2);
     }
 }

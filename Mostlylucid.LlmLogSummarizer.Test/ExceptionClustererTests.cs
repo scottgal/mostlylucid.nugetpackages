@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Mostlylucid.LlmLogSummarizer.Clustering;
 using Mostlylucid.LlmLogSummarizer.Models;
+using ModelLogLevel = Mostlylucid.LlmLogSummarizer.Models.LogLevel;
 
 namespace Mostlylucid.LlmLogSummarizer.Test;
 
@@ -36,7 +37,7 @@ public class ExceptionClustererTests
         {
             new()
             {
-                Level = LogLevel.Error,
+                Level = ModelLogLevel.Error,
                 Message = "Test error message",
                 ExceptionType = "System.NullReferenceException",
                 Timestamp = DateTimeOffset.UtcNow
@@ -61,7 +62,7 @@ public class ExceptionClustererTests
         {
             new()
             {
-                Level = LogLevel.Error,
+                Level = ModelLogLevel.Error,
                 Message = "User 123 not found",
                 ExceptionType = "System.ArgumentException",
                 SourceContext = "UserService",
@@ -69,7 +70,7 @@ public class ExceptionClustererTests
             },
             new()
             {
-                Level = LogLevel.Error,
+                Level = ModelLogLevel.Error,
                 Message = "User 456 not found",
                 ExceptionType = "System.ArgumentException",
                 SourceContext = "UserService",
@@ -77,7 +78,7 @@ public class ExceptionClustererTests
             },
             new()
             {
-                Level = LogLevel.Error,
+                Level = ModelLogLevel.Error,
                 Message = "User 789 not found",
                 ExceptionType = "System.ArgumentException",
                 SourceContext = "UserService",
@@ -107,14 +108,14 @@ public class ExceptionClustererTests
         {
             new()
             {
-                Level = LogLevel.Error,
+                Level = ModelLogLevel.Error,
                 Message = "Null reference error",
                 ExceptionType = "System.NullReferenceException",
                 Timestamp = DateTimeOffset.UtcNow
             },
             new()
             {
-                Level = LogLevel.Error,
+                Level = ModelLogLevel.Error,
                 Message = "Timeout occurred",
                 ExceptionType = "System.TimeoutException",
                 Timestamp = DateTimeOffset.UtcNow
@@ -137,13 +138,13 @@ public class ExceptionClustererTests
         {
             new()
             {
-                Level = LogLevel.Information,
+                Level = ModelLogLevel.Information,
                 Message = "Request processed successfully",
                 Timestamp = DateTimeOffset.UtcNow
             },
             new()
             {
-                Level = LogLevel.Error,
+                Level = ModelLogLevel.Error,
                 Message = "Error occurred",
                 ExceptionType = "System.Exception",
                 Timestamp = DateTimeOffset.UtcNow
@@ -167,7 +168,7 @@ public class ExceptionClustererTests
         {
             new()
             {
-                Level = LogLevel.Warning,
+                Level = ModelLogLevel.Warning,
                 Message = "Deprecation warning",
                 Timestamp = DateTimeOffset.UtcNow
             }
@@ -188,7 +189,7 @@ public class ExceptionClustererTests
         var entries = Enumerable.Range(0, 150)
             .Select(_ => new LogEntry
             {
-                Level = LogLevel.Error,
+                Level = ModelLogLevel.Error,
                 Message = "High frequency error",
                 ExceptionType = "System.Exception",
                 Timestamp = DateTimeOffset.UtcNow
@@ -211,7 +212,7 @@ public class ExceptionClustererTests
         var entries = Enumerable.Range(0, 200)
             .Select(i => new LogEntry
             {
-                Level = LogLevel.Error,
+                Level = ModelLogLevel.Error,
                 Message = $"Unique error {i}",
                 ExceptionType = $"Exception{i}",
                 Timestamp = DateTimeOffset.UtcNow

@@ -124,8 +124,8 @@ public class EmbeddingGenerator : IEmbeddingGenerator, IDisposable
 
         var parameters = new ModelParams(_config.Embedding.ModelPath)
         {
-            ContextSize = (uint)_config.Embedding.ContextSize,
-            EmbeddingMode = true
+            ContextSize = (uint)_config.Embedding.ContextSize
+            // Note: EmbeddingMode property was removed in newer LlamaSharp versions
         };
 
         var weights = LLamaWeights.LoadFromFile(parameters);
@@ -157,16 +157,16 @@ public class EmbeddingGenerator : IEmbeddingGenerator, IDisposable
         return result.Embedding;
     }
 
-    private Task<float[]> GenerateLocalEmbeddingAsync(string text, CancellationToken cancellationToken)
+    private async Task<float[]> GenerateLocalEmbeddingAsync(string text, CancellationToken cancellationToken)
     {
         if (_embedder == null)
             throw new InvalidOperationException("Local embedder not initialized");
 
-        var embeddings = _embedder.GetEmbeddings(text);
+        var embeddings = await _embedder.GetEmbeddings(text);
 
         // LlamaSharp returns embeddings per token, we need to average them
-        if (embeddings.Length == 0)
-            return Task.FromResult(new float[_config.Embedding.Dimension]);
+        if (embeddings.Count == 0)
+            return new float[_config.Embedding.Dimension];
 
         var result = new float[embeddings[0].Length];
 
@@ -175,9 +175,9 @@ public class EmbeddingGenerator : IEmbeddingGenerator, IDisposable
                 result[i] += embedding[i];
 
         for (var i = 0; i < result.Length; i++)
-            result[i] /= embeddings.Length;
+            result[i] /= embeddings.Count;
 
-        return Task.FromResult(result);
+        return result;
     }
 
     private class OllamaEmbeddingResponse

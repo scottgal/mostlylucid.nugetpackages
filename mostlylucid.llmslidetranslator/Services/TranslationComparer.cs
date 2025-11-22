@@ -6,25 +6,17 @@ namespace mostlylucid.llmslidetranslator.Services;
 /// <summary>
 ///     Service for comparing translations
 /// </summary>
-public class TranslationComparer : ITranslationComparer
+public class TranslationComparer(
+    ILogger<TranslationComparer> logger,
+    IEmbeddingGenerator embeddingGenerator) : ITranslationComparer
 {
-    private readonly IEmbeddingGenerator _embeddingGenerator;
-    private readonly ILogger<TranslationComparer> _logger;
-
-    public TranslationComparer(
-        ILogger<TranslationComparer> logger,
-        IEmbeddingGenerator embeddingGenerator)
-    {
-        _logger = logger;
-        _embeddingGenerator = embeddingGenerator;
-    }
 
     public Task<TranslationComparison> CompareAsync(
         TranslationResult result1,
         TranslationResult result2,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation(
+        logger.LogInformation(
             "Comparing translations for document {DocumentId} using methods {Method1} vs {Method2}",
             result1.DocumentId, result1.Method, result2.Method);
 
@@ -68,7 +60,7 @@ public class TranslationComparer : ITranslationComparer
         if (comparison.Differences.Count > 0)
             comparison.SimilarityScore = comparison.Differences.Average(d => d.Similarity);
 
-        _logger.LogInformation(
+        logger.LogInformation(
             "Comparison completed. Overall similarity: {Similarity:F2}",
             comparison.SimilarityScore);
 

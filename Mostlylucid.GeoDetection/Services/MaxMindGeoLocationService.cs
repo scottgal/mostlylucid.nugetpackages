@@ -11,29 +11,24 @@ namespace Mostlylucid.GeoDetection.Services;
 /// <summary>
 ///     GeoLocation service using MaxMind GeoLite2 local database
 /// </summary>
-public class MaxMindGeoLocationService : IGeoLocationService, IDisposable
+public class MaxMindGeoLocationService(
+    ILogger<MaxMindGeoLocationService> logger,
+    IOptions<GeoLite2Options> options,
+    IMemoryCache cache,
+    IGeoLocationService? fallbackService = null) : IGeoLocationService, IDisposable
 {
-    private readonly IMemoryCache _cache;
-    private readonly GeoLite2Options _options;
-    private readonly ILogger<MaxMindGeoLocationService> _logger;
+    private readonly GeoLite2Options _options = options.Value;
     private readonly GeoLocationStatistics _stats = new();
     private readonly SemaphoreSlim _readerLock = new(1, 1);
-    private readonly IGeoLocationService? _fallbackService;
 
     private DatabaseReader? _reader;
     private DateTime _lastReaderUpdate = DateTime.MinValue;
+    private bool _initialized;
 
-    public MaxMindGeoLocationService(
-        ILogger<MaxMindGeoLocationService> logger,
-        IOptions<GeoLite2Options> options,
-        IMemoryCache cache,
-        IGeoLocationService? fallbackService = null)
+    private void EnsureInitialized()
     {
-        _logger = logger;
-        _options = options.Value;
-        _cache = cache;
-        _fallbackService = fallbackService;
-
+        if (_initialized) return;
+        _initialized = true;
         InitializeReader();
     }
 
@@ -46,11 +41,11 @@ public class MaxMindGeoLocationService : IGeoLocationService, IDisposable
             {
                 _reader = new DatabaseReader(dbPath);
                 _lastReaderUpdate = File.GetLastWriteTimeUtc(dbPath);
-                _logger.LogInformation("MaxMind GeoLite2 database loaded from {Path}", dbPath);
+                logger.LogInformation("MaxMind GeoLite2 database loaded from {Path}", dbPath);
             }
             else
             {
-                _logger.LogWarning("MaxMind GeoLite2 database not found at {Path}. " +
+                logger.LogWarning("MaxMind GeoLite2 database not found at {Path}. " +
                     "Configure GeoLite2Options with AccountId and LicenseKey to enable auto-download, " +
                     "or download manually from https://dev.maxmind.com/geoip/geolite2-free-geolocation-data",
                     dbPath);
@@ -58,7 +53,7 @@ public class MaxMindGeoLocationService : IGeoLocationService, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to initialize MaxMind database reader");
+            logger.LogError(ex, "Failed to initialize MaxMind database reader");
         }
     }
 
@@ -82,11 +77,12 @@ public class MaxMindGeoLocationService : IGeoLocationService, IDisposable
 
     public async Task<GeoLocation?> GetLocationAsync(string ipAddress, CancellationToken cancellationToken = default)
     {
+        EnsureInitialized();
         _stats.TotalLookups++;
 
         // Check cache first
         var cacheKey = $"geo:{ipAddress}";
-        if (_cache.TryGetValue(cacheKey, out GeoLocation? cached))
+        if (cache.TryGetValue(cacheKey, out GeoLocation? cached))
         {
             _stats.CacheHits++;
             return cached;
@@ -96,10 +92,10 @@ public class MaxMindGeoLocationService : IGeoLocationService, IDisposable
         var location = await LookupMaxMindAsync(ipAddress, cancellationToken);
 
         // Fall back to simple service if configured
-        if (location == null && _options.FallbackToSimple && _fallbackService != null)
+        if (location == null && _options.FallbackToSimple && fallbackService != null)
         {
-            _logger.LogDebug("Falling back to simple geo service for {IP}", ipAddress);
-            location = await _fallbackService.GetLocationAsync(ipAddress, cancellationToken);
+            logger.LogDebug("Falling back to simple geo service for {IP}", ipAddress);
+            location = await fallbackService.GetLocationAsync(ipAddress, cancellationToken);
         }
 
         // Cache the result
@@ -108,7 +104,7 @@ public class MaxMindGeoLocationService : IGeoLocationService, IDisposable
             var cacheOptions = new MemoryCacheEntryOptions()
                 .SetAbsoluteExpiration(_options.CacheDuration)
                 .SetSize(1);
-            _cache.Set(cacheKey, location, cacheOptions);
+            cache.Set(cacheKey, location, cacheOptions);
         }
 
         return location;
@@ -118,7 +114,7 @@ public class MaxMindGeoLocationService : IGeoLocationService, IDisposable
     {
         if (_reader == null)
         {
-            _logger.LogDebug("MaxMind reader not available for lookup of {IP}", ipAddress);
+            logger.LogDebug("MaxMind reader not available for lookup of {IP}", ipAddress);
             return Task.FromResult<GeoLocation?>(null);
         }
 
@@ -126,7 +122,7 @@ public class MaxMindGeoLocationService : IGeoLocationService, IDisposable
         {
             if (!IPAddress.TryParse(ipAddress, out var ip))
             {
-                _logger.LogWarning("Invalid IP address format: {IP}", ipAddress);
+                logger.LogWarning("Invalid IP address format: {IP}", ipAddress);
                 return Task.FromResult<GeoLocation?>(null);
             }
 
@@ -152,12 +148,12 @@ public class MaxMindGeoLocationService : IGeoLocationService, IDisposable
         }
         catch (AddressNotFoundException)
         {
-            _logger.LogDebug("IP address not found in database: {IP}", ipAddress);
+            logger.LogDebug("IP address not found in database: {IP}", ipAddress);
             return Task.FromResult<GeoLocation?>(null);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error looking up IP {IP} in MaxMind database", ipAddress);
+            logger.LogError(ex, "Error looking up IP {IP} in MaxMind database", ipAddress);
             return Task.FromResult<GeoLocation?>(null);
         }
     }

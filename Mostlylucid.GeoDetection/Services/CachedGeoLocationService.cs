@@ -10,31 +10,17 @@ namespace Mostlylucid.GeoDetection.Services;
 /// <summary>
 ///     Wrapper service that adds caching (memory and optionally database) to any geo provider
 /// </summary>
-public class CachedGeoLocationService : IGeoLocationService
+public class CachedGeoLocationService(
+    IGeoLocationService innerService,
+    IMemoryCache memoryCache,
+    IOptions<GeoLite2Options> options,
+    IOptions<GeoCacheOptions> cacheOptions,
+    ILogger<CachedGeoLocationService> logger,
+    GeoDbContext? dbContext = null) : IGeoLocationService
 {
-    private readonly IGeoLocationService _innerService;
-    private readonly IMemoryCache _memoryCache;
-    private readonly GeoDbContext? _dbContext;
-    private readonly GeoCacheOptions _cacheOptions;
-    private readonly GeoLite2Options _options;
-    private readonly ILogger<CachedGeoLocationService> _logger;
+    private readonly GeoCacheOptions _cacheOptions = cacheOptions.Value;
+    private readonly GeoLite2Options _options = options.Value;
     private readonly GeoLocationStatistics _stats = new();
-
-    public CachedGeoLocationService(
-        IGeoLocationService innerService,
-        IMemoryCache memoryCache,
-        IOptions<GeoLite2Options> options,
-        IOptions<GeoCacheOptions> cacheOptions,
-        ILogger<CachedGeoLocationService> logger,
-        GeoDbContext? dbContext = null)
-    {
-        _innerService = innerService;
-        _memoryCache = memoryCache;
-        _dbContext = dbContext;
-        _cacheOptions = cacheOptions.Value;
-        _options = options.Value;
-        _logger = logger;
-    }
 
     public async Task<GeoLocation?> GetLocationAsync(string ipAddress, CancellationToken cancellationToken = default)
     {
@@ -42,14 +28,14 @@ public class CachedGeoLocationService : IGeoLocationService
 
         // 1. Check memory cache first (fastest)
         var cacheKey = $"geo:{ipAddress}";
-        if (_memoryCache.TryGetValue(cacheKey, out GeoLocation? cached))
+        if (memoryCache.TryGetValue(cacheKey, out GeoLocation? cached))
         {
             _stats.CacheHits++;
             return cached;
         }
 
         // 2. Check database cache if enabled
-        if (_cacheOptions.Enabled && _dbContext != null)
+        if (_cacheOptions.Enabled && dbContext != null)
         {
             var dbCached = await GetFromDatabaseCacheAsync(ipAddress, cancellationToken);
             if (dbCached != null)
@@ -62,7 +48,7 @@ public class CachedGeoLocationService : IGeoLocationService
         }
 
         // 3. Look up from provider
-        var location = await _innerService.GetLocationAsync(ipAddress, cancellationToken);
+        var location = await innerService.GetLocationAsync(ipAddress, cancellationToken);
 
         if (location != null)
         {
@@ -70,7 +56,7 @@ public class CachedGeoLocationService : IGeoLocationService
             CacheInMemory(cacheKey, location);
 
             // Cache in database if enabled
-            if (_cacheOptions.Enabled && _dbContext != null)
+            if (_cacheOptions.Enabled && dbContext != null)
             {
                 await SaveToDatabaseCacheAsync(ipAddress, location, cancellationToken);
             }
@@ -81,19 +67,19 @@ public class CachedGeoLocationService : IGeoLocationService
 
     private void CacheInMemory(string cacheKey, GeoLocation location)
     {
-        var cacheOptions = new MemoryCacheEntryOptions()
+        var memoryCacheOptions = new MemoryCacheEntryOptions()
             .SetAbsoluteExpiration(_options.CacheDuration)
             .SetSize(1);
-        _memoryCache.Set(cacheKey, location, cacheOptions);
+        memoryCache.Set(cacheKey, location, memoryCacheOptions);
     }
 
     private async Task<GeoLocation?> GetFromDatabaseCacheAsync(string ipAddress, CancellationToken cancellationToken)
     {
-        if (_dbContext == null) return null;
+        if (dbContext == null) return null;
 
         try
         {
-            var cached = await _dbContext.CachedLocations
+            var cached = await dbContext.CachedLocations
                 .AsNoTracking()
                 .FirstOrDefaultAsync(c => c.IpAddress == ipAddress && c.ExpiresAt > DateTime.UtcNow, cancellationToken);
 
@@ -115,14 +101,14 @@ public class CachedGeoLocationService : IGeoLocationService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to read from geo cache database");
+            logger.LogWarning(ex, "Failed to read from geo cache database");
             return null;
         }
     }
 
     private async Task SaveToDatabaseCacheAsync(string ipAddress, GeoLocation location, CancellationToken cancellationToken)
     {
-        if (_dbContext == null) return;
+        if (dbContext == null) return;
 
         try
         {
@@ -145,21 +131,21 @@ public class CachedGeoLocationService : IGeoLocationService
                 Provider = _options.Provider.ToString()
             };
 
-            var existing = await _dbContext.CachedLocations.FindAsync(new object[] { ipAddress }, cancellationToken);
+            var existing = await dbContext.CachedLocations.FindAsync(new object[] { ipAddress }, cancellationToken);
             if (existing != null)
             {
-                _dbContext.Entry(existing).CurrentValues.SetValues(cached);
+                dbContext.Entry(existing).CurrentValues.SetValues(cached);
             }
             else
             {
-                _dbContext.CachedLocations.Add(cached);
+                dbContext.CachedLocations.Add(cached);
             }
 
-            await _dbContext.SaveChangesAsync(cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to save to geo cache database");
+            logger.LogWarning(ex, "Failed to save to geo cache database");
         }
     }
 
@@ -172,7 +158,7 @@ public class CachedGeoLocationService : IGeoLocationService
 
     public GeoLocationStatistics GetStatistics()
     {
-        var innerStats = _innerService.GetStatistics();
+        var innerStats = innerService.GetStatistics();
         return new GeoLocationStatistics
         {
             TotalLookups = _stats.TotalLookups,
@@ -189,25 +175,25 @@ public class CachedGeoLocationService : IGeoLocationService
     /// </summary>
     public async Task CleanupExpiredAsync(CancellationToken cancellationToken = default)
     {
-        if (_dbContext == null) return;
+        if (dbContext == null) return;
 
         try
         {
             var now = DateTime.UtcNow;
-            var expired = await _dbContext.CachedLocations
+            var expired = await dbContext.CachedLocations
                 .Where(c => c.ExpiresAt < now)
                 .ToListAsync(cancellationToken);
 
             if (expired.Count > 0)
             {
-                _dbContext.CachedLocations.RemoveRange(expired);
-                await _dbContext.SaveChangesAsync(cancellationToken);
-                _logger.LogInformation("Cleaned up {Count} expired geo cache entries", expired.Count);
+                dbContext.CachedLocations.RemoveRange(expired);
+                await dbContext.SaveChangesAsync(cancellationToken);
+                logger.LogInformation("Cleaned up {Count} expired geo cache entries", expired.Count);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to cleanup expired geo cache entries");
+            logger.LogWarning(ex, "Failed to cleanup expired geo cache entries");
         }
     }
 }

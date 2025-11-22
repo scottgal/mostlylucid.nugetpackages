@@ -11,12 +11,13 @@ namespace Mostlylucid.GeoDetection.Services;
 ///     GeoLocation service using free DataHub GeoIP2-IPv4 CSV database
 ///     No account required! Data from: https://datahub.io/core/geoip2-ipv4
 /// </summary>
-public class DataHubGeoLocationService : IGeoLocationService, IHostedService
+public class DataHubGeoLocationService(
+    ILogger<DataHubGeoLocationService> logger,
+    IOptions<GeoLite2Options> options,
+    IHttpClientFactory httpClientFactory,
+    IMemoryCache cache) : IGeoLocationService, IHostedService
 {
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IMemoryCache _cache;
-    private readonly GeoLite2Options _options;
-    private readonly ILogger<DataHubGeoLocationService> _logger;
+    private readonly GeoLite2Options _options = options.Value;
     private readonly GeoLocationStatistics _stats = new();
     private readonly SemaphoreSlim _loadLock = new(1, 1);
 
@@ -25,18 +26,6 @@ public class DataHubGeoLocationService : IGeoLocationService, IHostedService
 
     private List<IpRange>? _ipRanges;
     private DateTime _lastUpdate = DateTime.MinValue;
-
-    public DataHubGeoLocationService(
-        ILogger<DataHubGeoLocationService> logger,
-        IOptions<GeoLite2Options> options,
-        IHttpClientFactory httpClientFactory,
-        IMemoryCache cache)
-    {
-        _logger = logger;
-        _options = options.Value;
-        _httpClientFactory = httpClientFactory;
-        _cache = cache;
-    }
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -52,7 +41,7 @@ public class DataHubGeoLocationService : IGeoLocationService, IHostedService
 
         // Check cache first
         var cacheKey = $"datahub:{ipAddress}";
-        if (_cache.TryGetValue(cacheKey, out GeoLocation? cached))
+        if (cache.TryGetValue(cacheKey, out GeoLocation? cached))
         {
             _stats.CacheHits++;
             return cached;
@@ -63,7 +52,7 @@ public class DataHubGeoLocationService : IGeoLocationService, IHostedService
 
         if (_ipRanges == null || _ipRanges.Count == 0)
         {
-            _logger.LogWarning("DataHub database not loaded");
+            logger.LogWarning("DataHub database not loaded");
             return null;
         }
 
@@ -96,10 +85,10 @@ public class DataHubGeoLocationService : IGeoLocationService, IHostedService
         // Cache the result
         if (location != null)
         {
-            var cacheOptions = new MemoryCacheEntryOptions()
+            var memoryCacheOptions = new MemoryCacheEntryOptions()
                 .SetAbsoluteExpiration(_options.CacheDuration)
                 .SetSize(1);
-            _cache.Set(cacheKey, location, cacheOptions);
+            cache.Set(cacheKey, location, memoryCacheOptions);
         }
 
         return location;
@@ -175,14 +164,14 @@ public class DataHubGeoLocationService : IGeoLocationService, IHostedService
     {
         try
         {
-            _logger.LogInformation("Downloading GeoIP database from DataHub...");
+            logger.LogInformation("Downloading GeoIP database from DataHub...");
 
-            using var client = _httpClientFactory.CreateClient("DataHub");
+            using var client = httpClientFactory.CreateClient("DataHub");
             var response = await client.GetAsync(CsvUrl, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Failed to download DataHub database: {Status}", response.StatusCode);
+                logger.LogWarning("Failed to download DataHub database: {Status}", response.StatusCode);
                 return;
             }
 
@@ -195,11 +184,11 @@ public class DataHubGeoLocationService : IGeoLocationService, IHostedService
             await using var fileStream = File.Create(csvPath);
             await response.Content.CopyToAsync(fileStream, cancellationToken);
 
-            _logger.LogInformation("Downloaded DataHub GeoIP database to {Path}", csvPath);
+            logger.LogInformation("Downloaded DataHub GeoIP database to {Path}", csvPath);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to download DataHub database");
+            logger.LogError(ex, "Failed to download DataHub database");
         }
     }
 
@@ -207,7 +196,7 @@ public class DataHubGeoLocationService : IGeoLocationService, IHostedService
     {
         try
         {
-            _logger.LogInformation("Loading GeoIP database from {Path}...", csvPath);
+            logger.LogInformation("Loading GeoIP database from {Path}...", csvPath);
 
             var ranges = new List<IpRange>();
             var lines = await File.ReadAllLinesAsync(csvPath, cancellationToken);
@@ -261,11 +250,11 @@ public class DataHubGeoLocationService : IGeoLocationService, IHostedService
             _ipRanges = ranges;
             _lastUpdate = File.GetLastWriteTimeUtc(csvPath);
 
-            _logger.LogInformation("Loaded {Count} IP ranges from DataHub database", ranges.Count);
+            logger.LogInformation("Loaded {Count} IP ranges from DataHub database", ranges.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load DataHub database");
+            logger.LogError(ex, "Failed to load DataHub database");
         }
     }
 

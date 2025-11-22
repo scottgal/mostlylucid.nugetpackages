@@ -9,27 +9,15 @@ namespace mostlylucid.llmslidetranslator.Services;
 /// <summary>
 ///     Qdrant-based vector store for embeddings
 /// </summary>
-public class QdrantVectorStore : IVectorStore
+public class QdrantVectorStore(
+    ILogger<QdrantVectorStore> logger,
+    IEmbeddingGenerator embeddingGenerator,
+    IOptions<LlmSlideTranslatorConfig> options) : IVectorStore
 {
-    private readonly QdrantClient _client;
-    private readonly LlmSlideTranslatorConfig _config;
-    private readonly IEmbeddingGenerator _embeddingGenerator;
-    private readonly SemaphoreSlim _initLock = new(1, 1);
-    private readonly ILogger<QdrantVectorStore> _logger;
+    private readonly LlmSlideTranslatorConfig config = options.Value;
+    private readonly QdrantClient client = new(options.Value.Qdrant.Endpoint, apiKey: options.Value.Qdrant.ApiKey);
+    private readonly SemaphoreSlim initLock = new(1, 1);
     private bool _collectionInitialized;
-
-    public QdrantVectorStore(
-        ILogger<QdrantVectorStore> logger,
-        IEmbeddingGenerator embeddingGenerator,
-        IOptions<LlmSlideTranslatorConfig> config)
-    {
-        _logger = logger;
-        _embeddingGenerator = embeddingGenerator;
-        _config = config.Value;
-
-        var endpoint = _config.Qdrant.Endpoint;
-        _client = new QdrantClient(endpoint, apiKey: _config.Qdrant.ApiKey);
-    }
 
     public async Task StoreAsync(
         List<TranslationBlock> blocks,
@@ -38,17 +26,17 @@ public class QdrantVectorStore : IVectorStore
     {
         await EnsureCollectionExistsAsync(cancellationToken);
 
-        _logger.LogInformation("Storing {Count} blocks for document {DocumentId} in Qdrant",
+        logger.LogInformation("Storing {Count} blocks for document {DocumentId} in Qdrant",
             blocks.Count, documentId);
 
-        var collectionName = _config.Qdrant.CollectionName;
+        var collectionName = config.Qdrant.CollectionName;
         var points = new List<PointStruct>();
 
         foreach (var block in blocks)
         {
             if (block.Embedding == null)
             {
-                _logger.LogWarning("Block {BlockId} has no embedding, skipping", block.BlockId);
+                logger.LogWarning("Block {BlockId} has no embedding, skipping", block.BlockId);
                 continue;
             }
 
@@ -75,8 +63,8 @@ public class QdrantVectorStore : IVectorStore
 
         if (points.Count > 0)
         {
-            await _client.UpsertAsync(collectionName, points, cancellationToken: cancellationToken);
-            _logger.LogInformation("Stored {Count} points in Qdrant", points.Count);
+            await client.UpsertAsync(collectionName, points, cancellationToken: cancellationToken);
+            logger.LogInformation("Stored {Count} points in Qdrant", points.Count);
         }
     }
 
@@ -89,12 +77,12 @@ public class QdrantVectorStore : IVectorStore
     {
         await EnsureCollectionExistsAsync(cancellationToken);
 
-        _logger.LogDebug("Searching for top {TopK} similar blocks in document {DocumentId}",
+        logger.LogDebug("Searching for top {TopK} similar blocks in document {DocumentId}",
             topK, documentId);
 
-        var collectionName = _config.Qdrant.CollectionName;
+        var collectionName = config.Qdrant.CollectionName;
 
-        var searchResult = await _client.SearchAsync(
+        var searchResult = await client.SearchAsync(
             collectionName,
             queryEmbedding,
             limit: (ulong)topK,
@@ -134,7 +122,7 @@ public class QdrantVectorStore : IVectorStore
             return (block, r.Score);
         }).ToList();
 
-        _logger.LogDebug("Found {Count} similar blocks above threshold {MinSimilarity}",
+        logger.LogDebug("Found {Count} similar blocks above threshold {MinSimilarity}",
             results.Count, minSimilarity);
 
         return results;
@@ -146,11 +134,11 @@ public class QdrantVectorStore : IVectorStore
     {
         await EnsureCollectionExistsAsync(cancellationToken);
 
-        var collectionName = _config.Qdrant.CollectionName;
+        var collectionName = config.Qdrant.CollectionName;
 
-        _logger.LogDebug("Retrieving all blocks for document {DocumentId} from Qdrant", documentId);
+        logger.LogDebug("Retrieving all blocks for document {DocumentId} from Qdrant", documentId);
 
-        var scrollResult = await _client.ScrollAsync(
+        var scrollResult = await client.ScrollAsync(
             collectionName,
             filter: new Filter
             {
@@ -185,7 +173,7 @@ public class QdrantVectorStore : IVectorStore
             Embedding = r.Vectors.Vector.Data.ToArray()
         }).OrderBy(b => b.Index).ToList();
 
-        _logger.LogDebug("Retrieved {Count} blocks for document {DocumentId}", blocks.Count, documentId);
+        logger.LogDebug("Retrieved {Count} blocks for document {DocumentId}", blocks.Count, documentId);
 
         return blocks;
     }
@@ -194,9 +182,9 @@ public class QdrantVectorStore : IVectorStore
     {
         await EnsureCollectionExistsAsync(cancellationToken);
 
-        var collectionName = _config.Qdrant.CollectionName;
+        var collectionName = config.Qdrant.CollectionName;
 
-        await _client.DeleteAsync(
+        await client.DeleteAsync(
             collectionName,
             new Filter
             {
@@ -214,7 +202,7 @@ public class QdrantVectorStore : IVectorStore
             },
             cancellationToken: cancellationToken);
 
-        _logger.LogInformation("Cleared document {DocumentId} from Qdrant", documentId);
+        logger.LogInformation("Cleared document {DocumentId} from Qdrant", documentId);
     }
 
     private async Task EnsureCollectionExistsAsync(CancellationToken cancellationToken = default)
@@ -222,41 +210,41 @@ public class QdrantVectorStore : IVectorStore
         if (_collectionInitialized)
             return;
 
-        await _initLock.WaitAsync(cancellationToken);
+        await initLock.WaitAsync(cancellationToken);
         try
         {
             if (_collectionInitialized)
                 return;
 
-            var collectionName = _config.Qdrant.CollectionName;
+            var collectionName = config.Qdrant.CollectionName;
 
-            _logger.LogInformation("Checking if Qdrant collection {CollectionName} exists", collectionName);
+            logger.LogInformation("Checking if Qdrant collection {CollectionName} exists", collectionName);
 
-            var collections = await _client.ListCollectionsAsync(cancellationToken);
+            var collections = await client.ListCollectionsAsync(cancellationToken);
             // ListCollectionsAsync returns IReadOnlyList<string> in current Qdrant client version
             var exists = collections.Any(c => c == collectionName);
 
             if (!exists)
             {
-                _logger.LogInformation("Creating Qdrant collection {CollectionName}", collectionName);
+                logger.LogInformation("Creating Qdrant collection {CollectionName}", collectionName);
 
-                await _client.CreateCollectionAsync(
+                await client.CreateCollectionAsync(
                     collectionName,
                     new VectorParams
                     {
-                        Size = (ulong)_config.Embedding.Dimension,
+                        Size = (ulong)config.Embedding.Dimension,
                         Distance = Distance.Cosine
                     },
                     cancellationToken: cancellationToken);
 
-                _logger.LogInformation("Collection {CollectionName} created successfully", collectionName);
+                logger.LogInformation("Collection {CollectionName} created successfully", collectionName);
             }
 
             _collectionInitialized = true;
         }
         finally
         {
-            _initLock.Release();
+            initLock.Release();
         }
     }
 }

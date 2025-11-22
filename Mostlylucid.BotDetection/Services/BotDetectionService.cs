@@ -18,10 +18,6 @@ public class BotDetectionService(
     IEnumerable<IDetector> detectors)
     : IBotDetectionService
 {
-    private readonly IMemoryCache _cache = cache;
-    private readonly IEnumerable<IDetector> _detectors = detectors;
-    private readonly ILogger<BotDetectionService> _logger = logger;
-    private readonly BotDetectionOptions _options = options.Value;
     private readonly BotDetectionStatistics _statistics = new();
     private readonly object _statsLock = new();
 
@@ -34,9 +30,9 @@ public class BotDetectionService(
         {
             // Check cache first
             var cacheKey = BuildCacheKey(context);
-            if (_cache.TryGetValue<BotDetectionResult>(cacheKey, out var cachedResult) && cachedResult != null)
+            if (cache.TryGetValue<BotDetectionResult>(cacheKey, out var cachedResult) && cachedResult != null)
             {
-                _logger.LogDebug("Returning cached bot detection result");
+                logger.LogDebug("Returning cached bot detection result");
                 return cachedResult;
             }
 
@@ -44,18 +40,18 @@ public class BotDetectionService(
             var detectorResults = new List<DetectorResult>();
 
             // Run all enabled detectors
-            foreach (var detector in _detectors)
+            foreach (var detector in detectors)
                 try
                 {
                     var detectorResult = await detector.DetectAsync(context, cancellationToken);
                     detectorResults.Add(detectorResult);
 
-                    _logger.LogDebug("{Detector} confidence: {Confidence:F2}",
+                    logger.LogDebug("{Detector} confidence: {Confidence:F2}",
                         detector.Name, detectorResult.Confidence);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Detector {Detector} failed", detector.Name);
+                    logger.LogError(ex, "Detector {Detector} failed", detector.Name);
                 }
 
             // Combine results using weighted scoring
@@ -64,12 +60,12 @@ public class BotDetectionService(
             result.ProcessingTimeMs = sw.ElapsedMilliseconds;
 
             // Cache result
-            _cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheDurationSeconds));
+            cache.Set(cacheKey, result, TimeSpan.FromSeconds(options.Value.CacheDurationSeconds));
 
             // Update statistics
             UpdateStatistics(result);
 
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Bot detection complete: IsBot={IsBot}, Confidence={Confidence:F2}, Time={Time}ms",
                 result.IsBot, result.ConfidenceScore, result.ProcessingTimeMs);
 
@@ -77,7 +73,7 @@ public class BotDetectionService(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Bot detection failed");
+            logger.LogError(ex, "Bot detection failed");
             sw.Stop();
             return new BotDetectionResult
             {
@@ -122,7 +118,7 @@ public class BotDetectionService(
         var agreementBoost = suspiciousDetectors > 1 ? (suspiciousDetectors - 1) * 0.1 : 0.0;
 
         result.ConfidenceScore = Math.Min(maxConfidence + agreementBoost, 1.0);
-        result.IsBot = result.ConfidenceScore >= _options.BotThreshold;
+        result.IsBot = result.ConfidenceScore >= options.Value.BotThreshold;
 
         // Determine bot type (prefer specific types over unknown)
         var botTypes = detectorResults
