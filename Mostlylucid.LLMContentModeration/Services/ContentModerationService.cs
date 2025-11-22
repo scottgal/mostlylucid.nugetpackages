@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.LLMContentModeration.Models;
+using Mostlylucid.LLMContentModeration.Telemetry;
 
 namespace Mostlylucid.LLMContentModeration.Services;
 
@@ -79,6 +80,8 @@ public class ContentModerationService : IContentModerationService
         ModerationMode mode,
         CancellationToken cancellationToken)
     {
+        using var activity = ContentModerationTelemetry.StartModerationActivity(content.Length, mode);
+
         var stopwatch = Stopwatch.StartNew();
         var result = new ModerationResult
         {
@@ -89,6 +92,7 @@ public class ContentModerationService : IContentModerationService
         if (string.IsNullOrWhiteSpace(content))
         {
             result.ProcessingTimeMs = stopwatch.ElapsedMilliseconds;
+            ContentModerationTelemetry.RecordResult(activity, result);
             return result;
         }
 
@@ -124,6 +128,7 @@ public class ContentModerationService : IContentModerationService
         {
             _logger.LogError(ex, "Error during content moderation");
             result.Errors.Add($"Moderation error: {ex.Message}");
+            ContentModerationTelemetry.RecordException(activity, ex);
         }
 
         result.ProcessingTimeMs = stopwatch.ElapsedMilliseconds;
@@ -132,6 +137,7 @@ public class ContentModerationService : IContentModerationService
             "Content moderation completed in {Ms}ms. Flagged: {Flagged}, Blocked: {Blocked}, Mode: {Mode}",
             result.ProcessingTimeMs, result.IsFlagged, result.IsBlocked, mode);
 
+        ContentModerationTelemetry.RecordResult(activity, result);
         return result;
     }
 
@@ -143,24 +149,36 @@ public class ContentModerationService : IContentModerationService
         if (!options.PiiDetection.Enabled)
             return [];
 
-        // First pass: regex-based detection
-        var regexMatches = _piiDetector.DetectPii(content, options.PiiDetection);
+        using var activity = ContentModerationTelemetry.StartPiiDetectionActivity(
+            content.Length, options.PiiDetection.UseLlmEnhancement);
 
-        // Second pass: LLM enhancement (if enabled)
-        if (options.PiiDetection.UseLlmEnhancement)
+        try
         {
-            try
-            {
-                regexMatches = await _ollamaClient.EnhancePiiDetectionAsync(
-                    content, regexMatches, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "LLM PII enhancement failed, using regex results only");
-            }
-        }
+            // First pass: regex-based detection
+            var regexMatches = _piiDetector.DetectPii(content, options.PiiDetection);
 
-        return regexMatches;
+            // Second pass: LLM enhancement (if enabled)
+            if (options.PiiDetection.UseLlmEnhancement)
+            {
+                try
+                {
+                    regexMatches = await _ollamaClient.EnhancePiiDetectionAsync(
+                        content, regexMatches, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "LLM PII enhancement failed, using regex results only");
+                }
+            }
+
+            ContentModerationTelemetry.RecordPiiResult(activity, regexMatches);
+            return regexMatches;
+        }
+        catch (Exception ex)
+        {
+            ContentModerationTelemetry.RecordException(activity, ex);
+            throw;
+        }
     }
 
     private async Task<List<ContentFlag>> ClassifyContentAsync(
@@ -179,13 +197,18 @@ public class ContentModerationService : IContentModerationService
             return [];
         }
 
+        using var activity = ContentModerationTelemetry.StartClassificationActivity(content.Length);
+
         try
         {
-            return await _ollamaClient.ClassifyContentAsync(content, classificationOptions, cancellationToken);
+            var flags = await _ollamaClient.ClassifyContentAsync(content, classificationOptions, cancellationToken);
+            ContentModerationTelemetry.RecordClassificationResult(activity, flags);
+            return flags;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Content classification failed");
+            ContentModerationTelemetry.RecordException(activity, ex);
             return [];
         }
     }

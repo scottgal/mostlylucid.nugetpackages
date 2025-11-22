@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.GeoDetection.Data;
 using Mostlylucid.GeoDetection.Models;
+using Mostlylucid.GeoDetection.Telemetry;
 
 namespace Mostlylucid.GeoDetection.Services;
 
@@ -38,45 +39,61 @@ public class CachedGeoLocationService : IGeoLocationService
 
     public async Task<GeoLocation?> GetLocationAsync(string ipAddress, CancellationToken cancellationToken = default)
     {
-        _stats.TotalLookups++;
+        using var activity = GeoDetectionTelemetry.StartGetLocationActivity(ipAddress);
 
-        // 1. Check memory cache first (fastest)
-        var cacheKey = $"geo:{ipAddress}";
-        if (_memoryCache.TryGetValue(cacheKey, out GeoLocation? cached))
+        try
         {
-            _stats.CacheHits++;
-            return cached;
-        }
+            _stats.TotalLookups++;
 
-        // 2. Check database cache if enabled
-        if (_cacheOptions.Enabled && _dbContext != null)
-        {
-            var dbCached = await GetFromDatabaseCacheAsync(ipAddress, cancellationToken);
-            if (dbCached != null)
+            // 1. Check memory cache first (fastest)
+            var cacheKey = $"geo:{ipAddress}";
+            if (_memoryCache.TryGetValue(cacheKey, out GeoLocation? cached))
             {
                 _stats.CacheHits++;
-                // Also cache in memory for faster subsequent access
-                CacheInMemory(cacheKey, dbCached);
-                return dbCached;
+                GeoDetectionTelemetry.RecordResult(activity, cached, cacheHit: true);
+                GeoDetectionTelemetry.RecordCacheSource(activity, "memory");
+                return cached;
             }
-        }
 
-        // 3. Look up from provider
-        var location = await _innerService.GetLocationAsync(ipAddress, cancellationToken);
-
-        if (location != null)
-        {
-            // Cache in memory
-            CacheInMemory(cacheKey, location);
-
-            // Cache in database if enabled
+            // 2. Check database cache if enabled
             if (_cacheOptions.Enabled && _dbContext != null)
             {
-                await SaveToDatabaseCacheAsync(ipAddress, location, cancellationToken);
+                var dbCached = await GetFromDatabaseCacheAsync(ipAddress, cancellationToken);
+                if (dbCached != null)
+                {
+                    _stats.CacheHits++;
+                    // Also cache in memory for faster subsequent access
+                    CacheInMemory(cacheKey, dbCached);
+                    GeoDetectionTelemetry.RecordResult(activity, dbCached, cacheHit: true);
+                    GeoDetectionTelemetry.RecordCacheSource(activity, "database");
+                    return dbCached;
+                }
             }
-        }
 
-        return location;
+            // 3. Look up from provider
+            var location = await _innerService.GetLocationAsync(ipAddress, cancellationToken);
+
+            if (location != null)
+            {
+                // Cache in memory
+                CacheInMemory(cacheKey, location);
+
+                // Cache in database if enabled
+                if (_cacheOptions.Enabled && _dbContext != null)
+                {
+                    await SaveToDatabaseCacheAsync(ipAddress, location, cancellationToken);
+                }
+            }
+
+            GeoDetectionTelemetry.RecordResult(activity, location, cacheHit: false);
+            GeoDetectionTelemetry.RecordCacheSource(activity, "provider");
+            return location;
+        }
+        catch (Exception ex)
+        {
+            GeoDetectionTelemetry.RecordException(activity, ex);
+            throw;
+        }
     }
 
     private void CacheInMemory(string cacheKey, GeoLocation location)
@@ -166,8 +183,21 @@ public class CachedGeoLocationService : IGeoLocationService
     public async Task<bool> IsFromCountryAsync(string ipAddress, string countryCode,
         CancellationToken cancellationToken = default)
     {
-        var location = await GetLocationAsync(ipAddress, cancellationToken);
-        return location?.CountryCode.Equals(countryCode, StringComparison.OrdinalIgnoreCase) ?? false;
+        using var activity = GeoDetectionTelemetry.StartIsFromCountryActivity(ipAddress, countryCode);
+
+        try
+        {
+            var location = await GetLocationAsync(ipAddress, cancellationToken);
+            var isFromCountry = location?.CountryCode.Equals(countryCode, StringComparison.OrdinalIgnoreCase) ?? false;
+
+            GeoDetectionTelemetry.RecordCountryCheckResult(activity, isFromCountry, location?.CountryCode);
+            return isFromCountry;
+        }
+        catch (Exception ex)
+        {
+            GeoDetectionTelemetry.RecordException(activity, ex);
+            throw;
+        }
     }
 
     public GeoLocationStatistics GetStatistics()

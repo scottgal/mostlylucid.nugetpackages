@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
@@ -5,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Mostlylucid.RagLlmSearch.Configuration;
 using Mostlylucid.RagLlmSearch.LlmServices;
 using Mostlylucid.RagLlmSearch.Models;
+using Mostlylucid.RagLlmSearch.Telemetry;
 
 namespace Mostlylucid.RagLlmSearch.Rag;
 
@@ -76,41 +78,52 @@ public class SqliteRagService : IRagService, IAsyncDisposable
 
     public async Task AddDocumentAsync(RagDocument document, CancellationToken cancellationToken = default)
     {
-        await EnsureInitializedAsync(cancellationToken);
+        using var activity = RagSearchTelemetry.StartAddDocumentActivity(document.Id, document.DocumentType);
 
-        // Generate embedding if not provided
-        if (document.Embedding == null || document.Embedding.Length == 0)
-        {
-            document.Embedding = await _llmService.GenerateEmbeddingAsync(document.Content, cancellationToken);
-        }
-
-        await _lock.WaitAsync(cancellationToken);
         try
         {
-            var sql = """
-                INSERT OR REPLACE INTO rag_documents
-                (id, content, title, source_url, document_type, created_at, last_accessed_at, access_count, metadata, embedding)
-                VALUES (@id, @content, @title, @source_url, @document_type, @created_at, @last_accessed_at, @access_count, @metadata, @embedding)
-                """;
+            await EnsureInitializedAsync(cancellationToken);
 
-            await using var command = new SqliteCommand(sql, _connection);
-            command.Parameters.AddWithValue("@id", document.Id);
-            command.Parameters.AddWithValue("@content", document.Content);
-            command.Parameters.AddWithValue("@title", document.Title ?? (object)DBNull.Value);
-            command.Parameters.AddWithValue("@source_url", document.SourceUrl ?? (object)DBNull.Value);
-            command.Parameters.AddWithValue("@document_type", document.DocumentType);
-            command.Parameters.AddWithValue("@created_at", document.CreatedAt.ToString("O"));
-            command.Parameters.AddWithValue("@last_accessed_at", document.LastAccessedAt.ToString("O"));
-            command.Parameters.AddWithValue("@access_count", document.AccessCount);
-            command.Parameters.AddWithValue("@metadata", JsonSerializer.Serialize(document.Metadata));
-            command.Parameters.AddWithValue("@embedding", SerializeEmbedding(document.Embedding));
+            // Generate embedding if not provided
+            if (document.Embedding == null || document.Embedding.Length == 0)
+            {
+                document.Embedding = await _llmService.GenerateEmbeddingAsync(document.Content, cancellationToken);
+            }
 
-            await command.ExecuteNonQueryAsync(cancellationToken);
-            _logger.LogDebug("Added document {Id} to RAG store", document.Id);
+            await _lock.WaitAsync(cancellationToken);
+            try
+            {
+                var sql = """
+                    INSERT OR REPLACE INTO rag_documents
+                    (id, content, title, source_url, document_type, created_at, last_accessed_at, access_count, metadata, embedding)
+                    VALUES (@id, @content, @title, @source_url, @document_type, @created_at, @last_accessed_at, @access_count, @metadata, @embedding)
+                    """;
+
+                await using var command = new SqliteCommand(sql, _connection);
+                command.Parameters.AddWithValue("@id", document.Id);
+                command.Parameters.AddWithValue("@content", document.Content);
+                command.Parameters.AddWithValue("@title", document.Title ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@source_url", document.SourceUrl ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@document_type", document.DocumentType);
+                command.Parameters.AddWithValue("@created_at", document.CreatedAt.ToString("O"));
+                command.Parameters.AddWithValue("@last_accessed_at", document.LastAccessedAt.ToString("O"));
+                command.Parameters.AddWithValue("@access_count", document.AccessCount);
+                command.Parameters.AddWithValue("@metadata", JsonSerializer.Serialize(document.Metadata));
+                command.Parameters.AddWithValue("@embedding", SerializeEmbedding(document.Embedding));
+
+                await command.ExecuteNonQueryAsync(cancellationToken);
+                _logger.LogDebug("Added document {Id} to RAG store", document.Id);
+                RagSearchTelemetry.RecordDocumentAdded(activity);
+            }
+            finally
+            {
+                _lock.Release();
+            }
         }
-        finally
+        catch (Exception ex)
         {
-            _lock.Release();
+            RagSearchTelemetry.RecordException(activity, ex);
+            throw;
         }
     }
 
@@ -128,57 +141,75 @@ public class SqliteRagService : IRagService, IAsyncDisposable
         float minScore = 0.5f,
         CancellationToken cancellationToken = default)
     {
-        await EnsureInitializedAsync(cancellationToken);
+        using var activity = RagSearchTelemetry.StartRagSearchActivity(query, maxResults, minScore);
+        var stopwatch = Stopwatch.StartNew();
 
-        // Generate query embedding
-        var queryEmbedding = await _llmService.GenerateEmbeddingAsync(query, cancellationToken);
-        if (queryEmbedding.Length == 0)
-        {
-            _logger.LogWarning("Failed to generate query embedding");
-            return new List<RagSearchResult>();
-        }
-
-        await _lock.WaitAsync(cancellationToken);
         try
         {
-            var sql = "SELECT * FROM rag_documents WHERE embedding IS NOT NULL";
-            await using var command = new SqliteCommand(sql, _connection);
+            await EnsureInitializedAsync(cancellationToken);
 
-            var results = new List<(RagDocument Document, float Score)>();
-
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            while (await reader.ReadAsync(cancellationToken))
+            // Generate query embedding
+            var queryEmbedding = await _llmService.GenerateEmbeddingAsync(query, cancellationToken);
+            if (queryEmbedding.Length == 0)
             {
-                var document = ReadDocument(reader);
-                if (document.Embedding != null && document.Embedding.Length > 0)
+                _logger.LogWarning("Failed to generate query embedding");
+                stopwatch.Stop();
+                RagSearchTelemetry.RecordRagSearchResult(activity, 0, stopwatch.ElapsedMilliseconds);
+                return new List<RagSearchResult>();
+            }
+
+            await _lock.WaitAsync(cancellationToken);
+            try
+            {
+                var sql = "SELECT * FROM rag_documents WHERE embedding IS NOT NULL";
+                await using var command = new SqliteCommand(sql, _connection);
+
+                var results = new List<(RagDocument Document, float Score)>();
+
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
                 {
-                    var score = CosineSimilarity(queryEmbedding, document.Embedding);
-                    if (score >= minScore)
+                    var document = ReadDocument(reader);
+                    if (document.Embedding != null && document.Embedding.Length > 0)
                     {
-                        results.Add((document, score));
+                        var score = CosineSimilarity(queryEmbedding, document.Embedding);
+                        if (score >= minScore)
+                        {
+                            results.Add((document, score));
+                        }
                     }
                 }
+
+                // Sort by score descending and take top results
+                var topResults = results
+                    .OrderByDescending(r => r.Score)
+                    .Take(maxResults)
+                    .Select(r => new RagSearchResult { Document = r.Document, Score = r.Score })
+                    .ToList();
+
+                // Update access count and timestamp for retrieved documents
+                foreach (var result in topResults)
+                {
+                    await UpdateAccessAsync(result.Document.Id, cancellationToken);
+                }
+
+                _logger.LogDebug("RAG search found {Count} results for query", topResults.Count);
+
+                stopwatch.Stop();
+                RagSearchTelemetry.RecordRagSearchResult(activity, topResults.Count, stopwatch.ElapsedMilliseconds);
+
+                return topResults;
             }
-
-            // Sort by score descending and take top results
-            var topResults = results
-                .OrderByDescending(r => r.Score)
-                .Take(maxResults)
-                .Select(r => new RagSearchResult { Document = r.Document, Score = r.Score })
-                .ToList();
-
-            // Update access count and timestamp for retrieved documents
-            foreach (var result in topResults)
+            finally
             {
-                await UpdateAccessAsync(result.Document.Id, cancellationToken);
+                _lock.Release();
             }
-
-            _logger.LogDebug("RAG search found {Count} results for query", topResults.Count);
-            return topResults;
         }
-        finally
+        catch (Exception ex)
         {
-            _lock.Release();
+            stopwatch.Stop();
+            RagSearchTelemetry.RecordException(activity, ex);
+            throw;
         }
     }
 

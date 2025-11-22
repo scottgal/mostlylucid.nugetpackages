@@ -5,6 +5,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.GeoDetection.Models;
+using Mostlylucid.GeoDetection.Telemetry;
 
 namespace Mostlylucid.GeoDetection.Services;
 
@@ -82,36 +83,49 @@ public class MaxMindGeoLocationService : IGeoLocationService, IDisposable
 
     public async Task<GeoLocation?> GetLocationAsync(string ipAddress, CancellationToken cancellationToken = default)
     {
-        _stats.TotalLookups++;
+        using var activity = GeoDetectionTelemetry.StartGetLocationActivity(ipAddress);
 
-        // Check cache first
-        var cacheKey = $"geo:{ipAddress}";
-        if (_cache.TryGetValue(cacheKey, out GeoLocation? cached))
+        try
         {
-            _stats.CacheHits++;
-            return cached;
+            _stats.TotalLookups++;
+
+            // Check cache first
+            var cacheKey = $"geo:{ipAddress}";
+            if (_cache.TryGetValue(cacheKey, out GeoLocation? cached))
+            {
+                _stats.CacheHits++;
+                GeoDetectionTelemetry.RecordResult(activity, cached, cacheHit: true);
+                GeoDetectionTelemetry.RecordCacheSource(activity, "memory");
+                return cached;
+            }
+
+            // Try MaxMind lookup
+            var location = await LookupMaxMindAsync(ipAddress, cancellationToken);
+
+            // Fall back to simple service if configured
+            if (location == null && _options.FallbackToSimple && _fallbackService != null)
+            {
+                _logger.LogDebug("Falling back to simple geo service for {IP}", ipAddress);
+                location = await _fallbackService.GetLocationAsync(ipAddress, cancellationToken);
+            }
+
+            // Cache the result
+            if (location != null)
+            {
+                var cacheOptions = new MemoryCacheEntryOptions()
+                    .SetAbsoluteExpiration(_options.CacheDuration)
+                    .SetSize(1);
+                _cache.Set(cacheKey, location, cacheOptions);
+            }
+
+            GeoDetectionTelemetry.RecordResult(activity, location, cacheHit: false);
+            return location;
         }
-
-        // Try MaxMind lookup
-        var location = await LookupMaxMindAsync(ipAddress, cancellationToken);
-
-        // Fall back to simple service if configured
-        if (location == null && _options.FallbackToSimple && _fallbackService != null)
+        catch (Exception ex)
         {
-            _logger.LogDebug("Falling back to simple geo service for {IP}", ipAddress);
-            location = await _fallbackService.GetLocationAsync(ipAddress, cancellationToken);
+            GeoDetectionTelemetry.RecordException(activity, ex);
+            throw;
         }
-
-        // Cache the result
-        if (location != null)
-        {
-            var cacheOptions = new MemoryCacheEntryOptions()
-                .SetAbsoluteExpiration(_options.CacheDuration)
-                .SetSize(1);
-            _cache.Set(cacheKey, location, cacheOptions);
-        }
-
-        return location;
     }
 
     private Task<GeoLocation?> LookupMaxMindAsync(string ipAddress, CancellationToken cancellationToken)
@@ -233,8 +247,21 @@ public class MaxMindGeoLocationService : IGeoLocationService, IDisposable
     public async Task<bool> IsFromCountryAsync(string ipAddress, string countryCode,
         CancellationToken cancellationToken = default)
     {
-        var location = await GetLocationAsync(ipAddress, cancellationToken);
-        return location?.CountryCode.Equals(countryCode, StringComparison.OrdinalIgnoreCase) ?? false;
+        using var activity = GeoDetectionTelemetry.StartIsFromCountryActivity(ipAddress, countryCode);
+
+        try
+        {
+            var location = await GetLocationAsync(ipAddress, cancellationToken);
+            var isFromCountry = location?.CountryCode.Equals(countryCode, StringComparison.OrdinalIgnoreCase) ?? false;
+
+            GeoDetectionTelemetry.RecordCountryCheckResult(activity, isFromCountry, location?.CountryCode);
+            return isFromCountry;
+        }
+        catch (Exception ex)
+        {
+            GeoDetectionTelemetry.RecordException(activity, ex);
+            throw;
+        }
     }
 
     public GeoLocationStatistics GetStatistics()

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.LlmPiiRedactor.Detectors;
 using Mostlylucid.LlmPiiRedactor.Models;
+using Mostlylucid.LlmPiiRedactor.Telemetry;
 
 namespace Mostlylucid.LlmPiiRedactor.Services;
 
@@ -33,37 +34,58 @@ public class PiiRedactionService : IPiiRedactionService
     /// <inheritdoc />
     public RedactionResult Redact(string text, CancellationToken cancellationToken = default)
     {
-        if (!_options.Enabled || string.IsNullOrEmpty(text))
-            return RedactionResult.NoMatch(text ?? string.Empty);
+        using var activity = PiiRedactorTelemetry.StartRedactActivity(text?.Length ?? 0);
 
-        // Check max length
-        var processText = _options.MaxTextLength > 0 && text.Length > _options.MaxTextLength
-            ? text[.._options.MaxTextLength]
-            : text;
-
-        // Detect all PII
-        var matches = DetectInternal(processText, cancellationToken).ToList();
-
-        if (matches.Count == 0)
-            return RedactionResult.NoMatch(text);
-
-        // Apply redactions
-        var redactedText = ApplyRedactions(processText, matches);
-
-        // Update statistics
-        if (_options.EnableStatistics)
+        try
         {
-            UpdateStatistics(text.Length, matches);
+            if (!_options.Enabled || string.IsNullOrEmpty(text))
+            {
+                var emptyResult = RedactionResult.NoMatch(text ?? string.Empty);
+                PiiRedactorTelemetry.RecordRedactionResult(activity, emptyResult);
+                return emptyResult;
+            }
+
+            // Check max length
+            var processText = _options.MaxTextLength > 0 && text.Length > _options.MaxTextLength
+                ? text[.._options.MaxTextLength]
+                : text;
+
+            // Detect all PII
+            var matches = DetectInternal(processText, cancellationToken).ToList();
+
+            if (matches.Count == 0)
+            {
+                var noMatchResult = RedactionResult.NoMatch(text);
+                PiiRedactorTelemetry.RecordRedactionResult(activity, noMatchResult);
+                return noMatchResult;
+            }
+
+            // Apply redactions
+            var redactedText = ApplyRedactions(processText, matches);
+
+            // Update statistics
+            if (_options.EnableStatistics)
+            {
+                UpdateStatistics(text.Length, matches);
+            }
+
+            _logger.LogDebug("Redacted {Count} PII instances from text", matches.Count);
+
+            var result = new RedactionResult
+            {
+                OriginalText = text,
+                RedactedText = redactedText,
+                Matches = matches
+            };
+
+            PiiRedactorTelemetry.RecordRedactionResult(activity, result);
+            return result;
         }
-
-        _logger.LogDebug("Redacted {Count} PII instances from text", matches.Count);
-
-        return new RedactionResult
+        catch (Exception ex)
         {
-            OriginalText = text,
-            RedactedText = redactedText,
-            Matches = matches
-        };
+            PiiRedactorTelemetry.RecordException(activity, ex);
+            throw;
+        }
     }
 
     /// <inheritdoc />
@@ -75,32 +97,64 @@ public class PiiRedactionService : IPiiRedactionService
     /// <inheritdoc />
     public IReadOnlyList<PiiMatch> Detect(string text, CancellationToken cancellationToken = default)
     {
-        if (!_options.Enabled || string.IsNullOrEmpty(text))
-            return [];
+        using var activity = PiiRedactorTelemetry.StartDetectActivity(text?.Length ?? 0);
 
-        return DetectInternal(text, cancellationToken).ToList();
+        try
+        {
+            if (!_options.Enabled || string.IsNullOrEmpty(text))
+            {
+                PiiRedactorTelemetry.RecordDetectionResult(activity, []);
+                return [];
+            }
+
+            var matches = DetectInternal(text, cancellationToken).ToList();
+            PiiRedactorTelemetry.RecordDetectionResult(activity, matches);
+            return matches;
+        }
+        catch (Exception ex)
+        {
+            PiiRedactorTelemetry.RecordException(activity, ex);
+            throw;
+        }
     }
 
     /// <inheritdoc />
     public bool ContainsPii(string text, CancellationToken cancellationToken = default)
     {
-        if (!_options.Enabled || string.IsNullOrEmpty(text))
-            return false;
+        using var activity = PiiRedactorTelemetry.StartContainsPiiActivity(text?.Length ?? 0);
 
-        // Short-circuit on first match
-        foreach (var detector in _detectors)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            if (!_options.Enabled || string.IsNullOrEmpty(text))
+            {
+                PiiRedactorTelemetry.RecordContainsPiiResult(activity, false);
+                return false;
+            }
 
-            if (!IsDetectorEnabled(detector))
-                continue;
+            // Short-circuit on first match
+            foreach (var detector in _detectors)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
 
-            var matches = detector.Detect(text, cancellationToken);
-            if (matches.Any(m => IsMatchValid(m)))
-                return true;
+                if (!IsDetectorEnabled(detector))
+                    continue;
+
+                var matches = detector.Detect(text, cancellationToken);
+                if (matches.Any(m => IsMatchValid(m)))
+                {
+                    PiiRedactorTelemetry.RecordContainsPiiResult(activity, true);
+                    return true;
+                }
+            }
+
+            PiiRedactorTelemetry.RecordContainsPiiResult(activity, false);
+            return false;
         }
-
-        return false;
+        catch (Exception ex)
+        {
+            PiiRedactorTelemetry.RecordException(activity, ex);
+            throw;
+        }
     }
 
     /// <inheritdoc />

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.RagLlmSearch.Configuration;
 using Mostlylucid.RagLlmSearch.Models;
+using Mostlylucid.RagLlmSearch.Telemetry;
 
 namespace Mostlylucid.RagLlmSearch.SearchProviders;
 
@@ -36,6 +37,8 @@ public class TavilySearchProvider : ISearchProvider
 
     public async Task<SearchResponse> SearchAsync(string query, int maxResults = 5, CancellationToken cancellationToken = default)
     {
+        using var activity = RagSearchTelemetry.StartSearchActivity(query, Name, maxResults);
+
         var stopwatch = Stopwatch.StartNew();
         var response = new SearchResponse
         {
@@ -46,6 +49,7 @@ public class TavilySearchProvider : ISearchProvider
         if (!IsAvailable)
         {
             response.Error = "Tavily API key not configured";
+            RagSearchTelemetry.RecordSearchResult(activity, response);
             return response;
         }
 
@@ -105,15 +109,19 @@ public class TavilySearchProvider : ISearchProvider
                     response.TotalResults = tavilyResponse.Results.Count;
                 }
             }
+
+            stopwatch.Stop();
+            response.SearchTimeMs = stopwatch.ElapsedMilliseconds;
+            RagSearchTelemetry.RecordSearchResult(activity, response);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error searching Tavily for: {Query}", query);
             response.Error = ex.Message;
+            stopwatch.Stop();
+            response.SearchTimeMs = stopwatch.ElapsedMilliseconds;
+            RagSearchTelemetry.RecordException(activity, ex);
         }
-
-        stopwatch.Stop();
-        response.SearchTimeMs = stopwatch.ElapsedMilliseconds;
 
         _logger.LogDebug("Tavily search completed in {Time}ms with {Count} results",
             response.SearchTimeMs, response.Results.Count);

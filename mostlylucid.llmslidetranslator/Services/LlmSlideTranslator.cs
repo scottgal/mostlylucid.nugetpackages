@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using mostlylucid.llmslidetranslator.Models;
+using mostlylucid.llmslidetranslator.Telemetry;
 
 namespace mostlylucid.llmslidetranslator.Services;
 
@@ -44,6 +45,9 @@ public class LlmSlideTranslator : ILlmSlideTranslator
         TranslationMethod method = TranslationMethod.RagLlm,
         CancellationToken cancellationToken = default)
     {
+        using var activity = SlideTranslatorTelemetry.StartTranslateDocumentActivity(
+            documentId, sourceLanguage, targetLanguage, method);
+
         var stopwatch = Stopwatch.StartNew();
 
         _logger.LogInformation(
@@ -107,10 +111,13 @@ public class LlmSlideTranslator : ILlmSlideTranslator
         {
             _logger.LogError(ex, "Error translating document {DocumentId}", documentId);
             result.Errors.Add(ex.Message);
+            SlideTranslatorTelemetry.RecordException(activity, ex);
         }
 
         stopwatch.Stop();
         result.Duration = stopwatch.Elapsed;
+
+        SlideTranslatorTelemetry.RecordResult(activity, result);
 
         _logger.LogInformation(
             "Translation completed in {Duration:F2}s for document {DocumentId}",
@@ -124,42 +131,55 @@ public class LlmSlideTranslator : ILlmSlideTranslator
         TranslationBlock? previousBlock = null,
         CancellationToken cancellationToken = default)
     {
-        if (!block.ShouldTranslate)
+        using var activity = SlideTranslatorTelemetry.StartTranslateBlockActivity(
+            block.DocumentId, block.Index, block.SourceLanguage, block.TargetLanguage);
+
+        try
         {
-            block.TranslatedText = block.Text;
+            if (!block.ShouldTranslate)
+            {
+                block.TranslatedText = block.Text;
+                SlideTranslatorTelemetry.RecordBlockResult(activity, block);
+                return block;
+            }
+
+            // Get RAG context
+            var similarBlocks = new List<TranslationBlock>();
+            if (block.Embedding != null)
+            {
+                var searchResults = await _vectorStore.SearchAsync(
+                    block.Embedding,
+                    block.DocumentId,
+                    _config.Rag.TopK,
+                    _config.Rag.MinSimilarity,
+                    cancellationToken);
+
+                similarBlocks = searchResults
+                    .Where(r => r.Block.Index < block.Index) // Only use earlier blocks
+                    .Select(r => r.Block)
+                    .ToList();
+            }
+
+            // Build translation context
+            var context = new TranslationContext
+            {
+                CurrentBlock = block,
+                PreviousBlock = _config.Rag.UseSlidingWindow ? previousBlock : null,
+                SimilarBlocks = similarBlocks.Take(_config.Rag.MaxContextBlocks).ToList()
+            };
+
+            // Translate with LLM
+            var translatedText = await _ollamaClient.TranslateWithContextAsync(context, cancellationToken);
+            block.TranslatedText = translatedText;
+
+            SlideTranslatorTelemetry.RecordBlockResult(activity, block);
             return block;
         }
-
-        // Get RAG context
-        var similarBlocks = new List<TranslationBlock>();
-        if (block.Embedding != null)
+        catch (Exception ex)
         {
-            var searchResults = await _vectorStore.SearchAsync(
-                block.Embedding,
-                block.DocumentId,
-                _config.Rag.TopK,
-                _config.Rag.MinSimilarity,
-                cancellationToken);
-
-            similarBlocks = searchResults
-                .Where(r => r.Block.Index < block.Index) // Only use earlier blocks
-                .Select(r => r.Block)
-                .ToList();
+            SlideTranslatorTelemetry.RecordException(activity, ex);
+            throw;
         }
-
-        // Build translation context
-        var context = new TranslationContext
-        {
-            CurrentBlock = block,
-            PreviousBlock = _config.Rag.UseSlidingWindow ? previousBlock : null,
-            SimilarBlocks = similarBlocks.Take(_config.Rag.MaxContextBlocks).ToList()
-        };
-
-        // Translate with LLM
-        var translatedText = await _ollamaClient.TranslateWithContextAsync(context, cancellationToken);
-        block.TranslatedText = translatedText;
-
-        return block;
     }
 
     public async Task<TranslationProgress> GetProgressAsync(

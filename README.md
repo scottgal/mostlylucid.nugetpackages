@@ -11,6 +11,7 @@ A collection of *highly experimental* ASP.NET Core middleware and services for a
 - [Target Frameworks](#target-frameworks)
 - [License](#license)
 - [Prerequisites](#prerequisites)
+- [OpenTelemetry Support](#opentelemetry-support)
 - **Packages:**
   - [Mostlylucid.Common](#mostlylucidcommon) - Shared utilities
   - [Mostlylucid.BotDetection](#mostlylucidbotdetection) - Bot detection
@@ -38,6 +39,97 @@ All packages support:
 ## License
 
 All packages are released under the [Unlicense](https://unlicense.org/) (Public Domain).
+
+---
+
+## OpenTelemetry Support
+
+All packages include built-in OpenTelemetry instrumentation for distributed tracing. **Telemetry is optional** - packages work perfectly without any OpenTelemetry configuration, but when enabled, you get detailed tracing of all operations.
+
+### Activity Sources
+
+Each package exposes an `ActivitySource` that can be listened to:
+
+| Package | ActivitySource Name |
+|---------|---------------------|
+| Mostlylucid.BotDetection | `Mostlylucid.BotDetection` |
+| Mostlylucid.GeoDetection | `Mostlylucid.GeoDetection` |
+| Mostlylucid.LlmAltText | `Mostlylucid.LlmAltText` |
+| Mostlylucid.LlmPiiRedactor | `Mostlylucid.LlmPiiRedactor` |
+| Mostlylucid.LLMContentModeration | `Mostlylucid.LLMContentModeration` |
+| Mostlylucid.LlmAccessibilityAuditor | `Mostlylucid.LlmAccessibilityAuditor` |
+| Mostlylucid.LlmSeoMetadata | `Mostlylucid.LlmSeoMetadata` |
+| Mostlylucid.LlmLogSummarizer | `Mostlylucid.LlmLogSummarizer` |
+| Mostlylucid.RagLlmSearch | `Mostlylucid.RagLlmSearch` |
+| Mostlylucid.LlmI18nAssistant | `Mostlylucid.LlmI18nAssistant` |
+| Mostlylucid.LlmSlideTranslator | `Mostlylucid.LlmSlideTranslator` |
+
+### Enabling Telemetry
+
+Add OpenTelemetry to your application and configure the activity sources:
+
+```csharp
+// Program.cs
+using OpenTelemetry.Trace;
+
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            // Add Mostlylucid activity sources
+            .AddSource("Mostlylucid.BotDetection")
+            .AddSource("Mostlylucid.GeoDetection")
+            .AddSource("Mostlylucid.LlmAltText")
+            .AddSource("Mostlylucid.LlmPiiRedactor")
+            .AddSource("Mostlylucid.LLMContentModeration")
+            .AddSource("Mostlylucid.LlmAccessibilityAuditor")
+            .AddSource("Mostlylucid.LlmSeoMetadata")
+            .AddSource("Mostlylucid.LlmLogSummarizer")
+            .AddSource("Mostlylucid.RagLlmSearch")
+            .AddSource("Mostlylucid.LlmI18nAssistant")
+            .AddSource("Mostlylucid.LlmSlideTranslator")
+            // Export to your preferred backend
+            .AddOtlpExporter(options =>
+            {
+                options.Endpoint = new Uri("http://localhost:4317");
+            });
+    });
+```
+
+Or use the helper from `Mostlylucid.Common`:
+
+```csharp
+using Mostlylucid.Common.Telemetry;
+
+// Get all activity source names
+var sources = TelemetryExtensions.GetMostlylucidActivitySourceNames();
+foreach (var source in sources)
+{
+    tracing.AddSource(source);
+}
+```
+
+### Telemetry Attributes
+
+Each package records relevant attributes on activities. Examples:
+
+**Bot Detection:**
+- `mostlylucid.botdetection.is_bot` - Whether the request is from a bot
+- `mostlylucid.botdetection.confidence` - Confidence score (0.0-1.0)
+- `mostlylucid.botdetection.bot_type` - Type of bot detected
+- `mostlylucid.botdetection.processing_time_ms` - Processing duration
+
+**Geo Detection:**
+- `mostlylucid.geodetection.country_code` - ISO country code
+- `mostlylucid.geodetection.cache_hit` - Whether result was cached
+
+**LLM Operations:**
+- `mostlylucid.llm.model` - Model used
+- `mostlylucid.llm.duration_ms` - Operation duration
+
+All activities include exception tracking with `exception.type` and `exception.message` on failure.
 
 ---
 
