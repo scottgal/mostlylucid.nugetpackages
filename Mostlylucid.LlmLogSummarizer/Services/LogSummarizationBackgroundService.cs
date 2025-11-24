@@ -6,13 +6,13 @@ using Mostlylucid.LlmLogSummarizer.Models;
 namespace Mostlylucid.LlmLogSummarizer.Services;
 
 /// <summary>
-/// Background service that runs periodic log summarization.
+///     Background service that runs periodic log summarization.
 /// </summary>
 public class LogSummarizationBackgroundService : BackgroundService
 {
-    private readonly ILogSummarizationOrchestrator _orchestrator;
-    private readonly LogSummarizerOptions _options;
     private readonly ILogger<LogSummarizationBackgroundService> _logger;
+    private readonly LogSummarizerOptions _options;
+    private readonly ILogSummarizationOrchestrator _orchestrator;
 
     public LogSummarizationBackgroundService(
         ILogSummarizationOrchestrator orchestrator,
@@ -38,10 +38,7 @@ public class LogSummarizationBackgroundService : BackgroundService
             _options.DailyRunTime?.ToString(@"hh\:mm") ?? "not set");
 
         // Run on startup if configured
-        if (_options.RunOnStartup)
-        {
-            await RunSummarizationSafelyAsync(stoppingToken);
-        }
+        if (_options.RunOnStartup) await RunSummarizationSafelyAsync(stoppingToken);
 
         // Main loop
         while (!stoppingToken.IsCancellationRequested)
@@ -97,10 +94,7 @@ public class LogSummarizationBackgroundService : BackgroundService
             var targetTime = now.Date.Add(_options.DailyRunTime.Value);
 
             // If we've passed today's target time, schedule for tomorrow
-            if (now.TimeOfDay > _options.DailyRunTime.Value)
-            {
-                targetTime = targetTime.AddDays(1);
-            }
+            if (now.TimeOfDay > _options.DailyRunTime.Value) targetTime = targetTime.AddDays(1);
 
             return targetTime - now;
         }

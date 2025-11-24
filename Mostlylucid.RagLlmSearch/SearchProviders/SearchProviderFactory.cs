@@ -4,12 +4,12 @@ using Mostlylucid.RagLlmSearch.Configuration;
 namespace Mostlylucid.RagLlmSearch.SearchProviders;
 
 /// <summary>
-/// Factory for creating and selecting search providers
+///     Factory for creating and selecting search providers
 /// </summary>
 public class SearchProviderFactory : ISearchProviderFactory
 {
-    private readonly IEnumerable<ISearchProvider> _providers;
     private readonly SearchProviderOptions _options;
+    private readonly IEnumerable<ISearchProvider> _providers;
 
     public SearchProviderFactory(
         IEnumerable<ISearchProvider> providers,
@@ -20,8 +20,8 @@ public class SearchProviderFactory : ISearchProviderFactory
     }
 
     /// <summary>
-    /// Gets the default search provider based on configuration
-    /// Falls back to DuckDuckGo if configured provider is unavailable
+    ///     Gets the default search provider based on configuration
+    ///     Falls back to DuckDuckGo if configured provider is unavailable
     /// </summary>
     public ISearchProvider GetDefaultProvider()
     {
@@ -39,16 +39,14 @@ public class SearchProviderFactory : ISearchProviderFactory
 
         // Fall back to DuckDuckGo if configured provider is unavailable
         if (provider == null)
-        {
             provider = _providers.FirstOrDefault(p =>
                 p.Name.Equals("DuckDuckGo", StringComparison.OrdinalIgnoreCase));
-        }
 
         return provider ?? throw new InvalidOperationException("No search provider available");
     }
 
     /// <summary>
-    /// Gets a specific search provider by name
+    ///     Gets a specific search provider by name
     /// </summary>
     public ISearchProvider? GetProvider(string providerName)
     {
@@ -57,7 +55,7 @@ public class SearchProviderFactory : ISearchProviderFactory
     }
 
     /// <summary>
-    /// Gets all available (configured) providers
+    ///     Gets all available (configured) providers
     /// </summary>
     public IEnumerable<ISearchProvider> GetAvailableProviders()
     {

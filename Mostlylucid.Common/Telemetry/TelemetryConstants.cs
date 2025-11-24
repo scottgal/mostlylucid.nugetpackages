@@ -1,7 +1,7 @@
 namespace Mostlylucid.Common.Telemetry;
 
 /// <summary>
-/// Standard attribute names for telemetry following OpenTelemetry semantic conventions
+///     Standard attribute names for telemetry following OpenTelemetry semantic conventions
 /// </summary>
 public static class TelemetryConstants
 {

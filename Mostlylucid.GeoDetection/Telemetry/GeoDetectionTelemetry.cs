@@ -4,17 +4,17 @@ using Mostlylucid.GeoDetection.Models;
 namespace Mostlylucid.GeoDetection.Telemetry;
 
 /// <summary>
-/// Telemetry instrumentation for geo detection operations
+///     Telemetry instrumentation for geo detection operations
 /// </summary>
 public static class GeoDetectionTelemetry
 {
     /// <summary>
-    /// Activity source name for geo detection
+    ///     Activity source name for geo detection
     /// </summary>
     public const string ActivitySourceName = "Mostlylucid.GeoDetection";
 
     /// <summary>
-    /// Activity source for geo detection telemetry
+    ///     Activity source for geo detection telemetry
     /// </summary>
     public static readonly ActivitySource ActivitySource = new(ActivitySourceName, GetVersion());
 
@@ -24,27 +24,25 @@ public static class GeoDetectionTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for geo location lookup
+    ///     Starts an activity for geo location lookup
     /// </summary>
     public static Activity? StartGetLocationActivity(string? ipAddress = null)
     {
-        var activity = ActivitySource.StartActivity("GeoDetection.GetLocation", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("GeoDetection.GetLocation");
 
         if (activity != null)
-        {
             if (ipAddress != null)
                 activity.SetTag("http.client_ip", ipAddress);
-        }
 
         return activity;
     }
 
     /// <summary>
-    /// Starts an activity for country check
+    ///     Starts an activity for country check
     /// </summary>
     public static Activity? StartIsFromCountryActivity(string? ipAddress = null, string? countryCode = null)
     {
-        var activity = ActivitySource.StartActivity("GeoDetection.IsFromCountry", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("GeoDetection.IsFromCountry");
 
         if (activity != null)
         {
@@ -58,7 +56,7 @@ public static class GeoDetectionTelemetry
     }
 
     /// <summary>
-    /// Records geo location result on the activity
+    ///     Records geo location result on the activity
     /// </summary>
     public static void RecordResult(Activity? activity, GeoLocation? location, bool cacheHit = false)
     {
@@ -94,9 +92,10 @@ public static class GeoDetectionTelemetry
     }
 
     /// <summary>
-    /// Records country check result on the activity
+    ///     Records country check result on the activity
     /// </summary>
-    public static void RecordCountryCheckResult(Activity? activity, bool isFromCountry, string? actualCountryCode = null)
+    public static void RecordCountryCheckResult(Activity? activity, bool isFromCountry,
+        string? actualCountryCode = null)
     {
         if (activity == null)
             return;
@@ -110,7 +109,7 @@ public static class GeoDetectionTelemetry
     }
 
     /// <summary>
-    /// Records cache source on the activity
+    ///     Records cache source on the activity
     /// </summary>
     public static void RecordCacheSource(Activity? activity, string source)
     {
@@ -121,7 +120,7 @@ public static class GeoDetectionTelemetry
     }
 
     /// <summary>
-    /// Records an exception on the activity
+    ///     Records an exception on the activity
     /// </summary>
     public static void RecordException(Activity? activity, Exception ex)
     {

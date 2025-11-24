@@ -17,13 +17,6 @@ public class OllamaClient(
     private readonly LlmSlideTranslatorConfig config = options.Value;
     private readonly HttpClient httpClient = ConfigureHttpClient(httpClient, options.Value);
 
-    private static HttpClient ConfigureHttpClient(HttpClient client, LlmSlideTranslatorConfig config)
-    {
-        client.BaseAddress = new Uri(config.Ollama.Endpoint);
-        client.Timeout = TimeSpan.FromSeconds(config.Ollama.TimeoutSeconds);
-        return client;
-    }
-
     public async Task<string> TranslateWithContextAsync(
         TranslationContext context,
         CancellationToken cancellationToken = default)
@@ -104,6 +97,13 @@ public class OllamaClient(
             logger.LogError(ex, "Error getting models from Ollama");
             return new List<string>();
         }
+    }
+
+    private static HttpClient ConfigureHttpClient(HttpClient client, LlmSlideTranslatorConfig config)
+    {
+        client.BaseAddress = new Uri(config.Ollama.Endpoint);
+        client.Timeout = TimeSpan.FromSeconds(config.Ollama.TimeoutSeconds);
+        return client;
     }
 
     private string BuildPrompt(TranslationContext context)

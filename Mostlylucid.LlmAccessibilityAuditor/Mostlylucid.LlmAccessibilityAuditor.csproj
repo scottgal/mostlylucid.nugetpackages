@@ -68,6 +68,6 @@
 
     <!-- Embedded resources for web UI -->
     <ItemGroup>
-        <EmbeddedResource Include="Web\**\*" />
+        <EmbeddedResource Include="Web\**\*"/>
     </ItemGroup>
 </Project>

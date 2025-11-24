@@ -11,15 +11,15 @@ using Mostlylucid.RagLlmSearch.Telemetry;
 namespace Mostlylucid.RagLlmSearch.Rag;
 
 /// <summary>
-/// SQLite-based RAG service with vector similarity search
+///     SQLite-based RAG service with vector similarity search
 /// </summary>
 public class SqliteRagService : IRagService, IAsyncDisposable
 {
-    private readonly RagLlmSearchOptions _options;
     private readonly ILlmService _llmService;
-    private readonly ILogger<SqliteRagService> _logger;
-    private SqliteConnection? _connection;
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly ILogger<SqliteRagService> _logger;
+    private readonly RagLlmSearchOptions _options;
+    private SqliteConnection? _connection;
     private bool _initialized;
 
     public SqliteRagService(
@@ -30,6 +30,12 @@ public class SqliteRagService : IRagService, IAsyncDisposable
         _options = options.Value;
         _llmService = llmService;
         _logger = logger;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_connection != null) await _connection.DisposeAsync();
+        _lock.Dispose();
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
@@ -47,22 +53,22 @@ public class SqliteRagService : IRagService, IAsyncDisposable
 
             // Create documents table
             var createTableSql = """
-                CREATE TABLE IF NOT EXISTS rag_documents (
-                    id TEXT PRIMARY KEY,
-                    content TEXT NOT NULL,
-                    title TEXT,
-                    source_url TEXT,
-                    document_type TEXT,
-                    created_at TEXT NOT NULL,
-                    last_accessed_at TEXT NOT NULL,
-                    access_count INTEGER DEFAULT 0,
-                    metadata TEXT,
-                    embedding BLOB
-                );
+                                 CREATE TABLE IF NOT EXISTS rag_documents (
+                                     id TEXT PRIMARY KEY,
+                                     content TEXT NOT NULL,
+                                     title TEXT,
+                                     source_url TEXT,
+                                     document_type TEXT,
+                                     created_at TEXT NOT NULL,
+                                     last_accessed_at TEXT NOT NULL,
+                                     access_count INTEGER DEFAULT 0,
+                                     metadata TEXT,
+                                     embedding BLOB
+                                 );
 
-                CREATE INDEX IF NOT EXISTS idx_rag_documents_type ON rag_documents(document_type);
-                CREATE INDEX IF NOT EXISTS idx_rag_documents_created ON rag_documents(created_at);
-                """;
+                                 CREATE INDEX IF NOT EXISTS idx_rag_documents_type ON rag_documents(document_type);
+                                 CREATE INDEX IF NOT EXISTS idx_rag_documents_created ON rag_documents(created_at);
+                                 """;
 
             await using var command = new SqliteCommand(createTableSql, _connection);
             await command.ExecuteNonQueryAsync(cancellationToken);
@@ -86,18 +92,16 @@ public class SqliteRagService : IRagService, IAsyncDisposable
 
             // Generate embedding if not provided
             if (document.Embedding == null || document.Embedding.Length == 0)
-            {
                 document.Embedding = await _llmService.GenerateEmbeddingAsync(document.Content, cancellationToken);
-            }
 
             await _lock.WaitAsync(cancellationToken);
             try
             {
                 var sql = """
-                    INSERT OR REPLACE INTO rag_documents
-                    (id, content, title, source_url, document_type, created_at, last_accessed_at, access_count, metadata, embedding)
-                    VALUES (@id, @content, @title, @source_url, @document_type, @created_at, @last_accessed_at, @access_count, @metadata, @embedding)
-                    """;
+                          INSERT OR REPLACE INTO rag_documents
+                          (id, content, title, source_url, document_type, created_at, last_accessed_at, access_count, metadata, embedding)
+                          VALUES (@id, @content, @title, @source_url, @document_type, @created_at, @last_accessed_at, @access_count, @metadata, @embedding)
+                          """;
 
                 await using var command = new SqliteCommand(sql, _connection);
                 command.Parameters.AddWithValue("@id", document.Id);
@@ -127,12 +131,10 @@ public class SqliteRagService : IRagService, IAsyncDisposable
         }
     }
 
-    public async Task AddDocumentsAsync(IEnumerable<RagDocument> documents, CancellationToken cancellationToken = default)
+    public async Task AddDocumentsAsync(IEnumerable<RagDocument> documents,
+        CancellationToken cancellationToken = default)
     {
-        foreach (var document in documents)
-        {
-            await AddDocumentAsync(document, cancellationToken);
-        }
+        foreach (var document in documents) await AddDocumentAsync(document, cancellationToken);
     }
 
     public async Task<List<RagSearchResult>> SearchAsync(
@@ -173,10 +175,7 @@ public class SqliteRagService : IRagService, IAsyncDisposable
                     if (document.Embedding != null && document.Embedding.Length > 0)
                     {
                         var score = CosineSimilarity(queryEmbedding, document.Embedding);
-                        if (score >= minScore)
-                        {
-                            results.Add((document, score));
-                        }
+                        if (score >= minScore) results.Add((document, score));
                     }
                 }
 
@@ -188,10 +187,7 @@ public class SqliteRagService : IRagService, IAsyncDisposable
                     .ToList();
 
                 // Update access count and timestamp for retrieved documents
-                foreach (var result in topResults)
-                {
-                    await UpdateAccessAsync(result.Document.Id, cancellationToken);
-                }
+                foreach (var result in topResults) await UpdateAccessAsync(result.Document.Id, cancellationToken);
 
                 _logger.LogDebug("RAG search found {Count} results for query", topResults.Count);
 
@@ -225,10 +221,7 @@ public class SqliteRagService : IRagService, IAsyncDisposable
             command.Parameters.AddWithValue("@id", id);
 
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            if (await reader.ReadAsync(cancellationToken))
-            {
-                return ReadDocument(reader);
-            }
+            if (await reader.ReadAsync(cancellationToken)) return ReadDocument(reader);
 
             return null;
         }
@@ -294,19 +287,16 @@ public class SqliteRagService : IRagService, IAsyncDisposable
 
     private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
     {
-        if (!_initialized)
-        {
-            await InitializeAsync(cancellationToken);
-        }
+        if (!_initialized) await InitializeAsync(cancellationToken);
     }
 
     private async Task UpdateAccessAsync(string id, CancellationToken cancellationToken)
     {
         var sql = """
-            UPDATE rag_documents
-            SET last_accessed_at = @last_accessed_at, access_count = access_count + 1
-            WHERE id = @id
-            """;
+                  UPDATE rag_documents
+                  SET last_accessed_at = @last_accessed_at, access_count = access_count + 1
+                  WHERE id = @id
+                  """;
         await using var command = new SqliteCommand(sql, _connection);
         command.Parameters.AddWithValue("@id", id);
         command.Parameters.AddWithValue("@last_accessed_at", DateTime.UtcNow.ToString("O"));
@@ -328,7 +318,8 @@ public class SqliteRagService : IRagService, IAsyncDisposable
             CreatedAt = DateTime.Parse(reader["created_at"].ToString() ?? DateTime.UtcNow.ToString("O")),
             LastAccessedAt = DateTime.Parse(reader["last_accessed_at"].ToString() ?? DateTime.UtcNow.ToString("O")),
             AccessCount = Convert.ToInt32(reader["access_count"]),
-            Metadata = JsonSerializer.Deserialize<Dictionary<string, string>>(metadataJson) ?? new(),
+            Metadata = JsonSerializer.Deserialize<Dictionary<string, string>>(metadataJson) ??
+                       new Dictionary<string, string>(),
             Embedding = embeddingBytes != null ? DeserializeEmbedding(embeddingBytes) : null
         };
     }
@@ -355,7 +346,7 @@ public class SqliteRagService : IRagService, IAsyncDisposable
         float normA = 0;
         float normB = 0;
 
-        for (int i = 0; i < a.Length; i++)
+        for (var i = 0; i < a.Length; i++)
         {
             dotProduct += a[i] * b[i];
             normA += a[i] * a[i];
@@ -366,14 +357,5 @@ public class SqliteRagService : IRagService, IAsyncDisposable
         if (denominator == 0) return 0;
 
         return (float)(dotProduct / denominator);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_connection != null)
-        {
-            await _connection.DisposeAsync();
-        }
-        _lock.Dispose();
     }
 }

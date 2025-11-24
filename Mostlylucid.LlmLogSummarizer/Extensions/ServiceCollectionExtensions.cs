@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -11,12 +12,12 @@ using Mostlylucid.LlmLogSummarizer.Sources;
 namespace Mostlylucid.LlmLogSummarizer.Extensions;
 
 /// <summary>
-/// Extension methods for registering log summarizer services.
+///     Extension methods for registering log summarizer services.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds the LLM log summarizer services with configuration from appsettings.
+    ///     Adds the LLM log summarizer services with configuration from appsettings.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configuration">The configuration.</param>
@@ -32,7 +33,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds the LLM log summarizer services with programmatic configuration.
+    ///     Adds the LLM log summarizer services with programmatic configuration.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configure">The configuration action.</param>
@@ -46,8 +47,8 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds the LLM log summarizer with default options for quick setup.
-    /// Just point to your Serilog JSON files and go!
+    ///     Adds the LLM log summarizer with default options for quick setup.
+    ///     Just point to your Serilog JSON files and go!
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="serilogPath">Path to Serilog JSON log files (glob pattern supported).</param>
@@ -151,8 +152,8 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds only the log summarizer services without the background service.
-    /// Use this when you want to manually trigger summarization.
+    ///     Adds only the log summarizer services without the background service.
+    ///     Use this when you want to manually trigger summarization.
     /// </summary>
     public static IServiceCollection AddLlmLogSummarizerWithoutBackgroundService(
         this IServiceCollection services,
@@ -201,7 +202,7 @@ public static class ServiceCollectionExtensions
 }
 
 /// <summary>
-/// A composite log source that aggregates multiple sources of the same type.
+///     A composite log source that aggregates multiple sources of the same type.
 /// </summary>
 internal class CompositeLogSource : ILogSource
 {
@@ -220,32 +221,26 @@ internal class CompositeLogSource : ILogSource
         DateTimeOffset from,
         DateTimeOffset to,
         int maxEntries,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken cancellationToken = default)
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var entriesPerSource = maxEntries / Math.Max(1, _sources.Count);
 
         foreach (var source in _sources.Where(s => s.IsAvailable))
-        {
-            await foreach (var entry in source.GetEntriesAsync(from, to, entriesPerSource, cancellationToken))
-            {
-                yield return entry;
-            }
-        }
+        await foreach (var entry in source.GetEntriesAsync(from, to, entriesPerSource, cancellationToken))
+            yield return entry;
     }
 
-    public async Task<bool> TestConnectionAsync(System.Threading.CancellationToken cancellationToken = default)
+    public async Task<bool> TestConnectionAsync(CancellationToken cancellationToken = default)
     {
         foreach (var source in _sources)
-        {
             if (await source.TestConnectionAsync(cancellationToken))
                 return true;
-        }
         return false;
     }
 }
 
 /// <summary>
-/// A null log source for when no source is configured.
+///     A null log source for when no source is configured.
 /// </summary>
 internal class NullLogSource : ILogSource
 {
@@ -254,12 +249,14 @@ internal class NullLogSource : ILogSource
 
     public async IAsyncEnumerable<LogEntry> GetEntriesAsync(
         DateTimeOffset from, DateTimeOffset to, int maxEntries,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken cancellationToken = default)
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         await Task.CompletedTask;
         yield break;
     }
 
-    public Task<bool> TestConnectionAsync(System.Threading.CancellationToken cancellationToken = default)
-        => Task.FromResult(false);
+    public Task<bool> TestConnectionAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(false);
+    }
 }

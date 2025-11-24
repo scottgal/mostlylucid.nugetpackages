@@ -3,12 +3,12 @@ using Mostlylucid.LlmAccessibilityAuditor.Models;
 namespace Mostlylucid.LlmAccessibilityAuditor.Services;
 
 /// <summary>
-/// Main accessibility auditor service that combines rule-based and LLM analysis
+///     Main accessibility auditor service that combines rule-based and LLM analysis
 /// </summary>
 public interface IAccessibilityAuditor
 {
     /// <summary>
-    /// Perform a full accessibility audit on HTML content
+    ///     Perform a full accessibility audit on HTML content
     /// </summary>
     /// <param name="html">The HTML content to audit</param>
     /// <param name="pageUrl">Optional URL of the page (for reporting)</param>
@@ -20,7 +20,7 @@ public interface IAccessibilityAuditor
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Perform a quick audit using only rule-based checks (no LLM)
+    ///     Perform a quick audit using only rule-based checks (no LLM)
     /// </summary>
     /// <param name="html">The HTML content to audit</param>
     /// <param name="cancellationToken">Cancellation token</param>
@@ -30,7 +30,7 @@ public interface IAccessibilityAuditor
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Check if the auditor is ready (including LLM availability if enabled)
+    ///     Check if the auditor is ready (including LLM availability if enabled)
     /// </summary>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>True if ready to audit</returns>

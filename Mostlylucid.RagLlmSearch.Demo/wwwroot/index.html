@@ -2,103 +2,104 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>RAG LLM Search Demo</title>
-    <link rel="stylesheet" href="/css/style.css">
+    <link href="/css/style.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>RAG LLM Search</h1>
-            <p class="subtitle">AI-powered chat with web search and knowledge retrieval</p>
-            <div id="status" class="status disconnected">
-                <span class="status-dot"></span>
-                <span class="status-text">Connecting...</span>
-            </div>
-        </header>
-
-        <div class="main-content">
-            <aside class="sidebar">
-                <div class="sidebar-section">
-                    <h3>Conversations</h3>
-                    <button id="newConversation" class="btn btn-primary">+ New Chat</button>
-                    <div id="conversationList" class="conversation-list"></div>
-                </div>
-
-                <div class="sidebar-section">
-                    <h3>Settings</h3>
-                    <div class="setting">
-                        <label for="searchProvider">Search Provider:</label>
-                        <select id="searchProvider">
-                            <option value="">Auto (DuckDuckGo)</option>
-                        </select>
-                    </div>
-                    <div class="setting">
-                        <label>
-                            <input type="checkbox" id="enableWebSearch" checked>
-                            Enable Web Search
-                        </label>
-                    </div>
-                    <div class="setting">
-                        <label>
-                            <input type="checkbox" id="enableRag" checked>
-                            Enable RAG Context
-                        </label>
-                    </div>
-                </div>
-
-                <div class="sidebar-section">
-                    <h3>Add Knowledge</h3>
-                    <textarea id="ragContent" placeholder="Paste text to add to knowledge base..."></textarea>
-                    <input type="text" id="ragTitle" placeholder="Title (optional)">
-                    <input type="text" id="ragUrl" placeholder="Source URL (optional)">
-                    <button id="addRag" class="btn btn-secondary">Add to RAG</button>
-                </div>
-            </aside>
-
-            <main class="chat-area">
-                <div id="chatMessages" class="chat-messages">
-                    <div class="welcome-message">
-                        <h2>Welcome to RAG LLM Search!</h2>
-                        <p>Ask me anything. I can search the web for current information and remember our conversation.</p>
-                        <div class="features">
-                            <div class="feature">
-                                <strong>Web Search</strong>
-                                <p>Powered by DuckDuckGo, Brave, Tavily, or SerpApi</p>
-                            </div>
-                            <div class="feature">
-                                <strong>RAG Context</strong>
-                                <p>Retrieves relevant information from stored knowledge</p>
-                            </div>
-                            <div class="feature">
-                                <strong>Conversation History</strong>
-                                <p>Remembers previous messages for context</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="chat-input-area">
-                    <form id="chatForm">
-                        <div class="input-wrapper">
-                            <textarea id="messageInput" placeholder="Type your message..." rows="1"></textarea>
-                            <button type="submit" id="sendButton" class="btn btn-send">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
-                                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                                </svg>
-                            </button>
-                        </div>
-                    </form>
-                    <div class="input-info">
-                        <span id="ragInfo"></span>
-                        <span id="searchInfo"></span>
-                    </div>
-                </div>
-            </main>
+<div class="container">
+    <header>
+        <h1>RAG LLM Search</h1>
+        <p class="subtitle">AI-powered chat with web search and knowledge retrieval</p>
+        <div class="status disconnected" id="status">
+            <span class="status-dot"></span>
+            <span class="status-text">Connecting...</span>
         </div>
-    </div>
+    </header>
 
-    <script src="/js/app.js"></script>
+    <div class="main-content">
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <h3>Conversations</h3>
+                <button class="btn btn-primary" id="newConversation">+ New Chat</button>
+                <div class="conversation-list" id="conversationList"></div>
+            </div>
+
+            <div class="sidebar-section">
+                <h3>Settings</h3>
+                <div class="setting">
+                    <label for="searchProvider">Search Provider:</label>
+                    <select id="searchProvider">
+                        <option value="">Auto (DuckDuckGo)</option>
+                    </select>
+                </div>
+                <div class="setting">
+                    <label>
+                        <input checked id="enableWebSearch" type="checkbox">
+                        Enable Web Search
+                    </label>
+                </div>
+                <div class="setting">
+                    <label>
+                        <input checked id="enableRag" type="checkbox">
+                        Enable RAG Context
+                    </label>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <h3>Add Knowledge</h3>
+                <textarea id="ragContent" placeholder="Paste text to add to knowledge base..."></textarea>
+                <input id="ragTitle" placeholder="Title (optional)" type="text">
+                <input id="ragUrl" placeholder="Source URL (optional)" type="text">
+                <button class="btn btn-secondary" id="addRag">Add to RAG</button>
+            </div>
+        </aside>
+
+        <main class="chat-area">
+            <div class="chat-messages" id="chatMessages">
+                <div class="welcome-message">
+                    <h2>Welcome to RAG LLM Search!</h2>
+                    <p>Ask me anything. I can search the web for current information and remember our conversation.</p>
+                    <div class="features">
+                        <div class="feature">
+                            <strong>Web Search</strong>
+                            <p>Powered by DuckDuckGo, Brave, Tavily, or SerpApi</p>
+                        </div>
+                        <div class="feature">
+                            <strong>RAG Context</strong>
+                            <p>Retrieves relevant information from stored knowledge</p>
+                        </div>
+                        <div class="feature">
+                            <strong>Conversation History</strong>
+                            <p>Remembers previous messages for context</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input-area">
+                <form id="chatForm">
+                    <div class="input-wrapper">
+                        <textarea id="messageInput" placeholder="Type your message..." rows="1"></textarea>
+                        <button class="btn btn-send" id="sendButton" type="submit">
+                            <svg fill="currentColor" height="24" viewBox="0 0 24 24" width="24"
+                                 xmlns="http://www.w3.org/2000/svg">
+                                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </form>
+                <div class="input-info">
+                    <span id="ragInfo"></span>
+                    <span id="searchInfo"></span>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script src="/js/app.js"></script>
 </body>
 </html>

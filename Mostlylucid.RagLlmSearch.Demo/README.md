@@ -1,6 +1,7 @@
 # RAG LLM Search Demo
 
-Demo application for the Mostlylucid.RagLlmSearch package, showcasing AI-powered chat with web search and RAG capabilities.
+Demo application for the Mostlylucid.RagLlmSearch package, showcasing AI-powered chat with web search and RAG
+capabilities.
 
 ## Prerequisites
 

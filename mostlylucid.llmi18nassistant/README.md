@@ -1,6 +1,7 @@
 # Mostlylucid.LlmI18nAssistant
 
-LLM-assisted localization helper for short-string app resources. Complements `LlmSlideTranslator` – while that handles long documents, this is designed for UI copy and resource files.
+LLM-assisted localization helper for short-string app resources. Complements `LlmSlideTranslator` – while that handles
+long documents, this is designed for UI copy and resource files.
 
 ## Features
 

@@ -1,37 +1,39 @@
+using Microsoft.Extensions.Logging;
+
 namespace Mostlylucid.LlmPiiRedactor.Models;
 
 /// <summary>
-/// Configuration options for PII redaction in logging.
+///     Configuration options for PII redaction in logging.
 /// </summary>
 public class PiiLoggingOptions
 {
     /// <summary>
-    /// Whether logging redaction is enabled.
+    ///     Whether logging redaction is enabled.
     /// </summary>
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// Whether to redact log message templates.
+    ///     Whether to redact log message templates.
     /// </summary>
     public bool RedactMessageTemplates { get; set; } = true;
 
     /// <summary>
-    /// Whether to redact structured log properties.
+    ///     Whether to redact structured log properties.
     /// </summary>
     public bool RedactStructuredProperties { get; set; } = true;
 
     /// <summary>
-    /// Whether to redact exception messages.
+    ///     Whether to redact exception messages.
     /// </summary>
     public bool RedactExceptions { get; set; } = true;
 
     /// <summary>
-    /// Whether to redact exception stack traces.
+    ///     Whether to redact exception stack traces.
     /// </summary>
     public bool RedactStackTraces { get; set; } = true;
 
     /// <summary>
-    /// Property names to always redact (case-insensitive).
+    ///     Property names to always redact (case-insensitive).
     /// </summary>
     public HashSet<string> SensitivePropertyNames { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -47,12 +49,12 @@ public class PiiLoggingOptions
     };
 
     /// <summary>
-    /// Property names to exclude from redaction.
+    ///     Property names to exclude from redaction.
     /// </summary>
     public HashSet<string> ExcludedPropertyNames { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Log categories to exclude from redaction.
+    ///     Log categories to exclude from redaction.
     /// </summary>
     public HashSet<string> ExcludedCategories { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -61,8 +63,8 @@ public class PiiLoggingOptions
     };
 
     /// <summary>
-    /// Minimum log level to apply redaction.
+    ///     Minimum log level to apply redaction.
     /// </summary>
-    public Microsoft.Extensions.Logging.LogLevel MinLogLevel { get; set; } =
-        Microsoft.Extensions.Logging.LogLevel.Trace;
+    public LogLevel MinLogLevel { get; set; } =
+        LogLevel.Trace;
 }

@@ -131,15 +131,9 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddLogging();
 
-        services.AddSeoMetadata(options =>
-        {
-            options.SiteName = "Initial";
-        });
+        services.AddSeoMetadata(options => { options.SiteName = "Initial"; });
 
-        services.ConfigureSeoMetadata(options =>
-        {
-            options.TwitterSite = "@updated";
-        });
+        services.ConfigureSeoMetadata(options => { options.TwitterSite = "@updated"; });
 
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<SeoMetadataOptions>>().Value;

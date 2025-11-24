@@ -1,4 +1,5 @@
 using System.Text;
+using System.Web;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -9,14 +10,14 @@ using Mostlylucid.LlmAccessibilityAuditor.Services;
 namespace Mostlylucid.LlmAccessibilityAuditor.Middleware;
 
 /// <summary>
-/// Middleware that intercepts HTML responses and performs accessibility audits
+///     Middleware that intercepts HTML responses and performs accessibility audits
 /// </summary>
 public class AccessibilityAuditMiddleware
 {
-    private readonly RequestDelegate _next;
-    private readonly ILogger<AccessibilityAuditMiddleware> _logger;
-    private readonly AccessibilityAuditorOptions _options;
     private readonly bool _isDevelopment;
+    private readonly ILogger<AccessibilityAuditMiddleware> _logger;
+    private readonly RequestDelegate _next;
+    private readonly AccessibilityAuditorOptions _options;
 
     public AccessibilityAuditMiddleware(
         RequestDelegate next,
@@ -78,10 +79,7 @@ public class AccessibilityAuditMiddleware
             context.Items["AccessibilityAuditReport"] = report;
 
             // Optionally inject inline report
-            if (_options.EnableInlineReport && report.Issues.Count > 0)
-            {
-                html = InjectInlineReport(html, report);
-            }
+            if (_options.EnableInlineReport && report.Issues.Count > 0) html = InjectInlineReport(html, report);
 
             // Write the (possibly modified) response
             context.Response.Body = originalBodyStream;
@@ -109,15 +107,10 @@ public class AccessibilityAuditMiddleware
         {
             // Check for override header
             if (!string.IsNullOrEmpty(_options.EnableHeader))
-            {
                 if (context.Request.Headers.TryGetValue(_options.EnableHeader, out var headerValue))
-                {
                     if (headerValue.ToString().Equals(_options.EnableHeaderValue, StringComparison.OrdinalIgnoreCase))
-                    {
                         return true;
-                    }
-                }
-            }
+
             return false;
         }
 
@@ -130,16 +123,12 @@ public class AccessibilityAuditMiddleware
 
         // Check exclude paths
         foreach (var excludePath in _options.ExcludePaths)
-        {
             if (MatchesPath(path, excludePath))
                 return false;
-        }
 
         // Check include paths (if specified)
         if (_options.IncludePaths != null && _options.IncludePaths.Count > 0)
-        {
             return _options.IncludePaths.Any(p => MatchesPath(path, p));
-        }
 
         // Only audit GET requests by default
         return context.Request.Method == HttpMethods.Get;
@@ -162,10 +151,7 @@ public class AccessibilityAuditMiddleware
 
         // Try to inject before </body>
         var bodyCloseIndex = html.LastIndexOf("</body>", StringComparison.OrdinalIgnoreCase);
-        if (bodyCloseIndex >= 0)
-        {
-            return html.Insert(bodyCloseIndex, widget);
-        }
+        if (bodyCloseIndex >= 0) return html.Insert(bodyCloseIndex, widget);
 
         // Fallback: append at end
         return html + widget;
@@ -246,14 +232,22 @@ public class AccessibilityAuditMiddleware
 
         <div style=""padding: 16px; overflow-y: auto; max-height: 400px;"">
             <div style=""margin-bottom: 12px; padding: 8px; background: #f3f4f6; border-radius: 4px; font-size: 12px;"">
-                " + System.Web.HttpUtility.HtmlEncode(report.HumanSummary ?? "") + @"
+                " + HttpUtility.HtmlEncode(report.HumanSummary ?? "") + @"
             </div>
 
             <div style=""display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;"">
-                " + (report.Summary.CriticalCount > 0 ? $@"<span style=""background: {severityColors[IssueSeverity.Critical]}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px;"">Critical: {report.Summary.CriticalCount}</span>" : "") + @"
-                " + (report.Summary.SeriousCount > 0 ? $@"<span style=""background: {severityColors[IssueSeverity.Serious]}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px;"">Serious: {report.Summary.SeriousCount}</span>" : "") + @"
-                " + (report.Summary.ModerateCount > 0 ? $@"<span style=""background: {severityColors[IssueSeverity.Moderate]}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px;"">Moderate: {report.Summary.ModerateCount}</span>" : "") + @"
-                " + (report.Summary.MinorCount > 0 ? $@"<span style=""background: {severityColors[IssueSeverity.Minor]}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px;"">Minor: {report.Summary.MinorCount}</span>" : "") + @"
+                " + (report.Summary.CriticalCount > 0
+            ? $@"<span style=""background: {severityColors[IssueSeverity.Critical]}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px;"">Critical: {report.Summary.CriticalCount}</span>"
+            : "") + @"
+                " + (report.Summary.SeriousCount > 0
+            ? $@"<span style=""background: {severityColors[IssueSeverity.Serious]}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px;"">Serious: {report.Summary.SeriousCount}</span>"
+            : "") + @"
+                " + (report.Summary.ModerateCount > 0
+            ? $@"<span style=""background: {severityColors[IssueSeverity.Moderate]}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px;"">Moderate: {report.Summary.ModerateCount}</span>"
+            : "") + @"
+                " + (report.Summary.MinorCount > 0
+            ? $@"<span style=""background: {severityColors[IssueSeverity.Minor]}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px;"">Minor: {report.Summary.MinorCount}</span>"
+            : "") + @"
             </div>
 ");
 
@@ -266,17 +260,20 @@ public class AccessibilityAuditMiddleware
             sb.AppendLine($@"
                 <div style=""border-left: 3px solid {color}; padding: 8px; margin-bottom: 8px; background: #f9fafb;"">
                     <div style=""font-weight: 600; color: {color};"">{issue.Type}</div>
-                    <div style=""color: #374151; margin: 4px 0;"">{System.Web.HttpUtility.HtmlEncode(issue.Description)}</div>
-                    " + (!string.IsNullOrEmpty(issue.SuggestedFix) ? $@"<div style=""color: #059669; font-size: 11px;"">Fix: {System.Web.HttpUtility.HtmlEncode(issue.SuggestedFix)}</div>" : "") + @"
-                    " + (!string.IsNullOrEmpty(issue.WcagReference) ? $@"<div style=""color: #6b7280; font-size: 10px; margin-top: 4px;"">WCAG {issue.WcagReference} ({issue.WcagLevel ?? ""})</div>" : "") + @"
+                    <div style=""color: #374151; margin: 4px 0;"">{HttpUtility.HtmlEncode(issue.Description)}</div>
+                    " + (!string.IsNullOrEmpty(issue.SuggestedFix)
+                ? $@"<div style=""color: #059669; font-size: 11px;"">Fix: {HttpUtility.HtmlEncode(issue.SuggestedFix)}</div>"
+                : "") + @"
+                    " + (!string.IsNullOrEmpty(issue.WcagReference)
+                ? $@"<div style=""color: #6b7280; font-size: 10px; margin-top: 4px;"">WCAG {issue.WcagReference} ({issue.WcagLevel ?? ""})</div>"
+                : "") + @"
                 </div>
             ");
         }
 
         if (report.Issues.Count > 15)
-        {
-            sb.AppendLine($@"<div style=""text-align: center; color: #6b7280; padding: 8px;"">...and {report.Issues.Count - 15} more issues</div>");
-        }
+            sb.AppendLine(
+                $@"<div style=""text-align: center; color: #6b7280; padding: 8px;"">...and {report.Issues.Count - 15} more issues</div>");
 
         sb.AppendLine(@"</div></div></div></div>
 <!-- End Accessibility Audit Widget -->");

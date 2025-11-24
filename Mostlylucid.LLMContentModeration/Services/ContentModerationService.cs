@@ -7,26 +7,16 @@ using Mostlylucid.LLMContentModeration.Telemetry;
 namespace Mostlylucid.LLMContentModeration.Services;
 
 /// <summary>
-/// Main content moderation service that orchestrates LLM classification and PII detection
+///     Main content moderation service that orchestrates LLM classification and PII detection
 /// </summary>
-public class ContentModerationService : IContentModerationService
+public class ContentModerationService(
+    ILogger<ContentModerationService> logger,
+    IModerationOllamaClient ollamaClient,
+    IPiiDetector piiDetector,
+    IOptions<ModerationOptions> options)
+    : IContentModerationService
 {
-    private readonly ILogger<ContentModerationService> _logger;
-    private readonly IModerationOllamaClient _ollamaClient;
-    private readonly IPiiDetector _piiDetector;
-    private readonly ModerationOptions _options;
-
-    public ContentModerationService(
-        ILogger<ContentModerationService> logger,
-        IModerationOllamaClient ollamaClient,
-        IPiiDetector piiDetector,
-        IOptions<ModerationOptions> options)
-    {
-        _logger = logger;
-        _ollamaClient = ollamaClient;
-        _piiDetector = piiDetector;
-        _options = options.Value;
-    }
+    private readonly ModerationOptions _options = options.Value;
 
     public async Task<ModerationResult> ModerateAsync(
         string content,
@@ -46,18 +36,15 @@ public class ContentModerationService : IContentModerationService
 
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
     {
-        return await _ollamaClient.IsAvailableAsync(cancellationToken);
+        return await ollamaClient.IsAvailableAsync(cancellationToken);
     }
 
     public async Task<ModerationServiceStatus> GetStatusAsync(CancellationToken cancellationToken = default)
     {
-        var isAvailable = await _ollamaClient.IsAvailableAsync(cancellationToken);
+        var isAvailable = await ollamaClient.IsAvailableAsync(cancellationToken);
         List<string>? models = null;
 
-        if (isAvailable)
-        {
-            models = await _ollamaClient.GetModelsAsync(cancellationToken);
-        }
+        if (isAvailable) models = await ollamaClient.GetModelsAsync(cancellationToken);
 
         return new ModerationServiceStatus
         {
@@ -117,23 +104,21 @@ public class ContentModerationService : IContentModerationService
 
             // Apply masking if needed
             if (mode == ModerationMode.MaskAndAllow && result.PiiMatches.Count > 0)
-            {
-                result.ModeratedContent = _piiDetector.MaskPii(content, result.PiiMatches, options.PiiDetection);
-            }
+                result.ModeratedContent = piiDetector.MaskPii(content, result.PiiMatches, options.PiiDetection);
 
             // Invoke callbacks
             await InvokeCallbacksAsync(result, options);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during content moderation");
+            logger.LogError(ex, "Error during content moderation");
             result.Errors.Add($"Moderation error: {ex.Message}");
             ContentModerationTelemetry.RecordException(activity, ex);
         }
 
         result.ProcessingTimeMs = stopwatch.ElapsedMilliseconds;
 
-        _logger.LogInformation(
+        logger.LogInformation(
             "Content moderation completed in {Ms}ms. Flagged: {Flagged}, Blocked: {Blocked}, Mode: {Mode}",
             result.ProcessingTimeMs, result.IsFlagged, result.IsBlocked, mode);
 
@@ -155,21 +140,19 @@ public class ContentModerationService : IContentModerationService
         try
         {
             // First pass: regex-based detection
-            var regexMatches = _piiDetector.DetectPii(content, options.PiiDetection);
+            var regexMatches = piiDetector.DetectPii(content, options.PiiDetection);
 
             // Second pass: LLM enhancement (if enabled)
             if (options.PiiDetection.UseLlmEnhancement)
-            {
                 try
                 {
-                    regexMatches = await _ollamaClient.EnhancePiiDetectionAsync(
+                    regexMatches = await ollamaClient.EnhancePiiDetectionAsync(
                         content, regexMatches, cancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "LLM PII enhancement failed, using regex results only");
+                    logger.LogWarning(ex, "LLM PII enhancement failed, using regex results only");
                 }
-            }
 
             ContentModerationTelemetry.RecordPiiResult(activity, regexMatches);
             return regexMatches;
@@ -193,21 +176,19 @@ public class ContentModerationService : IContentModerationService
             !classificationOptions.EnableSpam &&
             !classificationOptions.EnableSelfHarm &&
             !classificationOptions.EnableNsfw)
-        {
             return [];
-        }
 
         using var activity = ContentModerationTelemetry.StartClassificationActivity(content.Length);
 
         try
         {
-            var flags = await _ollamaClient.ClassifyContentAsync(content, classificationOptions, cancellationToken);
+            var flags = await ollamaClient.ClassifyContentAsync(content, classificationOptions, cancellationToken);
             ContentModerationTelemetry.RecordClassificationResult(activity, flags);
             return flags;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Content classification failed");
+            logger.LogWarning(ex, "Content classification failed");
             ContentModerationTelemetry.RecordException(activity, ex);
             return [];
         }
@@ -219,10 +200,8 @@ public class ContentModerationService : IContentModerationService
             return false;
 
         if (mode == ModerationMode.MaskAndAllow)
-        {
             // Only block if there are content flags (PII will be masked)
             return result.Flags.Count > 0;
-        }
 
         // Block mode: block if anything is flagged
         return result.IsFlagged;
@@ -233,17 +212,12 @@ public class ContentModerationService : IContentModerationService
         try
         {
             if (result.IsBlocked && options.OnContentBlocked != null)
-            {
                 await options.OnContentBlocked(result);
-            }
-            else if (result.IsFlagged && options.OnContentFlagged != null)
-            {
-                await options.OnContentFlagged(result);
-            }
+            else if (result.IsFlagged && options.OnContentFlagged != null) await options.OnContentFlagged(result);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error invoking moderation callback");
+            logger.LogError(ex, "Error invoking moderation callback");
         }
     }
 }

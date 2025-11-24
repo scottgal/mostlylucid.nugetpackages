@@ -3,22 +3,22 @@ using Mostlylucid.LlmLogSummarizer.Models;
 namespace Mostlylucid.LlmLogSummarizer.Sources;
 
 /// <summary>
-/// Interface for log sources that can provide log entries.
+///     Interface for log sources that can provide log entries.
 /// </summary>
 public interface ILogSource
 {
     /// <summary>
-    /// Name of this log source.
+    ///     Name of this log source.
     /// </summary>
     string Name { get; }
 
     /// <summary>
-    /// Whether this source is available/configured.
+    ///     Whether this source is available/configured.
     /// </summary>
     bool IsAvailable { get; }
 
     /// <summary>
-    /// Gets log entries from this source for the specified time range.
+    ///     Gets log entries from this source for the specified time range.
     /// </summary>
     /// <param name="from">Start of time range.</param>
     /// <param name="to">End of time range.</param>
@@ -32,7 +32,7 @@ public interface ILogSource
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Tests if the source is accessible.
+    ///     Tests if the source is accessible.
     /// </summary>
     Task<bool> TestConnectionAsync(CancellationToken cancellationToken = default);
 }

@@ -1,6 +1,7 @@
 # Mostlylucid.LlmLogSummarizer
 
-AI-powered log summarization using local LLMs. Clusters similar exceptions, identifies error patterns, and generates human-readable digests from Serilog, text files, and Application Insights logs.
+AI-powered log summarization using local LLMs. Clusters similar exceptions, identifies error patterns, and generates
+human-readable digests from Serilog, text files, and Application Insights logs.
 
 ## Features
 
@@ -113,7 +114,8 @@ ollama pull llama3.2:3b
 ollama serve
 ```
 
-The summarizer works without Ollama too - it will just skip AI-powered summaries and use rule-based health assessment instead.
+The summarizer works without Ollama too - it will just skip AI-powered summaries and use rule-based health assessment
+instead.
 
 ## Log Sources
 
@@ -161,6 +163,7 @@ Supports common text log formats with customizable regex parsing:
 ### Markdown
 
 Generates detailed markdown reports with:
+
 - Executive summary
 - Health status badge
 - Top error patterns with stack traces
@@ -235,20 +238,20 @@ app.MapPost("/summarize", async (ILogSummarizationOrchestrator orchestrator, Can
 
 1. **Collection**: Reads logs from configured sources within the lookback period
 2. **Clustering**: Groups similar errors using:
-   - Exception type matching
-   - Source context
-   - Normalized message fingerprinting
-   - Levenshtein distance for fuzzy matching
+    - Exception type matching
+    - Source context
+    - Normalized message fingerprinting
+    - Levenshtein distance for fuzzy matching
 3. **Trend Analysis**: Compares with previous period to identify:
-   - New error types
-   - Increasing error rates
-   - Decreasing error rates (improvements!)
+    - New error types
+    - Increasing error rates
+    - Decreasing error rates (improvements!)
 4. **LLM Summarization**: Uses local Ollama to:
-   - Summarize each error pattern
-   - Generate suggested fixes
-   - Create executive summary
-   - Extract key insights
-   - Assess overall health
+    - Summarize each error pattern
+    - Generate suggested fixes
+    - Create executive summary
+    - Extract key insights
+    - Assess overall health
 5. **Output**: Sends results to configured providers
 
 ## Sample Output

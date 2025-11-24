@@ -4,15 +4,15 @@ using Mostlylucid.LlmPiiRedactor.Models;
 namespace Mostlylucid.LlmPiiRedactor.Services;
 
 /// <summary>
-/// Redacts by replacing with tokenized identifiers that remain consistent for the same input.
-/// Example: "john@example.com" -> "[EMAIL_001]", same email always gets same token.
-/// Useful for debugging while maintaining privacy.
+///     Redacts by replacing with tokenized identifiers that remain consistent for the same input.
+///     Example: "john@example.com" -> "[EMAIL_001]", same email always gets same token.
+///     Useful for debugging while maintaining privacy.
 /// </summary>
 public class TokenizedStrategy : IRedactionStrategy
 {
+    private readonly object _counterLock = new();
     private readonly ConcurrentDictionary<(PiiType, string), string> _tokenCache = new();
     private readonly ConcurrentDictionary<PiiType, int> _tokenCounters = new();
-    private readonly object _counterLock = new();
 
     public RedactionStyle Style => RedactionStyle.Tokenized;
 
@@ -35,10 +35,7 @@ public class TokenizedStrategy : IRedactionStrategy
     {
         lock (_counterLock)
         {
-            if (!_tokenCounters.TryGetValue(piiType, out var current))
-            {
-                current = 0;
-            }
+            if (!_tokenCounters.TryGetValue(piiType, out var current)) current = 0;
 
             _tokenCounters[piiType] = current + 1;
             return current + 1;
@@ -69,7 +66,7 @@ public class TokenizedStrategy : IRedactionStrategy
     }
 
     /// <summary>
-    /// Clears the token cache. Useful for testing or when starting a new session.
+    ///     Clears the token cache. Useful for testing or when starting a new session.
     /// </summary>
     public void ClearCache()
     {
@@ -78,7 +75,7 @@ public class TokenizedStrategy : IRedactionStrategy
     }
 
     /// <summary>
-    /// Gets the current token count for a PII type.
+    ///     Gets the current token count for a PII type.
     /// </summary>
     public int GetTokenCount(PiiType piiType)
     {

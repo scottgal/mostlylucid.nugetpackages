@@ -197,8 +197,8 @@ public class Program
     {
         var configuration = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("llmi18n.json", optional: true)
-            .AddJsonFile("appsettings.json", optional: true)
+            .AddJsonFile("llmi18n.json", true)
+            .AddJsonFile("appsettings.json", true)
             .Build();
 
         var services = new ServiceCollection();

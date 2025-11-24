@@ -16,20 +16,15 @@ public class EmbeddingGenerator(
     IHttpClientFactory? httpClientFactory = null) : IEmbeddingGenerator, IDisposable
 {
     private readonly LlmSlideTranslatorConfig config = options.Value;
+
     private readonly HttpClient httpClient = ConfigureHttpClient(
         httpClientFactory?.CreateClient("EmbeddingGenerator") ?? new HttpClient(),
         options.Value);
+
     private readonly SemaphoreSlim initLock = new(1, 1);
     private LLamaEmbedder? _embedder;
     private bool _initialized;
     private bool _useOllama;
-
-    private static HttpClient ConfigureHttpClient(HttpClient client, LlmSlideTranslatorConfig config)
-    {
-        client.BaseAddress = new Uri(config.Ollama.Endpoint);
-        client.Timeout = TimeSpan.FromSeconds(config.Ollama.TimeoutSeconds);
-        return client;
-    }
 
     public void Dispose()
     {
@@ -45,41 +40,17 @@ public class EmbeddingGenerator(
 
         try
         {
-            if (_useOllama)
-            {
-                return await GenerateOllamaEmbeddingAsync(text, cancellationToken);
-            }
-            else
-            {
-                if (_embedder == null) throw new InvalidOperationException("Embedder not initialized");
-                var embeddings = await Task.Run(() => _embedder.GetEmbeddings(text), cancellationToken);
-                return embeddings.FirstOrDefault() ?? Array.Empty<float>();
-            }
+            if (_useOllama) return await GenerateOllamaEmbeddingAsync(text, cancellationToken);
+
+            if (_embedder == null) throw new InvalidOperationException("Embedder not initialized");
+            var embeddings = await Task.Run(() => _embedder.GetEmbeddings(text), cancellationToken);
+            return embeddings.FirstOrDefault() ?? Array.Empty<float>();
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error generating embedding");
             throw;
         }
-    }
-
-    private async Task<float[]> GenerateOllamaEmbeddingAsync(string text, CancellationToken cancellationToken)
-    {
-        var requestBody = new
-        {
-            model = config.Embedding.OllamaModel,
-            prompt = text
-        };
-
-        var response = await httpClient.PostAsJsonAsync("/api/embeddings", requestBody, cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        var result = await response.Content.ReadFromJsonAsync<OllamaEmbeddingResponse>(cancellationToken);
-
-        if (result?.Embedding == null || result.Embedding.Length == 0)
-            throw new InvalidOperationException("Ollama returned empty embedding");
-
-        return result.Embedding;
     }
 
     public async Task<List<TranslationBlock>> GenerateEmbeddingsAsync(
@@ -124,6 +95,32 @@ public class EmbeddingGenerator(
         if (magnitude1 == 0 || magnitude2 == 0) return 0;
 
         return dotProduct / (magnitude1 * magnitude2);
+    }
+
+    private static HttpClient ConfigureHttpClient(HttpClient client, LlmSlideTranslatorConfig config)
+    {
+        client.BaseAddress = new Uri(config.Ollama.Endpoint);
+        client.Timeout = TimeSpan.FromSeconds(config.Ollama.TimeoutSeconds);
+        return client;
+    }
+
+    private async Task<float[]> GenerateOllamaEmbeddingAsync(string text, CancellationToken cancellationToken)
+    {
+        var requestBody = new
+        {
+            model = config.Embedding.OllamaModel,
+            prompt = text
+        };
+
+        var response = await httpClient.PostAsJsonAsync("/api/embeddings", requestBody, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        var result = await response.Content.ReadFromJsonAsync<OllamaEmbeddingResponse>(cancellationToken);
+
+        if (result?.Embedding == null || result.Embedding.Length == 0)
+            throw new InvalidOperationException("Ollama returned empty embedding");
+
+        return result.Embedding;
     }
 
     private async Task EnsureInitializedAsync()

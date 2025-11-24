@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
@@ -9,19 +8,19 @@ using Mostlylucid.LLMContentModeration.Models;
 namespace Mostlylucid.LLMContentModeration.Services;
 
 /// <summary>
-/// Ollama client for content moderation LLM calls
+///     Ollama client for content moderation LLM calls
 /// </summary>
 public class ModerationOllamaClient : IModerationOllamaClient
 {
-    private readonly ModerationOptions _config;
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<ModerationOllamaClient> _logger;
-
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
+
+    private readonly ModerationOptions _config;
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<ModerationOllamaClient> _logger;
 
     public ModerationOllamaClient(
         ILogger<ModerationOllamaClient> logger,
@@ -138,25 +137,25 @@ public class ModerationOllamaClient : IModerationOllamaClient
         if (options.EnableNsfw) categories.Add("nsfw");
 
         return $$"""
-            You are a content moderation assistant. Analyze the following text and classify it for: {{string.Join(", ", categories)}}.
+                 You are a content moderation assistant. Analyze the following text and classify it for: {{string.Join(", ", categories)}}.
 
-            For each category, provide a confidence score from 0.0 to 1.0 and a brief explanation if flagged.
+                 For each category, provide a confidence score from 0.0 to 1.0 and a brief explanation if flagged.
 
-            Respond ONLY with valid JSON in this exact format:
-            {
-              "classifications": [
-                {"category": "toxicity", "confidence": 0.0, "explanation": null},
-                {"category": "spam", "confidence": 0.0, "explanation": null},
-                {"category": "self_harm", "confidence": 0.0, "explanation": null},
-                {"category": "nsfw", "confidence": 0.0, "explanation": null}
-              ]
-            }
+                 Respond ONLY with valid JSON in this exact format:
+                 {
+                   "classifications": [
+                     {"category": "toxicity", "confidence": 0.0, "explanation": null},
+                     {"category": "spam", "confidence": 0.0, "explanation": null},
+                     {"category": "self_harm", "confidence": 0.0, "explanation": null},
+                     {"category": "nsfw", "confidence": 0.0, "explanation": null}
+                   ]
+                 }
 
-            Content to analyze:
-            ---
-            {{content}}
-            ---
-            """;
+                 Content to analyze:
+                 ---
+                 {{content}}
+                 ---
+                 """;
     }
 
     private static string BuildPiiEnhancementPrompt(string content, List<PiiMatch> regexMatches)
@@ -166,33 +165,33 @@ public class ModerationOllamaClient : IModerationOllamaClient
             : "No PII detected by regex patterns.";
 
         return $$"""
-            You are a PII detection assistant. Review the following text for any personal identifiable information that may have been missed.
+                 You are a PII detection assistant. Review the following text for any personal identifiable information that may have been missed.
 
-            Look for:
-            - Email addresses
-            - Phone numbers (any format/country)
-            - Physical addresses
-            - IBAN numbers
-            - Credit card numbers
-            - Social security numbers
-            - Other sensitive personal data
+                 Look for:
+                 - Email addresses
+                 - Phone numbers (any format/country)
+                 - Physical addresses
+                 - IBAN numbers
+                 - Credit card numbers
+                 - Social security numbers
+                 - Other sensitive personal data
 
-            {{existingFindings}}
+                 {{existingFindings}}
 
-            Respond ONLY with valid JSON in this exact format:
-            {
-              "additional_pii": [
-                {"type": "email|phone|address|iban|credit_card|ssn|other", "value": "the PII found", "confidence": 0.0}
-              ]
-            }
+                 Respond ONLY with valid JSON in this exact format:
+                 {
+                   "additional_pii": [
+                     {"type": "email|phone|address|iban|credit_card|ssn|other", "value": "the PII found", "confidence": 0.0}
+                   ]
+                 }
 
-            If no additional PII is found, return: {"additional_pii": []}
+                 If no additional PII is found, return: {"additional_pii": []}
 
-            Content to analyze:
-            ---
-            {{content}}
-            ---
-            """;
+                 Content to analyze:
+                 ---
+                 {{content}}
+                 ---
+                 """;
     }
 
     private List<ContentFlag> ParseClassificationResponse(string response, ContentClassificationOptions options)
@@ -229,7 +228,6 @@ public class ModerationOllamaClient : IModerationOllamaClient
                 };
 
                 if (classification.Confidence >= threshold)
-                {
                     flags.Add(new ContentFlag
                     {
                         Category = category.Value,
@@ -237,7 +235,6 @@ public class ModerationOllamaClient : IModerationOllamaClient
                         Threshold = threshold,
                         Explanation = classification.Explanation
                     });
-                }
             }
         }
         catch (JsonException ex)
@@ -323,8 +320,7 @@ public class ModerationOllamaClient : IModerationOllamaClient
 
     private class PiiEnhancementResponse
     {
-        [JsonPropertyName("additional_pii")]
-        public List<PiiItem>? AdditionalPii { get; set; }
+        [JsonPropertyName("additional_pii")] public List<PiiItem>? AdditionalPii { get; set; }
     }
 
     private class PiiItem

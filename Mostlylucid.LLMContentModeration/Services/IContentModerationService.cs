@@ -3,12 +3,12 @@ using Mostlylucid.LLMContentModeration.Models;
 namespace Mostlylucid.LLMContentModeration.Services;
 
 /// <summary>
-/// Main service for content moderation
+///     Main service for content moderation
 /// </summary>
 public interface IContentModerationService
 {
     /// <summary>
-    /// Moderate content using configured policies
+    ///     Moderate content using configured policies
     /// </summary>
     /// <param name="content">Content to moderate</param>
     /// <param name="mode">Override moderation mode (null uses default)</param>
@@ -20,7 +20,7 @@ public interface IContentModerationService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Moderate content with custom options
+    ///     Moderate content with custom options
     /// </summary>
     /// <param name="content">Content to moderate</param>
     /// <param name="customOptions">Custom moderation options</param>
@@ -32,18 +32,18 @@ public interface IContentModerationService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Check if the moderation service is available (Ollama connectivity)
+    ///     Check if the moderation service is available (Ollama connectivity)
     /// </summary>
     Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Get service health status
+    ///     Get service health status
     /// </summary>
     Task<ModerationServiceStatus> GetStatusAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>
-/// Status information for the moderation service
+///     Status information for the moderation service
 /// </summary>
 public class ModerationServiceStatus
 {

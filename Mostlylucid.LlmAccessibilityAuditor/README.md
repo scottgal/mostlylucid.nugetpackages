@@ -1,6 +1,7 @@
 # Mostlylucid.LlmAccessibilityAuditor
 
-LLM-powered HTML accessibility auditor that analyzes rendered HTML and identifies accessibility issues including missing ARIA labels, bad heading hierarchy, suspicious contrast issues, and click targets without visible text.
+LLM-powered HTML accessibility auditor that analyzes rendered HTML and identifies accessibility issues including missing
+ARIA labels, bad heading hierarchy, suspicious contrast issues, and click targets without visible text.
 
 ## Features
 
@@ -14,17 +15,17 @@ LLM-powered HTML accessibility auditor that analyzes rendered HTML and identifie
 
 ## Detected Issues
 
-| Category | Issues Detected |
-|----------|-----------------|
-| **ARIA** | Missing/empty aria-label, broken aria-labelledby references |
-| **Images** | Missing alt text, empty alt on informative images |
-| **Headings** | Skipped levels, multiple h1, bad hierarchy |
-| **Forms** | Inputs without labels, buttons without accessible names |
-| **Links** | Links without accessible text content |
-| **Landmarks** | Missing main, nav landmarks |
-| **Tables** | Data tables without headers |
-| **Contrast** | Suspicious low-contrast CSS classes |
-| **Navigation** | Missing skip links |
+| Category       | Issues Detected                                             |
+|----------------|-------------------------------------------------------------|
+| **ARIA**       | Missing/empty aria-label, broken aria-labelledby references |
+| **Images**     | Missing alt text, empty alt on informative images           |
+| **Headings**   | Skipped levels, multiple h1, bad hierarchy                  |
+| **Forms**      | Inputs without labels, buttons without accessible names     |
+| **Links**      | Links without accessible text content                       |
+| **Landmarks**  | Missing main, nav landmarks                                 |
+| **Tables**     | Data tables without headers                                 |
+| **Contrast**   | Suspicious low-contrast CSS classes                         |
+| **Navigation** | Missing skip links                                          |
 
 ## Installation
 
@@ -124,15 +125,15 @@ public class MyController : Controller
 
 ### Diagnostic Endpoints
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /_accessibility` | Dashboard UI |
-| `GET /_accessibility/report/{id}` | Single report UI |
-| `GET /_accessibility/api/reports` | Recent reports (JSON) |
-| `GET /_accessibility/api/report/{id}` | Single report (JSON) |
-| `GET /_accessibility/api/stats` | Aggregate statistics |
-| `GET /_accessibility/health` | Service health check |
-| `POST /_accessibility/clear` | Clear audit history |
+| Endpoint                              | Description           |
+|---------------------------------------|-----------------------|
+| `GET /_accessibility`                 | Dashboard UI          |
+| `GET /_accessibility/report/{id}`     | Single report UI      |
+| `GET /_accessibility/api/reports`     | Recent reports (JSON) |
+| `GET /_accessibility/api/report/{id}` | Single report (JSON)  |
+| `GET /_accessibility/api/stats`       | Aggregate statistics  |
+| `GET /_accessibility/health`          | Service health check  |
+| `POST /_accessibility/clear`          | Clear audit history   |
 
 ## TagHelper Usage
 
@@ -212,8 +213,8 @@ Issues include WCAG guideline references where applicable:
 
 - .NET 8.0 or .NET 9.0
 - Ollama running locally (for LLM analysis)
-  - Install: https://ollama.ai
-  - Pull model: `ollama pull llama3.2:3b`
+    - Install: https://ollama.ai
+    - Pull model: `ollama pull llama3.2:3b`
 
 ## License
 

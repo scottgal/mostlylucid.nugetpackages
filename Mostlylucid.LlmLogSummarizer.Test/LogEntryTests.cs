@@ -110,7 +110,8 @@ public class LogEntryTests
         var entry = new LogEntry
         {
             Message = "Error occurred",
-            StackTrace = "   at MyApp.Services.UserService.GetUser(Int32 id)\n   at MyApp.Controllers.UsersController.Get(Int32 id)"
+            StackTrace =
+                "   at MyApp.Services.UserService.GetUser(Int32 id)\n   at MyApp.Controllers.UsersController.Get(Int32 id)"
         };
 
         // Act

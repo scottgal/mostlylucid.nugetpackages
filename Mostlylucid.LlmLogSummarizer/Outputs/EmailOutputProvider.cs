@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using MailKit.Net.Smtp;
 using Microsoft.Extensions.Logging;
@@ -8,7 +9,7 @@ using Mostlylucid.LlmLogSummarizer.Models;
 namespace Mostlylucid.LlmLogSummarizer.Outputs;
 
 /// <summary>
-/// Outputs summary reports via email.
+///     Outputs summary reports via email.
 /// </summary>
 public class EmailOutputProvider : IOutputProvider
 {
@@ -47,9 +48,7 @@ public class EmailOutputProvider : IOutputProvider
             await client.ConnectAsync(_config.SmtpHost, _config.SmtpPort, _config.UseSsl, cancellationToken);
 
             if (!string.IsNullOrEmpty(_config.Username))
-            {
                 await client.AuthenticateAsync(_config.Username, _config.Password, cancellationToken);
-            }
 
             await client.SendAsync(message, cancellationToken);
             await client.DisconnectAsync(true, cancellationToken);
@@ -67,10 +66,7 @@ public class EmailOutputProvider : IOutputProvider
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress(_config!.FromName, _config.FromAddress));
 
-        foreach (var to in _config.ToAddresses)
-        {
-            message.To.Add(MailboxAddress.Parse(to));
-        }
+        foreach (var to in _config.ToAddresses) message.To.Add(MailboxAddress.Parse(to));
 
         // Generate subject
         message.Subject = _config.SubjectPattern
@@ -103,7 +99,8 @@ public class EmailOutputProvider : IOutputProvider
         sb.AppendLine(".degraded { color: #eab308; }");
         sb.AppendLine(".unhealthy { color: #f97316; }");
         sb.AppendLine(".critical { color: #ef4444; }");
-        sb.AppendLine(".stat-box { display: inline-block; padding: 10px 20px; margin: 5px; background: #f3f4f6; border-radius: 8px; }");
+        sb.AppendLine(
+            ".stat-box { display: inline-block; padding: 10px 20px; margin: 5px; background: #f3f4f6; border-radius: 8px; }");
         sb.AppendLine(".stat-value { font-size: 24px; font-weight: bold; }");
         sb.AppendLine(".stat-label { font-size: 12px; color: #6b7280; }");
         sb.AppendLine("table { border-collapse: collapse; width: 100%; margin: 20px 0; }");
@@ -112,8 +109,9 @@ public class EmailOutputProvider : IOutputProvider
         sb.AppendLine("</style></head><body>");
 
         // Header
-        sb.AppendLine($"<h1>Log Summary Report</h1>");
-        sb.AppendLine($"<p><strong>Period:</strong> {report.PeriodStart:yyyy-MM-dd HH:mm} to {report.PeriodEnd:yyyy-MM-dd HH:mm}</p>");
+        sb.AppendLine("<h1>Log Summary Report</h1>");
+        sb.AppendLine(
+            $"<p><strong>Period:</strong> {report.PeriodStart:yyyy-MM-dd HH:mm} to {report.PeriodEnd:yyyy-MM-dd HH:mm}</p>");
 
         // Health Status
         var healthClass = report.OverallHealth.ToString().ToLowerInvariant();
@@ -121,17 +119,21 @@ public class EmailOutputProvider : IOutputProvider
 
         // Stats
         sb.AppendLine("<div>");
-        sb.AppendLine($"<div class=\"stat-box\"><div class=\"stat-value\">{report.TotalLogsAnalyzed:N0}</div><div class=\"stat-label\">Total Logs</div></div>");
-        sb.AppendLine($"<div class=\"stat-box\"><div class=\"stat-value critical\">{report.ErrorCount:N0}</div><div class=\"stat-label\">Errors</div></div>");
-        sb.AppendLine($"<div class=\"stat-box\"><div class=\"stat-value\">{report.WarningCount:N0}</div><div class=\"stat-label\">Warnings</div></div>");
-        sb.AppendLine($"<div class=\"stat-box\"><div class=\"stat-value\">{report.NewErrorTypes.Count}</div><div class=\"stat-label\">New Error Types</div></div>");
+        sb.AppendLine(
+            $"<div class=\"stat-box\"><div class=\"stat-value\">{report.TotalLogsAnalyzed:N0}</div><div class=\"stat-label\">Total Logs</div></div>");
+        sb.AppendLine(
+            $"<div class=\"stat-box\"><div class=\"stat-value critical\">{report.ErrorCount:N0}</div><div class=\"stat-label\">Errors</div></div>");
+        sb.AppendLine(
+            $"<div class=\"stat-box\"><div class=\"stat-value\">{report.WarningCount:N0}</div><div class=\"stat-label\">Warnings</div></div>");
+        sb.AppendLine(
+            $"<div class=\"stat-box\"><div class=\"stat-value\">{report.NewErrorTypes.Count}</div><div class=\"stat-label\">New Error Types</div></div>");
         sb.AppendLine("</div>");
 
         // Executive Summary
         if (!string.IsNullOrEmpty(report.ExecutiveSummary))
         {
             sb.AppendLine("<h3>Summary</h3>");
-            sb.AppendLine($"<p>{System.Net.WebUtility.HtmlEncode(report.ExecutiveSummary)}</p>");
+            sb.AppendLine($"<p>{WebUtility.HtmlEncode(report.ExecutiveSummary)}</p>");
         }
 
         // Top Errors Table
@@ -143,8 +145,10 @@ public class EmailOutputProvider : IOutputProvider
             foreach (var cluster in report.TopErrorPatterns.Take(10))
             {
                 var severityClass = cluster.Severity.ToString().ToLowerInvariant();
-                sb.AppendLine($"<tr><td>{System.Net.WebUtility.HtmlEncode(cluster.Title)}</td><td>{cluster.Count}</td><td class=\"{severityClass}\">{cluster.Severity}</td></tr>");
+                sb.AppendLine(
+                    $"<tr><td>{WebUtility.HtmlEncode(cluster.Title)}</td><td>{cluster.Count}</td><td class=\"{severityClass}\">{cluster.Severity}</td></tr>");
             }
+
             sb.AppendLine("</table>");
         }
 
@@ -153,10 +157,7 @@ public class EmailOutputProvider : IOutputProvider
         {
             sb.AppendLine("<h3>Key Insights</h3>");
             sb.AppendLine("<ul>");
-            foreach (var insight in report.KeyInsights)
-            {
-                sb.AppendLine($"<li>{System.Net.WebUtility.HtmlEncode(insight)}</li>");
-            }
+            foreach (var insight in report.KeyInsights) sb.AppendLine($"<li>{WebUtility.HtmlEncode(insight)}</li>");
             sb.AppendLine("</ul>");
         }
 
@@ -194,9 +195,7 @@ public class EmailOutputProvider : IOutputProvider
             sb.AppendLine("TOP ERRORS");
             sb.AppendLine("----------");
             foreach (var cluster in report.TopErrorPatterns.Take(5))
-            {
                 sb.AppendLine($"- [{cluster.Severity}] {cluster.Title} ({cluster.Count} occurrences)");
-            }
         }
 
         return sb.ToString();

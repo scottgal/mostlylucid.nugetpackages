@@ -1,4 +1,4 @@
-using Mostlylucid.RagLlmSearch.Configuration;
+using Microsoft.OpenApi.Models;
 using Mostlylucid.RagLlmSearch.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,7 +8,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new() { Title = "RAG LLM Search Demo", Version = "v1" });
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "RAG LLM Search Demo", Version = "v1" });
 });
 
 // Add RAG LLM Search services
@@ -51,7 +51,7 @@ app.UseStaticFiles();
 app.UseRouting();
 
 app.MapControllers();
-app.MapChatHub("/chathub");
+app.MapChatHub();
 
 // Fallback to index.html for SPA routing
 app.MapFallbackToFile("index.html");

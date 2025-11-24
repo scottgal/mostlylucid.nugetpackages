@@ -1,7 +1,7 @@
 namespace Mostlylucid.ArchiveOrg.Models;
 
 /// <summary>
-/// Result of downloading an archived page
+///     Result of downloading an archived page
 /// </summary>
 public class DownloadResult
 {
@@ -13,22 +13,28 @@ public class DownloadResult
     public string? ErrorMessage { get; set; }
     public CdxRecord? CdxRecord { get; set; }
 
-    public static DownloadResult Failed(CdxRecord record, string error) => new()
+    public static DownloadResult Failed(CdxRecord record, string error)
     {
-        Success = false,
-        OriginalUrl = record.OriginalUrl,
-        ArchiveDate = record.ArchiveDate,
-        ErrorMessage = error,
-        CdxRecord = record
-    };
+        return new DownloadResult
+        {
+            Success = false,
+            OriginalUrl = record.OriginalUrl,
+            ArchiveDate = record.ArchiveDate,
+            ErrorMessage = error,
+            CdxRecord = record
+        };
+    }
 
-    public static DownloadResult Succeeded(CdxRecord record, string filePath, string? content = null) => new()
+    public static DownloadResult Succeeded(CdxRecord record, string filePath, string? content = null)
     {
-        Success = true,
-        OriginalUrl = record.OriginalUrl,
-        ArchiveDate = record.ArchiveDate,
-        FilePath = filePath,
-        HtmlContent = content,
-        CdxRecord = record
-    };
+        return new DownloadResult
+        {
+            Success = true,
+            OriginalUrl = record.OriginalUrl,
+            ArchiveDate = record.ArchiveDate,
+            FilePath = filePath,
+            HtmlContent = content,
+            CdxRecord = record
+        };
+    }
 }

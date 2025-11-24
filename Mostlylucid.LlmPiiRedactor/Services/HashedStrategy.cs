@@ -5,9 +5,9 @@ using Mostlylucid.LlmPiiRedactor.Models;
 namespace Mostlylucid.LlmPiiRedactor.Services;
 
 /// <summary>
-/// Redacts by replacing with a hash of the original value.
-/// Provides consistent replacement for the same input while being irreversible.
-/// Example: "john@example.com" -> "[EMAIL:a3f2b1c4]"
+///     Redacts by replacing with a hash of the original value.
+///     Provides consistent replacement for the same input while being irreversible.
+///     Example: "john@example.com" -> "[EMAIL:a3f2b1c4]"
 /// </summary>
 public class HashedStrategy : IRedactionStrategy
 {

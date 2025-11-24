@@ -17,10 +17,9 @@ public class GeoLite2UpdateService(
     IHttpClientFactory httpClientFactory,
     IGeoLocationService geoService) : BackgroundService
 {
-    private readonly GeoLite2Options _options = options.Value;
-    private readonly MaxMindGeoLocationService? _geoService = geoService as MaxMindGeoLocationService;
-
     private const string DownloadBaseUrl = "https://download.maxmind.com/geoip/databases";
+    private readonly MaxMindGeoLocationService? _geoService = geoService as MaxMindGeoLocationService;
+    private readonly GeoLite2Options _options = options.Value;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -51,7 +50,6 @@ public class GeoLite2UpdateService(
 
         // Periodic update check
         while (!stoppingToken.IsCancellationRequested)
-        {
             try
             {
                 await Task.Delay(_options.UpdateCheckInterval, stoppingToken);
@@ -65,7 +63,6 @@ public class GeoLite2UpdateService(
             {
                 logger.LogError(ex, "Error during GeoLite2 update check");
             }
-        }
     }
 
     private async Task CheckForUpdateAsync(CancellationToken cancellationToken)
@@ -160,26 +157,17 @@ public class GeoLite2UpdateService(
                 // Move to final location
                 var dbPath = GetDatabasePath();
                 var dbDir = Path.GetDirectoryName(dbPath);
-                if (!string.IsNullOrEmpty(dbDir) && !Directory.Exists(dbDir))
-                {
-                    Directory.CreateDirectory(dbDir);
-                }
+                if (!string.IsNullOrEmpty(dbDir) && !Directory.Exists(dbDir)) Directory.CreateDirectory(dbDir);
 
                 // Delete old file if exists
-                if (File.Exists(dbPath))
-                {
-                    File.Delete(dbPath);
-                }
+                if (File.Exists(dbPath)) File.Delete(dbPath);
 
                 File.Move(extractedMmdb, dbPath);
 
                 logger.LogInformation("GeoLite2 database updated successfully at {Path}", dbPath);
 
                 // Reload the database reader
-                if (_geoService != null)
-                {
-                    await _geoService.ReloadDatabaseAsync(cancellationToken);
-                }
+                if (_geoService != null) await _geoService.ReloadDatabaseAsync(cancellationToken);
 
                 return true;
             }
@@ -188,10 +176,7 @@ public class GeoLite2UpdateService(
                 // Cleanup temp directory
                 try
                 {
-                    if (Directory.Exists(tempDir))
-                    {
-                        Directory.Delete(tempDir, recursive: true);
-                    }
+                    if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
                 }
                 catch (Exception ex)
                 {
@@ -262,7 +247,7 @@ public class GeoLite2UpdateService(
             }
 
             // Skip file content (aligned to 512-byte blocks)
-            var skipBytes = size + (512 - (size % 512)) % 512;
+            var skipBytes = size + (512 - size % 512) % 512;
             tarStream.Seek(skipBytes, SeekOrigin.Current);
         }
 
@@ -272,10 +257,7 @@ public class GeoLite2UpdateService(
     private string GetDatabasePath()
     {
         var path = _options.DatabasePath;
-        if (!Path.IsPathRooted(path))
-        {
-            path = Path.Combine(AppContext.BaseDirectory, path);
-        }
+        if (!Path.IsPathRooted(path)) path = Path.Combine(AppContext.BaseDirectory, path);
         return path;
     }
 }

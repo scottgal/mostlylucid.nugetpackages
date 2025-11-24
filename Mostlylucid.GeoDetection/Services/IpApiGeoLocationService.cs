@@ -18,33 +18,11 @@ public class IpApiGeoLocationService(
     IHttpClientFactory httpClientFactory,
     IMemoryCache cache) : IGeoLocationService
 {
-    private readonly GeoLite2Options _options = options.Value;
-    private readonly GeoLocationStatistics _stats = new();
-    private readonly SemaphoreSlim _rateLimiter = new(45, 45); // 45 requests per minute
-    private bool _rateLimiterStarted;
-
     private const string BaseUrl = "http://ip-api.com/json";
-
-    private void EnsureRateLimiterStarted()
-    {
-        if (_rateLimiterStarted) return;
-        _rateLimiterStarted = true;
-        // Start rate limiter replenishment
-        _ = ReplenishRateLimitAsync();
-    }
-
-    private async Task ReplenishRateLimitAsync()
-    {
-        while (true)
-        {
-            await Task.Delay(TimeSpan.FromMinutes(1));
-            // Release permits back to 45
-            while (_rateLimiter.CurrentCount < 45)
-            {
-                _rateLimiter.Release();
-            }
-        }
-    }
+    private readonly GeoLite2Options _options = options.Value;
+    private readonly SemaphoreSlim _rateLimiter = new(45, 45); // 45 requests per minute
+    private readonly GeoLocationStatistics _stats = new();
+    private bool _rateLimiterStarted;
 
     public async Task<GeoLocation?> GetLocationAsync(string ipAddress, CancellationToken cancellationToken = default)
     {
@@ -61,14 +39,12 @@ public class IpApiGeoLocationService(
 
         // Skip private IPs
         if (IPAddress.TryParse(ipAddress, out var ip) && IsPrivateOrReserved(ip))
-        {
             return new GeoLocation
             {
                 CountryCode = "XX",
                 CountryName = "Private Network",
                 ContinentCode = "XX"
             };
-        }
 
         // Wait for rate limit permit
         if (!await _rateLimiter.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken))
@@ -80,7 +56,8 @@ public class IpApiGeoLocationService(
         try
         {
             using var client = httpClientFactory.CreateClient("IpApi");
-            var url = $"{BaseUrl}/{ipAddress}?fields=status,message,continent,continentCode,country,countryCode,region,regionName,city,lat,lon,timezone,hosting,proxy";
+            var url =
+                $"{BaseUrl}/{ipAddress}?fields=status,message,continent,continentCode,country,countryCode,region,regionName,city,lat,lon,timezone,hosting,proxy";
 
             var response = await client.GetAsync(url, cancellationToken);
 
@@ -147,6 +124,24 @@ public class IpApiGeoLocationService(
         };
     }
 
+    private void EnsureRateLimiterStarted()
+    {
+        if (_rateLimiterStarted) return;
+        _rateLimiterStarted = true;
+        // Start rate limiter replenishment
+        _ = ReplenishRateLimitAsync();
+    }
+
+    private async Task ReplenishRateLimitAsync()
+    {
+        while (true)
+        {
+            await Task.Delay(TimeSpan.FromMinutes(1));
+            // Release permits back to 45
+            while (_rateLimiter.CurrentCount < 45) _rateLimiter.Release();
+        }
+    }
+
     private static bool IsPrivateOrReserved(IPAddress ip)
     {
         if (IPAddress.IsLoopback(ip)) return true;
@@ -163,46 +158,32 @@ public class IpApiGeoLocationService(
 
     private class IpApiResponse
     {
-        [JsonPropertyName("status")]
-        public string? Status { get; set; }
+        [JsonPropertyName("status")] public string? Status { get; set; }
 
-        [JsonPropertyName("message")]
-        public string? Message { get; set; }
+        [JsonPropertyName("message")] public string? Message { get; set; }
 
-        [JsonPropertyName("continent")]
-        public string? Continent { get; set; }
+        [JsonPropertyName("continent")] public string? Continent { get; set; }
 
-        [JsonPropertyName("continentCode")]
-        public string? ContinentCode { get; set; }
+        [JsonPropertyName("continentCode")] public string? ContinentCode { get; set; }
 
-        [JsonPropertyName("country")]
-        public string? Country { get; set; }
+        [JsonPropertyName("country")] public string? Country { get; set; }
 
-        [JsonPropertyName("countryCode")]
-        public string? CountryCode { get; set; }
+        [JsonPropertyName("countryCode")] public string? CountryCode { get; set; }
 
-        [JsonPropertyName("region")]
-        public string? Region { get; set; }
+        [JsonPropertyName("region")] public string? Region { get; set; }
 
-        [JsonPropertyName("regionName")]
-        public string? RegionName { get; set; }
+        [JsonPropertyName("regionName")] public string? RegionName { get; set; }
 
-        [JsonPropertyName("city")]
-        public string? City { get; set; }
+        [JsonPropertyName("city")] public string? City { get; set; }
 
-        [JsonPropertyName("lat")]
-        public double? Lat { get; set; }
+        [JsonPropertyName("lat")] public double? Lat { get; set; }
 
-        [JsonPropertyName("lon")]
-        public double? Lon { get; set; }
+        [JsonPropertyName("lon")] public double? Lon { get; set; }
 
-        [JsonPropertyName("timezone")]
-        public string? Timezone { get; set; }
+        [JsonPropertyName("timezone")] public string? Timezone { get; set; }
 
-        [JsonPropertyName("proxy")]
-        public bool Proxy { get; set; }
+        [JsonPropertyName("proxy")] public bool Proxy { get; set; }
 
-        [JsonPropertyName("hosting")]
-        public bool Hosting { get; set; }
+        [JsonPropertyName("hosting")] public bool Hosting { get; set; }
     }
 }

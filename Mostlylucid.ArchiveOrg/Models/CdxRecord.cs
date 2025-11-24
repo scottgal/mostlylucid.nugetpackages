@@ -1,58 +1,60 @@
+using System.Globalization;
+
 namespace Mostlylucid.ArchiveOrg.Models;
 
 /// <summary>
-/// Represents a single record from the Archive.org CDX API
-/// CDX format: urlkey, timestamp, original, mimetype, statuscode, digest, length
+///     Represents a single record from the Archive.org CDX API
+///     CDX format: urlkey, timestamp, original, mimetype, statuscode, digest, length
 /// </summary>
 public class CdxRecord
 {
     /// <summary>
-    /// SURT-format URL key
+    ///     SURT-format URL key
     /// </summary>
     public string UrlKey { get; set; } = string.Empty;
 
     /// <summary>
-    /// Archive timestamp in format: yyyyMMddHHmmss
+    ///     Archive timestamp in format: yyyyMMddHHmmss
     /// </summary>
     public string Timestamp { get; set; } = string.Empty;
 
     /// <summary>
-    /// Original URL that was archived
+    ///     Original URL that was archived
     /// </summary>
     public string OriginalUrl { get; set; } = string.Empty;
 
     /// <summary>
-    /// MIME type of the archived content
+    ///     MIME type of the archived content
     /// </summary>
     public string MimeType { get; set; } = string.Empty;
 
     /// <summary>
-    /// HTTP status code when archived
+    ///     HTTP status code when archived
     /// </summary>
     public int StatusCode { get; set; }
 
     /// <summary>
-    /// Content digest/hash
+    ///     Content digest/hash
     /// </summary>
     public string Digest { get; set; } = string.Empty;
 
     /// <summary>
-    /// Content length in bytes
+    ///     Content length in bytes
     /// </summary>
     public long Length { get; set; }
 
     /// <summary>
-    /// Parsed datetime from the timestamp
+    ///     Parsed datetime from the timestamp
     /// </summary>
     public DateTime ArchiveDate => ParseTimestamp(Timestamp);
 
     /// <summary>
-    /// Full Wayback Machine URL to access this snapshot
+    ///     Full Wayback Machine URL to access this snapshot
     /// </summary>
     public string WaybackUrl => $"https://web.archive.org/web/{Timestamp}/{OriginalUrl}";
 
     /// <summary>
-    /// Raw Wayback Machine URL (without replay modifications)
+    ///     Raw Wayback Machine URL (without replay modifications)
     /// </summary>
     public string WaybackRawUrl => $"https://web.archive.org/web/{Timestamp}id_/{OriginalUrl}";
 
@@ -65,17 +67,15 @@ public class CdxRecord
                 timestamp[..14],
                 "yyyyMMddHHmmss",
                 null,
-                System.Globalization.DateTimeStyles.None,
+                DateTimeStyles.None,
                 out var result))
-        {
             return result;
-        }
 
         return DateTime.MinValue;
     }
 
     /// <summary>
-    /// Parse a CDX API JSON array row into a CdxRecord
+    ///     Parse a CDX API JSON array row into a CdxRecord
     /// </summary>
     public static CdxRecord FromJsonArray(string[] fields)
     {

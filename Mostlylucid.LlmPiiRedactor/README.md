@@ -1,24 +1,26 @@
 # Mostlylucid.LlmPiiRedactor
 
-A comprehensive PII (Personally Identifiable Information) detection and redaction library for ASP.NET Core applications. Automatically detects and redacts sensitive data from logs, traces, error reports, and API responses.
+A comprehensive PII (Personally Identifiable Information) detection and redaction library for ASP.NET Core applications.
+Automatically detects and redacts sensitive data from logs, traces, error reports, and API responses.
 
 ## Features
 
-- **Multi-Type PII Detection**: Emails, phone numbers, credit cards, SSNs, IP addresses, names, addresses, postcodes, bank accounts, API keys, and more
+- **Multi-Type PII Detection**: Emails, phone numbers, credit cards, SSNs, IP addresses, names, addresses, postcodes,
+  bank accounts, API keys, and more
 - **Configurable Redaction Styles**:
-  - Full mask: `****************`
-  - Partial mask: `jo****@gmail.com`, `****-****-****-1234`
-  - Tokenized: `[EMAIL_001]` (consistent tokens for debugging)
-  - Type labels: `[EMAIL]`, `[PHONE]`
-  - Hashed: `[EMAIL:a3f2b1c4]`
-  - Complete removal
+    - Full mask: `****************`
+    - Partial mask: `jo****@gmail.com`, `****-****-****-1234`
+    - Tokenized: `[EMAIL_001]` (consistent tokens for debugging)
+    - Type labels: `[EMAIL]`, `[PHONE]`
+    - Hashed: `[EMAIL:a3f2b1c4]`
+    - Complete removal
 - **ASP.NET Core Integration**:
-  - Request/response body redaction middleware
-  - Header and query string redaction
-  - Exception filter for error pages
+    - Request/response body redaction middleware
+    - Header and query string redaction
+    - Exception filter for error pages
 - **Logging Integration**:
-  - ILogger wrapper for automatic log redaction
-  - Serilog enricher and destructuring policy
+    - ILogger wrapper for automatic log redaction
+    - Serilog enricher and destructuring policy
 - **Compliance Ready**: Pre-configured options for GDPR and PCI-DSS
 
 ## Installation
@@ -152,21 +154,21 @@ builder.Services.AddControllers(options =>
 
 ## Supported PII Types
 
-| Type | Examples | Detection Method |
-|------|----------|-----------------|
-| Email | `john@example.com` | RFC 5322 regex |
-| Phone | `+1-234-567-8901`, `(123) 456-7890` | Multi-format regex |
-| Credit Card | `4111-1111-1111-1111` | Luhn algorithm validation |
-| SSN | `123-45-6789` | US format with validation |
-| IP Address | `192.168.1.1`, `::1` | IPv4/IPv6 parsing |
-| Name | `John Smith`, `Dr. Jane Doe` | Pattern + name database |
-| Address | `123 Main Street, Apt 4` | Street suffix detection |
-| Postcode | `12345`, `SW1A 1AA`, `A1A 1A1` | Multi-country formats |
-| Bank Account | `GB82WEST12345698765432` | IBAN mod-97 validation |
-| API Key | `sk_live_...`, `AKIA...` | Known prefix patterns |
-| NI Number | `AB123456C` | UK format validation |
-| Date of Birth | `01/15/1990` | Context-aware detection |
-| Account ID | `USER-12345`, UUIDs | Pattern + context |
+| Type          | Examples                            | Detection Method          |
+|---------------|-------------------------------------|---------------------------|
+| Email         | `john@example.com`                  | RFC 5322 regex            |
+| Phone         | `+1-234-567-8901`, `(123) 456-7890` | Multi-format regex        |
+| Credit Card   | `4111-1111-1111-1111`               | Luhn algorithm validation |
+| SSN           | `123-45-6789`                       | US format with validation |
+| IP Address    | `192.168.1.1`, `::1`                | IPv4/IPv6 parsing         |
+| Name          | `John Smith`, `Dr. Jane Doe`        | Pattern + name database   |
+| Address       | `123 Main Street, Apt 4`            | Street suffix detection   |
+| Postcode      | `12345`, `SW1A 1AA`, `A1A 1A1`      | Multi-country formats     |
+| Bank Account  | `GB82WEST12345698765432`            | IBAN mod-97 validation    |
+| API Key       | `sk_live_...`, `AKIA...`            | Known prefix patterns     |
+| NI Number     | `AB123456C`                         | UK format validation      |
+| Date of Birth | `01/15/1990`                        | Context-aware detection   |
+| Account ID    | `USER-12345`, UUIDs                 | Pattern + context         |
 
 ## Redaction Styles Examples
 

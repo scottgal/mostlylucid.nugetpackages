@@ -6,12 +6,12 @@ using Mostlylucid.LLMContentModeration.Services;
 namespace Mostlylucid.LLMContentModeration.Extensions;
 
 /// <summary>
-/// Extension methods for configuring LLM Content Moderation services
+///     Extension methods for configuring LLM Content Moderation services
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Add LLM Content Moderation services to the DI container
+    ///     Add LLM Content Moderation services to the DI container
     /// </summary>
     /// <param name="services">Service collection</param>
     /// <param name="configuration">Configuration</param>
@@ -32,7 +32,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Add LLM Content Moderation services with custom configuration
+    ///     Add LLM Content Moderation services with custom configuration
     /// </summary>
     /// <param name="services">Service collection</param>
     /// <param name="configureOptions">Configuration action</param>
@@ -50,7 +50,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Add LLM Content Moderation with default configuration
+    ///     Add LLM Content Moderation with default configuration
     /// </summary>
     /// <param name="services">Service collection</param>
     /// <returns>Service collection for chaining</returns>

@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using Mostlylucid.LlmSeoMetadata.Models;
 using Mostlylucid.LlmSeoMetadata.Services;
@@ -147,10 +148,7 @@ public class SeoMetadataTagHelper : TagHelper
             };
 
             var result = await _seoService.GenerateMetadataAsync(request);
-            if (result.Success)
-            {
-                metadata = result.Metadata;
-            }
+            if (result.Success) metadata = result.Metadata;
         }
 
         if (metadata == null)
@@ -163,27 +161,21 @@ public class SeoMetadataTagHelper : TagHelper
 
         // Meta description
         if (RenderMetaDescription && !string.IsNullOrEmpty(metadata.MetaDescription))
-        {
-            sb.AppendLine($"<meta name=\"description\" content=\"{HtmlEncoder.Default.Encode(metadata.MetaDescription)}\" />");
-        }
+            sb.AppendLine(
+                $"<meta name=\"description\" content=\"{HtmlEncoder.Default.Encode(metadata.MetaDescription)}\" />");
 
         // Keywords
         if (metadata.Keywords?.Count > 0)
-        {
-            sb.AppendLine($"<meta name=\"keywords\" content=\"{HtmlEncoder.Default.Encode(string.Join(", ", metadata.Keywords))}\" />");
-        }
+            sb.AppendLine(
+                $"<meta name=\"keywords\" content=\"{HtmlEncoder.Default.Encode(string.Join(", ", metadata.Keywords))}\" />");
 
         // Canonical URL
         if (RenderCanonical && !string.IsNullOrEmpty(metadata.CanonicalUrl))
-        {
             sb.AppendLine($"<link rel=\"canonical\" href=\"{HtmlEncoder.Default.Encode(metadata.CanonicalUrl)}\" />");
-        }
 
         // Robots
         if (!string.IsNullOrEmpty(metadata.Robots))
-        {
             sb.AppendLine($"<meta name=\"robots\" content=\"{HtmlEncoder.Default.Encode(metadata.Robots)}\" />");
-        }
 
         // OpenGraph tags
         if (RenderOpenGraph && metadata.OpenGraph != null)
@@ -194,7 +186,8 @@ public class SeoMetadataTagHelper : TagHelper
                 sb.AppendLine($"<meta property=\"og:title\" content=\"{HtmlEncoder.Default.Encode(og.Title)}\" />");
 
             if (!string.IsNullOrEmpty(og.Description))
-                sb.AppendLine($"<meta property=\"og:description\" content=\"{HtmlEncoder.Default.Encode(og.Description)}\" />");
+                sb.AppendLine(
+                    $"<meta property=\"og:description\" content=\"{HtmlEncoder.Default.Encode(og.Description)}\" />");
 
             if (!string.IsNullOrEmpty(og.Type))
                 sb.AppendLine($"<meta property=\"og:type\" content=\"{og.Type}\" />");
@@ -206,43 +199,47 @@ public class SeoMetadataTagHelper : TagHelper
                 sb.AppendLine($"<meta property=\"og:image\" content=\"{HtmlEncoder.Default.Encode(og.Image)}\" />");
 
             if (!string.IsNullOrEmpty(og.ImageAlt))
-                sb.AppendLine($"<meta property=\"og:image:alt\" content=\"{HtmlEncoder.Default.Encode(og.ImageAlt)}\" />");
+                sb.AppendLine(
+                    $"<meta property=\"og:image:alt\" content=\"{HtmlEncoder.Default.Encode(og.ImageAlt)}\" />");
 
             if (!string.IsNullOrEmpty(og.SiteName))
-                sb.AppendLine($"<meta property=\"og:site_name\" content=\"{HtmlEncoder.Default.Encode(og.SiteName)}\" />");
+                sb.AppendLine(
+                    $"<meta property=\"og:site_name\" content=\"{HtmlEncoder.Default.Encode(og.SiteName)}\" />");
 
             if (!string.IsNullOrEmpty(og.Locale))
                 sb.AppendLine($"<meta property=\"og:locale\" content=\"{og.Locale}\" />");
 
             if (og.PublishedTime.HasValue)
-                sb.AppendLine($"<meta property=\"article:published_time\" content=\"{og.PublishedTime.Value:yyyy-MM-ddTHH:mm:ssZ}\" />");
+                sb.AppendLine(
+                    $"<meta property=\"article:published_time\" content=\"{og.PublishedTime.Value:yyyy-MM-ddTHH:mm:ssZ}\" />");
 
             if (og.ModifiedTime.HasValue)
-                sb.AppendLine($"<meta property=\"article:modified_time\" content=\"{og.ModifiedTime.Value:yyyy-MM-ddTHH:mm:ssZ}\" />");
+                sb.AppendLine(
+                    $"<meta property=\"article:modified_time\" content=\"{og.ModifiedTime.Value:yyyy-MM-ddTHH:mm:ssZ}\" />");
 
             if (!string.IsNullOrEmpty(og.Author))
-                sb.AppendLine($"<meta property=\"article:author\" content=\"{HtmlEncoder.Default.Encode(og.Author)}\" />");
+                sb.AppendLine(
+                    $"<meta property=\"article:author\" content=\"{HtmlEncoder.Default.Encode(og.Author)}\" />");
 
             if (!string.IsNullOrEmpty(og.Section))
-                sb.AppendLine($"<meta property=\"article:section\" content=\"{HtmlEncoder.Default.Encode(og.Section)}\" />");
+                sb.AppendLine(
+                    $"<meta property=\"article:section\" content=\"{HtmlEncoder.Default.Encode(og.Section)}\" />");
 
             if (og.Tags?.Count > 0)
-            {
                 foreach (var tag in og.Tags)
-                {
                     sb.AppendLine($"<meta property=\"article:tag\" content=\"{HtmlEncoder.Default.Encode(tag)}\" />");
-                }
-            }
 
             // Twitter Card tags
             if (!string.IsNullOrEmpty(og.TwitterCard))
                 sb.AppendLine($"<meta name=\"twitter:card\" content=\"{og.TwitterCard}\" />");
 
             if (!string.IsNullOrEmpty(og.TwitterSite))
-                sb.AppendLine($"<meta name=\"twitter:site\" content=\"{HtmlEncoder.Default.Encode(og.TwitterSite)}\" />");
+                sb.AppendLine(
+                    $"<meta name=\"twitter:site\" content=\"{HtmlEncoder.Default.Encode(og.TwitterSite)}\" />");
 
             if (!string.IsNullOrEmpty(og.TwitterCreator))
-                sb.AppendLine($"<meta name=\"twitter:creator\" content=\"{HtmlEncoder.Default.Encode(og.TwitterCreator)}\" />");
+                sb.AppendLine(
+                    $"<meta name=\"twitter:creator\" content=\"{HtmlEncoder.Default.Encode(og.TwitterCreator)}\" />");
         }
 
         // JSON-LD structured data
@@ -251,7 +248,7 @@ public class SeoMetadataTagHelper : TagHelper
             var jsonLdOptions = new JsonSerializerOptions
             {
                 WriteIndented = false,
-                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
             };
             var jsonLd = JsonSerializer.Serialize(metadata.JsonLd, jsonLdOptions);
             sb.AppendLine($"<script type=\"application/ld+json\">{jsonLd}</script>");

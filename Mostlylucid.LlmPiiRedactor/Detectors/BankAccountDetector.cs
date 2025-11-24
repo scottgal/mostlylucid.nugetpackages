@@ -4,7 +4,7 @@ using Mostlylucid.LlmPiiRedactor.Models;
 namespace Mostlylucid.LlmPiiRedactor.Detectors;
 
 /// <summary>
-/// Detects bank account numbers and IBANs.
+///     Detects bank account numbers and IBANs.
 /// </summary>
 public class BankAccountDetector : BasePiiDetector
 {
@@ -21,10 +21,7 @@ public class BankAccountDetector : BasePiiDetector
         var value = match.Value;
 
         // IBAN validation
-        if (Regex.IsMatch(value, @"^[A-Z]{2}\d{2}"))
-        {
-            return ValidateIban(value);
-        }
+        if (Regex.IsMatch(value, @"^[A-Z]{2}\d{2}")) return ValidateIban(value);
 
         // Generic account number - must be reasonable length
         if (value.All(char.IsDigit))
@@ -47,7 +44,7 @@ public class BankAccountDetector : BasePiiDetector
     }
 
     /// <summary>
-    /// Validates an IBAN using the mod-97 algorithm.
+    ///     Validates an IBAN using the mod-97 algorithm.
     /// </summary>
     private static bool ValidateIban(string iban)
     {
@@ -68,10 +65,7 @@ public class BankAccountDetector : BasePiiDetector
         try
         {
             var checksum = 0;
-            foreach (var c in numericString)
-            {
-                checksum = (checksum * 10 + (c - '0')) % 97;
-            }
+            foreach (var c in numericString) checksum = (checksum * 10 + (c - '0')) % 97;
             return checksum == 1;
         }
         catch

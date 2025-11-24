@@ -3,12 +3,12 @@ using Mostlylucid.RagLlmSearch.Models;
 namespace Mostlylucid.RagLlmSearch.Conversation;
 
 /// <summary>
-/// Interface for conversation history management
+///     Interface for conversation history management
 /// </summary>
 public interface IConversationService
 {
     /// <summary>
-    /// Creates a new conversation
+    ///     Creates a new conversation
     /// </summary>
     /// <param name="userId">Optional user identifier</param>
     /// <param name="title">Optional conversation title</param>
@@ -20,7 +20,7 @@ public interface IConversationService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets a conversation by ID
+    ///     Gets a conversation by ID
     /// </summary>
     /// <param name="conversationId">Conversation ID</param>
     /// <param name="cancellationToken">Cancellation token</param>
@@ -29,7 +29,7 @@ public interface IConversationService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets all conversations for a user
+    ///     Gets all conversations for a user
     /// </summary>
     /// <param name="userId">User identifier</param>
     /// <param name="includeInactive">Include inactive conversations</param>
@@ -40,7 +40,7 @@ public interface IConversationService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Adds a message to a conversation
+    ///     Adds a message to a conversation
     /// </summary>
     /// <param name="conversationId">Conversation ID</param>
     /// <param name="message">Message to add</param>
@@ -51,7 +51,7 @@ public interface IConversationService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets messages for a conversation
+    ///     Gets messages for a conversation
     /// </summary>
     /// <param name="conversationId">Conversation ID</param>
     /// <param name="limit">Maximum messages to return</param>
@@ -62,7 +62,7 @@ public interface IConversationService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Updates conversation metadata
+    ///     Updates conversation metadata
     /// </summary>
     /// <param name="conversationId">Conversation ID</param>
     /// <param name="title">New title</param>
@@ -75,7 +75,7 @@ public interface IConversationService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Deletes a conversation and all its messages
+    ///     Deletes a conversation and all its messages
     /// </summary>
     /// <param name="conversationId">Conversation ID</param>
     /// <param name="cancellationToken">Cancellation token</param>
@@ -84,7 +84,7 @@ public interface IConversationService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Initializes the conversation store
+    ///     Initializes the conversation store
     /// </summary>
     /// <param name="cancellationToken">Cancellation token</param>
     Task InitializeAsync(CancellationToken cancellationToken = default);

@@ -1,19 +1,20 @@
 # Mostlylucid.LlmSeoMetadata
 
-AI-powered SEO metadata generation using local LLMs via Ollama. Generate meta descriptions, OpenGraph tags, and JSON-LD structured data for your content without sending data to external SaaS services.
+AI-powered SEO metadata generation using local LLMs via Ollama. Generate meta descriptions, OpenGraph tags, and JSON-LD
+structured data for your content without sending data to external SaaS services.
 
 ## Features
 
 - **Meta Description Generation**: Create compelling, SEO-optimized meta descriptions
 - **OpenGraph Tags**: Generate og:title, og:description, og:type, and Twitter Card metadata
 - **JSON-LD Structured Data**: Generate schema.org structured data for:
-  - Article, BlogPosting, NewsArticle
-  - Product (with pricing and ratings)
-  - Service, Organization, Person
-  - Event, Recipe, FAQPage, HowTo
+    - Article, BlogPosting, NewsArticle
+    - Product (with pricing and ratings)
+    - Service, Organization, Person
+    - Event, Recipe, FAQPage, HowTo
 - **Two Operation Modes**:
-  - **Design-time**: Generate templates during development/build
-  - **Runtime**: On-demand suggestions via API endpoint
+    - **Design-time**: Generate templates during development/build
+    - **Runtime**: On-demand suggestions via API endpoint
 - **Database Caching**: Store generated metadata in SQLite or PostgreSQL for CMS integration
 - **ASP.NET Core TagHelper**: Easy integration with Razor views
 - **Privacy-First**: All processing done locally with your own LLM
@@ -28,9 +29,9 @@ dotnet add package Mostlylucid.LlmSeoMetadata
 
 - [Ollama](https://ollama.ai/) running locally with a suitable model
 - Recommended models:
-  - `llama3.2:3b` (default, good balance of speed/quality)
-  - `mistral:7b` (higher quality)
-  - `qwen2.5:7b` (good for multilingual content)
+    - `llama3.2:3b` (default, good balance of speed/quality)
+    - `mistral:7b` (higher quality)
+    - `qwen2.5:7b` (good for multilingual content)
 
 ```bash
 # Install and run a model

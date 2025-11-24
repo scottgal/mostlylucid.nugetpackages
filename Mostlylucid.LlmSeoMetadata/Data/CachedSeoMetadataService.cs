@@ -12,9 +12,9 @@ namespace Mostlylucid.LlmSeoMetadata.Data;
 /// </summary>
 public class CachedSeoMetadataService : ISeoMetadataService
 {
-    private readonly ISeoMetadataService _innerService;
-    private readonly SeoMetadataDbContext _dbContext;
     private readonly SeoCacheOptions _cacheOptions;
+    private readonly SeoMetadataDbContext _dbContext;
+    private readonly ISeoMetadataService _innerService;
     private readonly ILogger<CachedSeoMetadataService> _logger;
 
     // Additional stats for database caching
@@ -37,7 +37,8 @@ public class CachedSeoMetadataService : ISeoMetadataService
     public bool IsReady => _innerService.IsReady;
 
     /// <inheritdoc />
-    public async Task<GenerationResponse> GenerateMetadataAsync(GenerationRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenerationResponse> GenerateMetadataAsync(GenerationRequest request,
+        CancellationToken cancellationToken = default)
     {
         var cacheKey = request.Content.GetCacheKey();
 
@@ -72,23 +73,36 @@ public class CachedSeoMetadataService : ISeoMetadataService
     }
 
     /// <inheritdoc />
-    public Task<string?> GenerateMetaDescriptionAsync(ContentInput content, CancellationToken cancellationToken = default)
-        => _innerService.GenerateMetaDescriptionAsync(content, cancellationToken);
+    public Task<string?> GenerateMetaDescriptionAsync(ContentInput content,
+        CancellationToken cancellationToken = default)
+    {
+        return _innerService.GenerateMetaDescriptionAsync(content, cancellationToken);
+    }
 
     /// <inheritdoc />
-    public Task<OpenGraphMetadata?> GenerateOpenGraphAsync(ContentInput content, CancellationToken cancellationToken = default)
-        => _innerService.GenerateOpenGraphAsync(content, cancellationToken);
+    public Task<OpenGraphMetadata?> GenerateOpenGraphAsync(ContentInput content,
+        CancellationToken cancellationToken = default)
+    {
+        return _innerService.GenerateOpenGraphAsync(content, cancellationToken);
+    }
 
     /// <inheritdoc />
-    public Task<JsonLdMetadata?> GenerateJsonLdAsync(ContentInput content, CancellationToken cancellationToken = default)
-        => _innerService.GenerateJsonLdAsync(content, cancellationToken);
+    public Task<JsonLdMetadata?> GenerateJsonLdAsync(ContentInput content,
+        CancellationToken cancellationToken = default)
+    {
+        return _innerService.GenerateJsonLdAsync(content, cancellationToken);
+    }
 
     /// <inheritdoc />
-    public Task<List<string>> GenerateKeywordsAsync(ContentInput content, int maxKeywords = 10, CancellationToken cancellationToken = default)
-        => _innerService.GenerateKeywordsAsync(content, maxKeywords, cancellationToken);
+    public Task<List<string>> GenerateKeywordsAsync(ContentInput content, int maxKeywords = 10,
+        CancellationToken cancellationToken = default)
+    {
+        return _innerService.GenerateKeywordsAsync(content, maxKeywords, cancellationToken);
+    }
 
     /// <inheritdoc />
-    public async Task<SeoMetadata?> GetCachedMetadataAsync(string cacheKey, CancellationToken cancellationToken = default)
+    public async Task<SeoMetadata?> GetCachedMetadataAsync(string cacheKey,
+        CancellationToken cancellationToken = default)
     {
         // Try database cache first
         var dbCached = await GetFromDatabaseAsync(cacheKey, cancellationToken);
@@ -100,7 +114,8 @@ public class CachedSeoMetadataService : ISeoMetadataService
     }
 
     /// <inheritdoc />
-    public async Task CacheMetadataAsync(string cacheKey, SeoMetadata metadata, CancellationToken cancellationToken = default)
+    public async Task CacheMetadataAsync(string cacheKey, SeoMetadata metadata,
+        CancellationToken cancellationToken = default)
     {
         // Store in both database and memory cache
         await SaveToDatabaseAsync(cacheKey, metadata, null, cancellationToken);
@@ -179,7 +194,8 @@ public class CachedSeoMetadataService : ISeoMetadataService
         }
     }
 
-    private async Task SaveToDatabaseAsync(string cacheKey, SeoMetadata metadata, ContentInput? content, CancellationToken cancellationToken)
+    private async Task SaveToDatabaseAsync(string cacheKey, SeoMetadata metadata, ContentInput? content,
+        CancellationToken cancellationToken)
     {
         try
         {

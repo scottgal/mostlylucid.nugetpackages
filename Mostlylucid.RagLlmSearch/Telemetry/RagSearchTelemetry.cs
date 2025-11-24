@@ -4,17 +4,17 @@ using Mostlylucid.RagLlmSearch.Models;
 namespace Mostlylucid.RagLlmSearch.Telemetry;
 
 /// <summary>
-/// Telemetry instrumentation for RAG search operations
+///     Telemetry instrumentation for RAG search operations
 /// </summary>
 public static class RagSearchTelemetry
 {
     /// <summary>
-    /// Activity source name for RAG search
+    ///     Activity source name for RAG search
     /// </summary>
     public const string ActivitySourceName = "Mostlylucid.RagLlmSearch";
 
     /// <summary>
-    /// Activity source for RAG search telemetry
+    ///     Activity source for RAG search telemetry
     /// </summary>
     public static readonly ActivitySource ActivitySource = new(ActivitySourceName, GetVersion());
 
@@ -23,14 +23,28 @@ public static class RagSearchTelemetry
         return typeof(RagSearchTelemetry).Assembly.GetName().Version?.ToString() ?? "1.0.0";
     }
 
+    /// <summary>
+    ///     Records an exception on the activity
+    /// </summary>
+    public static void RecordException(Activity? activity, Exception ex)
+    {
+        if (activity == null)
+            return;
+
+        activity.SetStatus(ActivityStatusCode.Error, ex.Message);
+        activity.SetTag("exception.type", ex.GetType().FullName);
+        activity.SetTag("exception.message", ex.Message);
+    }
+
     #region Chat Operations
 
     /// <summary>
-    /// Starts an activity for a chat operation
+    ///     Starts an activity for a chat operation
     /// </summary>
-    public static Activity? StartChatActivity(string? conversationId = null, bool enableRag = false, bool enableWebSearch = false)
+    public static Activity? StartChatActivity(string? conversationId = null, bool enableRag = false,
+        bool enableWebSearch = false)
     {
-        var activity = ActivitySource.StartActivity("RagSearch.Chat", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("RagSearch.Chat");
 
         if (activity != null)
         {
@@ -44,7 +58,7 @@ public static class RagSearchTelemetry
     }
 
     /// <summary>
-    /// Records chat result on the activity
+    ///     Records chat result on the activity
     /// </summary>
     public static void RecordChatResult(
         Activity? activity,
@@ -73,7 +87,7 @@ public static class RagSearchTelemetry
     #region Web Search Operations
 
     /// <summary>
-    /// Starts an activity for a web search operation
+    ///     Starts an activity for a web search operation
     /// </summary>
     public static Activity? StartSearchActivity(string query, string providerName, int maxResults = 5)
     {
@@ -90,7 +104,7 @@ public static class RagSearchTelemetry
     }
 
     /// <summary>
-    /// Records web search result on the activity
+    ///     Records web search result on the activity
     /// </summary>
     public static void RecordSearchResult(Activity? activity, SearchResponse response)
     {
@@ -118,11 +132,11 @@ public static class RagSearchTelemetry
     #region RAG Operations
 
     /// <summary>
-    /// Starts an activity for a RAG search operation
+    ///     Starts an activity for a RAG search operation
     /// </summary>
     public static Activity? StartRagSearchActivity(string query, int maxResults = 5, float minScore = 0.5f)
     {
-        var activity = ActivitySource.StartActivity("RagSearch.RagSearch", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("RagSearch.RagSearch");
 
         if (activity != null)
         {
@@ -135,7 +149,7 @@ public static class RagSearchTelemetry
     }
 
     /// <summary>
-    /// Records RAG search result on the activity
+    ///     Records RAG search result on the activity
     /// </summary>
     public static void RecordRagSearchResult(Activity? activity, int resultCount, long searchTimeMs)
     {
@@ -148,11 +162,11 @@ public static class RagSearchTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for adding a document to RAG
+    ///     Starts an activity for adding a document to RAG
     /// </summary>
     public static Activity? StartAddDocumentActivity(string documentId, string? documentType = null)
     {
-        var activity = ActivitySource.StartActivity("RagSearch.AddDocument", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("RagSearch.AddDocument");
 
         if (activity != null)
         {
@@ -165,7 +179,7 @@ public static class RagSearchTelemetry
     }
 
     /// <summary>
-    /// Records document added successfully
+    ///     Records document added successfully
     /// </summary>
     public static void RecordDocumentAdded(Activity? activity)
     {
@@ -180,7 +194,7 @@ public static class RagSearchTelemetry
     #region LLM Operations
 
     /// <summary>
-    /// Starts an activity for LLM response generation
+    ///     Starts an activity for LLM response generation
     /// </summary>
     public static Activity? StartLlmGenerateActivity(int messageCount, bool hasContext = false)
     {
@@ -196,7 +210,7 @@ public static class RagSearchTelemetry
     }
 
     /// <summary>
-    /// Records LLM generation result
+    ///     Records LLM generation result
     /// </summary>
     public static void RecordLlmGenerateResult(Activity? activity, int responseLength, long generationTimeMs)
     {
@@ -209,17 +223,4 @@ public static class RagSearchTelemetry
     }
 
     #endregion
-
-    /// <summary>
-    /// Records an exception on the activity
-    /// </summary>
-    public static void RecordException(Activity? activity, Exception ex)
-    {
-        if (activity == null)
-            return;
-
-        activity.SetStatus(ActivityStatusCode.Error, ex.Message);
-        activity.SetTag("exception.type", ex.GetType().FullName);
-        activity.SetTag("exception.message", ex.Message);
-    }
 }

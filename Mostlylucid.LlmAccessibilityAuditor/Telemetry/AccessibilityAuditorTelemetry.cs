@@ -4,17 +4,17 @@ using Mostlylucid.LlmAccessibilityAuditor.Models;
 namespace Mostlylucid.LlmAccessibilityAuditor.Telemetry;
 
 /// <summary>
-/// Telemetry instrumentation for accessibility auditor operations
+///     Telemetry instrumentation for accessibility auditor operations
 /// </summary>
 public static class AccessibilityAuditorTelemetry
 {
     /// <summary>
-    /// Activity source name for accessibility auditor
+    ///     Activity source name for accessibility auditor
     /// </summary>
     public const string ActivitySourceName = "Mostlylucid.LlmAccessibilityAuditor";
 
     /// <summary>
-    /// Activity source for accessibility auditor telemetry
+    ///     Activity source for accessibility auditor telemetry
     /// </summary>
     public static readonly ActivitySource ActivitySource = new(ActivitySourceName, GetVersion());
 
@@ -24,11 +24,11 @@ public static class AccessibilityAuditorTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for a full accessibility audit
+    ///     Starts an activity for a full accessibility audit
     /// </summary>
     public static Activity? StartAuditActivity(string? pageUrl = null, int? htmlLength = null)
     {
-        var activity = ActivitySource.StartActivity("AccessibilityAuditor.Audit", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("AccessibilityAuditor.Audit");
 
         if (activity != null)
         {
@@ -42,23 +42,21 @@ public static class AccessibilityAuditorTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for a quick accessibility audit
+    ///     Starts an activity for a quick accessibility audit
     /// </summary>
     public static Activity? StartQuickAuditActivity(int? htmlLength = null)
     {
-        var activity = ActivitySource.StartActivity("AccessibilityAuditor.QuickAudit", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("AccessibilityAuditor.QuickAudit");
 
         if (activity != null)
-        {
             if (htmlLength.HasValue)
                 activity.SetTag("accessibility.html_length", htmlLength.Value);
-        }
 
         return activity;
     }
 
     /// <summary>
-    /// Records accessibility audit result on the activity
+    ///     Records accessibility audit result on the activity
     /// </summary>
     public static void RecordResult(Activity? activity, AccessibilityAuditReport report)
     {
@@ -95,7 +93,7 @@ public static class AccessibilityAuditorTelemetry
     }
 
     /// <summary>
-    /// Records quick audit result on the activity
+    ///     Records quick audit result on the activity
     /// </summary>
     public static void RecordQuickAuditResult(Activity? activity, AuditResult result)
     {
@@ -122,7 +120,7 @@ public static class AccessibilityAuditorTelemetry
     }
 
     /// <summary>
-    /// Records an exception on the activity
+    ///     Records an exception on the activity
     /// </summary>
     public static void RecordException(Activity? activity, Exception ex)
     {

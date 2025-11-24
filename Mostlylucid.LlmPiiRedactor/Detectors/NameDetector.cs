@@ -4,20 +4,11 @@ using Mostlylucid.LlmPiiRedactor.Models;
 namespace Mostlylucid.LlmPiiRedactor.Detectors;
 
 /// <summary>
-/// Detects personal names using pattern matching and common name databases.
-/// This is a heuristic-based detector as name detection is inherently fuzzy.
+///     Detects personal names using pattern matching and common name databases.
+///     This is a heuristic-based detector as name detection is inherently fuzzy.
 /// </summary>
 public class NameDetector : BasePiiDetector
 {
-    public override PiiType PiiType => PiiType.Name;
-    public override string Name => "NameDetector";
-    public override int Priority => 50; // Lower priority due to potential false positives
-    protected override double DefaultConfidence => 0.7;
-
-    // Pattern for potential names: Capitalized words, possibly with prefixes
-    protected override string Pattern =>
-        @"(?<![a-zA-Z])(?:(?:Mr|Mrs|Ms|Miss|Dr|Prof|Sir|Lord|Lady)\.?\s+)?[A-Z][a-z]{1,20}(?:\s+[A-Z][a-z]{1,20}){1,3}(?![a-zA-Z])";
-
     // Common first names (top names from various countries)
     private static readonly HashSet<string> CommonFirstNames = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -60,13 +51,23 @@ public class NameDetector : BasePiiDetector
     private static readonly HashSet<string> ExcludedWords = new(StringComparer.OrdinalIgnoreCase)
     {
         "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
-        "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
+        "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November",
+        "December",
         "North", "South", "East", "West", "Central", "New", "Old", "Great", "Little", "Upper", "Lower",
         "The", "This", "That", "These", "Those", "Here", "There", "Where", "When", "What", "Which",
         "Please", "Thank", "Hello", "Goodbye", "Welcome", "Sorry", "Dear", "Regards",
         "Error", "Warning", "Info", "Debug", "Trace", "Success", "Failure", "Exception",
         "True", "False", "Null", "None", "Empty", "Default", "Custom", "Generic"
     };
+
+    public override PiiType PiiType => PiiType.Name;
+    public override string Name => "NameDetector";
+    public override int Priority => 50; // Lower priority due to potential false positives
+    protected override double DefaultConfidence => 0.7;
+
+    // Pattern for potential names: Capitalized words, possibly with prefixes
+    protected override string Pattern =>
+        @"(?<![a-zA-Z])(?:(?:Mr|Mrs|Ms|Miss|Dr|Prof|Sir|Lord|Lady)\.?\s+)?[A-Z][a-z]{1,20}(?:\s+[A-Z][a-z]{1,20}){1,3}(?![a-zA-Z])";
 
     protected override bool ValidateMatch(Match match, string originalText)
     {

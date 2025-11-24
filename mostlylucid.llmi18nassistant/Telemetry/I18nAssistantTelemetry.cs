@@ -4,17 +4,17 @@ using Mostlylucid.LlmI18nAssistant.Models;
 namespace Mostlylucid.LlmI18nAssistant.Telemetry;
 
 /// <summary>
-/// Telemetry instrumentation for i18n translation operations
+///     Telemetry instrumentation for i18n translation operations
 /// </summary>
 public static class I18nAssistantTelemetry
 {
     /// <summary>
-    /// Activity source name for i18n translation
+    ///     Activity source name for i18n translation
     /// </summary>
     public const string ActivitySourceName = "Mostlylucid.LlmI18nAssistant";
 
     /// <summary>
-    /// Activity source for i18n translation telemetry
+    ///     Activity source for i18n translation telemetry
     /// </summary>
     public static readonly ActivitySource ActivitySource = new(ActivitySourceName, GetVersion());
 
@@ -24,14 +24,14 @@ public static class I18nAssistantTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for resource file translation
+    ///     Starts an activity for resource file translation
     /// </summary>
     public static Activity? StartTranslateResourceFileActivity(
         string? filePath = null,
         string? sourceLanguage = null,
         string? targetLanguage = null)
     {
-        var activity = ActivitySource.StartActivity("I18nAssistant.TranslateResourceFile", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("I18nAssistant.TranslateResourceFile");
 
         if (activity != null)
         {
@@ -47,14 +47,14 @@ public static class I18nAssistantTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for stream-based translation
+    ///     Starts an activity for stream-based translation
     /// </summary>
     public static Activity? StartTranslateStreamActivity(
         ResourceFileType fileType,
         string? sourceLanguage = null,
         string? targetLanguage = null)
     {
-        var activity = ActivitySource.StartActivity("I18nAssistant.TranslateStream", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("I18nAssistant.TranslateStream");
 
         if (activity != null)
         {
@@ -69,14 +69,14 @@ public static class I18nAssistantTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for multi-language translation
+    ///     Starts an activity for multi-language translation
     /// </summary>
     public static Activity? StartTranslateMultipleLanguagesActivity(
         string? filePath = null,
         string? sourceLanguage = null,
         int targetLanguageCount = 0)
     {
-        var activity = ActivitySource.StartActivity("I18nAssistant.TranslateMultipleLanguages", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("I18nAssistant.TranslateMultipleLanguages");
 
         if (activity != null)
         {
@@ -91,14 +91,14 @@ public static class I18nAssistantTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for single string translation
+    ///     Starts an activity for single string translation
     /// </summary>
     public static Activity? StartTranslateStringActivity(
         string? sourceLanguage = null,
         string? targetLanguage = null,
         int? textLength = null)
     {
-        var activity = ActivitySource.StartActivity("I18nAssistant.TranslateString", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("I18nAssistant.TranslateString");
 
         if (activity != null)
         {
@@ -114,14 +114,14 @@ public static class I18nAssistantTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for batch translation
+    ///     Starts an activity for batch translation
     /// </summary>
     public static Activity? StartTranslateBatchActivity(
         string? sourceLanguage = null,
         string? targetLanguage = null,
         int entryCount = 0)
     {
-        var activity = ActivitySource.StartActivity("I18nAssistant.TranslateBatch", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("I18nAssistant.TranslateBatch");
 
         if (activity != null)
         {
@@ -136,7 +136,7 @@ public static class I18nAssistantTelemetry
     }
 
     /// <summary>
-    /// Records translation result on the activity
+    ///     Records translation result on the activity
     /// </summary>
     public static void RecordResult(Activity? activity, TranslationResult result)
     {
@@ -179,7 +179,7 @@ public static class I18nAssistantTelemetry
     }
 
     /// <summary>
-    /// Records multi-language translation result on the activity
+    ///     Records multi-language translation result on the activity
     /// </summary>
     public static void RecordMultiLanguageResult(Activity? activity, MultiLanguageTranslationResult result)
     {
@@ -203,7 +203,7 @@ public static class I18nAssistantTelemetry
     }
 
     /// <summary>
-    /// Records string translation result on the activity
+    ///     Records string translation result on the activity
     /// </summary>
     public static void RecordStringResult(Activity? activity, int translatedLength)
     {
@@ -215,7 +215,7 @@ public static class I18nAssistantTelemetry
     }
 
     /// <summary>
-    /// Records batch translation result on the activity
+    ///     Records batch translation result on the activity
     /// </summary>
     public static void RecordBatchResult(Activity? activity, int translatedCount, int totalCount)
     {
@@ -228,7 +228,7 @@ public static class I18nAssistantTelemetry
     }
 
     /// <summary>
-    /// Records an exception on the activity
+    ///     Records an exception on the activity
     /// </summary>
     public static void RecordException(Activity? activity, Exception ex)
     {

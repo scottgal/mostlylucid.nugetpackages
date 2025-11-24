@@ -50,11 +50,11 @@ builder.Services.AddGeoRoutingSimple();
 
 ## Providers
 
-| Provider | Setup | Pros | Cons |
-|----------|-------|------|------|
-| **IpApi** | None | Free, no account needed | Rate limited (45/min), online only |
-| **MaxMindLocal** | Free account | Fast, offline, accurate | Requires account, ~60MB database |
-| **Simple** | None | No dependencies | Mock data only |
+| Provider         | Setup        | Pros                    | Cons                               |
+|------------------|--------------|-------------------------|------------------------------------|
+| **IpApi**        | None         | Free, no account needed | Rate limited (45/min), online only |
+| **MaxMindLocal** | Free account | Fast, offline, accurate | Requires account, ~60MB database   |
+| **Simple**       | None         | No dependencies         | Mock data only                     |
 
 ### Getting a MaxMind Account (Free)
 

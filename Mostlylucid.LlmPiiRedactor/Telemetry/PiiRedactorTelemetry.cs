@@ -4,17 +4,17 @@ using Mostlylucid.LlmPiiRedactor.Models;
 namespace Mostlylucid.LlmPiiRedactor.Telemetry;
 
 /// <summary>
-/// Telemetry instrumentation for PII redaction operations
+///     Telemetry instrumentation for PII redaction operations
 /// </summary>
 public static class PiiRedactorTelemetry
 {
     /// <summary>
-    /// Activity source name for PII redaction
+    ///     Activity source name for PII redaction
     /// </summary>
     public const string ActivitySourceName = "Mostlylucid.LlmPiiRedactor";
 
     /// <summary>
-    /// Activity source for PII redaction telemetry
+    ///     Activity source for PII redaction telemetry
     /// </summary>
     public static readonly ActivitySource ActivitySource = new(ActivitySourceName, GetVersion());
 
@@ -24,55 +24,46 @@ public static class PiiRedactorTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for PII redaction
+    ///     Starts an activity for PII redaction
     /// </summary>
     /// <param name="textLength">Length of the text being processed</param>
     public static Activity? StartRedactActivity(int textLength = 0)
     {
-        var activity = ActivitySource.StartActivity("PiiRedactor.Redact", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("PiiRedactor.Redact");
 
-        if (activity != null && textLength > 0)
-        {
-            activity.SetTag("mostlylucid.piiredactor.text_length", textLength);
-        }
+        if (activity != null && textLength > 0) activity.SetTag("mostlylucid.piiredactor.text_length", textLength);
 
         return activity;
     }
 
     /// <summary>
-    /// Starts an activity for PII detection
+    ///     Starts an activity for PII detection
     /// </summary>
     /// <param name="textLength">Length of the text being processed</param>
     public static Activity? StartDetectActivity(int textLength = 0)
     {
-        var activity = ActivitySource.StartActivity("PiiRedactor.Detect", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("PiiRedactor.Detect");
 
-        if (activity != null && textLength > 0)
-        {
-            activity.SetTag("mostlylucid.piiredactor.text_length", textLength);
-        }
+        if (activity != null && textLength > 0) activity.SetTag("mostlylucid.piiredactor.text_length", textLength);
 
         return activity;
     }
 
     /// <summary>
-    /// Starts an activity for checking if text contains PII
+    ///     Starts an activity for checking if text contains PII
     /// </summary>
     /// <param name="textLength">Length of the text being processed</param>
     public static Activity? StartContainsPiiActivity(int textLength = 0)
     {
-        var activity = ActivitySource.StartActivity("PiiRedactor.ContainsPii", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("PiiRedactor.ContainsPii");
 
-        if (activity != null && textLength > 0)
-        {
-            activity.SetTag("mostlylucid.piiredactor.text_length", textLength);
-        }
+        if (activity != null && textLength > 0) activity.SetTag("mostlylucid.piiredactor.text_length", textLength);
 
         return activity;
     }
 
     /// <summary>
-    /// Records PII redaction result on the activity
+    ///     Records PII redaction result on the activity
     /// </summary>
     /// <param name="activity">The activity to record on</param>
     /// <param name="result">The redaction result</param>
@@ -100,7 +91,7 @@ public static class PiiRedactorTelemetry
     }
 
     /// <summary>
-    /// Records PII detection result on the activity
+    ///     Records PII detection result on the activity
     /// </summary>
     /// <param name="activity">The activity to record on</param>
     /// <param name="matches">The detected matches</param>
@@ -125,7 +116,7 @@ public static class PiiRedactorTelemetry
     }
 
     /// <summary>
-    /// Records contains PII check result on the activity
+    ///     Records contains PII check result on the activity
     /// </summary>
     /// <param name="activity">The activity to record on</param>
     /// <param name="containsPii">Whether PII was found</param>
@@ -139,7 +130,7 @@ public static class PiiRedactorTelemetry
     }
 
     /// <summary>
-    /// Records an exception on the activity
+    ///     Records an exception on the activity
     /// </summary>
     /// <param name="activity">The activity to record on</param>
     /// <param name="ex">The exception that occurred</param>

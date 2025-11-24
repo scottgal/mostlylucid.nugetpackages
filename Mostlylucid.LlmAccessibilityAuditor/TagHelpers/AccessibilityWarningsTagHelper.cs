@@ -1,4 +1,5 @@
 using System.Text;
+using System.Web;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using Mostlylucid.LlmAccessibilityAuditor.Models;
@@ -6,8 +7,8 @@ using Mostlylucid.LlmAccessibilityAuditor.Models;
 namespace Mostlylucid.LlmAccessibilityAuditor.TagHelpers;
 
 /// <summary>
-/// TagHelper that displays accessibility warnings from the audit report
-/// Usage: &lt;accessibility-warnings /&gt;
+///     TagHelper that displays accessibility warnings from the audit report
+///     Usage: &lt;accessibility-warnings /&gt;
 /// </summary>
 [HtmlTargetElement("accessibility-warnings")]
 public class AccessibilityWarningsTagHelper : TagHelper
@@ -20,25 +21,25 @@ public class AccessibilityWarningsTagHelper : TagHelper
     }
 
     /// <summary>
-    /// Minimum severity to display (default: Moderate)
+    ///     Minimum severity to display (default: Moderate)
     /// </summary>
     [HtmlAttributeName("min-severity")]
     public IssueSeverity MinSeverity { get; set; } = IssueSeverity.Moderate;
 
     /// <summary>
-    /// Maximum number of issues to show (default: 5)
+    ///     Maximum number of issues to show (default: 5)
     /// </summary>
     [HtmlAttributeName("max-issues")]
     public int MaxIssues { get; set; } = 5;
 
     /// <summary>
-    /// Show as inline element (default: false - shows as floating widget)
+    ///     Show as inline element (default: false - shows as floating widget)
     /// </summary>
     [HtmlAttributeName("inline")]
     public bool Inline { get; set; } = false;
 
     /// <summary>
-    /// Custom CSS class
+    ///     Custom CSS class
     /// </summary>
     [HtmlAttributeName("class")]
     public string? CssClass { get; set; }
@@ -105,7 +106,8 @@ public class AccessibilityWarningsTagHelper : TagHelper
             .a11y-warnings-inline .severity-moderate { background: #fef3c7; color: #92400e; }
         </style>");
 
-        sb.AppendLine($@"<h4>Accessibility Warnings ({report.Summary.TotalIssues} total, score: {report.OverallScore}/100)</h4>");
+        sb.AppendLine(
+            $@"<h4>Accessibility Warnings ({report.Summary.TotalIssues} total, score: {report.OverallScore}/100)</h4>");
         sb.AppendLine("<ul>");
 
         foreach (var issue in issues)
@@ -117,15 +119,15 @@ public class AccessibilityWarningsTagHelper : TagHelper
                 _ => "severity-moderate"
             };
 
-            sb.AppendLine($@"<li><span class=""severity {severityClass}"">{issue.Severity}</span> <strong>{issue.Type}</strong>: {System.Web.HttpUtility.HtmlEncode(issue.Description)}</li>");
+            sb.AppendLine(
+                $@"<li><span class=""severity {severityClass}"">{issue.Severity}</span> <strong>{issue.Type}</strong>: {HttpUtility.HtmlEncode(issue.Description)}</li>");
         }
 
         sb.AppendLine("</ul>");
 
         if (report.Issues.Count > issues.Count)
-        {
-            sb.AppendLine($@"<p style=""font-size: 12px; color: #92400e; margin-top: 8px;"">...and {report.Issues.Count - issues.Count} more issues. <a href=""/_accessibility/report/{report.ReportId}"" style=""color: #b45309;"">View full report</a></p>");
-        }
+            sb.AppendLine(
+                $@"<p style=""font-size: 12px; color: #92400e; margin-top: 8px;"">...and {report.Issues.Count - issues.Count} more issues. <a href=""/_accessibility/report/{report.ReportId}"" style=""color: #b45309;"">View full report</a></p>");
 
         return sb.ToString();
     }
@@ -167,8 +169,10 @@ public class AccessibilityWarningsTagHelper : TagHelper
 
         foreach (var issue in issues)
         {
-            var itemClass = issue.Severity == IssueSeverity.Critical ? "critical" : issue.Severity == IssueSeverity.Serious ? "serious" : "";
-            sb.AppendLine($@"<div class=""a11y-widget-item {itemClass}""><strong>{issue.Type}</strong><br>{System.Web.HttpUtility.HtmlEncode(issue.Description)}</div>");
+            var itemClass = issue.Severity == IssueSeverity.Critical ? "critical" :
+                issue.Severity == IssueSeverity.Serious ? "serious" : "";
+            sb.AppendLine(
+                $@"<div class=""a11y-widget-item {itemClass}""><strong>{issue.Type}</strong><br>{HttpUtility.HtmlEncode(issue.Description)}</div>");
         }
 
         sb.AppendLine($@"

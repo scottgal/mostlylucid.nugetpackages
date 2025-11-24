@@ -40,7 +40,10 @@ public abstract class PeriodicUpdateService : BackgroundService
     /// <summary>
     ///     Initialize the service (called once on startup before update loop)
     /// </summary>
-    protected virtual Task InitializeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    protected virtual Task InitializeAsync(CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -50,13 +53,9 @@ public abstract class PeriodicUpdateService : BackgroundService
         {
             await InitializeAsync(stoppingToken);
 
-            if (UpdateOnStartup)
-            {
-                await CheckAndUpdateAsync(stoppingToken);
-            }
+            if (UpdateOnStartup) await CheckAndUpdateAsync(stoppingToken);
 
             while (!stoppingToken.IsCancellationRequested)
-            {
                 try
                 {
                     await Task.Delay(UpdateInterval, stoppingToken);
@@ -71,7 +70,6 @@ public abstract class PeriodicUpdateService : BackgroundService
                     _logger.LogError(ex, "{ServiceName} error during update cycle", _serviceName);
                     // Continue running despite errors
                 }
-            }
         }
         catch (Exception ex)
         {

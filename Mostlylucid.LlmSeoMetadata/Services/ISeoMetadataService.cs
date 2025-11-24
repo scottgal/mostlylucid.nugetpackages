@@ -18,7 +18,8 @@ public interface ISeoMetadataService
     /// <param name="request">Generation request with content and options</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Generated SEO metadata</returns>
-    Task<GenerationResponse> GenerateMetadataAsync(GenerationRequest request, CancellationToken cancellationToken = default);
+    Task<GenerationResponse> GenerateMetadataAsync(GenerationRequest request,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Generate only meta description
@@ -34,7 +35,8 @@ public interface ISeoMetadataService
     /// <param name="content">Content input</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>OpenGraph metadata</returns>
-    Task<OpenGraphMetadata?> GenerateOpenGraphAsync(ContentInput content, CancellationToken cancellationToken = default);
+    Task<OpenGraphMetadata?>
+        GenerateOpenGraphAsync(ContentInput content, CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Generate only JSON-LD structured data
@@ -51,7 +53,8 @@ public interface ISeoMetadataService
     /// <param name="maxKeywords">Maximum number of keywords (default: 10)</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of keywords</returns>
-    Task<List<string>> GenerateKeywordsAsync(ContentInput content, int maxKeywords = 10, CancellationToken cancellationToken = default);
+    Task<List<string>> GenerateKeywordsAsync(ContentInput content, int maxKeywords = 10,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Get cached metadata for a content key

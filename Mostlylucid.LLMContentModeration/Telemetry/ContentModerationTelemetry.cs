@@ -4,17 +4,17 @@ using Mostlylucid.LLMContentModeration.Models;
 namespace Mostlylucid.LLMContentModeration.Telemetry;
 
 /// <summary>
-/// Telemetry instrumentation for content moderation operations
+///     Telemetry instrumentation for content moderation operations
 /// </summary>
 public static class ContentModerationTelemetry
 {
     /// <summary>
-    /// Activity source name for content moderation
+    ///     Activity source name for content moderation
     /// </summary>
     public const string ActivitySourceName = "Mostlylucid.LLMContentModeration";
 
     /// <summary>
-    /// Activity source for content moderation telemetry
+    ///     Activity source for content moderation telemetry
     /// </summary>
     public static readonly ActivitySource ActivitySource = new(ActivitySourceName, GetVersion());
 
@@ -24,13 +24,13 @@ public static class ContentModerationTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for content moderation
+    ///     Starts an activity for content moderation
     /// </summary>
     /// <param name="contentLength">Length of the content being moderated</param>
     /// <param name="mode">The moderation mode being applied</param>
     public static Activity? StartModerationActivity(int contentLength, ModerationMode? mode = null)
     {
-        var activity = ActivitySource.StartActivity("ContentModeration.Moderate", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("ContentModeration.Moderate");
 
         if (activity != null)
         {
@@ -43,13 +43,13 @@ public static class ContentModerationTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for PII detection
+    ///     Starts an activity for PII detection
     /// </summary>
     /// <param name="contentLength">Length of the content being analyzed</param>
     /// <param name="useLlmEnhancement">Whether LLM enhancement is enabled</param>
     public static Activity? StartPiiDetectionActivity(int contentLength, bool useLlmEnhancement = false)
     {
-        var activity = ActivitySource.StartActivity("ContentModeration.PiiDetection", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("ContentModeration.PiiDetection");
 
         if (activity != null)
         {
@@ -61,23 +61,20 @@ public static class ContentModerationTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for content classification
+    ///     Starts an activity for content classification
     /// </summary>
     /// <param name="contentLength">Length of the content being classified</param>
     public static Activity? StartClassificationActivity(int contentLength)
     {
-        var activity = ActivitySource.StartActivity("ContentModeration.Classification", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("ContentModeration.Classification");
 
-        if (activity != null)
-        {
-            activity.SetTag("mostlylucid.contentmoderation.content_length", contentLength);
-        }
+        if (activity != null) activity.SetTag("mostlylucid.contentmoderation.content_length", contentLength);
 
         return activity;
     }
 
     /// <summary>
-    /// Records content moderation result on the activity
+    ///     Records content moderation result on the activity
     /// </summary>
     public static void RecordResult(Activity? activity, ModerationResult result)
     {
@@ -119,7 +116,7 @@ public static class ContentModerationTelemetry
     }
 
     /// <summary>
-    /// Records PII detection result on the activity
+    ///     Records PII detection result on the activity
     /// </summary>
     public static void RecordPiiResult(Activity? activity, List<PiiMatch> matches)
     {
@@ -138,7 +135,7 @@ public static class ContentModerationTelemetry
     }
 
     /// <summary>
-    /// Records content classification result on the activity
+    ///     Records content classification result on the activity
     /// </summary>
     public static void RecordClassificationResult(Activity? activity, List<ContentFlag> flags)
     {
@@ -161,7 +158,7 @@ public static class ContentModerationTelemetry
     }
 
     /// <summary>
-    /// Records an exception on the activity
+    ///     Records an exception on the activity
     /// </summary>
     public static void RecordException(Activity? activity, Exception ex)
     {

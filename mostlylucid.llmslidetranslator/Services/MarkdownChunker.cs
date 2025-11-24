@@ -114,6 +114,7 @@ public class MarkdownChunker(ILogger<MarkdownChunker> logger) : IMarkdownChunker
             if (!string.IsNullOrEmpty(text))
                 texts.Add(text);
         }
+
         return string.Join("", texts);
     }
 
@@ -142,7 +143,7 @@ public class MarkdownChunker(ILogger<MarkdownChunker> logger) : IMarkdownChunker
             var text = ExtractText(block);
 
             // Check if it's mostly a URL
-            if (text.StartsWith(@"/") ||text.StartsWith("http://") || text.StartsWith("https://")) return false;
+            if (text.StartsWith(@"/") || text.StartsWith("http://") || text.StartsWith("https://")) return false;
 
             // Check if it contains inline code
             var hasInlineCode = paragraph.Inline?.Any(inline => inline is CodeInline) ?? false;

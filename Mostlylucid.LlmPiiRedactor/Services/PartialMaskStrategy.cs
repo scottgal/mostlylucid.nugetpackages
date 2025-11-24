@@ -3,11 +3,11 @@ using Mostlylucid.LlmPiiRedactor.Models;
 namespace Mostlylucid.LlmPiiRedactor.Services;
 
 /// <summary>
-/// Redacts by showing partial information while masking the sensitive parts.
-/// Examples:
-///   Email: "john.doe@example.com" -> "jo****@example.com"
-///   Phone: "+1-234-567-8901" -> "****-****-****-8901"
-///   Credit Card: "4111-1111-1111-1111" -> "****-****-****-1111"
+///     Redacts by showing partial information while masking the sensitive parts.
+///     Examples:
+///     Email: "john.doe@example.com" -> "jo****@example.com"
+///     Phone: "+1-234-567-8901" -> "****-****-****-8901"
+///     Credit Card: "4111-1111-1111-1111" -> "****-****-****-1111"
 /// </summary>
 public class PartialMaskStrategy : IRedactionStrategy
 {
@@ -125,9 +125,8 @@ public class PartialMaskStrategy : IRedactionStrategy
         {
             var parts = ip.Split('.');
             if (parts.Length == 4)
-            {
-                return $"{parts[0]}.{new string(options.MaskCharacter, 3)}.{new string(options.MaskCharacter, 3)}.{new string(options.MaskCharacter, 3)}";
-            }
+                return
+                    $"{parts[0]}.{new string(options.MaskCharacter, 3)}.{new string(options.MaskCharacter, 3)}.{new string(options.MaskCharacter, 3)}";
         }
 
         return RedactGeneric(ip, options);

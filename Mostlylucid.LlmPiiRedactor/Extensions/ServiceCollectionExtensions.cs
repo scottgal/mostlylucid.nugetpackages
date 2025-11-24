@@ -9,12 +9,12 @@ using Mostlylucid.LlmPiiRedactor.Services;
 namespace Mostlylucid.LlmPiiRedactor.Extensions;
 
 /// <summary>
-/// Extension methods for registering PII redaction services.
+///     Extension methods for registering PII redaction services.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds PII redaction services with default configuration.
+    ///     Adds PII redaction services with default configuration.
     /// </summary>
     public static IServiceCollection AddPiiRedaction(this IServiceCollection services)
     {
@@ -22,7 +22,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds PII redaction services with custom configuration.
+    ///     Adds PII redaction services with custom configuration.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configureRedaction">Configure redaction options.</param>
@@ -35,20 +35,11 @@ public static class ServiceCollectionExtensions
         Action<PiiLoggingOptions>? configureLogging = null)
     {
         // Configure options
-        services.Configure<PiiRedactionOptions>(options =>
-        {
-            configureRedaction?.Invoke(options);
-        });
+        services.Configure<PiiRedactionOptions>(options => { configureRedaction?.Invoke(options); });
 
-        services.Configure<PiiMiddlewareOptions>(options =>
-        {
-            configureMiddleware?.Invoke(options);
-        });
+        services.Configure<PiiMiddlewareOptions>(options => { configureMiddleware?.Invoke(options); });
 
-        services.Configure<PiiLoggingOptions>(options =>
-        {
-            configureLogging?.Invoke(options);
-        });
+        services.Configure<PiiLoggingOptions>(options => { configureLogging?.Invoke(options); });
 
         // Register detectors
         services.AddSingleton<IPiiDetector, EmailDetector>();
@@ -83,7 +74,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds PII redaction with full mask style as default.
+    ///     Adds PII redaction with full mask style as default.
     /// </summary>
     public static IServiceCollection AddPiiRedactionWithFullMask(
         this IServiceCollection services,
@@ -97,7 +88,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds PII redaction with partial mask style as default.
+    ///     Adds PII redaction with partial mask style as default.
     /// </summary>
     public static IServiceCollection AddPiiRedactionWithPartialMask(
         this IServiceCollection services,
@@ -111,7 +102,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds PII redaction with tokenized style as default (useful for debugging).
+    ///     Adds PII redaction with tokenized style as default (useful for debugging).
     /// </summary>
     public static IServiceCollection AddPiiRedactionWithTokens(
         this IServiceCollection services,
@@ -125,7 +116,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds PII redaction for specific PII types only.
+    ///     Adds PII redaction for specific PII types only.
     /// </summary>
     public static IServiceCollection AddPiiRedactionForTypes(
         this IServiceCollection services,
@@ -140,8 +131,8 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds PII redaction optimized for GDPR compliance.
-    /// Focuses on EU-relevant PII types with full redaction.
+    ///     Adds PII redaction optimized for GDPR compliance.
+    ///     Focuses on EU-relevant PII types with full redaction.
     /// </summary>
     public static IServiceCollection AddGdprCompliantRedaction(
         this IServiceCollection services,
@@ -160,8 +151,8 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds PII redaction optimized for PCI-DSS compliance.
-    /// Focuses on payment card data with strict redaction.
+    ///     Adds PII redaction optimized for PCI-DSS compliance.
+    ///     Focuses on payment card data with strict redaction.
     /// </summary>
     public static IServiceCollection AddPciCompliantRedaction(
         this IServiceCollection services,
@@ -180,12 +171,12 @@ public static class ServiceCollectionExtensions
 }
 
 /// <summary>
-/// Extension methods for configuring PII redaction middleware.
+///     Extension methods for configuring PII redaction middleware.
 /// </summary>
 public static class ApplicationBuilderExtensions
 {
     /// <summary>
-    /// Adds PII redaction middleware to the request pipeline.
+    ///     Adds PII redaction middleware to the request pipeline.
     /// </summary>
     public static IApplicationBuilder UsePiiRedaction(this IApplicationBuilder builder)
     {

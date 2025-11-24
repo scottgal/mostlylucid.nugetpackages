@@ -116,10 +116,11 @@ app.MapPost("/api/comments/detect-only", (CommentRequest request, HttpContext co
     .WithOpenApi();
 
 // Skip moderation for this endpoint
-app.MapPost("/api/feedback", (FeedbackRequest request) =>
-    {
-        return Results.Ok(new { Message = "Feedback received (unmoderated)", Content = request.Content });
-    })
+app.MapPost("/api/feedback",
+        (FeedbackRequest request) =>
+        {
+            return Results.Ok(new { Message = "Feedback received (unmoderated)", request.Content });
+        })
     .WithMetadata(new SkipModerationAttribute())
     .WithName("SubmitFeedback")
     .WithOpenApi();
@@ -194,11 +195,11 @@ app.MapPost("/api/pii/mask", (PiiRequest request, IPiiDetector piiDetector) =>
 app.Run();
 
 // Request/Response DTOs
-record AnalyzeRequest(string Content, ModerationMode? Mode = null);
+internal record AnalyzeRequest(string Content, ModerationMode? Mode = null);
 
-record CommentRequest(string Author, string Content, string? Email = null);
+internal record CommentRequest(string Author, string Content, string? Email = null);
 
-record CommentResponse
+internal record CommentResponse
 {
     public string Id { get; set; } = string.Empty;
     public string Author { get; set; } = string.Empty;
@@ -208,6 +209,6 @@ record CommentResponse
     public string? ModerationInfo { get; set; }
 }
 
-record FeedbackRequest(string Content);
+internal record FeedbackRequest(string Content);
 
-record PiiRequest(string Content);
+internal record PiiRequest(string Content);

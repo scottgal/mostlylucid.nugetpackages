@@ -4,7 +4,7 @@ using Mostlylucid.LlmPiiRedactor.Models;
 namespace Mostlylucid.LlmPiiRedactor.Detectors;
 
 /// <summary>
-/// Detects phone numbers in various international formats.
+///     Detects phone numbers in various international formats.
 /// </summary>
 public class PhoneDetector : BasePiiDetector
 {

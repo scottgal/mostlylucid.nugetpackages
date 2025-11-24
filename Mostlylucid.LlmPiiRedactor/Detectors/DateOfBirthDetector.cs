@@ -1,10 +1,11 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Mostlylucid.LlmPiiRedactor.Models;
 
 namespace Mostlylucid.LlmPiiRedactor.Detectors;
 
 /// <summary>
-/// Detects dates that appear to be dates of birth based on context.
+///     Detects dates that appear to be dates of birth based on context.
 /// </summary>
 public class DateOfBirthDetector : BasePiiDetector
 {
@@ -67,14 +68,10 @@ public class DateOfBirthDetector : BasePiiDetector
         };
 
         foreach (var format in formats)
-        {
             if (DateTime.TryParseExact(dateStr, format,
-                System.Globalization.CultureInfo.InvariantCulture,
-                System.Globalization.DateTimeStyles.None, out date))
-            {
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None, out date))
                 return true;
-            }
-        }
 
         return DateTime.TryParse(dateStr, out date);
     }

@@ -10,10 +10,10 @@ namespace Mostlylucid.Common.Caching;
 public class MemoryCachingService<T> : ICachingService<T> where T : class
 {
     private readonly IMemoryCache _cache;
-    private readonly MemoryCachingOptions _options;
     private readonly string _keyPrefix;
-    private long _totalLookups;
+    private readonly MemoryCachingOptions _options;
     private long _cacheHits;
+    private long _totalLookups;
 
     public MemoryCachingService(
         IMemoryCache cache,
@@ -25,7 +25,8 @@ public class MemoryCachingService<T> : ICachingService<T> where T : class
         _keyPrefix = string.IsNullOrEmpty(keyPrefix) ? typeof(T).Name : keyPrefix;
     }
 
-    public async Task<T?> GetOrAddAsync(string key, Func<Task<T?>> factory, CancellationToken cancellationToken = default)
+    public async Task<T?> GetOrAddAsync(string key, Func<Task<T?>> factory,
+        CancellationToken cancellationToken = default)
     {
         var fullKey = GetFullKey(key);
         Interlocked.Increment(ref _totalLookups);
@@ -38,10 +39,7 @@ public class MemoryCachingService<T> : ICachingService<T> where T : class
 
         var result = await factory();
 
-        if (result != null)
-        {
-            Set(key, result);
-        }
+        if (result != null) Set(key, result);
 
         return result;
     }
@@ -67,10 +65,7 @@ public class MemoryCachingService<T> : ICachingService<T> where T : class
             .SetAbsoluteExpiration(_options.DefaultExpiration)
             .SetSize(_options.EntrySize);
 
-        if (_options.SlidingExpiration.HasValue)
-        {
-            cacheOptions.SetSlidingExpiration(_options.SlidingExpiration.Value);
-        }
+        if (_options.SlidingExpiration.HasValue) cacheOptions.SetSlidingExpiration(_options.SlidingExpiration.Value);
 
         _cache.Set(fullKey, value, cacheOptions);
     }
@@ -90,7 +85,10 @@ public class MemoryCachingService<T> : ICachingService<T> where T : class
         };
     }
 
-    private string GetFullKey(string key) => $"{_keyPrefix}:{key}";
+    private string GetFullKey(string key)
+    {
+        return $"{_keyPrefix}:{key}";
+    }
 }
 
 /// <summary>

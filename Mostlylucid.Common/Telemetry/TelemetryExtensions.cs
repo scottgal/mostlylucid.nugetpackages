@@ -1,30 +1,28 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Mostlylucid.Common.Telemetry;
 
 /// <summary>
-/// Extension methods for registering telemetry services
+///     Extension methods for registering telemetry services
 /// </summary>
 public static class TelemetryExtensions
 {
     /// <summary>
-    /// Adds telemetry options to the service collection
+    ///     Adds telemetry options to the service collection
     /// </summary>
     public static IServiceCollection AddMostlylucidTelemetry(
         this IServiceCollection services,
         Action<TelemetryOptions>? configure = null)
     {
-        services.Configure<TelemetryOptions>(options =>
-        {
-            configure?.Invoke(options);
-        });
+        services.Configure<TelemetryOptions>(options => { configure?.Invoke(options); });
 
         return services;
     }
 
     /// <summary>
-    /// Registers a TelemetryActivitySource as a singleton
+    ///     Registers a TelemetryActivitySource as a singleton
     /// </summary>
     /// <param name="services">The service collection</param>
     /// <param name="name">The name of the activity source</param>
@@ -37,7 +35,7 @@ public static class TelemetryExtensions
     {
         services.TryAddSingleton(sp =>
         {
-            var options = sp.GetService<Microsoft.Extensions.Options.IOptions<TelemetryOptions>>();
+            var options = sp.GetService<IOptions<TelemetryOptions>>();
             return new TelemetryActivitySource(name, version, options?.Value);
         });
 
@@ -45,7 +43,7 @@ public static class TelemetryExtensions
     }
 
     /// <summary>
-    /// Gets all Mostlylucid activity source names for OpenTelemetry configuration
+    ///     Gets all Mostlylucid activity source names for OpenTelemetry configuration
     /// </summary>
     public static string[] GetMostlylucidActivitySourceNames()
     {
@@ -67,7 +65,7 @@ public static class TelemetryExtensions
 }
 
 /// <summary>
-/// Standard activity source names for all Mostlylucid packages
+///     Standard activity source names for all Mostlylucid packages
 /// </summary>
 public static class ActivitySources
 {

@@ -24,11 +24,11 @@ public class SsnDetectorTests
     }
 
     [Theory]
-    [InlineData("000-12-3456")]  // Invalid area (000)
-    [InlineData("666-12-3456")]  // Invalid area (666)
-    [InlineData("900-12-3456")]  // Invalid area (9xx)
-    [InlineData("123-00-4567")]  // Invalid group (00)
-    [InlineData("123-45-0000")]  // Invalid serial (0000)
+    [InlineData("000-12-3456")] // Invalid area (000)
+    [InlineData("666-12-3456")] // Invalid area (666)
+    [InlineData("900-12-3456")] // Invalid area (9xx)
+    [InlineData("123-00-4567")] // Invalid group (00)
+    [InlineData("123-45-0000")] // Invalid serial (0000)
     public void Detect_InvalidSsns_ReturnsEmpty(string ssn)
     {
         var text = $"Number: {ssn}";

@@ -2,13 +2,12 @@ using Microsoft.AspNetCore.Mvc;
 using Mostlylucid.RagLlmSearch.LlmServices;
 using Mostlylucid.RagLlmSearch.Models;
 using Mostlylucid.RagLlmSearch.Rag;
-
 using ConversationModel = Mostlylucid.RagLlmSearch.Models.Conversation;
 
 namespace Mostlylucid.RagLlmSearch.Demo.Controllers;
 
 /// <summary>
-/// REST API controller for chat operations
+///     REST API controller for chat operations
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
@@ -29,24 +28,21 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// Sends a chat message and receives a response
+    ///     Sends a chat message and receives a response
     /// </summary>
     [HttpPost]
     [ProducesResponseType(typeof(ChatResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ChatResponse>> Chat([FromBody] ChatRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Message))
-        {
-            return BadRequest("Message is required");
-        }
+        if (string.IsNullOrWhiteSpace(request.Message)) return BadRequest("Message is required");
 
         var response = await _chatService.ChatAsync(request);
         return Ok(response);
     }
 
     /// <summary>
-    /// Gets a conversation by ID
+    ///     Gets a conversation by ID
     /// </summary>
     [HttpGet("conversations/{conversationId}")]
     [ProducesResponseType(typeof(ConversationModel), StatusCodes.Status200OK)]
@@ -54,15 +50,12 @@ public class ChatController : ControllerBase
     public async Task<ActionResult<ConversationModel>> GetConversation(string conversationId)
     {
         var conversation = await _chatService.GetConversationAsync(conversationId);
-        if (conversation == null)
-        {
-            return NotFound();
-        }
+        if (conversation == null) return NotFound();
         return Ok(conversation);
     }
 
     /// <summary>
-    /// Gets all conversations for a user
+    ///     Gets all conversations for a user
     /// </summary>
     [HttpGet("conversations/user/{userId}")]
     [ProducesResponseType(typeof(List<ConversationModel>), StatusCodes.Status200OK)]
@@ -73,7 +66,7 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// Deletes a conversation
+    ///     Deletes a conversation
     /// </summary>
     [HttpDelete("conversations/{conversationId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -84,18 +77,19 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// Performs a web search
+    ///     Performs a web search
     /// </summary>
     [HttpGet("search")]
     [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
-    public async Task<ActionResult<SearchResponse>> Search([FromQuery] string query, [FromQuery] string? provider = null)
+    public async Task<ActionResult<SearchResponse>> Search([FromQuery] string query,
+        [FromQuery] string? provider = null)
     {
         var response = await _chatService.SearchAsync(query, provider);
         return Ok(response);
     }
 
     /// <summary>
-    /// Gets available search providers
+    ///     Gets available search providers
     /// </summary>
     [HttpGet("providers")]
     [ProducesResponseType(typeof(IEnumerable<string>), StatusCodes.Status200OK)]
@@ -105,7 +99,7 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// Checks if the LLM service is available
+    ///     Checks if the LLM service is available
     /// </summary>
     [HttpGet("health")]
     [ProducesResponseType(typeof(HealthResponse), StatusCodes.Status200OK)]
@@ -123,7 +117,7 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// Adds a document to the RAG store
+    ///     Adds a document to the RAG store
     /// </summary>
     [HttpPost("rag")]
     [ProducesResponseType(StatusCodes.Status201Created)]
@@ -142,7 +136,7 @@ public class ChatController : ControllerBase
     }
 
     /// <summary>
-    /// Gets a RAG document by ID
+    ///     Gets a RAG document by ID
     /// </summary>
     [HttpGet("rag/{id}")]
     [ProducesResponseType(typeof(RagDocument), StatusCodes.Status200OK)]
@@ -150,15 +144,12 @@ public class ChatController : ControllerBase
     public async Task<ActionResult<RagDocument>> GetRagDocument(string id)
     {
         var document = await _ragService.GetDocumentAsync(id);
-        if (document == null)
-        {
-            return NotFound();
-        }
+        if (document == null) return NotFound();
         return Ok(document);
     }
 
     /// <summary>
-    /// Searches the RAG store
+    ///     Searches the RAG store
     /// </summary>
     [HttpGet("rag/search")]
     [ProducesResponseType(typeof(List<RagSearchResult>), StatusCodes.Status200OK)]

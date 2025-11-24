@@ -4,10 +4,16 @@ using Mostlylucid.LlmPiiRedactor.Models;
 namespace Mostlylucid.LlmPiiRedactor.Detectors;
 
 /// <summary>
-/// Detects UK National Insurance Numbers.
+///     Detects UK National Insurance Numbers.
 /// </summary>
 public class NationalInsuranceDetector : BasePiiDetector
 {
+    // Invalid prefixes for NI numbers
+    private static readonly HashSet<string> InvalidPrefixes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "BG", "GB", "NK", "KN", "TN", "NT", "ZZ"
+    };
+
     public override PiiType PiiType => PiiType.NationalInsurance;
     public override string Name => "NationalInsuranceDetector";
     public override int Priority => 15;
@@ -18,12 +24,6 @@ public class NationalInsuranceDetector : BasePiiDetector
         @"(?<![A-Z])[A-CEGHJ-PR-TW-Z]{2}\s*\d{2}\s*\d{2}\s*\d{2}\s*[A-D](?![A-Z])";
 
     protected override RegexOptions AdditionalRegexOptions => RegexOptions.IgnoreCase;
-
-    // Invalid prefixes for NI numbers
-    private static readonly HashSet<string> InvalidPrefixes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "BG", "GB", "NK", "KN", "TN", "NT", "ZZ"
-    };
 
     protected override bool ValidateMatch(Match match, string originalText)
     {

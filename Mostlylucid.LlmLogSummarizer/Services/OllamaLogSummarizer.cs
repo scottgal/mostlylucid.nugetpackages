@@ -1,6 +1,5 @@
 using System.Net.Http.Json;
 using System.Text;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.LlmLogSummarizer.Models;
@@ -8,13 +7,13 @@ using Mostlylucid.LlmLogSummarizer.Models;
 namespace Mostlylucid.LlmLogSummarizer.Services;
 
 /// <summary>
-/// LLM-powered log summarization using Ollama.
+///     LLM-powered log summarization using Ollama.
 /// </summary>
 public class OllamaLogSummarizer : ILogSummarizer
 {
     private readonly HttpClient _httpClient;
-    private readonly OllamaOptions _options;
     private readonly ILogger<OllamaLogSummarizer> _logger;
+    private readonly OllamaOptions _options;
 
     public OllamaLogSummarizer(
         HttpClient httpClient,
@@ -130,7 +129,7 @@ public class OllamaLogSummarizer : ILogSummarizer
             response.EnsureSuccessStatusCode();
 
             var result = await response.Content.ReadFromJsonAsync<OllamaGenerateResponse>(
-                cancellationToken: cancellationToken);
+                cancellationToken);
 
             var text = result?.Response?.Trim() ?? string.Empty;
 
@@ -148,7 +147,8 @@ public class OllamaLogSummarizer : ILogSummarizer
     private static string BuildClusterSummaryPrompt(ExceptionCluster cluster)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("You are a software engineer analyzing application logs. Summarize this error pattern concisely (2-3 sentences).");
+        sb.AppendLine(
+            "You are a software engineer analyzing application logs. Summarize this error pattern concisely (2-3 sentences).");
         sb.AppendLine();
         sb.AppendLine($"Exception Type: {cluster.ExceptionType ?? "N/A"}");
         sb.AppendLine($"Occurrences: {cluster.Count}");
@@ -171,7 +171,8 @@ public class OllamaLogSummarizer : ILogSummarizer
     private static string BuildSuggestedActionPrompt(ExceptionCluster cluster)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("You are a software engineer. Based on this error pattern, suggest 2-3 specific investigation or fix steps.");
+        sb.AppendLine(
+            "You are a software engineer. Based on this error pattern, suggest 2-3 specific investigation or fix steps.");
         sb.AppendLine();
         sb.AppendLine($"Exception Type: {cluster.ExceptionType ?? "N/A"}");
         sb.AppendLine($"Error Message: {cluster.RepresentativeMessage}");
@@ -192,11 +193,13 @@ public class OllamaLogSummarizer : ILogSummarizer
     private static string BuildExecutiveSummaryPrompt(SummaryReport report)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("You are creating an executive summary of application health for a development team. Be concise and actionable (3-4 sentences).");
+        sb.AppendLine(
+            "You are creating an executive summary of application health for a development team. Be concise and actionable (3-4 sentences).");
         sb.AppendLine();
         sb.AppendLine($"Time Period: {report.PeriodStart:g} to {report.PeriodEnd:g}");
         sb.AppendLine($"Total Logs Analyzed: {report.TotalLogsAnalyzed:N0}");
-        sb.AppendLine($"Errors: {report.ErrorCount:N0}, Warnings: {report.WarningCount:N0}, Critical: {report.CriticalCount:N0}");
+        sb.AppendLine(
+            $"Errors: {report.ErrorCount:N0}, Warnings: {report.WarningCount:N0}, Critical: {report.CriticalCount:N0}");
         sb.AppendLine($"Unique Error Patterns: {report.AllClusters.Count}");
         sb.AppendLine($"New Error Types: {report.NewErrorTypes.Count}");
 
@@ -204,13 +207,12 @@ public class OllamaLogSummarizer : ILogSummarizer
         {
             sb.AppendLine("\nTop Error Patterns:");
             foreach (var pattern in report.TopErrorPatterns.Take(5))
-            {
                 sb.AppendLine($"- {pattern.Title} ({pattern.Count} occurrences)");
-            }
         }
 
         sb.AppendLine();
-        sb.AppendLine("Provide a brief executive summary highlighting the most important findings and recommended priorities.");
+        sb.AppendLine(
+            "Provide a brief executive summary highlighting the most important findings and recommended priorities.");
 
         return sb.ToString();
     }
@@ -218,7 +220,8 @@ public class OllamaLogSummarizer : ILogSummarizer
     private static string BuildKeyInsightsPrompt(SummaryReport report)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("Analyze these application logs and provide 3-5 key insights as bullet points. Focus on patterns, trends, and actionable observations.");
+        sb.AppendLine(
+            "Analyze these application logs and provide 3-5 key insights as bullet points. Focus on patterns, trends, and actionable observations.");
         sb.AppendLine();
         sb.AppendLine($"Time Period: {report.PeriodStart:g} to {report.PeriodEnd:g}");
         sb.AppendLine($"Errors: {report.ErrorCount:N0}, Warnings: {report.WarningCount:N0}");
@@ -226,19 +229,14 @@ public class OllamaLogSummarizer : ILogSummarizer
         if (report.NewErrorTypes.Any())
         {
             sb.AppendLine($"\nNew Error Types ({report.NewErrorTypes.Count}):");
-            foreach (var error in report.NewErrorTypes.Take(3))
-            {
-                sb.AppendLine($"- {error.Title}");
-            }
+            foreach (var error in report.NewErrorTypes.Take(3)) sb.AppendLine($"- {error.Title}");
         }
 
         if (report.TrendingUp.Any())
         {
             sb.AppendLine($"\nIncreasing Errors ({report.TrendingUp.Count}):");
             foreach (var error in report.TrendingUp.Take(3))
-            {
                 sb.AppendLine($"- {error.Title} (+{error.TrendPercent:F0}%)");
-            }
         }
 
         sb.AppendLine("\nProvide key insights as bullet points starting with '-'.");
@@ -249,7 +247,8 @@ public class OllamaLogSummarizer : ILogSummarizer
     private static string BuildHealthAssessmentPrompt(SummaryReport report)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("Assess the overall health of this application based on log analysis. Respond with exactly one word: HEALTHY, DEGRADED, UNHEALTHY, or CRITICAL.");
+        sb.AppendLine(
+            "Assess the overall health of this application based on log analysis. Respond with exactly one word: HEALTHY, DEGRADED, UNHEALTHY, or CRITICAL.");
         sb.AppendLine();
         sb.AppendLine($"Errors: {report.ErrorCount:N0}");
         sb.AppendLine($"Critical: {report.CriticalCount:N0}");

@@ -4,17 +4,17 @@ using mostlylucid.llmslidetranslator.Models;
 namespace mostlylucid.llmslidetranslator.Telemetry;
 
 /// <summary>
-/// Telemetry instrumentation for slide translation operations
+///     Telemetry instrumentation for slide translation operations
 /// </summary>
 public static class SlideTranslatorTelemetry
 {
     /// <summary>
-    /// Activity source name for slide translator
+    ///     Activity source name for slide translator
     /// </summary>
     public const string ActivitySourceName = "Mostlylucid.LlmSlideTranslator";
 
     /// <summary>
-    /// Activity source for slide translator telemetry
+    ///     Activity source for slide translator telemetry
     /// </summary>
     public static readonly ActivitySource ActivitySource = new(ActivitySourceName, GetVersion());
 
@@ -24,7 +24,7 @@ public static class SlideTranslatorTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for document translation
+    ///     Starts an activity for document translation
     /// </summary>
     public static Activity? StartTranslateDocumentActivity(
         string documentId,
@@ -32,7 +32,7 @@ public static class SlideTranslatorTelemetry
         string targetLanguage,
         TranslationMethod method)
     {
-        var activity = ActivitySource.StartActivity("SlideTranslator.TranslateDocument", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("SlideTranslator.TranslateDocument");
 
         if (activity != null)
         {
@@ -46,7 +46,7 @@ public static class SlideTranslatorTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for block translation
+    ///     Starts an activity for block translation
     /// </summary>
     public static Activity? StartTranslateBlockActivity(
         string documentId,
@@ -54,7 +54,7 @@ public static class SlideTranslatorTelemetry
         string sourceLanguage,
         string targetLanguage)
     {
-        var activity = ActivitySource.StartActivity("SlideTranslator.TranslateBlock", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("SlideTranslator.TranslateBlock");
 
         if (activity != null)
         {
@@ -68,7 +68,7 @@ public static class SlideTranslatorTelemetry
     }
 
     /// <summary>
-    /// Records translation result on the activity
+    ///     Records translation result on the activity
     /// </summary>
     public static void RecordResult(Activity? activity, TranslationResult result)
     {
@@ -83,17 +83,13 @@ public static class SlideTranslatorTelemetry
         activity.SetTag("mostlylucid.slidetranslator.error_count", result.Errors.Count);
 
         if (result.Errors.Count > 0)
-        {
             activity.SetStatus(ActivityStatusCode.Error, string.Join("; ", result.Errors));
-        }
         else
-        {
             activity.SetStatus(ActivityStatusCode.Ok);
-        }
     }
 
     /// <summary>
-    /// Records block translation result on the activity
+    ///     Records block translation result on the activity
     /// </summary>
     public static void RecordBlockResult(Activity? activity, TranslationBlock block)
     {
@@ -106,7 +102,7 @@ public static class SlideTranslatorTelemetry
     }
 
     /// <summary>
-    /// Records an exception on the activity
+    ///     Records an exception on the activity
     /// </summary>
     public static void RecordException(Activity? activity, Exception ex)
     {

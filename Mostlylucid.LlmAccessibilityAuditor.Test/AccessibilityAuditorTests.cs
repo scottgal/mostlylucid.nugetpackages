@@ -7,10 +7,10 @@ namespace Mostlylucid.LlmAccessibilityAuditor.Test;
 
 public class AccessibilityAuditorTests
 {
-    private readonly Mock<IHtmlAccessibilityParser> _parserMock;
-    private readonly Mock<IAccessibilityOllamaClient> _ollamaClientMock;
     private readonly Mock<ILogger<AccessibilityAuditor>> _loggerMock;
+    private readonly Mock<IAccessibilityOllamaClient> _ollamaClientMock;
     private readonly AccessibilityAuditorOptions _options;
+    private readonly Mock<IHtmlAccessibilityParser> _parserMock;
 
     public AccessibilityAuditorTests()
     {
@@ -99,7 +99,8 @@ public class AccessibilityAuditorTests
         _parserMock.Setup(p => p.SimplifyForLlm(html, It.IsAny<int>())).Returns(html);
         _ollamaClientMock.Setup(o => o.IsAvailableAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        _ollamaClientMock.Setup(o => o.AnalyzeHtmlAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<AccessibilityIssue>>(), It.IsAny<CancellationToken>()))
+        _ollamaClientMock.Setup(o => o.AnalyzeHtmlAsync(It.IsAny<string>(),
+                It.IsAny<IReadOnlyList<AccessibilityIssue>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AccessibilityIssue>());
         _ollamaClientMock.Setup(o => o.ModelName).Returns("test-model");
         _options.EnableLlmAnalysis = true;
@@ -110,7 +111,9 @@ public class AccessibilityAuditorTests
         var report = await auditor.AuditAsync(html);
 
         // Assert
-        _ollamaClientMock.Verify(o => o.AnalyzeHtmlAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<AccessibilityIssue>>(), It.IsAny<CancellationToken>()), Times.Once);
+        _ollamaClientMock.Verify(
+            o => o.AnalyzeHtmlAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<AccessibilityIssue>>(),
+                It.IsAny<CancellationToken>()), Times.Once);
         Assert.True(report.LlmAnalysisPerformed);
         Assert.Equal("test-model", report.LlmModel);
     }
@@ -146,9 +149,21 @@ public class AccessibilityAuditorTests
         var html = "<html><body><h1>Test</h1></body></html>";
         var issues = new List<AccessibilityIssue>
         {
-            new() { Type = AccessibilityIssueType.MissingAltText, Severity = IssueSeverity.Critical, Source = DetectionSource.HtmlParser },
-            new() { Type = AccessibilityIssueType.MissingAriaLabel, Severity = IssueSeverity.Serious, Source = DetectionSource.HtmlParser },
-            new() { Type = AccessibilityIssueType.MissingLanguage, Severity = IssueSeverity.Moderate, Source = DetectionSource.HtmlParser }
+            new()
+            {
+                Type = AccessibilityIssueType.MissingAltText, Severity = IssueSeverity.Critical,
+                Source = DetectionSource.HtmlParser
+            },
+            new()
+            {
+                Type = AccessibilityIssueType.MissingAriaLabel, Severity = IssueSeverity.Serious,
+                Source = DetectionSource.HtmlParser
+            },
+            new()
+            {
+                Type = AccessibilityIssueType.MissingLanguage, Severity = IssueSeverity.Moderate,
+                Source = DetectionSource.HtmlParser
+            }
         };
         _parserMock.Setup(p => p.ParseAndAnalyzeAsync(html, It.IsAny<CancellationToken>()))
             .ReturnsAsync(issues);
@@ -205,7 +220,9 @@ public class AccessibilityAuditorTests
         // Assert
         Assert.True(result.HasIssues);
         Assert.Equal(1, result.IssueCount);
-        _ollamaClientMock.Verify(o => o.AnalyzeHtmlAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<AccessibilityIssue>>(), It.IsAny<CancellationToken>()), Times.Never);
+        _ollamaClientMock.Verify(
+            o => o.AnalyzeHtmlAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<AccessibilityIssue>>(),
+                It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

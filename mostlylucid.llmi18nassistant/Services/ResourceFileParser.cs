@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
@@ -375,7 +376,7 @@ public partial class ResourceFileParser : IResourceFileParser
         var options = new JsonSerializerOptions
         {
             WriteIndented = true,
-            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
         };
 
         await JsonSerializer.SerializeAsync(stream, translations, options, cancellationToken);
@@ -392,12 +393,8 @@ public partial class ResourceFileParser : IResourceFileParser
 
             // Handle array notation
             var arrayMatch = Regex.Match(part, @"^(.+)\[(\d+)\]$");
-            if (arrayMatch.Success)
-            {
-                part = arrayMatch.Groups[1].Value;
-                // For simplicity, we'll flatten arrays in the output
-            }
-
+            if (arrayMatch.Success) part = arrayMatch.Groups[1].Value;
+            // For simplicity, we'll flatten arrays in the output
             if (!current.TryGetValue(part, out var child))
             {
                 child = new Dictionary<string, object>();

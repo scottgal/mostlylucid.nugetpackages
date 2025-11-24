@@ -55,7 +55,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Mostlylucid.Common\Mostlylucid.Common.csproj" />
+        <ProjectReference Include="..\Mostlylucid.Common\Mostlylucid.Common.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

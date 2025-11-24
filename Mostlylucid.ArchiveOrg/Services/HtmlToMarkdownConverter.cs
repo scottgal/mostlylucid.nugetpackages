@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Web;
+using System.Xml.XPath;
 using HtmlAgilityPack;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -11,12 +13,12 @@ namespace Mostlylucid.ArchiveOrg.Services;
 
 public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
 {
-    private readonly MarkdownConversionOptions _options;
     private readonly ArchiveOrgOptions _archiveOptions;
-    private readonly IOllamaTagGenerator _tagGenerator;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<HtmlToMarkdownConverter> _logger;
     private readonly Converter _markdownConverter;
-    private readonly HttpClient _httpClient;
+    private readonly MarkdownConversionOptions _options;
+    private readonly IOllamaTagGenerator _tagGenerator;
 
     public HtmlToMarkdownConverter(
         IOptions<MarkdownConversionOptions> options,
@@ -76,10 +78,8 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
                     progressReport.SuccessfulConversions += fileArticles.Count;
 
                     if (fileArticles.Count > 1)
-                    {
                         _logger.LogInformation("Split multi-post page into {Count} articles: {File}",
                             fileArticles.Count, htmlFile);
-                    }
                 }
                 else
                 {
@@ -97,10 +97,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             progress?.Report(progressReport);
         }
 
-        if (skippedCount > 0)
-        {
-            _logger.LogInformation("Skipped {Count} already converted files", skippedCount);
-        }
+        if (skippedCount > 0) _logger.LogInformation("Skipped {Count} already converted files", skippedCount);
 
         return articles;
     }
@@ -155,7 +152,8 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             RemoveUnwantedElementsFromNode(contentNode);
 
             // Single post page - use original logic
-            var singleArticle = await ConvertSinglePageAsync(contentNode, doc, html, metadata, htmlFilePath, cancellationToken);
+            var singleArticle =
+                await ConvertSinglePageAsync(contentNode, doc, html, metadata, htmlFilePath, cancellationToken);
             if (singleArticle != null)
             {
                 // Check minimum content length
@@ -179,7 +177,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
     }
 
     /// <summary>
-    /// Check if URL matches any skip patterns (index/archive pages)
+    ///     Check if URL matches any skip patterns (index/archive pages)
     /// </summary>
     private bool ShouldSkipUrl(string url)
     {
@@ -187,25 +185,20 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             return false;
 
         foreach (var pattern in _options.SkipUrlPatterns)
-        {
             try
             {
-                if (Regex.IsMatch(url, pattern, RegexOptions.IgnoreCase))
-                {
-                    return true;
-                }
+                if (Regex.IsMatch(url, pattern, RegexOptions.IgnoreCase)) return true;
             }
             catch
             {
                 // Invalid regex pattern - skip it
             }
-        }
 
         return false;
     }
 
     /// <summary>
-    /// Convert a single post node from a multi-post page
+    ///     Convert a single post node from a multi-post page
     /// </summary>
     private async Task<MarkdownArticle?> ConvertPostNodeAsync(
         HtmlNode postNode,
@@ -220,9 +213,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             // Extract title from the post
             var title = ExtractPostTitle(postNode);
             if (string.IsNullOrEmpty(title))
-            {
                 title = $"Post {postIndex} from {Path.GetFileNameWithoutExtension(htmlFilePath)}";
-            }
 
             // Extract permalink if available
             var permalink = ExtractPostPermalink(postNode);
@@ -256,16 +247,12 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             // Extract publish date from this post
             DateTime? publishDate = null;
             if (_options.ExtractDates)
-            {
                 publishDate = ExtractPublishDateFromNode(postNode, _options.DateSelector) ?? metadata.archiveDate;
-            }
 
             // Generate tags if enabled
             List<string> categories = [];
             if (_options.GenerateTags)
-            {
                 categories = await _tagGenerator.GenerateTagsAsync(title, markdown, cancellationToken);
-            }
 
             var article = new MarkdownArticle
             {
@@ -294,10 +281,10 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
     }
 
     /// <summary>
-    /// Convert a single-post page (original logic)
+    ///     Convert a single-post page (original logic)
     /// </summary>
     /// <summary>
-    /// Convert a single-post page to markdown
+    ///     Convert a single-post page to markdown
     /// </summary>
     private async Task<MarkdownArticle?> ConvertSinglePageAsync(
         HtmlNode contentNode,
@@ -323,7 +310,8 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             {
                 if (metadata.archiveDate > existingArchiveDate)
                 {
-                    _logger.LogInformation("Newer archive found ({New:yyyy-MM-dd} > {Old:yyyy-MM-dd}), re-converting: {File}",
+                    _logger.LogInformation(
+                        "Newer archive found ({New:yyyy-MM-dd} > {Old:yyyy-MM-dd}), re-converting: {File}",
                         metadata.archiveDate, existingArchiveDate, Path.GetFileName(htmlFilePath));
                     // Continue to re-convert
                 }
@@ -345,10 +333,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
 
         // Extract title (before removing it from content)
         var title = ExtractTitle(doc, contentNode);
-        if (string.IsNullOrEmpty(title))
-        {
-            title = Path.GetFileNameWithoutExtension(htmlFilePath);
-        }
+        if (string.IsNullOrEmpty(title)) title = Path.GetFileNameWithoutExtension(htmlFilePath);
 
         // Remove title element from content (it goes in frontmatter)
         RemoveTitleFromContent(contentNode);
@@ -369,9 +354,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
         // Extract or infer publish date
         DateTime? publishDate = null;
         if (_options.ExtractDates)
-        {
             publishDate = ExtractPublishDate(doc, html, _options.DateSelector) ?? metadata.archiveDate;
-        }
 
         // Generate slug
         var slug = GenerateSlug(title, metadata.originalUrl);
@@ -379,9 +362,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
         // Generate tags using LLM if enabled
         List<string> categories = [];
         if (_options.GenerateTags)
-        {
             categories = await _tagGenerator.GenerateTagsAsync(title, markdown, cancellationToken);
-        }
 
         var article = new MarkdownArticle
         {
@@ -406,34 +387,28 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
     }
 
     /// <summary>
-    /// Extract the title from a post node using the configured PostTitleSelector
+    ///     Extract the title from a post node using the configured PostTitleSelector
     /// </summary>
     private string ExtractPostTitle(HtmlNode postNode)
     {
         if (!string.IsNullOrEmpty(_options.PostTitleSelector))
         {
             var titleNode = SelectSingleNode(postNode, _options.PostTitleSelector);
-            if (titleNode != null)
-            {
-                return HttpUtility.HtmlDecode(titleNode.InnerText.Trim());
-            }
+            if (titleNode != null) return HttpUtility.HtmlDecode(titleNode.InnerText.Trim());
         }
 
         // Fallback to h1, h2, h3
         foreach (var tag in new[] { "h1", "h2", "h3" })
         {
             var heading = postNode.SelectSingleNode($".//{tag}");
-            if (heading != null)
-            {
-                return HttpUtility.HtmlDecode(heading.InnerText.Trim());
-            }
+            if (heading != null) return HttpUtility.HtmlDecode(heading.InnerText.Trim());
         }
 
         return string.Empty;
     }
 
     /// <summary>
-    /// Extract the permalink from a post node using the configured PostLinkSelector
+    ///     Extract the permalink from a post node using the configured PostLinkSelector
     /// </summary>
     private string ExtractPostPermalink(HtmlNode postNode)
     {
@@ -443,10 +418,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             if (linkNode != null)
             {
                 var href = linkNode.GetAttributeValue("href", null);
-                if (!string.IsNullOrEmpty(href))
-                {
-                    return href;
-                }
+                if (!string.IsNullOrEmpty(href)) return href;
             }
         }
 
@@ -456,7 +428,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
     }
 
     /// <summary>
-    /// Extract publish date from a specific node
+    ///     Extract publish date from a specific node
     /// </summary>
     private DateTime? ExtractPublishDateFromNode(HtmlNode node, string dateSelector)
     {
@@ -488,7 +460,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
     }
 
     /// <summary>
-    /// Helper to select nodes using CSS-like selectors
+    ///     Helper to select nodes using CSS-like selectors
     /// </summary>
     private static List<HtmlNode> SelectNodesList(HtmlNode node, string selector)
     {
@@ -500,6 +472,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
                 .Where(n => HasExactClass(n, className))
                 .ToList();
         }
+
         // Handle ID selector (e.g., #content)
         if (selector.StartsWith('#'))
         {
@@ -508,6 +481,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
                 .FirstOrDefault(n => n.GetAttributeValue("id", "") == id);
             return result != null ? [result] : [];
         }
+
         // Handle element.class selector (e.g., div.post)
         if (selector.Contains('.') && !selector.StartsWith('.'))
         {
@@ -520,6 +494,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
                     HasExactClass(n, className))
                 .ToList();
         }
+
         // Handle element selector (e.g., article)
         return node.Descendants()
             .Where(n => n.Name.Equals(selector, StringComparison.OrdinalIgnoreCase))
@@ -527,7 +502,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
     }
 
     /// <summary>
-    /// Helper to select nodes - returns HtmlNodeCollection-like wrapper for compatibility
+    ///     Helper to select nodes - returns HtmlNodeCollection-like wrapper for compatibility
     /// </summary>
     private static HtmlNodeCollection? SelectNodes(HtmlNode node, string selector)
     {
@@ -537,15 +512,12 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
 
         // Create a collection from the list
         var collection = new HtmlNodeCollection(node);
-        foreach (var item in list)
-        {
-            collection.Add(item);
-        }
+        foreach (var item in list) collection.Add(item);
         return collection;
     }
 
     /// <summary>
-    /// Helper to select a single node using CSS-like selectors
+    ///     Helper to select a single node using CSS-like selectors
     /// </summary>
     private static HtmlNode? SelectSingleNode(HtmlNode node, string selector)
     {
@@ -556,6 +528,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             return node.Descendants()
                 .FirstOrDefault(n => HasExactClass(n, className));
         }
+
         // Handle ID selector
         if (selector.StartsWith('#'))
         {
@@ -563,6 +536,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             return node.Descendants()
                 .FirstOrDefault(n => n.GetAttributeValue("id", "") == id);
         }
+
         // Handle element.class selector (e.g., div.post)
         if (selector.Contains('.') && !selector.StartsWith('.'))
         {
@@ -574,6 +548,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
                     n.Name.Equals(elementName, StringComparison.OrdinalIgnoreCase) &&
                     HasExactClass(n, className));
         }
+
         // Handle element selector
         return node.Descendants()
             .FirstOrDefault(n => n.Name.Equals(selector, StringComparison.OrdinalIgnoreCase));
@@ -585,16 +560,10 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
         var archiveDate = DateTime.MinValue;
 
         var urlMatch = OriginalUrlRegex().Match(html);
-        if (urlMatch.Success)
-        {
-            originalUrl = urlMatch.Groups[1].Value.Trim();
-        }
+        if (urlMatch.Success) originalUrl = urlMatch.Groups[1].Value.Trim();
 
         var dateMatch = ArchiveDateRegex().Match(html);
-        if (dateMatch.Success && DateTime.TryParse(dateMatch.Groups[1].Value.Trim(), out var date))
-        {
-            archiveDate = date;
-        }
+        if (dateMatch.Success && DateTime.TryParse(dateMatch.Groups[1].Value.Trim(), out var date)) archiveDate = date;
 
         return (originalUrl, archiveDate);
     }
@@ -625,25 +594,21 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
                     nodes = doc.DocumentNode.SelectNodes($"//{selector}");
                 }
             }
-            catch (System.Xml.XPath.XPathException)
+            catch (XPathException)
             {
                 // Skip invalid selectors
                 _logger.LogWarning("Invalid selector skipped: {Selector}", selector);
             }
 
             if (nodes != null)
-            {
                 foreach (var node in nodes.ToList())
-                {
                     node.Remove();
-                }
-            }
         }
     }
 
     /// <summary>
-    /// Remove unwanted elements from within a specific node (not the whole document)
-    /// Uses HtmlAgilityPack Descendants for reliable element matching
+    ///     Remove unwanted elements from within a specific node (not the whole document)
+    ///     Uses HtmlAgilityPack Descendants for reliable element matching
     /// </summary>
     private void RemoveUnwantedElementsFromNode(HtmlNode contentNode)
     {
@@ -674,15 +639,12 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
                     .Where(n => n.Name.Equals(selector, StringComparison.OrdinalIgnoreCase)));
             }
 
-            foreach (var node in nodesToRemove)
-            {
-                node.Remove();
-            }
+            foreach (var node in nodesToRemove) node.Remove();
         }
     }
 
     /// <summary>
-    /// Remove the title h2 element from content (since title goes in frontmatter)
+    ///     Remove the title h2 element from content (since title goes in frontmatter)
     /// </summary>
     private static void RemoveTitleFromContent(HtmlNode contentNode)
     {
@@ -703,15 +665,12 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
         {
             // Only remove if it's near the start of the content (within first few elements)
             var childIndex = contentNode.ChildNodes.ToList().IndexOf(firstH2);
-            if (childIndex >= 0 && childIndex < 3)
-            {
-                firstH2.Remove();
-            }
+            if (childIndex >= 0 && childIndex < 3) firstH2.Remove();
         }
     }
 
     /// <summary>
-    /// Remove date/footer elements from content (since date goes in frontmatter)
+    ///     Remove date/footer elements from content (since date goes in frontmatter)
     /// </summary>
     private static void RemoveDateFooterFromContent(HtmlNode contentNode)
     {
@@ -719,37 +678,25 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
         var postfoot = contentNode.Descendants()
             .Where(n => HasExactClass(n, "postfoot"))
             .ToList();
-        foreach (var node in postfoot)
-        {
-            node.Remove();
-        }
+        foreach (var node in postfoot) node.Remove();
 
         // Remove .postfooter (2005+ template)
         var postfooter = contentNode.Descendants()
             .Where(n => HasExactClass(n, "postfooter"))
             .ToList();
-        foreach (var node in postfooter)
-        {
-            node.Remove();
-        }
+        foreach (var node in postfooter) node.Remove();
 
         // Remove p.postfooter
         var pPostfooter = contentNode.Descendants("p")
             .Where(n => HasExactClass(n, "postfooter"))
             .ToList();
-        foreach (var node in pPostfooter)
-        {
-            node.Remove();
-        }
+        foreach (var node in pPostfooter) node.Remove();
 
         // Remove .itemdesc (singlepost template)
         var itemdesc = contentNode.Descendants()
             .Where(n => HasExactClass(n, "itemdesc"))
             .ToList();
-        foreach (var node in itemdesc)
-        {
-            node.Remove();
-        }
+        foreach (var node in itemdesc) node.Remove();
     }
 
     private HtmlNode? ExtractMainContent(HtmlDocument doc)
@@ -818,7 +765,8 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
 
                     if (node != null)
                     {
-                        _logger.LogInformation("Found content using fallback selector '{Selector}', node has {Length} chars",
+                        _logger.LogInformation(
+                            "Found content using fallback selector '{Selector}', node has {Length} chars",
                             fallback, node.InnerHtml.Length);
                         return node;
                     }
@@ -868,7 +816,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             (null!, "post-content", null),
             (null!, "entry-content", null),
             (null!, "article-content", null),
-            (null!, "blog-post", null),
+            (null!, "blog-post", null)
         };
 
         foreach (var (elementName, className, id) in commonSelectors)
@@ -876,20 +824,14 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             HtmlNode? node = null;
 
             if (!string.IsNullOrEmpty(id))
-            {
                 node = doc.DocumentNode.Descendants()
                     .FirstOrDefault(n => n.GetAttributeValue("id", "") == id);
-            }
             else if (!string.IsNullOrEmpty(className))
-            {
                 node = doc.DocumentNode.Descendants()
                     .FirstOrDefault(n => HasExactClass(n, className));
-            }
             else if (!string.IsNullOrEmpty(elementName))
-            {
                 node = doc.DocumentNode.Descendants()
                     .FirstOrDefault(n => n.Name.Equals(elementName, StringComparison.OrdinalIgnoreCase));
-            }
 
             if (node != null)
                 return node;
@@ -901,7 +843,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
     }
 
     /// <summary>
-    /// Check if a node has an exact class match (not partial substring)
+    ///     Check if a node has an exact class match (not partial substring)
     /// </summary>
     private static bool HasExactClass(HtmlNode node, string className)
     {
@@ -996,7 +938,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
     }
 
     /// <summary>
-    /// Get a set of URLs that have been downloaded (from archive metadata in HTML files)
+    ///     Get a set of URLs that have been downloaded (from archive metadata in HTML files)
     /// </summary>
     private HashSet<string> GetDownloadedUrlSet()
     {
@@ -1007,7 +949,6 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             return urls;
 
         foreach (var htmlFile in Directory.GetFiles(_options.InputDirectory, "*.html"))
-        {
             try
             {
                 // Read just the first few lines to get metadata
@@ -1023,25 +964,22 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
                     urls.Add(url);
 
                     // Also add the path-only version for relative link matching
-                    if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
-                    {
-                        urls.Add(uri.AbsolutePath);
-                    }
+                    if (Uri.TryCreate(url, UriKind.Absolute, out var uri)) urls.Add(uri.AbsolutePath);
                 }
             }
             catch
             {
                 // Skip files we can't read
             }
-        }
 
         return urls;
     }
 
     /// <summary>
-    /// Rewrite URL with fallback to Archive.org for broken local links
+    ///     Rewrite URL with fallback to Archive.org for broken local links
     /// </summary>
-    private string RewriteUrlWithArchiveFallback(string url, Uri baseUri, string targetHost, HashSet<string> downloadedUrls)
+    private string RewriteUrlWithArchiveFallback(string url, Uri baseUri, string targetHost,
+        HashSet<string> downloadedUrls)
     {
         // Skip empty, mailto, tel, javascript, and anchor links
         if (string.IsNullOrEmpty(url) ||
@@ -1049,16 +987,11 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             url.StartsWith("tel:", StringComparison.OrdinalIgnoreCase) ||
             url.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase) ||
             url.StartsWith('#'))
-        {
             return url;
-        }
 
         // Remove Wayback Machine URL prefix if present
         var waybackMatch = Regex.Match(url, @"https?://web\.archive\.org/web/\d+[a-z_]*/(.+)");
-        if (waybackMatch.Success)
-        {
-            url = waybackMatch.Groups[1].Value;
-        }
+        if (waybackMatch.Success) url = waybackMatch.Groups[1].Value;
 
         // Check if it's a local/relative link
         var isLocalLink = url.StartsWith('/') ||
@@ -1114,9 +1047,9 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
     }
 
     /// <summary>
-    /// Convert archive-style paths to blog format
-    /// e.g., /articles/nestedrepeaters.htm -> /blog/nestedrepeaters
-    ///       /archive/2004/05/27/1054.aspx -> /blog/1054
+    ///     Convert archive-style paths to blog format
+    ///     e.g., /articles/nestedrepeaters.htm -> /blog/nestedrepeaters
+    ///     /archive/2004/05/27/1054.aspx -> /blog/1054
     /// </summary>
     private static string ConvertToBlogUrl(string absolutePath)
     {
@@ -1127,10 +1060,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
         {
             // For index pages, use the parent directory name
             var segments = absolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            if (segments.Length > 1)
-            {
-                fileName = segments[^2]; // Second to last segment
-            }
+            if (segments.Length > 1) fileName = segments[^2]; // Second to last segment
         }
 
         // Sanitize the slug
@@ -1150,16 +1080,11 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             url.StartsWith("tel:", StringComparison.OrdinalIgnoreCase) ||
             url.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase) ||
             url.StartsWith('#'))
-        {
             return url;
-        }
 
         // Remove Wayback Machine URL prefix if present
         var waybackMatch = Regex.Match(url, @"https?://web\.archive\.org/web/\d+[a-z_]*/(.+)");
-        if (waybackMatch.Success)
-        {
-            url = waybackMatch.Groups[1].Value;
-        }
+        if (waybackMatch.Success) url = waybackMatch.Groups[1].Value;
 
         // Try to parse as absolute URL
         if (Uri.TryCreate(url, UriKind.Absolute, out var absoluteUri))
@@ -1167,9 +1092,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             // If it's from the same domain, convert to relative
             if (absoluteUri.Host.Equals(targetHost, StringComparison.OrdinalIgnoreCase) ||
                 absoluteUri.Host.Equals(baseUri.Host, StringComparison.OrdinalIgnoreCase))
-            {
                 return absoluteUri.PathAndQuery;
-            }
 
             // External link - keep as-is
             return url;
@@ -1194,10 +1117,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             return images;
 
         Uri? baseUri = null;
-        if (!string.IsNullOrEmpty(originalUrl))
-        {
-            Uri.TryCreate(originalUrl, UriKind.Absolute, out baseUri);
-        }
+        if (!string.IsNullOrEmpty(originalUrl)) Uri.TryCreate(originalUrl, UriKind.Absolute, out baseUri);
 
         var imagesDir = Path.Combine(_options.OutputDirectory, _options.ImagesDirectory);
 
@@ -1217,13 +1137,9 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
                 if (!Uri.TryCreate(src, UriKind.Absolute, out var imgUri))
                 {
                     if (baseUri != null && Uri.TryCreate(baseUri, src, out var resolvedUri))
-                    {
                         absoluteUrl = resolvedUri.ToString();
-                    }
                     else
-                    {
                         continue;
-                    }
                 }
 
                 // Generate local filename
@@ -1265,7 +1181,8 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogWarning("Failed to download image from both Wayback and original: {Url} - {Error}",
+                            _logger.LogWarning(
+                                "Failed to download image from both Wayback and original: {Url} - {Error}",
                                 absoluteUrl, ex.Message);
                         }
                     }
@@ -1278,10 +1195,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
                 }
 
                 // Update the img src to the local path
-                if (imageInfo.Downloaded)
-                {
-                    img.SetAttributeValue("src", markdownPath);
-                }
+                if (imageInfo.Downloaded) img.SetAttributeValue("src", markdownPath);
 
                 images.Add(imageInfo);
             }
@@ -1299,17 +1213,11 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
         var uri = new Uri(url);
         var fileName = Path.GetFileName(uri.AbsolutePath);
 
-        if (string.IsNullOrEmpty(fileName))
-        {
-            fileName = $"image_{Guid.NewGuid():N}.jpg";
-        }
+        if (string.IsNullOrEmpty(fileName)) fileName = $"image_{Guid.NewGuid():N}.jpg";
 
         // Sanitize filename
         var invalidChars = Path.GetInvalidFileNameChars();
-        foreach (var c in invalidChars)
-        {
-            fileName = fileName.Replace(c, '_');
-        }
+        foreach (var c in invalidChars) fileName = fileName.Replace(c, '_');
 
         // Ensure uniqueness by adding hash
         var hash = url.GetHashCode().ToString("X8");
@@ -1385,10 +1293,7 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
                     return extractedDate;
 
                 // Try standard date parsing
-                if (!string.IsNullOrEmpty(dateStr) && DateTime.TryParse(dateStr, out var date))
-                {
-                    return date;
-                }
+                if (!string.IsNullOrEmpty(dateStr) && DateTime.TryParse(dateStr, out var date)) return date;
             }
         }
 
@@ -1403,17 +1308,14 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
         foreach (var pattern in datePatterns)
         {
             var match = Regex.Match(html, pattern);
-            if (match.Success && DateTime.TryParse(match.Groups[1].Value, out var date))
-            {
-                return date;
-            }
+            if (match.Success && DateTime.TryParse(match.Groups[1].Value, out var date)) return date;
         }
 
         return null;
     }
 
     /// <summary>
-    /// Parse date from "posted on Thursday, May 27, 2004 11:21 PM" format
+    ///     Parse date from "posted on Thursday, May 27, 2004 11:21 PM" format
     /// </summary>
     private static DateTime? ParsePostFootDate(string text)
     {
@@ -1439,14 +1341,10 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             };
 
             foreach (var format in formats)
-            {
                 if (DateTime.TryParseExact(dateStr, format,
-                    System.Globalization.CultureInfo.InvariantCulture,
-                    System.Globalization.DateTimeStyles.None, out var parsedDate))
-                {
+                        CultureInfo.InvariantCulture,
+                        DateTimeStyles.None, out var parsedDate))
                     return parsedDate;
-                }
-            }
 
             // Fall back to standard parsing
             if (DateTime.TryParse(dateStr, out var date))
@@ -1463,7 +1361,6 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
     {
         // Try to get slug from URL path first
         if (!string.IsNullOrEmpty(originalUrl))
-        {
             try
             {
                 var uri = new Uri(originalUrl);
@@ -1476,17 +1373,13 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
                     var lastSegment = segments[^1];
                     // Remove file extensions
                     lastSegment = Path.GetFileNameWithoutExtension(lastSegment);
-                    if (!string.IsNullOrEmpty(lastSegment) && lastSegment != "index")
-                    {
-                        return SanitizeSlug(lastSegment);
-                    }
+                    if (!string.IsNullOrEmpty(lastSegment) && lastSegment != "index") return SanitizeSlug(lastSegment);
                 }
             }
             catch
             {
                 // Fall through to title-based slug
             }
-        }
 
         // Generate from title
         return SanitizeSlug(title);
@@ -1531,15 +1424,11 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             }
 
             if (inCodeBlock)
-            {
                 // Preserve code block content as-is
                 cleanedLines.Add(line);
-            }
             else
-            {
                 // Strip leading whitespace from non-code content
                 cleanedLines.Add(line.TrimStart());
-            }
         }
 
         markdown = string.Join('\n', cleanedLines);

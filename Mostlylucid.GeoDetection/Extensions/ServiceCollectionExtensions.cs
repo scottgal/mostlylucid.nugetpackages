@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.GeoDetection.Data;
@@ -93,10 +94,7 @@ public static class ServiceCollectionExtensions
             };
 
             // If database cache is disabled, return provider directly (uses memory cache only)
-            if (!cacheOptions.Enabled)
-            {
-                return provider;
-            }
+            if (!cacheOptions.Enabled) return provider;
 
             // Wrap with database caching
             var dbContext = sp.GetService<GeoDbContext>();
@@ -147,7 +145,7 @@ public static class ServiceCollectionExtensions
     {
         return services.AddGeoRouting(
             configureRouting,
-            configureProvider: options => options.Provider = GeoProvider.IpApi);
+            options => options.Provider = GeoProvider.IpApi);
     }
 
     /// <summary>
@@ -159,7 +157,7 @@ public static class ServiceCollectionExtensions
     {
         return services.AddGeoRouting(
             configure,
-            configureProvider: options => options.Provider = GeoProvider.Simple);
+            options => options.Provider = GeoProvider.Simple);
     }
 
     /// <summary>
@@ -173,7 +171,7 @@ public static class ServiceCollectionExtensions
     {
         return services.AddGeoRouting(
             configureRouting,
-            configureProvider: options => options.Provider = GeoProvider.DataHubCsv);
+            options => options.Provider = GeoProvider.DataHubCsv);
     }
 
     /// <summary>
@@ -208,10 +206,10 @@ public static class ServiceCollectionExtensions
 /// <summary>
 ///     Background service to initialize the geo cache database
 /// </summary>
-internal class GeoCacheDatabaseInitializer : Microsoft.Extensions.Hosting.IHostedService
+internal class GeoCacheDatabaseInitializer : IHostedService
 {
-    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<GeoCacheDatabaseInitializer> _logger;
+    private readonly IServiceProvider _serviceProvider;
 
     public GeoCacheDatabaseInitializer(IServiceProvider serviceProvider, ILogger<GeoCacheDatabaseInitializer> logger)
     {
@@ -225,7 +223,6 @@ internal class GeoCacheDatabaseInitializer : Microsoft.Extensions.Hosting.IHoste
         var dbContext = scope.ServiceProvider.GetService<GeoDbContext>();
 
         if (dbContext != null)
-        {
             try
             {
                 await dbContext.Database.EnsureCreatedAsync(cancellationToken);
@@ -235,8 +232,10 @@ internal class GeoCacheDatabaseInitializer : Microsoft.Extensions.Hosting.IHoste
             {
                 _logger.LogWarning(ex, "Failed to initialize geo cache database");
             }
-        }
     }
 
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
 }

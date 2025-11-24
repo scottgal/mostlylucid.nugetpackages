@@ -22,14 +22,14 @@ var provider = Enum.TryParse<GeoProvider>(providerConfig, out var p) ? p : GeoPr
 
 // Add GeoDetection services
 builder.Services.AddGeoRouting(
-    configureRouting: options =>
+    options =>
     {
         options.Enabled = true;
         options.EnableTestMode = true; // Allow header override for testing
         options.AddCountryHeader = true; // Add X-Country header to responses
         options.StoreInContext = true; // Store GeoLocation in HttpContext.Items
     },
-    configureProvider: options =>
+    options =>
     {
         // Configure from appsettings.json
         var config = builder.Configuration.GetSection("GeoLite2");
@@ -93,19 +93,21 @@ app.MapGet("/api/my-location", async (HttpContext context, IGeoLocationService g
     return Results.Ok(new
     {
         ip,
-        location = location != null ? new
-        {
-            location.CountryCode,
-            location.CountryName,
-            location.ContinentCode,
-            location.RegionCode,
-            location.City,
-            location.Latitude,
-            location.Longitude,
-            location.TimeZone,
-            location.IsVpn,
-            location.IsHosting
-        } : null
+        location = location != null
+            ? new
+            {
+                location.CountryCode,
+                location.CountryName,
+                location.ContinentCode,
+                location.RegionCode,
+                location.City,
+                location.Latitude,
+                location.Longitude,
+                location.TimeZone,
+                location.IsVpn,
+                location.IsHosting
+            }
+            : null
     });
 });
 
@@ -126,14 +128,17 @@ app.MapPost("/api/lookup/batch", async (string[] ips, IGeoLocationService geoSer
         results.Add(new
         {
             ip,
-            location = location != null ? new
-            {
-                location.CountryCode,
-                location.CountryName,
-                location.City
-            } : null
+            location = location != null
+                ? new
+                {
+                    location.CountryCode,
+                    location.CountryName,
+                    location.City
+                }
+                : null
         });
     }
+
     return Results.Ok(results);
 });
 
@@ -151,9 +156,7 @@ app.MapGet("/api/us-only", async (HttpContext context, IGeoLocationService geoSe
     var location = await geoService.GetLocationAsync(ip);
 
     if (location?.CountryCode != "US")
-    {
         return Results.Json(new { error = "This content is only available in the United States" }, statusCode: 451);
-    }
 
     return Results.Ok(new { message = "Welcome, US visitor!", countryCode = location.CountryCode });
 }).RequireCountry("US");

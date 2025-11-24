@@ -166,6 +166,7 @@ foreach (var source in sources)
 ```
 
 Available telemetry utilities:
+
 - `TelemetryActivitySource` - Wrapper for System.Diagnostics.ActivitySource
 - `TelemetryOptions` - Configuration for telemetry behavior
 - `TelemetryConstants` - Standard attribute names following OpenTelemetry semantic conventions

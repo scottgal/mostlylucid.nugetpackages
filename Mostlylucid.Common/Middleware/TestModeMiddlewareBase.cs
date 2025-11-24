@@ -9,8 +9,8 @@ namespace Mostlylucid.Common.Middleware;
 /// <typeparam name="TResult">The type of result stored in HttpContext.Items</typeparam>
 public abstract class TestModeMiddlewareBase<TResult> where TResult : class
 {
-    protected readonly RequestDelegate Next;
     protected readonly ILogger Logger;
+    protected readonly RequestDelegate Next;
 
     protected TestModeMiddlewareBase(RequestDelegate next, ILogger logger)
     {
@@ -46,7 +46,9 @@ public abstract class TestModeMiddlewareBase<TResult> where TResult : class
     /// <summary>
     ///     Called after processing to add response headers, etc.
     /// </summary>
-    protected virtual void OnResultProcessed(HttpContext context, TResult? result) { }
+    protected virtual void OnResultProcessed(HttpContext context, TResult? result)
+    {
+    }
 
     public async Task InvokeAsync(HttpContext context)
     {
@@ -64,10 +66,7 @@ public abstract class TestModeMiddlewareBase<TResult> where TResult : class
         }
 
         // Normal processing if not in test mode
-        if (result == null)
-        {
-            result = await ProcessRequestAsync(context);
-        }
+        if (result == null) result = await ProcessRequestAsync(context);
 
         // Store result and notify
         if (result != null)
@@ -90,12 +89,12 @@ public static class HttpContextIpExtensions
     /// </summary>
     private static readonly string[] ForwardedHeaders =
     {
-        "CF-Connecting-IP",      // Cloudflare
-        "True-Client-IP",        // Akamai, Cloudflare Enterprise
-        "X-Real-IP",             // Nginx
-        "X-Forwarded-For",       // Standard proxy header
-        "X-Client-IP",           // Apache
-        "X-Cluster-Client-IP"    // Rackspace
+        "CF-Connecting-IP", // Cloudflare
+        "True-Client-IP", // Akamai, Cloudflare Enterprise
+        "X-Real-IP", // Nginx
+        "X-Forwarded-For", // Standard proxy header
+        "X-Client-IP", // Apache
+        "X-Cluster-Client-IP" // Rackspace
     };
 
     /// <summary>
@@ -113,10 +112,7 @@ public static class HttpContextIpExtensions
                 var ip = value.Split(',', StringSplitOptions.RemoveEmptyEntries)
                     .FirstOrDefault()?.Trim();
 
-                if (!string.IsNullOrEmpty(ip))
-                {
-                    return ip;
-                }
+                if (!string.IsNullOrEmpty(ip)) return ip;
             }
         }
 

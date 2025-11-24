@@ -3,12 +3,12 @@ using Mostlylucid.LLMContentModeration.Models;
 namespace Mostlylucid.LLMContentModeration.Services;
 
 /// <summary>
-/// Service for detecting and masking PII in content
+///     Service for detecting and masking PII in content
 /// </summary>
 public interface IPiiDetector
 {
     /// <summary>
-    /// Detect PII in content using regex patterns
+    ///     Detect PII in content using regex patterns
     /// </summary>
     /// <param name="content">Content to scan</param>
     /// <param name="options">Detection options</param>
@@ -16,7 +16,7 @@ public interface IPiiDetector
     List<PiiMatch> DetectPii(string content, PiiDetectionOptions options);
 
     /// <summary>
-    /// Mask PII in content
+    ///     Mask PII in content
     /// </summary>
     /// <param name="content">Original content</param>
     /// <param name="matches">PII matches to mask</param>

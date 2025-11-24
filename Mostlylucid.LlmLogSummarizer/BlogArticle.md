@@ -1,22 +1,28 @@
 # Building an AI-Powered Log Summarizer with Local LLMs
 
-If you're running any kind of production system, you know the pain: logs pile up, exceptions scroll by, and somewhere in that sea of text are the patterns that matter. Traditional monitoring tools help, but they often require expensive subscriptions, send your data to third parties, and still leave you drowning in alerts.
+If you're running any kind of production system, you know the pain: logs pile up, exceptions scroll by, and somewhere in
+that sea of text are the patterns that matter. Traditional monitoring tools help, but they often require expensive
+subscriptions, send your data to third parties, and still leave you drowning in alerts.
 
-What if you could have an AI assistant that reads your logs every night, clusters similar errors, identifies trends, and delivers a human-readable summary to your inbox or Slack channel? And what if it ran entirely locally, for free?
+What if you could have an AI assistant that reads your logs every night, clusters similar errors, identifies trends, and
+delivers a human-readable summary to your inbox or Slack channel? And what if it ran entirely locally, for free?
 
 That's exactly what `Mostlylucid.LlmLogSummarizer` does.
 
 ## The Problem
 
 Modern applications generate enormous amounts of log data. Even a modest web application might produce:
+
 - Thousands of INFO messages per hour
 - Hundreds of warnings about deprecations, slow queries, or edge cases
 - Dozens of errors that need attention
 - Occasional critical failures that need immediate action
 
-The challenge isn't collecting this data - Serilog, Application Insights, and similar tools handle that well. The challenge is making sense of it all.
+The challenge isn't collecting this data - Serilog, Application Insights, and similar tools handle that well. The
+challenge is making sense of it all.
 
 Traditional approaches have problems:
+
 - **Alert fatigue**: Too many notifications train you to ignore them
 - **Pattern blindness**: Similar errors with different IDs look like separate issues
 - **Context loss**: Stack traces don't explain *why* something matters
@@ -25,12 +31,14 @@ Traditional approaches have problems:
 ## The Solution: AI-Powered Log Analysis
 
 Large Language Models are remarkably good at:
+
 - Summarizing technical content
 - Identifying patterns
 - Explaining complex errors in plain language
 - Suggesting investigation steps
 
 And with local models like Llama 3.2 running through Ollama, you can do all of this:
+
 - **Privately**: Your logs never leave your infrastructure
 - **For free**: No API costs or subscription fees
 - **Quickly**: Small models run in seconds, not minutes
@@ -106,11 +114,13 @@ public string GetClusteringFingerprint()
 }
 ```
 
-This means "User 12345 not found" and "User 67890 not found" get clustered together, while "User not found" in different services stay separate.
+This means "User 12345 not found" and "User 67890 not found" get clustered together, while "User not found" in different
+services stay separate.
 
 ### 2. Trend Analysis
 
 By comparing current clusters with historical data, we can identify:
+
 - **New error types**: First appearance in this period
 - **Trending up**: Increasing frequency (potential emerging issue)
 - **Trending down**: Decreasing frequency (maybe you fixed something!)
@@ -148,11 +158,14 @@ Provide a brief technical summary of what this error means and its potential imp
 
 The LLM turns cryptic stack traces into actionable insights like:
 
-> "This NullReferenceException occurs when the user cache expires and GetProfile attempts to access the cached object without null checking. With 89 occurrences in 24 hours and increasing frequency, this is likely impacting user experience. The pattern suggests the cache invalidation logic may not be properly handling edge cases."
+> "This NullReferenceException occurs when the user cache expires and GetProfile attempts to access the cached object
+> without null checking. With 89 occurrences in 24 hours and increasing frequency, this is likely impacting user
+> experience. The pattern suggests the cache invalidation logic may not be properly handling edge cases."
 
 ### 4. Multiple Output Channels
 
 Results can go to:
+
 - **Markdown files**: Perfect for archiving and searching
 - **Email**: HTML and text versions with configurable recipients
 - **Slack**: Rich block-formatted messages
@@ -258,6 +271,7 @@ The summarizer is designed for efficiency:
 - **Incremental trends**: Historical data is kept in memory between runs
 
 A typical run with 50,000 log entries:
+
 - Collection: ~2-5 seconds
 - Clustering: ~1-2 seconds
 - LLM summarization (10 clusters): ~30-60 seconds
@@ -304,21 +318,27 @@ public class PagerDutyOutputProvider : IOutputProvider
 
 You might wonder why not use OpenAI or Claude for this. There are good reasons:
 
-1. **Privacy**: Production logs often contain sensitive data - user IDs, internal service names, maybe even PII. Keeping everything local means no data leaves your infrastructure.
+1. **Privacy**: Production logs often contain sensitive data - user IDs, internal service names, maybe even PII. Keeping
+   everything local means no data leaves your infrastructure.
 
-2. **Cost**: If you're running this daily across multiple services, API costs add up. Local inference is free after the initial model download.
+2. **Cost**: If you're running this daily across multiple services, API costs add up. Local inference is free after the
+   initial model download.
 
 3. **Latency**: Local models respond in seconds. API calls can take longer, especially under load.
 
-4. **Reliability**: No external dependencies means the summarizer works even when your internet is down (which might be when you need it most!).
+4. **Reliability**: No external dependencies means the summarizer works even when your internet is down (which might be
+   when you need it most!).
 
 5. **Customization**: You can fine-tune local models on your specific log patterns and terminology.
 
 ## Conclusion
 
-`Mostlylucid.LlmLogSummarizer` brings AI-powered log analysis to .NET applications with minimal setup. By running locally, it provides the benefits of LLM analysis without the privacy concerns or costs of cloud APIs.
+`Mostlylucid.LlmLogSummarizer` brings AI-powered log analysis to .NET applications with minimal setup. By running
+locally, it provides the benefits of LLM analysis without the privacy concerns or costs of cloud APIs.
 
-The key insight is that you don't need cutting-edge models for this task. Smaller, faster models like Llama 3.2 3B are perfectly capable of summarizing errors, identifying patterns, and generating actionable insights. What matters is having the right pipeline to collect, cluster, and present the data.
+The key insight is that you don't need cutting-edge models for this task. Smaller, faster models like Llama 3.2 3B are
+perfectly capable of summarizing errors, identifying patterns, and generating actionable insights. What matters is
+having the right pipeline to collect, cluster, and present the data.
 
 Give it a try - your future self debugging a production incident at 2 AM will thank you.
 

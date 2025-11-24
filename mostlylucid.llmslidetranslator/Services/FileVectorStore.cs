@@ -16,13 +16,6 @@ public class FileVectorStore(
     private readonly string dataPath = InitializeDataPath(config.Value.DataPath);
     private readonly SemaphoreSlim fileLock = new(1, 1);
 
-    private static string InitializeDataPath(string path)
-    {
-        // Ensure data directory exists
-        Directory.CreateDirectory(path);
-        return path;
-    }
-
     public async Task StoreAsync(
         List<TranslationBlock> blocks,
         string documentId,
@@ -126,6 +119,13 @@ public class FileVectorStore(
                 fileLock.Release();
             }
         }
+    }
+
+    private static string InitializeDataPath(string path)
+    {
+        // Ensure data directory exists
+        Directory.CreateDirectory(path);
+        return path;
     }
 
     private string GetDocumentPath(string documentId)

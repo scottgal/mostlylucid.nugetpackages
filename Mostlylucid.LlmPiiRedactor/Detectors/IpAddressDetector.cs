@@ -5,18 +5,10 @@ using Mostlylucid.LlmPiiRedactor.Models;
 namespace Mostlylucid.LlmPiiRedactor.Detectors;
 
 /// <summary>
-/// Detects IPv4 and IPv6 addresses.
+///     Detects IPv4 and IPv6 addresses.
 /// </summary>
 public class IpAddressDetector : BasePiiDetector
 {
-    public override PiiType PiiType => PiiType.IpAddress;
-    public override string Name => "IpAddressDetector";
-    public override int Priority => 30;
-
-    // Combined IPv4 and IPv6 pattern
-    protected override string Pattern =>
-        @"(?<!\d)(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?!\d)|(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,7}:|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|::(?:[0-9a-fA-F]{1,4}:){0,5}[0-9a-fA-F]{1,4}|[0-9a-fA-F]{1,4}::(?:[0-9a-fA-F]{1,4}:){0,5}[0-9a-fA-F]{1,4}";
-
     // Common non-PII IPs to exclude
     private static readonly HashSet<string> ExcludedIps = new()
     {
@@ -26,6 +18,14 @@ public class IpAddressDetector : BasePiiDetector
         "::1",
         "::"
     };
+
+    public override PiiType PiiType => PiiType.IpAddress;
+    public override string Name => "IpAddressDetector";
+    public override int Priority => 30;
+
+    // Combined IPv4 and IPv6 pattern
+    protected override string Pattern =>
+        @"(?<!\d)(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?!\d)|(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,7}:|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|::(?:[0-9a-fA-F]{1,4}:){0,5}[0-9a-fA-F]{1,4}|[0-9a-fA-F]{1,4}::(?:[0-9a-fA-F]{1,4}:){0,5}[0-9a-fA-F]{1,4}";
 
     protected override bool ValidateMatch(Match match, string originalText)
     {

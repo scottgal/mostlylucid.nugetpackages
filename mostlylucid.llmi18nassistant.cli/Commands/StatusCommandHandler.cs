@@ -81,20 +81,18 @@ public class StatusCommandHandler
                 Console.ResetColor();
                 return 0;
             }
-            else
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("Some required services are unavailable.");
-                Console.ResetColor();
-                Console.WriteLine();
-                Console.WriteLine("To start Ollama:");
-                Console.WriteLine("  ollama serve");
-                Console.WriteLine();
-                Console.WriteLine("Recommended models for translation:");
-                Console.WriteLine("  ollama pull mannix/llamax3-8b-alpaca");
-                Console.WriteLine("  ollama pull llama3.2:3b");
-                return 1;
-            }
+
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("Some required services are unavailable.");
+            Console.ResetColor();
+            Console.WriteLine();
+            Console.WriteLine("To start Ollama:");
+            Console.WriteLine("  ollama serve");
+            Console.WriteLine();
+            Console.WriteLine("Recommended models for translation:");
+            Console.WriteLine("  ollama pull mannix/llamax3-8b-alpaca");
+            Console.WriteLine("  ollama pull llama3.2:3b");
+            return 1;
         }
         catch (Exception ex)
         {

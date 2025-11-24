@@ -1,6 +1,7 @@
 using Mostlylucid.LlmPiiRedactor.Extensions;
 using Mostlylucid.LlmPiiRedactor.Filters;
 using Mostlylucid.LlmPiiRedactor.Models;
+using Mostlylucid.LlmPiiRedactor.Services;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,7 +15,7 @@ builder.Host.UseSerilog();
 
 // Add PII redaction services with custom configuration
 builder.Services.AddPiiRedaction(
-    configureRedaction: options =>
+    options =>
     {
         options.DefaultStyle = RedactionStyle.PartialMask;
         options.DetectionTypes = PiiType.All;
@@ -28,7 +29,7 @@ builder.Services.AddPiiRedaction(
         // Use tokens for debugging
         options.StyleOverrides[PiiType.Name] = RedactionStyle.Tokenized;
     },
-    configureMiddleware: options =>
+    options =>
     {
         options.Enabled = true;
         options.RedactRequestBody = true;
@@ -36,7 +37,7 @@ builder.Services.AddPiiRedaction(
         options.RedactQueryStrings = true;
         options.ExcludedPaths.Add("/swagger/*");
     },
-    configureLogging: options =>
+    options =>
     {
         options.Enabled = true;
         options.RedactExceptions = true;
@@ -64,7 +65,7 @@ app.MapControllers();
 // Demo endpoints
 app.MapGet("/", () => "PII Redaction Demo API - Try the /api/demo endpoints!");
 
-app.MapGet("/api/demo/redact", (string text, Mostlylucid.LlmPiiRedactor.Services.IPiiRedactionService redactionService) =>
+app.MapGet("/api/demo/redact", (string text, IPiiRedactionService redactionService) =>
 {
     var result = redactionService.Redact(text);
     return Results.Ok(new
@@ -82,7 +83,7 @@ app.MapGet("/api/demo/redact", (string text, Mostlylucid.LlmPiiRedactor.Services
     });
 });
 
-app.MapGet("/api/demo/detect", (string text, Mostlylucid.LlmPiiRedactor.Services.IPiiRedactionService redactionService) =>
+app.MapGet("/api/demo/detect", (string text, IPiiRedactionService redactionService) =>
 {
     var matches = redactionService.Detect(text);
     return Results.Ok(new
@@ -100,13 +101,13 @@ app.MapGet("/api/demo/detect", (string text, Mostlylucid.LlmPiiRedactor.Services
     });
 });
 
-app.MapGet("/api/demo/stats", (Mostlylucid.LlmPiiRedactor.Services.IPiiRedactionService redactionService) =>
+app.MapGet("/api/demo/stats", (IPiiRedactionService redactionService) =>
 {
     var stats = redactionService.GetStatistics();
     return Results.Ok(stats);
 });
 
-app.MapPost("/api/demo/user", (UserDto user, Mostlylucid.LlmPiiRedactor.Services.IPiiRedactionService redactionService, ILogger<Program> logger) =>
+app.MapPost("/api/demo/user", (UserDto user, IPiiRedactionService redactionService, ILogger<Program> logger) =>
 {
     // This will be logged with PII redacted if using the redacting logger
     logger.LogInformation("Received user data: {Email}, {Phone}", user.Email, user.Phone);
@@ -120,7 +121,7 @@ app.MapPost("/api/demo/user", (UserDto user, Mostlylucid.LlmPiiRedactor.Services
     });
 });
 
-app.MapGet("/api/demo/styles", (Mostlylucid.LlmPiiRedactor.Services.IPiiRedactionService _) =>
+app.MapGet("/api/demo/styles", (IPiiRedactionService _) =>
 {
     var testEmail = "john.doe@example.com";
     var testCard = "4111-1111-1111-1111";

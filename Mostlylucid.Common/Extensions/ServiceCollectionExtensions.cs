@@ -1,4 +1,6 @@
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Mostlylucid.Common.Caching;
 
 namespace Mostlylucid.Common.Extensions;
@@ -19,18 +21,14 @@ public static class ServiceCollectionExtensions
         services.AddMemoryCache();
 
         if (configure != null)
-        {
             services.Configure(configure);
-        }
         else
-        {
             services.Configure<MemoryCachingOptions>(opt => { });
-        }
 
         services.AddSingleton<ICachingService<T>>(sp =>
         {
-            var cache = sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
-            var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<MemoryCachingOptions>>();
+            var cache = sp.GetRequiredService<IMemoryCache>();
+            var options = sp.GetRequiredService<IOptions<MemoryCachingOptions>>();
             return new MemoryCachingService<T>(cache, options, keyPrefix ?? typeof(T).Name);
         });
 
@@ -45,13 +43,9 @@ public static class ServiceCollectionExtensions
         Action<TOptions>? configure = null) where TOptions : class
     {
         if (configure != null)
-        {
             services.Configure(configure);
-        }
         else
-        {
             services.Configure<TOptions>(opt => { });
-        }
 
         return services;
     }

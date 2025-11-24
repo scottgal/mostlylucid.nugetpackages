@@ -94,7 +94,7 @@ app.MapGet("/simulate", (int? count) =>
         ("HttpRequestException", "An error occurred while sending the request"),
         ("DatabaseException", "Cannot open database requested by the login. The login failed"),
         ("FileNotFoundException", "Could not find file 'config.json'"),
-        ("UnauthorizedAccessException", "Access to the path is denied"),
+        ("UnauthorizedAccessException", "Access to the path is denied")
     };
 
     for (var i = 0; i < errorCount; i++)
@@ -103,28 +103,20 @@ app.MapGet("/simulate", (int? count) =>
         var severity = random.Next(100);
 
         if (severity < 5)
-        {
             Log.Fatal(new Exception($"{exType}: {message}"),
                 "Critical failure in processing request {RequestId}",
                 Guid.NewGuid().ToString("N")[..8]);
-        }
         else if (severity < 30)
-        {
             Log.Error(new Exception($"{exType}: {message}"),
                 "Error processing request {RequestId} for user {UserId}",
                 Guid.NewGuid().ToString("N")[..8],
                 random.Next(1000, 9999));
-        }
         else if (severity < 60)
-        {
             Log.Warning("Potential issue detected: {Issue} for request {RequestId}",
                 message, Guid.NewGuid().ToString("N")[..8]);
-        }
         else
-        {
             Log.Information("Processed request {RequestId} successfully",
                 Guid.NewGuid().ToString("N")[..8]);
-        }
     }
 
     return Results.Ok(new

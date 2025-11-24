@@ -4,10 +4,16 @@ using Mostlylucid.LlmPiiRedactor.Models;
 namespace Mostlylucid.LlmPiiRedactor.Detectors;
 
 /// <summary>
-/// Detects US Social Security Numbers.
+///     Detects US Social Security Numbers.
 /// </summary>
 public class SsnDetector : BasePiiDetector
 {
+    // Invalid area numbers (first 3 digits)
+    private static readonly HashSet<string> InvalidAreaNumbers = new()
+    {
+        "000", "666"
+    };
+
     public override PiiType PiiType => PiiType.Ssn;
     public override string Name => "SsnDetector";
     public override int Priority => 5; // High priority for security
@@ -15,12 +21,6 @@ public class SsnDetector : BasePiiDetector
     // SSN format: XXX-XX-XXXX or XXXXXXXXX
     protected override string Pattern =>
         @"(?<!\d)(?!000|666|9\d{2})\d{3}[-\s]?(?!00)\d{2}[-\s]?(?!0000)\d{4}(?!\d)";
-
-    // Invalid area numbers (first 3 digits)
-    private static readonly HashSet<string> InvalidAreaNumbers = new()
-    {
-        "000", "666"
-    };
 
     protected override bool ValidateMatch(Match match, string originalText)
     {

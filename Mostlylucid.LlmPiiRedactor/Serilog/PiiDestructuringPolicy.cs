@@ -7,12 +7,12 @@ using Serilog.Events;
 namespace Mostlylucid.LlmPiiRedactor.Serilog;
 
 /// <summary>
-/// Serilog destructuring policy that redacts PII from structured log properties.
+///     Serilog destructuring policy that redacts PII from structured log properties.
 /// </summary>
 public class PiiDestructuringPolicy : IDestructuringPolicy
 {
-    private readonly IPiiRedactionService _redactionService;
     private readonly PiiLoggingOptions _options;
+    private readonly IPiiRedactionService _redactionService;
 
     public PiiDestructuringPolicy(
         IPiiRedactionService redactionService,
@@ -22,7 +22,8 @@ public class PiiDestructuringPolicy : IDestructuringPolicy
         _options = options.Value;
     }
 
-    public bool TryDestructure(object value, ILogEventPropertyValueFactory propertyValueFactory, out LogEventPropertyValue? result)
+    public bool TryDestructure(object value, ILogEventPropertyValueFactory propertyValueFactory,
+        out LogEventPropertyValue? result)
     {
         result = null;
 

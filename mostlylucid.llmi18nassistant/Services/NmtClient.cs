@@ -57,7 +57,7 @@ public class NmtClient : INmtClient
                 return null;
             }
 
-            var result = await response.Content.ReadFromJsonAsync<NmtResponse>(cancellationToken: cancellationToken);
+            var result = await response.Content.ReadFromJsonAsync<NmtResponse>(cancellationToken);
             return result?.TranslatedText;
         }
         catch (Exception ex)

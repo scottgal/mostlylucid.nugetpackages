@@ -4,6 +4,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.LlmAltText.Models;
 using Mostlylucid.LlmAltText.Telemetry;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
 
 namespace Mostlylucid.LlmAltText.Services;
 
@@ -17,13 +19,18 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
     private readonly ILogger<Florence2ImageAnalysisService> _logger;
     private readonly Florence2Model? _model;
     private readonly AltTextOptions _options;
+    private readonly IHttpClientFactory? _httpClientFactory;
+    private readonly Lazy<HttpClient> _defaultHttpClient;
 
     public Florence2ImageAnalysisService(
         ILogger<Florence2ImageAnalysisService> logger,
-        IOptions<AltTextOptions> options)
+        IOptions<AltTextOptions> options,
+        IHttpClientFactory? httpClientFactory = null)
     {
         _logger = logger;
         _options = options.Value;
+        _httpClientFactory = httpClientFactory;
+        _defaultHttpClient = new Lazy<HttpClient>(() => CreateDefaultHttpClient());
 
         try
         {
@@ -59,6 +66,8 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
     public void Dispose()
     {
         _initLock.Dispose();
+        if (_defaultHttpClient.IsValueCreated)
+            _defaultHttpClient.Value.Dispose();
         GC.SuppressFinalize(this);
     }
 
@@ -410,5 +419,235 @@ public class Florence2ImageAnalysisService : IImageAnalysisService, IDisposable
     private void LogInfo(string message)
     {
         if (_options.EnableDiagnosticLogging) _logger.LogInformation(message);
+    }
+
+    // ===== File-based overloads =====
+
+    public async Task<string> GenerateAltTextFromFileAsync(string filePath, string taskType = "MORE_DETAILED_CAPTION",
+        CancellationToken cancellationToken = default)
+    {
+        ValidateFilePath(filePath);
+        await using var stream = await LoadAndProcessImageFromFileAsync(filePath, cancellationToken);
+        return await GenerateAltTextAsync(stream, taskType);
+    }
+
+    public async Task<string> ExtractTextFromFileAsync(string filePath, CancellationToken cancellationToken = default)
+    {
+        ValidateFilePath(filePath);
+        await using var stream = await LoadAndProcessImageFromFileAsync(filePath, cancellationToken);
+        return await ExtractTextAsync(stream);
+    }
+
+    public async Task<(string AltText, string ExtractedText)> AnalyzeImageFromFileAsync(string filePath,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateFilePath(filePath);
+        await using var stream = await LoadAndProcessImageFromFileAsync(filePath, cancellationToken);
+        return await AnalyzeImageAsync(stream);
+    }
+
+    public async Task<ImageAnalysisResult> AnalyzeWithClassificationFromFileAsync(string filePath,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateFilePath(filePath);
+        await using var stream = await LoadAndProcessImageFromFileAsync(filePath, cancellationToken);
+        return await AnalyzeWithClassificationAsync(stream);
+    }
+
+    // ===== URL-based overloads =====
+
+    public async Task<string> GenerateAltTextFromUrlAsync(string imageUrl, string taskType = "MORE_DETAILED_CAPTION",
+        CancellationToken cancellationToken = default)
+    {
+        return await GenerateAltTextFromUrlAsync(new Uri(imageUrl), taskType, cancellationToken);
+    }
+
+    public async Task<string> GenerateAltTextFromUrlAsync(Uri imageUrl, string taskType = "MORE_DETAILED_CAPTION",
+        CancellationToken cancellationToken = default)
+    {
+        await using var stream = await FetchAndProcessImageFromUrlAsync(imageUrl, cancellationToken);
+        return await GenerateAltTextAsync(stream, taskType);
+    }
+
+    public async Task<string> ExtractTextFromUrlAsync(string imageUrl, CancellationToken cancellationToken = default)
+    {
+        return await ExtractTextFromUrlAsync(new Uri(imageUrl), cancellationToken);
+    }
+
+    public async Task<string> ExtractTextFromUrlAsync(Uri imageUrl, CancellationToken cancellationToken = default)
+    {
+        await using var stream = await FetchAndProcessImageFromUrlAsync(imageUrl, cancellationToken);
+        return await ExtractTextAsync(stream);
+    }
+
+    public async Task<(string AltText, string ExtractedText)> AnalyzeImageFromUrlAsync(string imageUrl,
+        CancellationToken cancellationToken = default)
+    {
+        return await AnalyzeImageFromUrlAsync(new Uri(imageUrl), cancellationToken);
+    }
+
+    public async Task<(string AltText, string ExtractedText)> AnalyzeImageFromUrlAsync(Uri imageUrl,
+        CancellationToken cancellationToken = default)
+    {
+        await using var stream = await FetchAndProcessImageFromUrlAsync(imageUrl, cancellationToken);
+        return await AnalyzeImageAsync(stream);
+    }
+
+    public async Task<ImageAnalysisResult> AnalyzeWithClassificationFromUrlAsync(string imageUrl,
+        CancellationToken cancellationToken = default)
+    {
+        return await AnalyzeWithClassificationFromUrlAsync(new Uri(imageUrl), cancellationToken);
+    }
+
+    public async Task<ImageAnalysisResult> AnalyzeWithClassificationFromUrlAsync(Uri imageUrl,
+        CancellationToken cancellationToken = default)
+    {
+        await using var stream = await FetchAndProcessImageFromUrlAsync(imageUrl, cancellationToken);
+        return await AnalyzeWithClassificationAsync(stream);
+    }
+
+    // ===== Byte array overloads =====
+
+    public async Task<string> GenerateAltTextAsync(byte[] imageData, string taskType = "MORE_DETAILED_CAPTION")
+    {
+        using var stream = await ProcessImageDataAsync(imageData);
+        return await GenerateAltTextAsync(stream, taskType);
+    }
+
+    public async Task<string> ExtractTextAsync(byte[] imageData)
+    {
+        using var stream = await ProcessImageDataAsync(imageData);
+        return await ExtractTextAsync(stream);
+    }
+
+    public async Task<(string AltText, string ExtractedText)> AnalyzeImageAsync(byte[] imageData)
+    {
+        using var stream = await ProcessImageDataAsync(imageData);
+        return await AnalyzeImageAsync(stream);
+    }
+
+    public async Task<ImageAnalysisResult> AnalyzeWithClassificationAsync(byte[] imageData)
+    {
+        using var stream = await ProcessImageDataAsync(imageData);
+        return await AnalyzeWithClassificationAsync(stream);
+    }
+
+    // ===== Image Processing Helpers =====
+
+    /// <summary>
+    ///     Maximum dimension (width or height) for image processing.
+    ///     Images larger than this will be automatically downscaled.
+    /// </summary>
+    private const int MaxImageDimension = 2048;
+
+    /// <summary>
+    ///     Maximum file size in bytes (20MB) before requiring downscaling
+    /// </summary>
+    private const long MaxFileSizeBytes = 20 * 1024 * 1024;
+
+    private async Task<MemoryStream> LoadAndProcessImageFromFileAsync(string filePath, CancellationToken cancellationToken)
+    {
+        LogInfo($"Loading image from file: {filePath}");
+
+        var fileInfo = new FileInfo(filePath);
+        if (!fileInfo.Exists)
+            throw new FileNotFoundException($"Image file not found: {filePath}", filePath);
+
+        LogInfo($"File size: {fileInfo.Length:N0} bytes");
+
+        await using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read,
+            bufferSize: 81920, useAsync: true);
+
+        return await ProcessImageStreamAsync(fileStream, fileInfo.Length, cancellationToken);
+    }
+
+    private async Task<MemoryStream> FetchAndProcessImageFromUrlAsync(Uri imageUrl, CancellationToken cancellationToken)
+    {
+        LogInfo($"Fetching image from URL: {imageUrl}");
+
+        var client = GetHttpClient();
+        using var response = await client.GetAsync(imageUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        var contentType = response.Content.Headers.ContentType?.MediaType;
+        if (contentType != null && !contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("URL returned non-image content type: {ContentType}", contentType);
+        }
+
+        var contentLength = response.Content.Headers.ContentLength ?? 0;
+        LogInfo($"Content-Length: {contentLength:N0} bytes, Content-Type: {contentType}");
+
+        await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        return await ProcessImageStreamAsync(responseStream, contentLength, cancellationToken);
+    }
+
+    private async Task<MemoryStream> ProcessImageDataAsync(byte[] imageData)
+    {
+        if (imageData == null || imageData.Length == 0)
+            throw new ArgumentException("Image data cannot be null or empty", nameof(imageData));
+
+        LogInfo($"Processing byte array: {imageData.Length:N0} bytes");
+
+        using var inputStream = new MemoryStream(imageData);
+        return await ProcessImageStreamAsync(inputStream, imageData.Length, CancellationToken.None);
+    }
+
+    private async Task<MemoryStream> ProcessImageStreamAsync(Stream inputStream, long estimatedSize, CancellationToken cancellationToken)
+    {
+        // Load image using ImageSharp to validate and potentially resize
+        using var image = await Image.LoadAsync(inputStream, cancellationToken);
+
+        LogInfo($"Image dimensions: {image.Width}x{image.Height}");
+
+        var needsResize = image.Width > MaxImageDimension || image.Height > MaxImageDimension || estimatedSize > MaxFileSizeBytes;
+
+        if (needsResize)
+        {
+            // Calculate new dimensions maintaining aspect ratio
+            var ratio = Math.Min((double)MaxImageDimension / image.Width, (double)MaxImageDimension / image.Height);
+            var newWidth = (int)(image.Width * ratio);
+            var newHeight = (int)(image.Height * ratio);
+
+            LogInfo($"Downscaling image from {image.Width}x{image.Height} to {newWidth}x{newHeight}");
+
+            image.Mutate(x => x.Resize(new ResizeOptions
+            {
+                Size = new Size(newWidth, newHeight),
+                Mode = ResizeMode.Max,
+                Sampler = KnownResamplers.Lanczos3
+            }));
+        }
+
+        // Save to memory stream in PNG format (lossless, widely supported)
+        var outputStream = new MemoryStream();
+        await image.SaveAsPngAsync(outputStream, cancellationToken);
+        outputStream.Position = 0;
+
+        LogInfo($"Processed image size: {outputStream.Length:N0} bytes");
+        return outputStream;
+    }
+
+    private HttpClient GetHttpClient()
+    {
+        if (_httpClientFactory != null)
+        {
+            return _httpClientFactory.CreateClient("AltTextImageFetcher");
+        }
+        return _defaultHttpClient.Value;
+    }
+
+    private HttpClient CreateDefaultHttpClient()
+    {
+        var client = new HttpClient();
+        client.DefaultRequestHeaders.Add("User-Agent", "MostlylucidAltTextBot/1.0");
+        client.Timeout = TimeSpan.FromSeconds(60);
+        return client;
+    }
+
+    private void ValidateFilePath(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+            throw new ArgumentException("File path cannot be null or empty", nameof(filePath));
     }
 }

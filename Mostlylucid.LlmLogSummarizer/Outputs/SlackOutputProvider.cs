@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.LlmLogSummarizer.Models;
@@ -7,7 +6,7 @@ using Mostlylucid.LlmLogSummarizer.Models;
 namespace Mostlylucid.LlmLogSummarizer.Outputs;
 
 /// <summary>
-/// Outputs summary reports to Slack via webhook.
+///     Outputs summary reports to Slack via webhook.
 /// </summary>
 public class SlackOutputProvider : IOutputProvider
 {
@@ -188,10 +187,7 @@ public class SlackOutputProvider : IOutputProvider
             ["blocks"] = blocks
         };
 
-        if (!string.IsNullOrEmpty(_config.Channel))
-        {
-            payload["channel"] = _config.Channel;
-        }
+        if (!string.IsNullOrEmpty(_config.Channel)) payload["channel"] = _config.Channel;
 
         return payload;
     }

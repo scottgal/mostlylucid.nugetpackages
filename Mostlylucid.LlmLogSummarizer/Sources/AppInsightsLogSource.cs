@@ -1,12 +1,14 @@
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.LlmLogSummarizer.Models;
+using LogLevel = Mostlylucid.LlmLogSummarizer.Models.LogLevel;
 
 namespace Mostlylucid.LlmLogSummarizer.Sources;
 
 /// <summary>
-/// Log source for Azure Application Insights.
+///     Log source for Azure Application Insights.
 /// </summary>
 public class AppInsightsLogSource : ILogSource
 {
@@ -34,7 +36,7 @@ public class AppInsightsLogSource : ILogSource
         DateTimeOffset from,
         DateTimeOffset to,
         int maxEntries,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         if (!IsAvailable)
         {
@@ -44,17 +46,11 @@ public class AppInsightsLogSource : ILogSource
 
         // Query traces (logs)
         var traces = await QueryTracesAsync(from, to, maxEntries, cancellationToken);
-        foreach (var entry in traces)
-        {
-            yield return entry;
-        }
+        foreach (var entry in traces) yield return entry;
 
         // Query exceptions
         var exceptions = await QueryExceptionsAsync(from, to, maxEntries, cancellationToken);
-        foreach (var entry in exceptions)
-        {
-            yield return entry;
-        }
+        foreach (var entry in exceptions) yield return entry;
     }
 
     public async Task<bool> TestConnectionAsync(CancellationToken cancellationToken = default)
@@ -113,12 +109,8 @@ public class AppInsightsLogSource : ILogSource
 
                 // Parse custom dimensions
                 if (row.Length > 3 && row[3].ValueKind == JsonValueKind.Object)
-                {
                     foreach (var prop in row[3].EnumerateObject())
-                    {
                         entry.Properties[prop.Name] = prop.Value.ToString();
-                    }
-                }
 
                 results.Add(entry);
             }
@@ -158,7 +150,7 @@ public class AppInsightsLogSource : ILogSource
                 {
                     SourceName = Name,
                     Timestamp = DateTimeOffset.Parse(row[0].GetString()!),
-                    Level = Models.LogLevel.Error,
+                    Level = LogLevel.Error,
                     ExceptionType = row[1].GetString(),
                     ExceptionMessage = row[2].GetString(),
                     Message = row[2].GetString() ?? string.Empty,
@@ -170,9 +162,7 @@ public class AppInsightsLogSource : ILogSource
                 {
                     var details = row[3].EnumerateArray().FirstOrDefault();
                     if (details.TryGetProperty("parsedStack", out var stack))
-                    {
                         entry.StackTrace = FormatStackTrace(stack);
-                    }
                 }
 
                 results.Add(entry);
@@ -200,19 +190,19 @@ public class AppInsightsLogSource : ILogSource
             return null;
         }
 
-        return await response.Content.ReadFromJsonAsync<AppInsightsQueryResponse>(cancellationToken: cancellationToken);
+        return await response.Content.ReadFromJsonAsync<AppInsightsQueryResponse>(cancellationToken);
     }
 
-    private static Models.LogLevel MapSeverityLevel(int severity)
+    private static LogLevel MapSeverityLevel(int severity)
     {
         return severity switch
         {
-            0 => Models.LogLevel.Trace,
-            1 => Models.LogLevel.Debug,
-            2 => Models.LogLevel.Information,
-            3 => Models.LogLevel.Warning,
-            4 => Models.LogLevel.Error,
-            _ => Models.LogLevel.Information
+            0 => LogLevel.Trace,
+            1 => LogLevel.Debug,
+            2 => LogLevel.Information,
+            3 => LogLevel.Warning,
+            4 => LogLevel.Error,
+            _ => LogLevel.Information
         };
     }
 
@@ -220,14 +210,13 @@ public class AppInsightsLogSource : ILogSource
     {
         var lines = new List<string>();
         foreach (var frame in stack.EnumerateArray())
-        {
             if (frame.TryGetProperty("method", out var method) &&
                 frame.TryGetProperty("assembly", out var assembly))
             {
                 var line = frame.TryGetProperty("line", out var lineNum) ? lineNum.GetInt32() : 0;
                 lines.Add($"   at {method.GetString()} in {assembly.GetString()}:line {line}");
             }
-        }
+
         return string.Join(Environment.NewLine, lines);
     }
 
@@ -240,7 +229,7 @@ public class AppInsightsLogSource : ILogSource
     {
         public string Name { get; set; } = string.Empty;
         public List<AppInsightsColumn> Columns { get; set; } = new();
-        public JsonElement[][] Rows { get; set; } = Array.Empty<JsonElement[]>();
+        public JsonElement[][] Rows { get; } = Array.Empty<JsonElement[]>();
     }
 
     private class AppInsightsColumn

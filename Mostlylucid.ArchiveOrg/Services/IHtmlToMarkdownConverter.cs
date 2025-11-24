@@ -5,7 +5,7 @@ namespace Mostlylucid.ArchiveOrg.Services;
 public interface IHtmlToMarkdownConverter
 {
     /// <summary>
-    /// Convert all HTML files in the input directory to Markdown
+    ///     Convert all HTML files in the input directory to Markdown
     /// </summary>
     /// <param name="progress">Optional progress reporter</param>
     /// <param name="cancellationToken">Cancellation token</param>
@@ -15,7 +15,7 @@ public interface IHtmlToMarkdownConverter
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Convert a single HTML file to Markdown (may return multiple articles for multi-post pages)
+    ///     Convert a single HTML file to Markdown (may return multiple articles for multi-post pages)
     /// </summary>
     Task<List<MarkdownArticle>> ConvertFileAsync(
         string htmlFilePath,

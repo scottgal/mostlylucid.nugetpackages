@@ -5,7 +5,7 @@ using Serilog.Events;
 namespace Mostlylucid.LlmPiiRedactor.Serilog;
 
 /// <summary>
-/// Serilog enricher that adds PII detection information to log events.
+///     Serilog enricher that adds PII detection information to log events.
 /// </summary>
 public class PiiRedactingEnricher : ILogEventEnricher
 {

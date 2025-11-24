@@ -1,77 +1,79 @@
+using System.Text.RegularExpressions;
+
 namespace Mostlylucid.LlmLogSummarizer.Models;
 
 /// <summary>
-/// Represents a single log entry from any source.
+///     Represents a single log entry from any source.
 /// </summary>
 public class LogEntry
 {
     /// <summary>
-    /// Unique identifier for this log entry.
+    ///     Unique identifier for this log entry.
     /// </summary>
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
     /// <summary>
-    /// Timestamp when the log was generated.
+    ///     Timestamp when the log was generated.
     /// </summary>
     public DateTimeOffset Timestamp { get; set; }
 
     /// <summary>
-    /// Log level (e.g., Information, Warning, Error, Critical).
+    ///     Log level (e.g., Information, Warning, Error, Critical).
     /// </summary>
     public LogLevel Level { get; set; }
 
     /// <summary>
-    /// The log message content.
+    ///     The log message content.
     /// </summary>
     public string Message { get; set; } = string.Empty;
 
     /// <summary>
-    /// Exception type if this is an error log.
+    ///     Exception type if this is an error log.
     /// </summary>
     public string? ExceptionType { get; set; }
 
     /// <summary>
-    /// Exception message if available.
+    ///     Exception message if available.
     /// </summary>
     public string? ExceptionMessage { get; set; }
 
     /// <summary>
-    /// Full stack trace if available.
+    ///     Full stack trace if available.
     /// </summary>
     public string? StackTrace { get; set; }
 
     /// <summary>
-    /// Source context (usually the logger name or class).
+    ///     Source context (usually the logger name or class).
     /// </summary>
     public string? SourceContext { get; set; }
 
     /// <summary>
-    /// Additional structured properties from the log.
+    ///     Additional structured properties from the log.
     /// </summary>
     public Dictionary<string, object?> Properties { get; set; } = new();
 
     /// <summary>
-    /// The name of the log source this entry came from.
+    ///     The name of the log source this entry came from.
     /// </summary>
     public string? SourceName { get; set; }
 
     /// <summary>
-    /// Request ID or correlation ID for tracing.
+    ///     Request ID or correlation ID for tracing.
     /// </summary>
     public string? RequestId { get; set; }
 
     /// <summary>
-    /// Trace ID for distributed tracing.
+    ///     Trace ID for distributed tracing.
     /// </summary>
     public string? TraceId { get; set; }
 
     /// <summary>
-    /// The raw log line (if applicable).
+    ///     The raw log line (if applicable).
     /// </summary>
     public string? RawContent { get; set; }
 
     /// <summary>
-    /// Creates a fingerprint for clustering similar log entries.
+    ///     Creates a fingerprint for clustering similar log entries.
     /// </summary>
     public string GetClusteringFingerprint()
     {
@@ -105,24 +107,24 @@ public class LogEntry
             return string.Empty;
 
         // Replace GUIDs
-        message = System.Text.RegularExpressions.Regex.Replace(
+        message = Regex.Replace(
             message,
             @"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
             "<GUID>");
 
         // Replace numbers
-        message = System.Text.RegularExpressions.Regex.Replace(
+        message = Regex.Replace(
             message,
             @"\b\d+\b",
             "<N>");
 
         // Replace quoted strings
-        message = System.Text.RegularExpressions.Regex.Replace(
+        message = Regex.Replace(
             message,
             @"'[^']*'",
             "'<STR>'");
 
-        message = System.Text.RegularExpressions.Regex.Replace(
+        message = Regex.Replace(
             message,
             "\"[^\"]*\"",
             "\"<STR>\"");
@@ -132,7 +134,7 @@ public class LogEntry
 }
 
 /// <summary>
-/// Log severity levels.
+///     Log severity levels.
 /// </summary>
 public enum LogLevel
 {

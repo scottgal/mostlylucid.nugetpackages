@@ -1,6 +1,6 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Mostlylucid.LlmPiiRedactor.Filters;
-using Mostlylucid.LlmPiiRedactor.Models;
 using Mostlylucid.LlmPiiRedactor.Services;
 
 namespace Mostlylucid.LlmPiiRedactor.Demo.Controllers;
@@ -9,8 +9,8 @@ namespace Mostlylucid.LlmPiiRedactor.Demo.Controllers;
 [Route("api/[controller]")]
 public class DemoController : ControllerBase
 {
-    private readonly IPiiRedactionService _redactionService;
     private readonly ILogger<DemoController> _logger;
+    private readonly IPiiRedactionService _redactionService;
 
     public DemoController(IPiiRedactionService redactionService, ILogger<DemoController> logger)
     {
@@ -19,7 +19,7 @@ public class DemoController : ControllerBase
     }
 
     /// <summary>
-    /// Demonstrates redaction with different styles.
+    ///     Demonstrates redaction with different styles.
     /// </summary>
     [HttpGet("compare-styles")]
     public IActionResult CompareStyles([FromQuery] string text = "Contact john.doe@example.com or call +1-555-123-4567")
@@ -44,7 +44,7 @@ public class DemoController : ControllerBase
     }
 
     /// <summary>
-    /// Tests credit card detection with Luhn validation.
+    ///     Tests credit card detection with Luhn validation.
     /// </summary>
     [HttpGet("test-credit-card")]
     public IActionResult TestCreditCard([FromQuery] string cardNumber = "4111111111111111")
@@ -63,7 +63,7 @@ public class DemoController : ControllerBase
     }
 
     /// <summary>
-    /// Tests detection of multiple PII types in a single text.
+    ///     Tests detection of multiple PII types in a single text.
     /// </summary>
     [HttpPost("test-multiple")]
     public IActionResult TestMultiple([FromBody] MultiPiiRequest request)
@@ -94,7 +94,7 @@ public class DemoController : ControllerBase
     }
 
     /// <summary>
-    /// Demonstrates exception handling with PII redaction.
+    ///     Demonstrates exception handling with PII redaction.
     /// </summary>
     [HttpGet("test-exception")]
     [RedactPiiExceptions]
@@ -105,7 +105,7 @@ public class DemoController : ControllerBase
     }
 
     /// <summary>
-    /// Demonstrates GDPR-style full redaction.
+    ///     Demonstrates GDPR-style full redaction.
     /// </summary>
     [HttpGet("gdpr-example")]
     public IActionResult GdprExample()
@@ -121,7 +121,7 @@ public class DemoController : ControllerBase
             dob = "DOB: 15/03/1985"
         };
 
-        var jsonText = System.Text.Json.JsonSerializer.Serialize(userData);
+        var jsonText = JsonSerializer.Serialize(userData);
         var result = _redactionService.Redact(jsonText);
 
         return Ok(new
@@ -134,7 +134,7 @@ public class DemoController : ControllerBase
     }
 
     /// <summary>
-    /// Demonstrates PCI-DSS style payment data redaction.
+    ///     Demonstrates PCI-DSS style payment data redaction.
     /// </summary>
     [HttpGet("pci-example")]
     public IActionResult PciExample()
@@ -163,7 +163,7 @@ public class DemoController : ControllerBase
     }
 
     /// <summary>
-    /// Returns current redaction statistics.
+    ///     Returns current redaction statistics.
     /// </summary>
     [HttpGet("statistics")]
     public IActionResult GetStatistics()

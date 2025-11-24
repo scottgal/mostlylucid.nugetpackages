@@ -52,8 +52,8 @@ public interface IDatabaseStatistics : IServiceStatistics
 /// </summary>
 public class ServiceStatisticsTracker : IServiceStatistics
 {
-    private long _totalRequests;
     private long _cacheHits;
+    private long _totalRequests;
 
     public long TotalRequests => _totalRequests;
     public long CacheHits => _cacheHits;
@@ -62,7 +62,10 @@ public class ServiceStatisticsTracker : IServiceStatistics
     /// <summary>
     ///     Increment request counter
     /// </summary>
-    public void IncrementRequests() => Interlocked.Increment(ref _totalRequests);
+    public void IncrementRequests()
+    {
+        Interlocked.Increment(ref _totalRequests);
+    }
 
     /// <summary>
     ///     Increment cache hit counter (also increments requests)

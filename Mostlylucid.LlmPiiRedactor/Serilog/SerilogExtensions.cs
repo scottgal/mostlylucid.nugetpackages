@@ -8,12 +8,12 @@ using Serilog.Configuration;
 namespace Mostlylucid.LlmPiiRedactor.Serilog;
 
 /// <summary>
-/// Serilog extension methods for PII redaction.
+///     Serilog extension methods for PII redaction.
 /// </summary>
 public static class SerilogExtensions
 {
     /// <summary>
-    /// Adds PII redacting enricher to Serilog configuration.
+    ///     Adds PII redacting enricher to Serilog configuration.
     /// </summary>
     public static LoggerConfiguration WithPiiRedaction(
         this LoggerEnrichmentConfiguration enrichmentConfiguration,
@@ -27,7 +27,7 @@ public static class SerilogExtensions
     }
 
     /// <summary>
-    /// Adds PII destructuring policy to Serilog configuration.
+    ///     Adds PII destructuring policy to Serilog configuration.
     /// </summary>
     public static LoggerConfiguration WithPiiDestructuring(
         this LoggerDestructuringConfiguration destructuringConfiguration,
@@ -43,7 +43,7 @@ public static class SerilogExtensions
     }
 
     /// <summary>
-    /// Configures Serilog to redact PII from all log messages.
+    ///     Configures Serilog to redact PII from all log messages.
     /// </summary>
     public static LoggerConfiguration RedactPii(
         this LoggerConfiguration loggerConfiguration,

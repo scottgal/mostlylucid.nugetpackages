@@ -4,7 +4,7 @@ using Mostlylucid.LlmPiiRedactor.Models;
 namespace Mostlylucid.LlmPiiRedactor.Detectors;
 
 /// <summary>
-/// Detects generic account IDs, user IDs, and similar identifiers.
+///     Detects generic account IDs, user IDs, and similar identifiers.
 /// </summary>
 public class AccountIdDetector : BasePiiDetector
 {

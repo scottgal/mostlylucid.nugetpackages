@@ -4,17 +4,17 @@ using Mostlylucid.LlmLogSummarizer.Models;
 namespace Mostlylucid.LlmLogSummarizer.Telemetry;
 
 /// <summary>
-/// Telemetry instrumentation for log summarization operations
+///     Telemetry instrumentation for log summarization operations
 /// </summary>
 public static class LogSummarizerTelemetry
 {
     /// <summary>
-    /// Activity source name for log summarization
+    ///     Activity source name for log summarization
     /// </summary>
     public const string ActivitySourceName = "Mostlylucid.LlmLogSummarizer";
 
     /// <summary>
-    /// Activity source for log summarization telemetry
+    ///     Activity source for log summarization telemetry
     /// </summary>
     public static readonly ActivitySource ActivitySource = new(ActivitySourceName, GetVersion());
 
@@ -24,11 +24,12 @@ public static class LogSummarizerTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for log summarization
+    ///     Starts an activity for log summarization
     /// </summary>
-    public static Activity? StartSummarizationActivity(DateTimeOffset? periodStart = null, DateTimeOffset? periodEnd = null)
+    public static Activity? StartSummarizationActivity(DateTimeOffset? periodStart = null,
+        DateTimeOffset? periodEnd = null)
     {
-        var activity = ActivitySource.StartActivity("LogSummarizer.Summarize", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("LogSummarizer.Summarize");
 
         if (activity != null)
         {
@@ -42,39 +43,39 @@ public static class LogSummarizerTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for log collection
+    ///     Starts an activity for log collection
     /// </summary>
     public static Activity? StartCollectionActivity()
     {
-        return ActivitySource.StartActivity("LogSummarizer.CollectLogs", ActivityKind.Internal);
+        return ActivitySource.StartActivity("LogSummarizer.CollectLogs");
     }
 
     /// <summary>
-    /// Starts an activity for log clustering
+    ///     Starts an activity for log clustering
     /// </summary>
     public static Activity? StartClusteringActivity()
     {
-        return ActivitySource.StartActivity("LogSummarizer.ClusterLogs", ActivityKind.Internal);
+        return ActivitySource.StartActivity("LogSummarizer.ClusterLogs");
     }
 
     /// <summary>
-    /// Starts an activity for LLM enrichment
+    ///     Starts an activity for LLM enrichment
     /// </summary>
     public static Activity? StartLlmEnrichmentActivity()
     {
-        return ActivitySource.StartActivity("LogSummarizer.LlmEnrichment", ActivityKind.Internal);
+        return ActivitySource.StartActivity("LogSummarizer.LlmEnrichment");
     }
 
     /// <summary>
-    /// Starts an activity for output generation
+    ///     Starts an activity for output generation
     /// </summary>
     public static Activity? StartOutputActivity()
     {
-        return ActivitySource.StartActivity("LogSummarizer.OutputReport", ActivityKind.Internal);
+        return ActivitySource.StartActivity("LogSummarizer.OutputReport");
     }
 
     /// <summary>
-    /// Records summarization result on the activity
+    ///     Records summarization result on the activity
     /// </summary>
     public static void RecordResult(Activity? activity, SummaryReport report)
     {
@@ -89,7 +90,8 @@ public static class LogSummarizerTelemetry
         activity.SetTag("mostlylucid.logsummarizer.new_error_types", report.NewErrorTypes.Count);
         activity.SetTag("mostlylucid.logsummarizer.sources_count", report.SourcesAnalyzed.Count);
         activity.SetTag("mostlylucid.logsummarizer.health_status", report.OverallHealth.ToString());
-        activity.SetTag("mostlylucid.logsummarizer.total_duration_ms", report.ProcessingStats.TotalDuration.TotalMilliseconds);
+        activity.SetTag("mostlylucid.logsummarizer.total_duration_ms",
+            report.ProcessingStats.TotalDuration.TotalMilliseconds);
         activity.SetTag("mostlylucid.logsummarizer.llm_call_count", report.ProcessingStats.LlmCallCount);
 
         if (report.PeriodStart != default)
@@ -101,7 +103,7 @@ public static class LogSummarizerTelemetry
     }
 
     /// <summary>
-    /// Records collection metrics on the activity
+    ///     Records collection metrics on the activity
     /// </summary>
     public static void RecordCollectionResult(Activity? activity, int logCount, int sourceCount, TimeSpan duration)
     {
@@ -115,7 +117,7 @@ public static class LogSummarizerTelemetry
     }
 
     /// <summary>
-    /// Records clustering metrics on the activity
+    ///     Records clustering metrics on the activity
     /// </summary>
     public static void RecordClusteringResult(Activity? activity, int clusterCount, TimeSpan duration)
     {
@@ -128,9 +130,10 @@ public static class LogSummarizerTelemetry
     }
 
     /// <summary>
-    /// Records LLM enrichment metrics on the activity
+    ///     Records LLM enrichment metrics on the activity
     /// </summary>
-    public static void RecordLlmEnrichmentResult(Activity? activity, int llmCallCount, TimeSpan duration, bool llmAvailable)
+    public static void RecordLlmEnrichmentResult(Activity? activity, int llmCallCount, TimeSpan duration,
+        bool llmAvailable)
     {
         if (activity == null)
             return;
@@ -142,7 +145,7 @@ public static class LogSummarizerTelemetry
     }
 
     /// <summary>
-    /// Records output metrics on the activity
+    ///     Records output metrics on the activity
     /// </summary>
     public static void RecordOutputResult(Activity? activity, int providerCount)
     {
@@ -154,7 +157,7 @@ public static class LogSummarizerTelemetry
     }
 
     /// <summary>
-    /// Records an exception on the activity
+    ///     Records an exception on the activity
     /// </summary>
     public static void RecordException(Activity? activity, Exception ex)
     {

@@ -17,17 +17,17 @@ namespace Mostlylucid.LlmSeoMetadata.Services;
 public partial class OllamaSeoMetadataService : ISeoMetadataService
 {
     private readonly ILogger<OllamaSeoMetadataService> _logger;
-    private readonly SeoMetadataOptions _options;
     private readonly IMemoryCache _memoryCache;
+    private readonly SeoMetadataOptions _options;
+    private long _cacheHits;
+    private long _failedGenerations;
+    private DateTime? _lastSuccessfulGeneration;
+    private bool _llmHealthy;
+    private long _successfulGenerations;
+    private long _totalGenerationTimeMs;
 
     // Statistics tracking (thread-safe)
     private long _totalRequests;
-    private long _successfulGenerations;
-    private long _failedGenerations;
-    private long _cacheHits;
-    private long _totalGenerationTimeMs;
-    private DateTime? _lastSuccessfulGeneration;
-    private bool _llmHealthy;
 
     public OllamaSeoMetadataService(
         IOptions<SeoMetadataOptions> options,
@@ -43,7 +43,8 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
     public bool IsReady => _options.Enabled && !string.IsNullOrEmpty(_options.OllamaEndpoint);
 
     /// <inheritdoc />
-    public async Task<GenerationResponse> GenerateMetadataAsync(GenerationRequest request, CancellationToken cancellationToken = default)
+    public async Task<GenerationResponse> GenerateMetadataAsync(GenerationRequest request,
+        CancellationToken cancellationToken = default)
     {
         using var activity = SeoMetadataTelemetry.StartGenerateMetadataActivity(
             request.Content.ContentType,
@@ -90,50 +91,39 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
             var tasks = new List<Task>();
 
             if (request.GenerateMetaDescription)
-            {
-                tasks.Add(Task.Run(async () =>
-                {
-                    metadata.MetaDescription = await GenerateMetaDescriptionAsync(request.Content, cancellationToken);
-                }, cancellationToken));
-            }
+                tasks.Add(Task.Run(
+                    async () =>
+                    {
+                        metadata.MetaDescription =
+                            await GenerateMetaDescriptionAsync(request.Content, cancellationToken);
+                    }, cancellationToken));
 
             if (request.GenerateOpenGraph)
-            {
-                tasks.Add(Task.Run(async () =>
-                {
-                    metadata.OpenGraph = await GenerateOpenGraphAsync(request.Content, cancellationToken);
-                }, cancellationToken));
-            }
+                tasks.Add(Task.Run(
+                    async () =>
+                    {
+                        metadata.OpenGraph = await GenerateOpenGraphAsync(request.Content, cancellationToken);
+                    }, cancellationToken));
 
             if (request.GenerateJsonLd)
-            {
-                tasks.Add(Task.Run(async () =>
-                {
-                    metadata.JsonLd = await GenerateJsonLdAsync(request.Content, cancellationToken);
-                }, cancellationToken));
-            }
+                tasks.Add(Task.Run(
+                    async () => { metadata.JsonLd = await GenerateJsonLdAsync(request.Content, cancellationToken); },
+                    cancellationToken));
 
             if (request.GenerateKeywords)
-            {
-                tasks.Add(Task.Run(async () =>
-                {
-                    metadata.Keywords = await GenerateKeywordsAsync(request.Content, 10, cancellationToken);
-                }, cancellationToken));
-            }
+                tasks.Add(Task.Run(
+                    async () =>
+                    {
+                        metadata.Keywords = await GenerateKeywordsAsync(request.Content, 10, cancellationToken);
+                    }, cancellationToken));
 
             await Task.WhenAll(tasks);
 
             // Set canonical URL if provided
-            if (!string.IsNullOrEmpty(request.Content.Url))
-            {
-                metadata.CanonicalUrl = request.Content.Url;
-            }
+            if (!string.IsNullOrEmpty(request.Content.Url)) metadata.CanonicalUrl = request.Content.Url;
 
             // Cache the result
-            if (request.UseCache)
-            {
-                await CacheMetadataAsync(cacheKey, metadata, cancellationToken);
-            }
+            if (request.UseCache) await CacheMetadataAsync(cacheKey, metadata, cancellationToken);
 
             stopwatch.Stop();
             Interlocked.Increment(ref _successfulGenerations);
@@ -169,7 +159,8 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
     }
 
     /// <inheritdoc />
-    public async Task<string?> GenerateMetaDescriptionAsync(ContentInput content, CancellationToken cancellationToken = default)
+    public async Task<string?> GenerateMetaDescriptionAsync(ContentInput content,
+        CancellationToken cancellationToken = default)
     {
         var prompt = BuildMetaDescriptionPrompt(content);
         var response = await CallLlmAsync(prompt, cancellationToken);
@@ -180,15 +171,14 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
         // Clean and truncate the response
         var description = CleanResponse(response);
         if (description.Length > _options.MaxMetaDescriptionLength)
-        {
             description = description[..(_options.MaxMetaDescriptionLength - 3)] + "...";
-        }
 
         return description;
     }
 
     /// <inheritdoc />
-    public async Task<OpenGraphMetadata?> GenerateOpenGraphAsync(ContentInput content, CancellationToken cancellationToken = default)
+    public async Task<OpenGraphMetadata?> GenerateOpenGraphAsync(ContentInput content,
+        CancellationToken cancellationToken = default)
     {
         var prompt = BuildOpenGraphPrompt(content);
         var response = await CallLlmAsync(prompt, cancellationToken);
@@ -247,7 +237,8 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
     }
 
     /// <inheritdoc />
-    public async Task<JsonLdMetadata?> GenerateJsonLdAsync(ContentInput content, CancellationToken cancellationToken = default)
+    public async Task<JsonLdMetadata?> GenerateJsonLdAsync(ContentInput content,
+        CancellationToken cancellationToken = default)
     {
         var prompt = BuildJsonLdPrompt(content);
         var response = await CallLlmAsync(prompt, cancellationToken);
@@ -268,17 +259,13 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
 
         // Parse LLM response for description
         if (!string.IsNullOrEmpty(response))
-        {
             try
             {
                 var jsonMatch = JsonRegex().Match(response);
                 if (jsonMatch.Success)
                 {
                     var parsed = JsonSerializer.Deserialize<JsonLdLlmResponse>(jsonMatch.Value);
-                    if (parsed != null)
-                    {
-                        jsonLd.Description = parsed.Description;
-                    }
+                    if (parsed != null) jsonLd.Description = parsed.Description;
                 }
                 else
                 {
@@ -289,41 +276,29 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
             {
                 jsonLd.Description = CleanResponse(response);
             }
-        }
 
         // Add author if provided
         if (!string.IsNullOrEmpty(content.Author))
-        {
             jsonLd.Author = new JsonLdAuthor
             {
                 Name = content.Author,
                 Url = content.AuthorUrl
             };
-        }
 
         // Handle product-specific properties
         if (content.ContentType == SeoContentType.Product)
         {
             jsonLd.Name = content.Title;
             if (content.Price.HasValue && !string.IsNullOrEmpty(content.Currency))
-            {
                 jsonLd.Offers = new JsonLdOffer
                 {
                     Price = content.Price.Value.ToString("F2"),
                     PriceCurrency = content.Currency,
                     Availability = MapAvailability(content.Availability)
                 };
-            }
-            if (!string.IsNullOrEmpty(content.Brand))
-            {
-                jsonLd.Brand = new JsonLdBrand { Name = content.Brand };
-            }
-            if (!string.IsNullOrEmpty(content.Sku))
-            {
-                jsonLd.Sku = content.Sku;
-            }
+            if (!string.IsNullOrEmpty(content.Brand)) jsonLd.Brand = new JsonLdBrand { Name = content.Brand };
+            if (!string.IsNullOrEmpty(content.Sku)) jsonLd.Sku = content.Sku;
             if (content.Rating.HasValue && content.ReviewCount.HasValue)
-            {
                 jsonLd.AggregateRating = new JsonLdAggregateRating
                 {
                     RatingValue = content.Rating.Value.ToString("F1"),
@@ -331,14 +306,14 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
                     BestRating = "5",
                     WorstRating = "1"
                 };
-            }
         }
 
         return jsonLd;
     }
 
     /// <inheritdoc />
-    public async Task<List<string>> GenerateKeywordsAsync(ContentInput content, int maxKeywords = 10, CancellationToken cancellationToken = default)
+    public async Task<List<string>> GenerateKeywordsAsync(ContentInput content, int maxKeywords = 10,
+        CancellationToken cancellationToken = default)
     {
         var prompt = BuildKeywordsPrompt(content, maxKeywords);
         var response = await CallLlmAsync(prompt, cancellationToken);
@@ -356,13 +331,13 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
             if (jsonMatch.Success)
             {
                 var parsed = JsonSerializer.Deserialize<List<string>>(jsonMatch.Value);
-                if (parsed != null)
-                {
-                    keywords.AddRange(parsed);
-                }
+                if (parsed != null) keywords.AddRange(parsed);
             }
         }
-        catch { /* Fallback below */ }
+        catch
+        {
+            /* Fallback below */
+        }
 
         // Fallback: parse comma-separated or line-separated
         if (keywords.Count == 0)
@@ -382,10 +357,7 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
     public Task<SeoMetadata?> GetCachedMetadataAsync(string cacheKey, CancellationToken cancellationToken = default)
     {
         var key = $"seo_metadata_{cacheKey}";
-        if (_memoryCache.TryGetValue<SeoMetadata>(key, out var cached))
-        {
-            return Task.FromResult(cached);
-        }
+        if (_memoryCache.TryGetValue<SeoMetadata>(key, out var cached)) return Task.FromResult(cached);
         return Task.FromResult<SeoMetadata?>(null);
     }
 
@@ -450,25 +422,17 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
                 SelectedModel = _options.Model
             };
 
-            if (_options.EnableDiagnosticLogging)
-            {
-                _logger.LogDebug("Sending prompt to Ollama:\n{Prompt}", prompt);
-            }
+            if (_options.EnableDiagnosticLogging) _logger.LogDebug("Sending prompt to Ollama:\n{Prompt}", prompt);
 
             var chat = new Chat(ollama);
             var responseBuilder = new StringBuilder();
 
-            await foreach (var token in chat.SendAsync(prompt, cts.Token))
-            {
-                responseBuilder.Append(token);
-            }
+            await foreach (var token in chat.SendAsync(prompt, cts.Token)) responseBuilder.Append(token);
 
             var response = responseBuilder.ToString();
 
             if (_options.EnableDiagnosticLogging)
-            {
                 _logger.LogDebug("Received response from Ollama:\n{Response}", response);
-            }
 
             activity?.SetTag("mostlylucid.seometadata.llm_response_length", response.Length);
             activity?.SetStatus(ActivityStatusCode.Ok);
@@ -494,127 +458,121 @@ public partial class OllamaSeoMetadataService : ISeoMetadataService
     private string BuildMetaDescriptionPrompt(ContentInput content)
     {
         if (!string.IsNullOrEmpty(_options.MetaDescriptionPromptTemplate))
-        {
             return _options.MetaDescriptionPromptTemplate
                 .Replace("{title}", content.Title)
                 .Replace("{content}", TruncateForPrompt(content.Content))
                 .Replace("{maxLength}", _options.MaxMetaDescriptionLength.ToString())
                 .Replace("{language}", content.Language);
-        }
 
         return $"""
-            Generate a compelling SEO meta description for a web page.
+                Generate a compelling SEO meta description for a web page.
 
-            Title: {content.Title}
-            Content Type: {content.ContentType}
-            Language: {content.Language}
+                Title: {content.Title}
+                Content Type: {content.ContentType}
+                Language: {content.Language}
 
-            Content Summary:
-            {TruncateForPrompt(content.Content)}
+                Content Summary:
+                {TruncateForPrompt(content.Content)}
 
-            Requirements:
-            - Maximum {_options.MaxMetaDescriptionLength} characters
-            - Include relevant keywords naturally
-            - Be compelling and encourage clicks
-            - Accurately summarize the content
-            - Use active voice
-            - Do not use quotes or special characters
+                Requirements:
+                - Maximum {_options.MaxMetaDescriptionLength} characters
+                - Include relevant keywords naturally
+                - Be compelling and encourage clicks
+                - Accurately summarize the content
+                - Use active voice
+                - Do not use quotes or special characters
 
-            Respond with ONLY the meta description text, nothing else.
-            """;
+                Respond with ONLY the meta description text, nothing else.
+                """;
     }
 
     private string BuildOpenGraphPrompt(ContentInput content)
     {
         if (!string.IsNullOrEmpty(_options.OpenGraphPromptTemplate))
-        {
             return _options.OpenGraphPromptTemplate
                 .Replace("{title}", content.Title)
                 .Replace("{content}", TruncateForPrompt(content.Content))
                 .Replace("{maxLength}", _options.MaxOgDescriptionLength.ToString())
                 .Replace("{language}", content.Language)
                 .Replace("{contentType}", content.ContentType.ToString());
-        }
 
         return $$"""
-            Generate OpenGraph metadata for social media sharing.
+                 Generate OpenGraph metadata for social media sharing.
 
-            Title: {{content.Title}}
-            Content Type: {{content.ContentType}}
-            Language: {{content.Language}}
+                 Title: {{content.Title}}
+                 Content Type: {{content.ContentType}}
+                 Language: {{content.Language}}
 
-            Content Summary:
-            {{TruncateForPrompt(content.Content)}}
+                 Content Summary:
+                 {{TruncateForPrompt(content.Content)}}
 
-            Respond with a JSON object in this exact format:
-            {
-              "title": "engaging title for social sharing (max 70 chars)",
-              "description": "compelling description for social sharing (max {{_options.MaxOgDescriptionLength}} chars)"
-            }
+                 Respond with a JSON object in this exact format:
+                 {
+                   "title": "engaging title for social sharing (max 70 chars)",
+                   "description": "compelling description for social sharing (max {{_options.MaxOgDescriptionLength}} chars)"
+                 }
 
-            Requirements:
-            - Title should be catchy and engaging
-            - Description should encourage sharing and clicks
-            - Use the same language as the content ({{content.Language}})
-            """;
+                 Requirements:
+                 - Title should be catchy and engaging
+                 - Description should encourage sharing and clicks
+                 - Use the same language as the content ({{content.Language}})
+                 """;
     }
 
     private string BuildJsonLdPrompt(ContentInput content)
     {
         if (!string.IsNullOrEmpty(_options.JsonLdPromptTemplate))
-        {
             return _options.JsonLdPromptTemplate
                 .Replace("{title}", content.Title)
                 .Replace("{content}", TruncateForPrompt(content.Content))
                 .Replace("{contentType}", content.ContentType.ToString())
                 .Replace("{language}", content.Language);
-        }
 
         return $$"""
-            Generate a description for JSON-LD structured data (schema.org).
+                 Generate a description for JSON-LD structured data (schema.org).
 
-            Title: {{content.Title}}
-            Content Type: {{content.ContentType}} (schema.org type: {{MapContentTypeToSchemaType(content.ContentType)}})
-            Language: {{content.Language}}
+                 Title: {{content.Title}}
+                 Content Type: {{content.ContentType}} (schema.org type: {{MapContentTypeToSchemaType(content.ContentType)}})
+                 Language: {{content.Language}}
 
-            Content Summary:
-            {{TruncateForPrompt(content.Content)}}
+                 Content Summary:
+                 {{TruncateForPrompt(content.Content)}}
 
-            Respond with a JSON object in this exact format:
-            {
-              "description": "informative description suitable for schema.org structured data (max 300 chars)"
-            }
+                 Respond with a JSON object in this exact format:
+                 {
+                   "description": "informative description suitable for schema.org structured data (max 300 chars)"
+                 }
 
-            Requirements:
-            - Description should be factual and informative
-            - Suitable for search engine rich snippets
-            - Use the same language as the content ({{content.Language}})
-            """;
+                 Requirements:
+                 - Description should be factual and informative
+                 - Suitable for search engine rich snippets
+                 - Use the same language as the content ({{content.Language}})
+                 """;
     }
 
     private string BuildKeywordsPrompt(ContentInput content, int maxKeywords)
     {
         return $"""
-            Extract the most relevant SEO keywords from this content.
+                Extract the most relevant SEO keywords from this content.
 
-            Title: {content.Title}
-            Content Type: {content.ContentType}
-            Language: {content.Language}
-            {(content.Category != null ? $"Category: {content.Category}" : "")}
+                Title: {content.Title}
+                Content Type: {content.ContentType}
+                Language: {content.Language}
+                {(content.Category != null ? $"Category: {content.Category}" : "")}
 
-            Content:
-            {TruncateForPrompt(content.Content)}
+                Content:
+                {TruncateForPrompt(content.Content)}
 
-            Respond with a JSON array of up to {maxKeywords} keywords:
-            ["keyword1", "keyword2", "keyword3", ...]
+                Respond with a JSON array of up to {maxKeywords} keywords:
+                ["keyword1", "keyword2", "keyword3", ...]
 
-            Requirements:
-            - Include both short-tail and long-tail keywords
-            - Order by relevance (most relevant first)
-            - Use lowercase
-            - Include variations users might search for
-            - Focus on search intent
-            """;
+                Requirements:
+                - Include both short-tail and long-tail keywords
+                - Order by relevance (most relevant first)
+                - Use lowercase
+                - Include variations users might search for
+                - Focus on search intent
+                """;
     }
 
     private static string TruncateForPrompt(string text, int maxLength = 2000)

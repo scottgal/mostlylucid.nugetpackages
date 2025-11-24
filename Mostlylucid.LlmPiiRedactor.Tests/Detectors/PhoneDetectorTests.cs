@@ -27,9 +27,9 @@ public class PhoneDetectorTests
     }
 
     [Theory]
-    [InlineData("123")]  // Too short
-    [InlineData("1990")]  // Looks like a year
-    [InlineData("2024")]  // Looks like a year
+    [InlineData("123")] // Too short
+    [InlineData("1990")] // Looks like a year
+    [InlineData("2024")] // Looks like a year
     public void Detect_InvalidPhoneNumbers_ReturnsEmpty(string text)
     {
         var matches = _detector.Detect(text).ToList();

@@ -12,12 +12,12 @@ using Mostlylucid.RagLlmSearch.SignalR;
 namespace Mostlylucid.RagLlmSearch.Extensions;
 
 /// <summary>
-/// Extension methods for configuring RAG LLM Search services
+///     Extension methods for configuring RAG LLM Search services
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds RAG LLM Search services to the service collection
+    ///     Adds RAG LLM Search services to the service collection
     /// </summary>
     /// <param name="services">The service collection</param>
     /// <param name="configureOptions">Optional configuration action for RagLlmSearchOptions</param>
@@ -30,22 +30,14 @@ public static class ServiceCollectionExtensions
     {
         // Configure options
         if (configureOptions != null)
-        {
             services.Configure(configureOptions);
-        }
         else
-        {
             services.Configure<RagLlmSearchOptions>(_ => { });
-        }
 
         if (configureSearchProviders != null)
-        {
             services.Configure(configureSearchProviders);
-        }
         else
-        {
             services.Configure<SearchProviderOptions>(_ => { });
-        }
 
         // Register HttpClient for search providers
         services.AddHttpClient<DuckDuckGoSearchProvider>();
@@ -73,7 +65,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Maps the ChatHub SignalR endpoint
+    ///     Maps the ChatHub SignalR endpoint
     /// </summary>
     /// <param name="endpoints">The endpoint route builder</param>
     /// <param name="pattern">The hub URL pattern (default: /chathub)</param>
@@ -86,8 +78,8 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Initializes the RAG and Conversation services (creates database tables)
-    /// Call this during application startup
+    ///     Initializes the RAG and Conversation services (creates database tables)
+    ///     Call this during application startup
     /// </summary>
     /// <param name="app">The application builder</param>
     /// <returns>The application builder for chaining</returns>

@@ -81,7 +81,7 @@ public class PiiRedactionServiceTests
     [Fact]
     public void Redact_CreditCard_RedactsWithLuhnValidation()
     {
-        var text = "Card: 4111111111111111";  // Valid Visa test number
+        var text = "Card: 4111111111111111"; // Valid Visa test number
 
         var result = _service.Redact(text);
 

@@ -1,15 +1,16 @@
 # Mostlylucid.LLMContentModeration
 
-Local LLM-powered content moderation for ASP.NET Core applications. All processing happens on your server - no data ever leaves your infrastructure.
+Local LLM-powered content moderation for ASP.NET Core applications. All processing happens on your server - no data ever
+leaves your infrastructure.
 
 ## Features
 
 - **Content Classification**: Toxicity, abuse, spam, self-harm, NSFW detection
 - **PII Detection**: Email, phone, address, IBAN, credit card numbers
 - **Three Modes**:
-  - `DetectOnly` - Flag content, log findings, allow through
-  - `Block` - Reject flagged content with error response
-  - `MaskAndAllow` - Redact PII/flagged content and allow through
+    - `DetectOnly` - Flag content, log findings, allow through
+    - `Block` - Reject flagged content with error response
+    - `MaskAndAllow` - Redact PII/flagged content and allow through
 - **Per-Route Policies**: Configure different moderation levels per controller/action
 - **Request/Response Interception**: Works on both incoming and outgoing content
 - **Privacy-First**: All processing via local Ollama - no external API calls

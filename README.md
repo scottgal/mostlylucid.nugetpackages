@@ -1,11 +1,13 @@
 # mostlylucid's playground lab
 
+> **IMPORTANT: Despite the name of the repo this is likely SUPER broken. It's the lab where I experiement with features
+before deciding if I break them out to actual packages. YOU HAVE BEEN WARNED**
 
-> **IMPORTANT: Despite the name of the repo this is likely SUPER broken. It's the lab where I experiement with features before deciding if I break them out to actual packages. YOU HAVE BEEN WARNED**
 
 
-
-A collection of *highly experimental* ASP.NET Core middleware and services for accessibility, security, compliance, and internationalization. All packages leverage local AI models (primarily via [Ollama](https://ollama.ai/)) for privacy-focused solutions - **no data ever leaves your infrastructure**.
+A collection of *highly experimental* ASP.NET Core middleware and services for accessibility, security, compliance, and
+internationalization. All packages leverage local AI models (primarily via [Ollama](https://ollama.ai/)) for
+privacy-focused solutions - **no data ever leaves your infrastructure**.
 
 ---
 
@@ -16,18 +18,18 @@ A collection of *highly experimental* ASP.NET Core middleware and services for a
 - [Prerequisites](#prerequisites)
 - [OpenTelemetry Support](#opentelemetry-support)
 - **Packages:**
-  - [Mostlylucid.Common](#mostlylucidcommon) - Shared utilities
-  - [Mostlylucid.BotDetection](#mostlylucidbotdetection) - Bot detection
-  - [Mostlylucid.GeoDetection](#mostlylucidgeodetection) - Geo-location routing
-  - [Mostlylucid.LlmAltText](#mostlylucidllmalttext) - Alt text generation
-  - [Mostlylucid.LlmPiiRedactor](#mostlylucidllmpiiredactor) - PII redaction
-  - [Mostlylucid.LLMContentModeration](#mostlylucidllmcontentmoderation) - Content moderation
-  - [Mostlylucid.LlmAccessibilityAuditor](#mostlylucidllmaccessibilityauditor) - Accessibility auditing
-  - [Mostlylucid.LlmLogSummarizer](#mostlylucidllmlogsummarizer) - Log summarization
-  - [Mostlylucid.LlmSeoMetadata](#mostlylucidllmseometadata) - SEO metadata
-  - [Mostlylucid.LlmSlideTranslator](#mostlylucidllmslidetranslator) - Document translation
-  - [Mostlylucid.LlmI18nAssistant](#mostlylucidllmi18nassistant) - Resource localization
-  - [Mostlylucid.RagLlmSearch](#mostlylucidragllmsearch) - RAG-enabled chat with web search
+    - [Mostlylucid.Common](#mostlylucidcommon) - Shared utilities
+    - [Mostlylucid.BotDetection](#mostlylucidbotdetection) - Bot detection
+    - [Mostlylucid.GeoDetection](#mostlylucidgeodetection) - Geo-location routing
+    - [Mostlylucid.LlmAltText](#mostlylucidllmalttext) - Alt text generation
+    - [Mostlylucid.LlmPiiRedactor](#mostlylucidllmpiiredactor) - PII redaction
+    - [Mostlylucid.LLMContentModeration](#mostlylucidllmcontentmoderation) - Content moderation
+    - [Mostlylucid.LlmAccessibilityAuditor](#mostlylucidllmaccessibilityauditor) - Accessibility auditing
+    - [Mostlylucid.LlmLogSummarizer](#mostlylucidllmlogsummarizer) - Log summarization
+    - [Mostlylucid.LlmSeoMetadata](#mostlylucidllmseometadata) - SEO metadata
+    - [Mostlylucid.LlmSlideTranslator](#mostlylucidllmslidetranslator) - Document translation
+    - [Mostlylucid.LlmI18nAssistant](#mostlylucidllmi18nassistant) - Resource localization
+    - [Mostlylucid.RagLlmSearch](#mostlylucidragllmsearch) - RAG-enabled chat with web search
 - [Project Structure](#project-structure)
 - [Contributing](#contributing)
 
@@ -36,6 +38,7 @@ A collection of *highly experimental* ASP.NET Core middleware and services for a
 ## Target Frameworks
 
 All packages support:
+
 - .NET 8.0
 - .NET 9.0
 
@@ -47,25 +50,27 @@ All packages are released under the [Unlicense](https://unlicense.org/) (Public 
 
 ## OpenTelemetry Support
 
-All packages include built-in OpenTelemetry instrumentation for distributed tracing. **Telemetry is optional** - packages work perfectly without any OpenTelemetry configuration, but when enabled, you get detailed tracing of all operations.
+All packages include built-in OpenTelemetry instrumentation for distributed tracing. **Telemetry is optional** -
+packages work perfectly without any OpenTelemetry configuration, but when enabled, you get detailed tracing of all
+operations.
 
 ### Activity Sources
 
 Each package exposes an `ActivitySource` that can be listened to:
 
-| Package | ActivitySource Name |
-|---------|---------------------|
-| Mostlylucid.BotDetection | `Mostlylucid.BotDetection` |
-| Mostlylucid.GeoDetection | `Mostlylucid.GeoDetection` |
-| Mostlylucid.LlmAltText | `Mostlylucid.LlmAltText` |
-| Mostlylucid.LlmPiiRedactor | `Mostlylucid.LlmPiiRedactor` |
-| Mostlylucid.LLMContentModeration | `Mostlylucid.LLMContentModeration` |
+| Package                             | ActivitySource Name                   |
+|-------------------------------------|---------------------------------------|
+| Mostlylucid.BotDetection            | `Mostlylucid.BotDetection`            |
+| Mostlylucid.GeoDetection            | `Mostlylucid.GeoDetection`            |
+| Mostlylucid.LlmAltText              | `Mostlylucid.LlmAltText`              |
+| Mostlylucid.LlmPiiRedactor          | `Mostlylucid.LlmPiiRedactor`          |
+| Mostlylucid.LLMContentModeration    | `Mostlylucid.LLMContentModeration`    |
 | Mostlylucid.LlmAccessibilityAuditor | `Mostlylucid.LlmAccessibilityAuditor` |
-| Mostlylucid.LlmSeoMetadata | `Mostlylucid.LlmSeoMetadata` |
-| Mostlylucid.LlmLogSummarizer | `Mostlylucid.LlmLogSummarizer` |
-| Mostlylucid.RagLlmSearch | `Mostlylucid.RagLlmSearch` |
-| Mostlylucid.LlmI18nAssistant | `Mostlylucid.LlmI18nAssistant` |
-| Mostlylucid.LlmSlideTranslator | `Mostlylucid.LlmSlideTranslator` |
+| Mostlylucid.LlmSeoMetadata          | `Mostlylucid.LlmSeoMetadata`          |
+| Mostlylucid.LlmLogSummarizer        | `Mostlylucid.LlmLogSummarizer`        |
+| Mostlylucid.RagLlmSearch            | `Mostlylucid.RagLlmSearch`            |
+| Mostlylucid.LlmI18nAssistant        | `Mostlylucid.LlmI18nAssistant`        |
+| Mostlylucid.LlmSlideTranslator      | `Mostlylucid.LlmSlideTranslator`      |
 
 ### Enabling Telemetry
 
@@ -119,16 +124,19 @@ foreach (var source in sources)
 Each package records relevant attributes on activities. Examples:
 
 **Bot Detection:**
+
 - `mostlylucid.botdetection.is_bot` - Whether the request is from a bot
 - `mostlylucid.botdetection.confidence` - Confidence score (0.0-1.0)
 - `mostlylucid.botdetection.bot_type` - Type of bot detected
 - `mostlylucid.botdetection.processing_time_ms` - Processing duration
 
 **Geo Detection:**
+
 - `mostlylucid.geodetection.country_code` - ISO country code
 - `mostlylucid.geodetection.cache_hit` - Whether result was cached
 
 **LLM Operations:**
+
 - `mostlylucid.llm.model` - Model used
 - `mostlylucid.llm.duration_ms` - Operation duration
 
@@ -138,20 +146,20 @@ All activities include exception tracking with `exception.type` and `exception.m
 
 ## Packages Overview
 
-| Package | Description | Source |
-|---------|-------------|--------|
-| **Mostlylucid.Common** | Shared abstractions, caching, and utilities | [Source](./Mostlylucid.Common) |
-| **Mostlylucid.BotDetection** | Multi-strategy bot detection middleware | [Source](./Mostlylucid.BotDetection) |
-| **Mostlylucid.GeoDetection** | IP-based geo-location and country routing | [Source](./Mostlylucid.GeoDetection) |
-| **Mostlylucid.LlmAltText** | AI-powered alt text generation and OCR | [Source](./Mostlylucid.LlmAltText) |
-| **Mostlylucid.LlmPiiRedactor** | PII detection and redaction | [Source](./Mostlylucid.LlmPiiRedactor) |
-| **Mostlylucid.LLMContentModeration** | LLM-powered content moderation | [Source](./Mostlylucid.LLMContentModeration) |
-| **Mostlylucid.LlmAccessibilityAuditor** | HTML accessibility auditing | [Source](./Mostlylucid.LlmAccessibilityAuditor) |
-| **Mostlylucid.LlmLogSummarizer** | AI-powered log analysis and summarization | [Source](./Mostlylucid.LlmLogSummarizer) |
-| **Mostlylucid.LlmSeoMetadata** | SEO metadata generation | [Source](./Mostlylucid.LlmSeoMetadata) |
-| **Mostlylucid.LlmSlideTranslator** | RAG-assisted document translation | [Source](./mostlylucid.llmslidetranslator) |
-| **Mostlylucid.LlmI18nAssistant** | Short-string localization helper | [Source](./mostlylucid.llmi18nassistant) |
-| **Mostlylucid.RagLlmSearch** | RAG-enabled chat with multi-provider search | [Source](./Mostlylucid.RagLlmSearch) |
+| Package                                 | Description                                 | Source                                          |
+|-----------------------------------------|---------------------------------------------|-------------------------------------------------|
+| **Mostlylucid.Common**                  | Shared abstractions, caching, and utilities | [Source](./Mostlylucid.Common)                  |
+| **Mostlylucid.BotDetection**            | Multi-strategy bot detection middleware     | [Source](./Mostlylucid.BotDetection)            |
+| **Mostlylucid.GeoDetection**            | IP-based geo-location and country routing   | [Source](./Mostlylucid.GeoDetection)            |
+| **Mostlylucid.LlmAltText**              | AI-powered alt text generation and OCR      | [Source](./Mostlylucid.LlmAltText)              |
+| **Mostlylucid.LlmPiiRedactor**          | PII detection and redaction                 | [Source](./Mostlylucid.LlmPiiRedactor)          |
+| **Mostlylucid.LLMContentModeration**    | LLM-powered content moderation              | [Source](./Mostlylucid.LLMContentModeration)    |
+| **Mostlylucid.LlmAccessibilityAuditor** | HTML accessibility auditing                 | [Source](./Mostlylucid.LlmAccessibilityAuditor) |
+| **Mostlylucid.LlmLogSummarizer**        | AI-powered log analysis and summarization   | [Source](./Mostlylucid.LlmLogSummarizer)        |
+| **Mostlylucid.LlmSeoMetadata**          | SEO metadata generation                     | [Source](./Mostlylucid.LlmSeoMetadata)          |
+| **Mostlylucid.LlmSlideTranslator**      | RAG-assisted document translation           | [Source](./mostlylucid.llmslidetranslator)      |
+| **Mostlylucid.LlmI18nAssistant**        | Short-string localization helper            | [Source](./mostlylucid.llmi18nassistant)        |
+| **Mostlylucid.RagLlmSearch**            | RAG-enabled chat with multi-provider search | [Source](./Mostlylucid.RagLlmSearch)            |
 
 ---
 
@@ -243,7 +251,8 @@ public async Task<IActionResult> Index()
 
 ## Mostlylucid.GeoDetection
 
-Geographic location detection and country-based routing. **Works out of the box** with free ip-api.com - no account required!
+Geographic location detection and country-based routing. **Works out of the box** with free ip-api.com - no account
+required!
 
 ### Features
 
@@ -270,10 +279,10 @@ app.MapGet("/us-only", () => "US Content").RequireCountry("US");
 public class NorthAmericaController : Controller { }
 ```
 
-| Provider | Setup | Best For |
-|----------|-------|----------|
-| **IpApi** | None | Quick start, development |
-| **DataHubCsv** | None | Production, local, country-level |
+| Provider         | Setup        | Best For                         |
+|------------------|--------------|----------------------------------|
+| **IpApi**        | None         | Quick start, development         |
+| **DataHubCsv**   | None         | Production, local, country-level |
 | **MaxMindLocal** | Free account | Production, city-level precision |
 
 [Full documentation](Mostlylucid.GeoDetection/README.md)
@@ -330,7 +339,8 @@ Comprehensive PII detection and redaction for ASP.NET Core applications.
 
 ### Features
 
-- **Multi-Type Detection**: Emails, phones, credit cards, SSNs, IPs, names, addresses, postcodes, bank accounts, API keys
+- **Multi-Type Detection**: Emails, phones, credit cards, SSNs, IPs, names, addresses, postcodes, bank accounts, API
+  keys
 - **Redaction Styles**: Full mask, partial mask, tokenized, type labels, hashed, removal
 - **ASP.NET Integration**: Request/response body, headers, query strings
 - **Logging Integration**: ILogger wrapper, Serilog enricher
@@ -460,7 +470,8 @@ app.MapAccessibilityDiagnostics(); // /_accessibility dashboard
 
 ## Mostlylucid.LlmLogSummarizer
 
-AI-powered log summarization using local LLMs. Clusters similar exceptions, identifies error patterns, and generates human-readable digests.
+AI-powered log summarization using local LLMs. Clusters similar exceptions, identifies error patterns, and generates
+human-readable digests.
 
 ### Features
 
@@ -595,6 +606,7 @@ Console.WriteLine(result.GetTranslatedText());
 ```
 
 **Why Context Preservation Matters:**
+
 ```
 Without context:
 - Block 1: "The mayor announced..." -> "Der Bürgermeister..."
@@ -714,12 +726,12 @@ await connection.start();
 await connection.invoke('SendMessage', { message: "Hello!" });
 ```
 
-| Provider | Free Tier | API Key |
-|----------|-----------|---------|
-| **DuckDuckGo** | Unlimited | None |
-| **Brave** | 2000/month | Required |
-| **Tavily** | Limited | Required |
-| **SerpApi** | 100/month | Required |
+| Provider       | Free Tier  | API Key  |
+|----------------|------------|----------|
+| **DuckDuckGo** | Unlimited  | None     |
+| **Brave**      | 2000/month | Required |
+| **Tavily**     | Limited    | Required |
+| **SerpApi**    | 100/month  | Required |
 
 [Full documentation](Mostlylucid.RagLlmSearch/README.md)
 

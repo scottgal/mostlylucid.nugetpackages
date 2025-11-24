@@ -22,8 +22,8 @@ public class SimpleGeoLocationServiceTests
     }
 
     [Theory]
-    [InlineData("8.8.8.8")]      // Google DNS
-    [InlineData("1.1.1.1")]      // Cloudflare
+    [InlineData("8.8.8.8")] // Google DNS
+    [InlineData("1.1.1.1")] // Cloudflare
     [InlineData("208.67.222.222")] // OpenDNS
     public async Task GetLocationAsync_ValidPublicIp_ReturnsLocation(string ip)
     {
@@ -124,9 +124,9 @@ public class SimpleGeoLocationServiceTests
     }
 
     [Theory]
-    [InlineData("3.0.0.1", "US")]   // AWS ranges
-    [InlineData("1.0.0.1", "CN")]   // China ranges
-    [InlineData("51.0.0.1", "GB")]  // UK ranges
+    [InlineData("3.0.0.1", "US")] // AWS ranges
+    [InlineData("1.0.0.1", "CN")] // China ranges
+    [InlineData("51.0.0.1", "GB")] // UK ranges
     public async Task GetLocationAsync_ReturnsExpectedCountryBasedOnOctet(string ip, string expectedCountry)
     {
         // Act

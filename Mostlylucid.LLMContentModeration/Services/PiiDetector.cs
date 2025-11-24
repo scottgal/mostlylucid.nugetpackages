@@ -5,7 +5,7 @@ using Mostlylucid.LLMContentModeration.Models;
 namespace Mostlylucid.LLMContentModeration.Services;
 
 /// <summary>
-/// Regex-based PII detector with support for common PII patterns
+///     Regex-based PII detector with support for common PII patterns
 /// </summary>
 public partial class PiiDetector : IPiiDetector
 {
@@ -85,7 +85,6 @@ public partial class PiiDetector : IPiiDetector
         var regexMatches = regex.Matches(content);
 
         foreach (Match match in regexMatches)
-        {
             matches.Add(new PiiMatch
             {
                 Type = type,
@@ -94,7 +93,6 @@ public partial class PiiDetector : IPiiDetector
                 EndIndex = match.Index + match.Length,
                 Confidence = 1.0f
             });
-        }
 
         return matches;
     }
@@ -105,13 +103,11 @@ public partial class PiiDetector : IPiiDetector
         var lastEnd = -1;
 
         foreach (var match in matches)
-        {
             if (match.StartIndex >= lastEnd)
             {
                 result.Add(match);
                 lastEnd = match.EndIndex;
             }
-        }
 
         return result;
     }
@@ -129,7 +125,7 @@ public partial class PiiDetector : IPiiDetector
 
         var start = value[..unmasked];
         var end = value[^unmasked..];
-        var middle = new string(maskChar, value.Length - (unmasked * 2));
+        var middle = new string(maskChar, value.Length - unmasked * 2);
 
         return $"{start}{middle}{end}";
     }
@@ -149,7 +145,9 @@ public partial class PiiDetector : IPiiDetector
     private static partial Regex IbanRegex();
 
     // Credit card patterns (major card formats)
-    [GeneratedRegex(@"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12}|(?:2131|1800|35\d{3})\d{11})\b", RegexOptions.Compiled)]
+    [GeneratedRegex(
+        @"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12}|(?:2131|1800|35\d{3})\d{11})\b",
+        RegexOptions.Compiled)]
     private static partial Regex CreditCardRegex();
 
     // US Social Security Number
@@ -157,7 +155,9 @@ public partial class PiiDetector : IPiiDetector
     private static partial Regex SsnRegex();
 
     // Simple address pattern (number + street name + common suffixes)
-    [GeneratedRegex(@"\b\d{1,5}\s+[\w\s]{1,50}\s+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Way|Place|Pl)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
+    [GeneratedRegex(
+        @"\b\d{1,5}\s+[\w\s]{1,50}\s+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Way|Place|Pl)\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase)]
     private static partial Regex AddressRegex();
 
     #endregion

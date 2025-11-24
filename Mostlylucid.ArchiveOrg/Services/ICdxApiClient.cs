@@ -5,7 +5,7 @@ namespace Mostlylucid.ArchiveOrg.Services;
 public interface ICdxApiClient
 {
     /// <summary>
-    /// Get all CDX records for a URL pattern from Archive.org
+    ///     Get all CDX records for a URL pattern from Archive.org
     /// </summary>
     /// <param name="url">Base URL to search (supports wildcards with *)</param>
     /// <param name="startDate">Optional start date filter</param>

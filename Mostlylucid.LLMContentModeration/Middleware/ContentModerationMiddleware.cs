@@ -11,37 +11,28 @@ using Mostlylucid.LLMContentModeration.Services;
 namespace Mostlylucid.LLMContentModeration.Middleware;
 
 /// <summary>
-/// Middleware that intercepts requests and responses for content moderation
+///     Middleware that intercepts requests and responses for content moderation
 /// </summary>
-public class ContentModerationMiddleware
+public class ContentModerationMiddleware(
+    RequestDelegate next,
+    ILogger<ContentModerationMiddleware> logger,
+    IOptions<ModerationOptions> options)
 {
     public const string ModerationResultKey = "ContentModerationResult";
-    private readonly ILogger<ContentModerationMiddleware> _logger;
-    private readonly RequestDelegate _next;
-    private readonly ModerationOptions _options;
-
-    public ContentModerationMiddleware(
-        RequestDelegate next,
-        ILogger<ContentModerationMiddleware> logger,
-        IOptions<ModerationOptions> options)
-    {
-        _next = next;
-        _logger = logger;
-        _options = options.Value;
-    }
+    private readonly ModerationOptions _options = options.Value;
 
     public async Task InvokeAsync(HttpContext context, IContentModerationService moderationService)
     {
         if (!_options.Enabled)
         {
-            await _next(context);
+            await next(context);
             return;
         }
 
         // Check if path should be excluded
         if (ShouldSkipPath(context.Request.Path))
         {
-            await _next(context);
+            await next(context);
             return;
         }
 
@@ -49,7 +40,7 @@ public class ContentModerationMiddleware
         var endpoint = context.GetEndpoint();
         if (endpoint?.Metadata.GetMetadata<SkipModerationAttribute>() != null)
         {
-            await _next(context);
+            await next(context);
             return;
         }
 
@@ -57,7 +48,7 @@ public class ContentModerationMiddleware
         var policyAttribute = endpoint?.Metadata.GetMetadata<ModerationPolicyAttribute>();
         if (policyAttribute?.Skip == true)
         {
-            await _next(context);
+            await next(context);
             return;
         }
 
@@ -88,14 +79,14 @@ public class ContentModerationMiddleware
             using var responseBody = new MemoryStream();
             context.Response.Body = responseBody;
 
-            await _next(context);
+            await next(context);
 
             // Moderate response
             await ModerateResponseAsync(context, moderationService, effectiveOptions, originalBodyStream, responseBody);
         }
         else
         {
-            await _next(context);
+            await next(context);
         }
     }
 
@@ -123,7 +114,7 @@ public class ContentModerationMiddleware
             if (string.IsNullOrWhiteSpace(contentToModerate))
                 return null;
 
-            _logger.LogDebug("Moderating request content ({Length} chars)", contentToModerate.Length);
+            logger.LogDebug("Moderating request content ({Length} chars)", contentToModerate.Length);
 
             var result = await moderationService.ModerateAsync(contentToModerate, options);
 
@@ -132,7 +123,8 @@ public class ContentModerationMiddleware
                 !string.IsNullOrEmpty(result.ModeratedContent) &&
                 result.ModeratedContent != contentToModerate)
             {
-                var modifiedBody = ReplaceTextContent(body, contentToModerate, result.ModeratedContent, context.Request.ContentType);
+                var modifiedBody = ReplaceTextContent(body, contentToModerate, result.ModeratedContent,
+                    context.Request.ContentType);
                 var bytes = Encoding.UTF8.GetBytes(modifiedBody);
                 context.Request.Body = new MemoryStream(bytes);
                 context.Request.ContentLength = bytes.Length;
@@ -142,7 +134,7 @@ public class ContentModerationMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error moderating request content");
+            logger.LogError(ex, "Error moderating request content");
             return null;
         }
     }
@@ -170,10 +162,8 @@ public class ContentModerationMiddleware
 
                     if (result.Mode == ModerationMode.MaskAndAllow &&
                         !string.IsNullOrEmpty(result.ModeratedContent))
-                    {
                         responseContent = ReplaceTextContent(
                             responseContent, contentToModerate, result.ModeratedContent, context.Response.ContentType);
-                    }
                 }
             }
 
@@ -185,7 +175,7 @@ public class ContentModerationMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error moderating response content");
+            logger.LogError(ex, "Error moderating response content");
             // On error, write original response
             responseBody.Position = 0;
             await responseBody.CopyToAsync(originalBodyStream);
@@ -218,17 +208,13 @@ public class ContentModerationMiddleware
 
         // Check required paths first (override exclusions)
         foreach (var required in _options.RequiredPaths)
-        {
             if (MatchesWildcard(pathValue, required))
                 return false;
-        }
 
         // Check excluded paths
         foreach (var excluded in _options.ExcludedPaths)
-        {
             if (MatchesWildcard(pathValue, excluded))
                 return true;
-        }
 
         return false;
     }
@@ -264,9 +250,7 @@ public class ContentModerationMiddleware
             return body;
 
         if (contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase))
-        {
             return ExtractJsonTextFields(body);
-        }
 
         return body;
     }
@@ -292,24 +276,15 @@ public class ContentModerationMiddleware
         {
             case JsonValueKind.String:
                 var value = element.GetString();
-                if (!string.IsNullOrWhiteSpace(value))
-                {
-                    builder.AppendLine(value);
-                }
+                if (!string.IsNullOrWhiteSpace(value)) builder.AppendLine(value);
                 break;
 
             case JsonValueKind.Object:
-                foreach (var property in element.EnumerateObject())
-                {
-                    ExtractJsonStrings(property.Value, builder);
-                }
+                foreach (var property in element.EnumerateObject()) ExtractJsonStrings(property.Value, builder);
                 break;
 
             case JsonValueKind.Array:
-                foreach (var item in element.EnumerateArray())
-                {
-                    ExtractJsonStrings(item, builder);
-                }
+                foreach (var item in element.EnumerateArray()) ExtractJsonStrings(item, builder);
                 break;
         }
     }
@@ -317,23 +292,21 @@ public class ContentModerationMiddleware
     private static string ReplaceTextContent(string original, string oldContent, string newContent, string? contentType)
     {
         if (contentType?.Contains("application/json", StringComparison.OrdinalIgnoreCase) == true)
-        {
             // For JSON, we need to handle this more carefully
             // Simple approach: replace string values
             return original.Replace(oldContent, newContent);
-        }
 
         return newContent;
     }
 }
 
 /// <summary>
-/// Extension methods for content moderation middleware
+///     Extension methods for content moderation middleware
 /// </summary>
 public static class ContentModerationMiddlewareExtensions
 {
     /// <summary>
-    /// Add content moderation middleware to the pipeline
+    ///     Add content moderation middleware to the pipeline
     /// </summary>
     public static IApplicationBuilder UseContentModeration(this IApplicationBuilder builder)
     {

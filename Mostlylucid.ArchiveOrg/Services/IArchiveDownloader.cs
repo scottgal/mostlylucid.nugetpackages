@@ -5,7 +5,7 @@ namespace Mostlylucid.ArchiveOrg.Services;
 public interface IArchiveDownloader
 {
     /// <summary>
-    /// Download all archived pages for a website
+    ///     Download all archived pages for a website
     /// </summary>
     /// <param name="progress">Optional progress reporter</param>
     /// <param name="cancellationToken">Cancellation token</param>
@@ -15,7 +15,7 @@ public interface IArchiveDownloader
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Download a single CDX record
+    ///     Download a single CDX record
     /// </summary>
     Task<DownloadResult> DownloadRecordAsync(
         CdxRecord record,

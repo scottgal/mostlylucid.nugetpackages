@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Mostlylucid.LlmAccessibilityAuditor.Middleware;
@@ -9,12 +8,12 @@ using Mostlylucid.LlmAccessibilityAuditor.Services;
 namespace Mostlylucid.LlmAccessibilityAuditor.Extensions;
 
 /// <summary>
-/// Extension methods for configuring LLM Accessibility Auditor services
+///     Extension methods for configuring LLM Accessibility Auditor services
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Add LLM Accessibility Auditor services to the DI container
+    ///     Add LLM Accessibility Auditor services to the DI container
     /// </summary>
     /// <param name="services">Service collection</param>
     /// <param name="configure">Configuration action</param>
@@ -28,13 +27,9 @@ public static class ServiceCollectionExtensions
         configure?.Invoke(options);
 
         if (configure != null)
-        {
             services.Configure(configure);
-        }
         else
-        {
             services.Configure<AccessibilityAuditorOptions>(opt => { });
-        }
 
         // Register core services
         services.AddSingleton<IHtmlAccessibilityParser, HtmlAccessibilityParser>();
@@ -51,7 +46,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Add LLM Accessibility Auditor services from configuration
+    ///     Add LLM Accessibility Auditor services from configuration
     /// </summary>
     /// <param name="services">Service collection</param>
     /// <param name="configuration">Configuration</param>
@@ -80,12 +75,12 @@ public static class ServiceCollectionExtensions
 }
 
 /// <summary>
-/// Extension methods for configuring middleware
+///     Extension methods for configuring middleware
 /// </summary>
 public static class ApplicationBuilderExtensions
 {
     /// <summary>
-    /// Use the accessibility audit middleware
+    ///     Use the accessibility audit middleware
     /// </summary>
     /// <param name="app">Application builder</param>
     /// <returns>Application builder for chaining</returns>

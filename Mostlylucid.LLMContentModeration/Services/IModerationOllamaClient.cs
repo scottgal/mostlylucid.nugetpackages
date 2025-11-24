@@ -3,12 +3,12 @@ using Mostlylucid.LLMContentModeration.Models;
 namespace Mostlylucid.LLMContentModeration.Services;
 
 /// <summary>
-/// Client interface for Ollama-based content moderation
+///     Client interface for Ollama-based content moderation
 /// </summary>
 public interface IModerationOllamaClient
 {
     /// <summary>
-    /// Classify content for toxicity, spam, self-harm, and NSFW
+    ///     Classify content for toxicity, spam, self-harm, and NSFW
     /// </summary>
     /// <param name="content">Content to classify</param>
     /// <param name="options">Classification options</param>
@@ -20,7 +20,7 @@ public interface IModerationOllamaClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Enhance PII detection using LLM analysis
+    ///     Enhance PII detection using LLM analysis
     /// </summary>
     /// <param name="content">Content to analyze</param>
     /// <param name="regexMatches">Matches already found via regex</param>
@@ -32,12 +32,12 @@ public interface IModerationOllamaClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Check if the Ollama service is available
+    ///     Check if the Ollama service is available
     /// </summary>
     Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Get available models from Ollama
+    ///     Get available models from Ollama
     /// </summary>
     Task<List<string>> GetModelsAsync(CancellationToken cancellationToken = default);
 }

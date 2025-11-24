@@ -8,13 +8,13 @@ using Mostlylucid.LlmPiiRedactor.Services;
 namespace Mostlylucid.LlmPiiRedactor.Filters;
 
 /// <summary>
-/// Exception filter that redacts PII from error responses and exception details.
+///     Exception filter that redacts PII from error responses and exception details.
 /// </summary>
 public class PiiExceptionFilter : IExceptionFilter
 {
-    private readonly IPiiRedactionService _redactionService;
-    private readonly PiiLoggingOptions _options;
     private readonly ILogger<PiiExceptionFilter> _logger;
+    private readonly PiiLoggingOptions _options;
+    private readonly IPiiRedactionService _redactionService;
 
     public PiiExceptionFilter(
         IPiiRedactionService redactionService,
@@ -36,9 +36,7 @@ public class PiiExceptionFilter : IExceptionFilter
 
         string? redactedStackTrace = null;
         if (_options.RedactStackTraces && exception.StackTrace != null)
-        {
             redactedStackTrace = _redactionService.Redact(exception.StackTrace).RedactedText;
-        }
 
         _logger.LogError("Exception occurred: {Message}", redactedMessage);
 
@@ -52,10 +50,7 @@ public class PiiExceptionFilter : IExceptionFilter
         };
 
         // Add redacted stack trace in development (handled by caller)
-        if (redactedStackTrace != null)
-        {
-            problemDetails.Extensions["stackTrace"] = redactedStackTrace;
-        }
+        if (redactedStackTrace != null) problemDetails.Extensions["stackTrace"] = redactedStackTrace;
 
         context.Result = new ObjectResult(problemDetails)
         {
@@ -67,7 +62,7 @@ public class PiiExceptionFilter : IExceptionFilter
 }
 
 /// <summary>
-/// Attribute to enable PII redaction on exception responses for a controller or action.
+///     Attribute to enable PII redaction on exception responses for a controller or action.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 public class RedactPiiExceptionsAttribute : TypeFilterAttribute

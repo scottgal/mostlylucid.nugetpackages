@@ -4,7 +4,7 @@ using Mostlylucid.LlmPiiRedactor.Models;
 namespace Mostlylucid.LlmPiiRedactor.Detectors;
 
 /// <summary>
-/// Detects postal/ZIP codes from various countries.
+///     Detects postal/ZIP codes from various countries.
 /// </summary>
 public class PostCodeDetector : BasePiiDetector
 {
@@ -38,16 +38,10 @@ public class PostCodeDetector : BasePiiDetector
         }
 
         // UK postcode validation
-        if (Regex.IsMatch(postcode, @"^[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}$", RegexOptions.IgnoreCase))
-        {
-            return true;
-        }
+        if (Regex.IsMatch(postcode, @"^[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}$", RegexOptions.IgnoreCase)) return true;
 
         // Canadian postcode validation (letter-digit-letter digit-letter-digit)
-        if (Regex.IsMatch(postcode, @"^[A-Z]\d[A-Z]\s*\d[A-Z]\d$", RegexOptions.IgnoreCase))
-        {
-            return true;
-        }
+        if (Regex.IsMatch(postcode, @"^[A-Z]\d[A-Z]\s*\d[A-Z]\d$", RegexOptions.IgnoreCase)) return true;
 
         return true;
     }

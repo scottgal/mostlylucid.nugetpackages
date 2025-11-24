@@ -14,8 +14,8 @@ public class QdrantVectorStore(
     IEmbeddingGenerator embeddingGenerator,
     IOptions<LlmSlideTranslatorConfig> options) : IVectorStore
 {
-    private readonly LlmSlideTranslatorConfig config = options.Value;
     private readonly QdrantClient client = new(options.Value.Qdrant.Endpoint, apiKey: options.Value.Qdrant.ApiKey);
+    private readonly LlmSlideTranslatorConfig config = options.Value;
     private readonly SemaphoreSlim initLock = new(1, 1);
     private bool _collectionInitialized;
 
@@ -140,7 +140,7 @@ public class QdrantVectorStore(
 
         var scrollResult = await client.ScrollAsync(
             collectionName,
-            filter: new Filter
+            new Filter
             {
                 Must =
                 {
@@ -154,7 +154,7 @@ public class QdrantVectorStore(
                     }
                 }
             },
-            limit: 1000,
+            1000,
             payloadSelector: true,
             vectorsSelector: true,
             cancellationToken: cancellationToken);

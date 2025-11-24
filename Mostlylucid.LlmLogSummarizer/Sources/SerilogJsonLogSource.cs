@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.LlmLogSummarizer.Models;
@@ -6,7 +8,7 @@ using ModelLogLevel = Mostlylucid.LlmLogSummarizer.Models.LogLevel;
 namespace Mostlylucid.LlmLogSummarizer.Sources;
 
 /// <summary>
-/// Log source for Serilog compact JSON format files.
+///     Log source for Serilog compact JSON format files.
 /// </summary>
 public class SerilogJsonLogSource : ILogSource
 {
@@ -27,7 +29,7 @@ public class SerilogJsonLogSource : ILogSource
         DateTimeOffset from,
         DateTimeOffset to,
         int maxEntries,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var files = GetLogFiles(from, to);
         var entriesYielded = 0;
@@ -87,12 +89,10 @@ public class SerilogJsonLogSource : ILogSource
 
         // Directory with default pattern
         if (Directory.Exists(path))
-        {
             return Directory.EnumerateFiles(path, "*.json")
                 .Concat(Directory.EnumerateFiles(path, "*.clef"))
                 .Where(f => ShouldIncludeFile(f, from, to))
                 .OrderByDescending(f => new FileInfo(f).LastWriteTimeUtc);
-        }
 
         return Enumerable.Empty<string>();
     }
@@ -112,9 +112,9 @@ public class SerilogJsonLogSource : ILogSource
         string filePath,
         DateTimeOffset from,
         DateTimeOffset to,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var encoding = System.Text.Encoding.GetEncoding(_config.Encoding);
+        var encoding = Encoding.GetEncoding(_config.Encoding);
 
         using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var reader = new StreamReader(stream, encoding);
@@ -155,37 +155,21 @@ public class SerilogJsonLogSource : ILogSource
 
             // Parse timestamp (Serilog uses @t for compact format)
             if (root.TryGetProperty("@t", out var timestamp))
-            {
                 entry.Timestamp = DateTimeOffset.Parse(timestamp.GetString()!);
-            }
             else if (root.TryGetProperty("Timestamp", out var ts))
-            {
                 entry.Timestamp = DateTimeOffset.Parse(ts.GetString()!);
-            }
 
             // Parse level (Serilog uses @l for compact format)
             if (root.TryGetProperty("@l", out var level))
-            {
                 entry.Level = ParseLogLevel(level.GetString());
-            }
-            else if (root.TryGetProperty("Level", out var lvl))
-            {
-                entry.Level = ParseLogLevel(lvl.GetString());
-            }
+            else if (root.TryGetProperty("Level", out var lvl)) entry.Level = ParseLogLevel(lvl.GetString());
 
             // Parse message (Serilog uses @m for compact format)
             if (root.TryGetProperty("@m", out var message))
-            {
                 entry.Message = message.GetString() ?? string.Empty;
-            }
             else if (root.TryGetProperty("RenderedMessage", out var rm))
-            {
                 entry.Message = rm.GetString() ?? string.Empty;
-            }
-            else if (root.TryGetProperty("Message", out var msg))
-            {
-                entry.Message = msg.GetString() ?? string.Empty;
-            }
+            else if (root.TryGetProperty("Message", out var msg)) entry.Message = msg.GetString() ?? string.Empty;
 
             // Parse exception (Serilog uses @x for compact format)
             if (root.TryGetProperty("@x", out var exception))
@@ -201,9 +185,7 @@ public class SerilogJsonLogSource : ILogSource
 
             // Parse source context
             if (root.TryGetProperty("SourceContext", out var sourceContext))
-            {
                 entry.SourceContext = sourceContext.GetString();
-            }
 
             // Parse other properties
             foreach (var prop in root.EnumerateObject())

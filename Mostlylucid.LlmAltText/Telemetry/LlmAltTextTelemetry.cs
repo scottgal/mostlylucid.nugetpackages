@@ -18,8 +18,10 @@ public static class LlmAltTextTelemetry
     /// </summary>
     public static readonly ActivitySource ActivitySource = new(ActivitySourceName, GetVersion());
 
-    private static string GetVersion() =>
-        typeof(LlmAltTextTelemetry).Assembly.GetName().Version?.ToString() ?? "1.0.0";
+    private static string GetVersion()
+    {
+        return typeof(LlmAltTextTelemetry).Assembly.GetName().Version?.ToString() ?? "1.0.0";
+    }
 
     /// <summary>
     ///     Start an activity for alt text generation
@@ -28,7 +30,7 @@ public static class LlmAltTextTelemetry
     /// <returns>The started activity, or null if no listeners</returns>
     public static Activity? StartGenerateAltTextActivity(string taskType)
     {
-        var activity = ActivitySource.StartActivity("LlmAltText.GenerateAltText", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("LlmAltText.GenerateAltText");
         activity?.SetTag("llmalttext.task_type", taskType);
         activity?.SetTag("llmalttext.operation", "generate_alt_text");
         return activity;
@@ -40,7 +42,7 @@ public static class LlmAltTextTelemetry
     /// <returns>The started activity, or null if no listeners</returns>
     public static Activity? StartExtractTextActivity()
     {
-        var activity = ActivitySource.StartActivity("LlmAltText.ExtractText", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("LlmAltText.ExtractText");
         activity?.SetTag("llmalttext.operation", "extract_text");
         return activity;
     }
@@ -51,7 +53,7 @@ public static class LlmAltTextTelemetry
     /// <returns>The started activity, or null if no listeners</returns>
     public static Activity? StartAnalyzeImageActivity()
     {
-        var activity = ActivitySource.StartActivity("LlmAltText.AnalyzeImage", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("LlmAltText.AnalyzeImage");
         activity?.SetTag("llmalttext.operation", "analyze_image");
         return activity;
     }
@@ -62,7 +64,7 @@ public static class LlmAltTextTelemetry
     /// <returns>The started activity, or null if no listeners</returns>
     public static Activity? StartAnalyzeWithClassificationActivity()
     {
-        var activity = ActivitySource.StartActivity("LlmAltText.AnalyzeWithClassification", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("LlmAltText.AnalyzeWithClassification");
         activity?.SetTag("llmalttext.operation", "analyze_with_classification");
         return activity;
     }
@@ -73,7 +75,7 @@ public static class LlmAltTextTelemetry
     /// <returns>The started activity, or null if no listeners</returns>
     public static Activity? StartClassifyContentTypeActivity()
     {
-        var activity = ActivitySource.StartActivity("LlmAltText.ClassifyContentType", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("LlmAltText.ClassifyContentType");
         activity?.SetTag("llmalttext.operation", "classify_content_type");
         return activity;
     }
@@ -108,7 +110,8 @@ public static class LlmAltTextTelemetry
     /// <param name="extractedTextLength">Length of extracted text</param>
     /// <param name="hasText">Whether any text was found</param>
     /// <param name="durationMs">Processing duration in milliseconds</param>
-    public static void RecordExtractTextResult(Activity? activity, int extractedTextLength, bool hasText, double durationMs)
+    public static void RecordExtractTextResult(Activity? activity, int extractedTextLength, bool hasText,
+        double durationMs)
     {
         activity?.SetTag("llmalttext.extracted_text_length", extractedTextLength);
         activity?.SetTag("llmalttext.has_text", hasText);
@@ -123,7 +126,8 @@ public static class LlmAltTextTelemetry
     /// <param name="contentType">The classified content type</param>
     /// <param name="confidence">Confidence score for the classification</param>
     /// <param name="durationMs">Processing duration in milliseconds</param>
-    public static void RecordClassificationResult(Activity? activity, ImageContentType contentType, double confidence, double durationMs)
+    public static void RecordClassificationResult(Activity? activity, ImageContentType contentType, double confidence,
+        double durationMs)
     {
         activity?.SetTag("llmalttext.content_type", contentType.ToString());
         activity?.SetTag("llmalttext.content_type_confidence", confidence);

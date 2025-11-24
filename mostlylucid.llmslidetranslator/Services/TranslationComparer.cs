@@ -10,7 +10,6 @@ public class TranslationComparer(
     ILogger<TranslationComparer> logger,
     IEmbeddingGenerator embeddingGenerator) : ITranslationComparer
 {
-
     public Task<TranslationComparison> CompareAsync(
         TranslationResult result1,
         TranslationResult result2,

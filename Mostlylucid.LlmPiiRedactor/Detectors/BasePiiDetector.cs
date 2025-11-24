@@ -4,7 +4,7 @@ using Mostlylucid.LlmPiiRedactor.Models;
 namespace Mostlylucid.LlmPiiRedactor.Detectors;
 
 /// <summary>
-/// Base class for regex-based PII detectors.
+///     Base class for regex-based PII detectors.
 /// </summary>
 public abstract class BasePiiDetector : IPiiDetector
 {
@@ -17,14 +17,19 @@ public abstract class BasePiiDetector : IPiiDetector
     }
 
     /// <summary>
-    /// The regex pattern for detection.
+    ///     The regex pattern for detection.
     /// </summary>
     protected abstract string Pattern { get; }
 
     /// <summary>
-    /// Additional regex options beyond Compiled.
+    ///     Additional regex options beyond Compiled.
     /// </summary>
     protected virtual RegexOptions AdditionalRegexOptions => RegexOptions.None;
+
+    /// <summary>
+    ///     Default confidence for matches from this detector.
+    /// </summary>
+    protected virtual double DefaultConfidence => 1.0;
 
     /// <inheritdoc />
     public abstract PiiType PiiType { get; }
@@ -37,11 +42,6 @@ public abstract class BasePiiDetector : IPiiDetector
 
     /// <inheritdoc />
     public virtual bool IsEnabled => true;
-
-    /// <summary>
-    /// Default confidence for matches from this detector.
-    /// </summary>
-    protected virtual double DefaultConfidence => 1.0;
 
     /// <inheritdoc />
     public virtual IEnumerable<PiiMatch> Detect(string text, CancellationToken cancellationToken = default)
@@ -56,7 +56,6 @@ public abstract class BasePiiDetector : IPiiDetector
             cancellationToken.ThrowIfCancellationRequested();
 
             if (ValidateMatch(match, text))
-            {
                 yield return new PiiMatch
                 {
                     Type = PiiType,
@@ -67,17 +66,22 @@ public abstract class BasePiiDetector : IPiiDetector
                     Confidence = CalculateConfidence(match, text),
                     DetectorName = Name
                 };
-            }
         }
     }
 
     /// <summary>
-    /// Validate a potential match (override for additional validation).
+    ///     Validate a potential match (override for additional validation).
     /// </summary>
-    protected virtual bool ValidateMatch(Match match, string originalText) => true;
+    protected virtual bool ValidateMatch(Match match, string originalText)
+    {
+        return true;
+    }
 
     /// <summary>
-    /// Calculate confidence score for a match.
+    ///     Calculate confidence score for a match.
     /// </summary>
-    protected virtual double CalculateConfidence(Match match, string originalText) => DefaultConfidence;
+    protected virtual double CalculateConfidence(Match match, string originalText)
+    {
+        return DefaultConfidence;
+    }
 }

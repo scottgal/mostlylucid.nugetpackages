@@ -17,23 +17,14 @@ public class DataHubGeoLocationService(
     IHttpClientFactory httpClientFactory,
     IMemoryCache cache) : IGeoLocationService, IHostedService
 {
-    private readonly GeoLite2Options _options = options.Value;
-    private readonly GeoLocationStatistics _stats = new();
-    private readonly SemaphoreSlim _loadLock = new(1, 1);
-
     private const string CsvUrl = "https://datahub.io/core/geoip2-ipv4/r/geoip2-ipv4.csv";
     private const string DefaultCsvPath = "data/geoip2-ipv4.csv";
+    private readonly SemaphoreSlim _loadLock = new(1, 1);
+    private readonly GeoLite2Options _options = options.Value;
+    private readonly GeoLocationStatistics _stats = new();
 
     private List<IpRange>? _ipRanges;
     private DateTime _lastUpdate = DateTime.MinValue;
-
-    public async Task StartAsync(CancellationToken cancellationToken)
-    {
-        // Load database on startup
-        await EnsureDatabaseLoadedAsync(cancellationToken);
-    }
-
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     public async Task<GeoLocation?> GetLocationAsync(string ipAddress, CancellationToken cancellationToken = default)
     {
@@ -57,27 +48,22 @@ public class DataHubGeoLocationService(
         }
 
         // Parse IP
-        if (!IPAddress.TryParse(ipAddress, out var ip))
-        {
-            return null;
-        }
+        if (!IPAddress.TryParse(ipAddress, out var ip)) return null;
 
         // Skip private IPs
         if (IsPrivateOrReserved(ip))
-        {
             return new GeoLocation
             {
                 CountryCode = "XX",
                 CountryName = "Private Network",
                 ContinentCode = "XX"
             };
-        }
 
         // Convert to uint for comparison (IPv4 only)
         var bytes = ip.GetAddressBytes();
         if (bytes.Length != 4) return null; // IPv6 not supported in this dataset
 
-        var ipUint = (uint)(bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3]);
+        var ipUint = (uint)((bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
 
         // Binary search for matching range
         var location = FindLocation(ipUint);
@@ -94,6 +80,37 @@ public class DataHubGeoLocationService(
         return location;
     }
 
+    public async Task<bool> IsFromCountryAsync(string ipAddress, string countryCode,
+        CancellationToken cancellationToken = default)
+    {
+        var location = await GetLocationAsync(ipAddress, cancellationToken);
+        return location?.CountryCode.Equals(countryCode, StringComparison.OrdinalIgnoreCase) ?? false;
+    }
+
+    public GeoLocationStatistics GetStatistics()
+    {
+        return new GeoLocationStatistics
+        {
+            TotalLookups = _stats.TotalLookups,
+            CacheHits = _stats.CacheHits,
+            CachedEntries = _ipRanges?.Count ?? 0,
+            DatabaseLoaded = _ipRanges != null && _ipRanges.Count > 0,
+            DatabasePath = GetCsvPath(),
+            LastDatabaseUpdate = _lastUpdate
+        };
+    }
+
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        // Load database on startup
+        await EnsureDatabaseLoadedAsync(cancellationToken);
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
     private GeoLocation? FindLocation(uint ip)
     {
         if (_ipRanges == null) return null;
@@ -107,15 +124,10 @@ public class DataHubGeoLocationService(
             var range = _ipRanges[mid];
 
             if (ip < range.StartIp)
-            {
                 right = mid - 1;
-            }
             else if (ip > range.EndIp)
-            {
                 left = mid + 1;
-            }
             else
-            {
                 // Found!
                 return new GeoLocation
                 {
@@ -123,7 +135,6 @@ public class DataHubGeoLocationService(
                     CountryName = range.CountryName,
                     ContinentCode = range.ContinentCode
                 };
-            }
         }
 
         return null;
@@ -144,15 +155,10 @@ public class DataHubGeoLocationService(
 
             // Check if we need to download
             if (!File.Exists(csvPath) || File.GetLastWriteTimeUtc(csvPath) < DateTime.UtcNow.AddDays(-7))
-            {
                 await DownloadDatabaseAsync(csvPath, cancellationToken);
-            }
 
             // Load from file
-            if (File.Exists(csvPath))
-            {
-                await LoadFromCsvAsync(csvPath, cancellationToken);
-            }
+            if (File.Exists(csvPath)) await LoadFromCsvAsync(csvPath, cancellationToken);
         }
         finally
         {
@@ -176,10 +182,7 @@ public class DataHubGeoLocationService(
             }
 
             var dir = Path.GetDirectoryName(csvPath);
-            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-            {
-                Directory.CreateDirectory(dir);
-            }
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
 
             await using var fileStream = File.Create(csvPath);
             await response.Content.CopyToAsync(fileStream, cancellationToken);
@@ -202,7 +205,7 @@ public class DataHubGeoLocationService(
             var lines = await File.ReadAllLinesAsync(csvPath, cancellationToken);
 
             // Skip header
-            for (int i = 1; i < lines.Length; i++)
+            for (var i = 1; i < lines.Length; i++)
             {
                 var line = lines[i];
                 if (string.IsNullOrWhiteSpace(line)) continue;
@@ -229,7 +232,7 @@ public class DataHubGeoLocationService(
                 var bytes = baseIp.GetAddressBytes();
                 if (bytes.Length != 4) continue; // IPv4 only
 
-                var baseUint = (uint)(bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3]);
+                var baseUint = (uint)((bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]);
                 var mask = prefixLength == 0 ? 0 : uint.MaxValue << (32 - prefixLength);
                 var startIp = baseUint & mask;
                 var endIp = startIp | ~mask;
@@ -265,7 +268,6 @@ public class DataHubGeoLocationService(
         var inQuotes = false;
 
         foreach (var c in line)
-        {
             if (c == '"')
             {
                 inQuotes = !inQuotes;
@@ -279,50 +281,22 @@ public class DataHubGeoLocationService(
             {
                 current += c;
             }
-        }
+
         result.Add(current);
 
         return result.ToArray();
-    }
-
-    public async Task<bool> IsFromCountryAsync(string ipAddress, string countryCode,
-        CancellationToken cancellationToken = default)
-    {
-        var location = await GetLocationAsync(ipAddress, cancellationToken);
-        return location?.CountryCode.Equals(countryCode, StringComparison.OrdinalIgnoreCase) ?? false;
-    }
-
-    public GeoLocationStatistics GetStatistics()
-    {
-        return new GeoLocationStatistics
-        {
-            TotalLookups = _stats.TotalLookups,
-            CacheHits = _stats.CacheHits,
-            CachedEntries = _ipRanges?.Count ?? 0,
-            DatabaseLoaded = _ipRanges != null && _ipRanges.Count > 0,
-            DatabasePath = GetCsvPath(),
-            LastDatabaseUpdate = _lastUpdate
-        };
     }
 
     private string GetCsvPath()
     {
         var path = _options.DatabasePath;
         if (path.EndsWith(".mmdb", StringComparison.OrdinalIgnoreCase))
-        {
             // Change extension for CSV
             path = Path.ChangeExtension(path, ".csv");
-        }
 
-        if (!path.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
-        {
-            path = DefaultCsvPath;
-        }
+        if (!path.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)) path = DefaultCsvPath;
 
-        if (!Path.IsPathRooted(path))
-        {
-            path = Path.Combine(AppContext.BaseDirectory, path);
-        }
+        if (!Path.IsPathRooted(path)) path = Path.Combine(AppContext.BaseDirectory, path);
         return path;
     }
 

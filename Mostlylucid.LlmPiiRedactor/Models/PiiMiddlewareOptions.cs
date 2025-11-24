@@ -1,42 +1,42 @@
 namespace Mostlylucid.LlmPiiRedactor.Models;
 
 /// <summary>
-/// Configuration options for PII redaction middleware.
+///     Configuration options for PII redaction middleware.
 /// </summary>
 public class PiiMiddlewareOptions
 {
     /// <summary>
-    /// Whether middleware is enabled.
+    ///     Whether middleware is enabled.
     /// </summary>
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// Whether to redact request bodies.
+    ///     Whether to redact request bodies.
     /// </summary>
     public bool RedactRequestBody { get; set; } = true;
 
     /// <summary>
-    /// Whether to redact response bodies.
+    ///     Whether to redact response bodies.
     /// </summary>
     public bool RedactResponseBody { get; set; } = true;
 
     /// <summary>
-    /// Whether to redact request headers.
+    ///     Whether to redact request headers.
     /// </summary>
     public bool RedactRequestHeaders { get; set; } = true;
 
     /// <summary>
-    /// Whether to redact response headers.
+    ///     Whether to redact response headers.
     /// </summary>
     public bool RedactResponseHeaders { get; set; } = false;
 
     /// <summary>
-    /// Whether to redact query strings.
+    ///     Whether to redact query strings.
     /// </summary>
     public bool RedactQueryStrings { get; set; } = true;
 
     /// <summary>
-    /// Request paths to exclude from redaction (supports wildcards).
+    ///     Request paths to exclude from redaction (supports wildcards).
     /// </summary>
     public HashSet<string> ExcludedPaths { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -49,7 +49,7 @@ public class PiiMiddlewareOptions
     };
 
     /// <summary>
-    /// Content types to process for body redaction.
+    ///     Content types to process for body redaction.
     /// </summary>
     public HashSet<string> ProcessableContentTypes { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -62,7 +62,7 @@ public class PiiMiddlewareOptions
     };
 
     /// <summary>
-    /// Headers to always redact (sensitive headers).
+    ///     Headers to always redact (sensitive headers).
     /// </summary>
     public HashSet<string> SensitiveHeaders { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -75,18 +75,18 @@ public class PiiMiddlewareOptions
     };
 
     /// <summary>
-    /// Maximum request/response body size to process (bytes).
-    /// Default: 1MB
+    ///     Maximum request/response body size to process (bytes).
+    ///     Default: 1MB
     /// </summary>
     public int MaxBodySize { get; set; } = 1024 * 1024;
 
     /// <summary>
-    /// Whether to add a response header indicating redaction occurred.
+    ///     Whether to add a response header indicating redaction occurred.
     /// </summary>
     public bool AddRedactionHeader { get; set; } = false;
 
     /// <summary>
-    /// Name of the header to add when redaction occurs.
+    ///     Name of the header to add when redaction occurs.
     /// </summary>
     public string RedactionHeaderName { get; set; } = "X-Pii-Redacted";
 }

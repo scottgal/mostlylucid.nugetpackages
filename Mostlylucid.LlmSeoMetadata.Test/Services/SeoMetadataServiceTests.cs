@@ -8,9 +8,9 @@ namespace Mostlylucid.LlmSeoMetadata.Test.Services;
 
 public class SeoMetadataServiceTests
 {
-    private readonly Mock<ILogger<OllamaSeoMetadataService>> _mockLogger;
-    private readonly IMemoryCache _memoryCache;
     private readonly SeoMetadataOptions _defaultOptions;
+    private readonly IMemoryCache _memoryCache;
+    private readonly Mock<ILogger<OllamaSeoMetadataService>> _mockLogger;
 
     public SeoMetadataServiceTests()
     {

@@ -7,10 +7,10 @@ namespace Mostlylucid.LLMContentModeration.Test;
 
 public class ContentModerationServiceTests
 {
+    private readonly ModerationOptions _defaultOptions;
     private readonly Mock<ILogger<ContentModerationService>> _loggerMock;
     private readonly Mock<IModerationOllamaClient> _ollamaClientMock;
     private readonly Mock<IPiiDetector> _piiDetectorMock;
-    private readonly ModerationOptions _defaultOptions;
 
     public ContentModerationServiceTests()
     {
@@ -33,6 +33,30 @@ public class ContentModerationServiceTests
             _piiDetectorMock.Object,
             opts);
     }
+
+    #region Processing Time Tests
+
+    [Fact]
+    public async Task ModerateAsync_TracksProcessingTime()
+    {
+        _piiDetectorMock.Setup(x => x.DetectPii(It.IsAny<string>(), It.IsAny<PiiDetectionOptions>()))
+            .Returns([]);
+
+        _ollamaClientMock.Setup(x => x.ClassifyContentAsync(
+                It.IsAny<string>(),
+                It.IsAny<ContentClassificationOptions>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var service = CreateService();
+
+        var result = await service.ModerateAsync("Test content");
+
+        Assert.True(result.ProcessingTimeMs >= 0);
+        Assert.NotEqual(default, result.Timestamp);
+    }
+
+    #endregion
 
     #region Basic Moderation Tests
 
@@ -182,7 +206,8 @@ public class ContentModerationServiceTests
         _piiDetectorMock.Setup(x => x.DetectPii(It.IsAny<string>(), It.IsAny<PiiDetectionOptions>()))
             .Returns(piiMatches);
 
-        _piiDetectorMock.Setup(x => x.MaskPii(It.IsAny<string>(), It.IsAny<List<PiiMatch>>(), It.IsAny<PiiDetectionOptions>()))
+        _piiDetectorMock.Setup(x =>
+                x.MaskPii(It.IsAny<string>(), It.IsAny<List<PiiMatch>>(), It.IsAny<PiiDetectionOptions>()))
             .Returns("Contact: te**********om");
 
         _ollamaClientMock.Setup(x => x.ClassifyContentAsync(
@@ -309,30 +334,6 @@ public class ContentModerationServiceTests
         Assert.True(status.IsAvailable);
         Assert.NotNull(status.AvailableModels);
         Assert.Equal(2, status.AvailableModels.Count);
-    }
-
-    #endregion
-
-    #region Processing Time Tests
-
-    [Fact]
-    public async Task ModerateAsync_TracksProcessingTime()
-    {
-        _piiDetectorMock.Setup(x => x.DetectPii(It.IsAny<string>(), It.IsAny<PiiDetectionOptions>()))
-            .Returns([]);
-
-        _ollamaClientMock.Setup(x => x.ClassifyContentAsync(
-                It.IsAny<string>(),
-                It.IsAny<ContentClassificationOptions>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
-
-        var service = CreateService();
-
-        var result = await service.ModerateAsync("Test content");
-
-        Assert.True(result.ProcessingTimeMs >= 0);
-        Assert.NotEqual(default, result.Timestamp);
     }
 
     #endregion

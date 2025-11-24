@@ -8,14 +8,14 @@ using Mostlylucid.RagLlmSearch.Models;
 namespace Mostlylucid.RagLlmSearch.Conversation;
 
 /// <summary>
-/// SQLite-based conversation history service
+///     SQLite-based conversation history service
 /// </summary>
 public class SqliteConversationService : IConversationService, IAsyncDisposable
 {
-    private readonly RagLlmSearchOptions _options;
-    private readonly ILogger<SqliteConversationService> _logger;
-    private SqliteConnection? _connection;
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly ILogger<SqliteConversationService> _logger;
+    private readonly RagLlmSearchOptions _options;
+    private SqliteConnection? _connection;
     private bool _initialized;
 
     public SqliteConversationService(
@@ -24,6 +24,12 @@ public class SqliteConversationService : IConversationService, IAsyncDisposable
     {
         _options = options.Value;
         _logger = logger;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_connection != null) await _connection.DisposeAsync();
+        _lock.Dispose();
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
@@ -40,33 +46,33 @@ public class SqliteConversationService : IConversationService, IAsyncDisposable
             await _connection.OpenAsync(cancellationToken);
 
             var createTablesSql = """
-                CREATE TABLE IF NOT EXISTS conversations (
-                    id TEXT PRIMARY KEY,
-                    user_id TEXT,
-                    title TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    is_active INTEGER DEFAULT 1,
-                    metadata TEXT
-                );
+                                  CREATE TABLE IF NOT EXISTS conversations (
+                                      id TEXT PRIMARY KEY,
+                                      user_id TEXT,
+                                      title TEXT NOT NULL,
+                                      created_at TEXT NOT NULL,
+                                      updated_at TEXT NOT NULL,
+                                      is_active INTEGER DEFAULT 1,
+                                      metadata TEXT
+                                  );
 
-                CREATE TABLE IF NOT EXISTS messages (
-                    id TEXT PRIMARY KEY,
-                    conversation_id TEXT NOT NULL,
-                    role TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    sources TEXT,
-                    token_count INTEGER,
-                    used_rag_context INTEGER DEFAULT 0,
-                    triggered_search INTEGER DEFAULT 0,
-                    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
-                );
+                                  CREATE TABLE IF NOT EXISTS messages (
+                                      id TEXT PRIMARY KEY,
+                                      conversation_id TEXT NOT NULL,
+                                      role TEXT NOT NULL,
+                                      content TEXT NOT NULL,
+                                      created_at TEXT NOT NULL,
+                                      sources TEXT,
+                                      token_count INTEGER,
+                                      used_rag_context INTEGER DEFAULT 0,
+                                      triggered_search INTEGER DEFAULT 0,
+                                      FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+                                  );
 
-                CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id);
-                CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
-                CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
-                """;
+                                  CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id);
+                                  CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
+                                  CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
+                                  """;
 
             await using var command = new SqliteCommand(createTablesSql, _connection);
             await command.ExecuteNonQueryAsync(cancellationToken);
@@ -101,9 +107,9 @@ public class SqliteConversationService : IConversationService, IAsyncDisposable
         try
         {
             var sql = """
-                INSERT INTO conversations (id, user_id, title, created_at, updated_at, is_active, metadata)
-                VALUES (@id, @user_id, @title, @created_at, @updated_at, @is_active, @metadata)
-                """;
+                      INSERT INTO conversations (id, user_id, title, created_at, updated_at, is_active, metadata)
+                      VALUES (@id, @user_id, @title, @created_at, @updated_at, @is_active, @metadata)
+                      """;
 
             await using var command = new SqliteCommand(sql, _connection);
             command.Parameters.AddWithValue("@id", conversation.Id);
@@ -174,10 +180,7 @@ public class SqliteConversationService : IConversationService, IAsyncDisposable
 
             var conversations = new List<Models.Conversation>();
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                conversations.Add(ReadConversation(reader));
-            }
+            while (await reader.ReadAsync(cancellationToken)) conversations.Add(ReadConversation(reader));
 
             return conversations;
         }
@@ -195,18 +198,15 @@ public class SqliteConversationService : IConversationService, IAsyncDisposable
         await EnsureInitializedAsync(cancellationToken);
 
         message.ConversationId = conversationId;
-        if (string.IsNullOrEmpty(message.Id))
-        {
-            message.Id = Guid.NewGuid().ToString();
-        }
+        if (string.IsNullOrEmpty(message.Id)) message.Id = Guid.NewGuid().ToString();
 
         await _lock.WaitAsync(cancellationToken);
         try
         {
             var sql = """
-                INSERT INTO messages (id, conversation_id, role, content, created_at, sources, token_count, used_rag_context, triggered_search)
-                VALUES (@id, @conversation_id, @role, @content, @created_at, @sources, @token_count, @used_rag_context, @triggered_search)
-                """;
+                      INSERT INTO messages (id, conversation_id, role, content, created_at, sources, token_count, used_rag_context, triggered_search)
+                      VALUES (@id, @conversation_id, @role, @content, @created_at, @sources, @token_count, @used_rag_context, @triggered_search)
+                      """;
 
             await using var command = new SqliteCommand(sql, _connection);
             command.Parameters.AddWithValue("@id", message.Id);
@@ -253,32 +253,6 @@ public class SqliteConversationService : IConversationService, IAsyncDisposable
         {
             _lock.Release();
         }
-    }
-
-    private async Task<List<ChatMessage>> GetMessagesInternalAsync(
-        string conversationId,
-        int? limit,
-        CancellationToken cancellationToken)
-    {
-        var sql = limit.HasValue
-            ? "SELECT * FROM messages WHERE conversation_id = @conversation_id ORDER BY created_at ASC LIMIT @limit"
-            : "SELECT * FROM messages WHERE conversation_id = @conversation_id ORDER BY created_at ASC";
-
-        await using var command = new SqliteCommand(sql, _connection);
-        command.Parameters.AddWithValue("@conversation_id", conversationId);
-        if (limit.HasValue)
-        {
-            command.Parameters.AddWithValue("@limit", limit.Value);
-        }
-
-        var messages = new List<ChatMessage>();
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            messages.Add(ReadMessage(reader));
-        }
-
-        return messages;
     }
 
     public async Task UpdateConversationAsync(
@@ -351,12 +325,29 @@ public class SqliteConversationService : IConversationService, IAsyncDisposable
         }
     }
 
+    private async Task<List<ChatMessage>> GetMessagesInternalAsync(
+        string conversationId,
+        int? limit,
+        CancellationToken cancellationToken)
+    {
+        var sql = limit.HasValue
+            ? "SELECT * FROM messages WHERE conversation_id = @conversation_id ORDER BY created_at ASC LIMIT @limit"
+            : "SELECT * FROM messages WHERE conversation_id = @conversation_id ORDER BY created_at ASC";
+
+        await using var command = new SqliteCommand(sql, _connection);
+        command.Parameters.AddWithValue("@conversation_id", conversationId);
+        if (limit.HasValue) command.Parameters.AddWithValue("@limit", limit.Value);
+
+        var messages = new List<ChatMessage>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken)) messages.Add(ReadMessage(reader));
+
+        return messages;
+    }
+
     private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
     {
-        if (!_initialized)
-        {
-            await InitializeAsync(cancellationToken);
-        }
+        if (!_initialized) await InitializeAsync(cancellationToken);
     }
 
     private static Models.Conversation ReadConversation(SqliteDataReader reader)
@@ -371,7 +362,8 @@ public class SqliteConversationService : IConversationService, IAsyncDisposable
             CreatedAt = DateTime.Parse(reader["created_at"].ToString() ?? DateTime.UtcNow.ToString("O")),
             UpdatedAt = DateTime.Parse(reader["updated_at"].ToString() ?? DateTime.UtcNow.ToString("O")),
             IsActive = Convert.ToInt32(reader["is_active"]) == 1,
-            Metadata = JsonSerializer.Deserialize<Dictionary<string, string>>(metadataJson) ?? new()
+            Metadata = JsonSerializer.Deserialize<Dictionary<string, string>>(metadataJson) ??
+                       new Dictionary<string, string>()
         };
     }
 
@@ -387,19 +379,10 @@ public class SqliteConversationService : IConversationService, IAsyncDisposable
             Role = Enum.TryParse<ChatRole>(roleString, true, out var role) ? role : ChatRole.User,
             Content = reader["content"].ToString() ?? string.Empty,
             CreatedAt = DateTime.Parse(reader["created_at"].ToString() ?? DateTime.UtcNow.ToString("O")),
-            Sources = JsonSerializer.Deserialize<List<SourceReference>>(sourcesJson) ?? new(),
+            Sources = JsonSerializer.Deserialize<List<SourceReference>>(sourcesJson) ?? new List<SourceReference>(),
             TokenCount = reader["token_count"] as int?,
             UsedRagContext = Convert.ToInt32(reader["used_rag_context"]) == 1,
             TriggeredSearch = Convert.ToInt32(reader["triggered_search"]) == 1
         };
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_connection != null)
-        {
-            await _connection.DisposeAsync();
-        }
-        _lock.Dispose();
     }
 }

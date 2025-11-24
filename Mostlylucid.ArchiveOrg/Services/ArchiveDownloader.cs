@@ -8,10 +8,10 @@ namespace Mostlylucid.ArchiveOrg.Services;
 
 public partial class ArchiveDownloader : IArchiveDownloader
 {
-    private readonly HttpClient _httpClient;
     private readonly ICdxApiClient _cdxApiClient;
-    private readonly ArchiveOrgOptions _options;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<ArchiveDownloader> _logger;
+    private readonly ArchiveOrgOptions _options;
     private readonly SemaphoreSlim _rateLimiter;
     private DateTime _lastRequestTime = DateTime.MinValue;
 
@@ -111,7 +111,6 @@ public partial class ArchiveDownloader : IArchiveDownloader
             var timeout = TimeSpan.FromSeconds(_options.RequestTimeoutSeconds);
 
             for (var attempt = 1; attempt <= maxRetries; attempt++)
-            {
                 try
                 {
                     _logger.LogInformation("Downloading (attempt {Attempt}/{MaxRetries}): {Url}",
@@ -132,10 +131,8 @@ public partial class ArchiveDownloader : IArchiveDownloader
 
                         // Don't retry on 4xx client errors (except 429 rate limit)
                         if ((int)response.StatusCode >= 400 && (int)response.StatusCode < 500
-                            && (int)response.StatusCode != 429)
-                        {
+                                                            && (int)response.StatusCode != 429)
                             return DownloadResult.Failed(record, error);
-                        }
 
                         // Retry on server errors or rate limiting
                         if (attempt < maxRetries)
@@ -172,7 +169,8 @@ public partial class ArchiveDownloader : IArchiveDownloader
                         continue;
                     }
 
-                    return DownloadResult.Failed(record, $"Timeout after {_options.RequestTimeoutSeconds} seconds (all {maxRetries} attempts failed)");
+                    return DownloadResult.Failed(record,
+                        $"Timeout after {_options.RequestTimeoutSeconds} seconds (all {maxRetries} attempts failed)");
                 }
                 catch (HttpRequestException ex)
                 {
@@ -188,7 +186,6 @@ public partial class ArchiveDownloader : IArchiveDownloader
 
                     return DownloadResult.Failed(record, $"HTTP error: {ex.Message}");
                 }
-            }
 
             // Should not reach here, but just in case
             return DownloadResult.Failed(record, "Unknown error - all retries exhausted");
@@ -236,10 +233,7 @@ public partial class ArchiveDownloader : IArchiveDownloader
 
         // Sanitize the filename
         var invalidChars = Path.GetInvalidFileNameChars();
-        foreach (var c in invalidChars)
-        {
-            pathPart = pathPart.Replace(c, '_');
-        }
+        foreach (var c in invalidChars) pathPart = pathPart.Replace(c, '_');
 
         // Add timestamp to ensure uniqueness
         return $"{pathPart}_{record.Timestamp}.html";
@@ -279,10 +273,12 @@ public partial class ArchiveDownloader : IArchiveDownloader
         await File.WriteAllTextAsync(filePath, fullContent, cancellationToken);
     }
 
-    [GeneratedRegex(@"<!-- BEGIN WAYBACK TOOLBAR INSERT -->.*?<!-- END WAYBACK TOOLBAR INSERT -->", RegexOptions.Singleline)]
+    [GeneratedRegex(@"<!-- BEGIN WAYBACK TOOLBAR INSERT -->.*?<!-- END WAYBACK TOOLBAR INSERT -->",
+        RegexOptions.Singleline)]
     private static partial Regex WaybackToolbarRegex();
 
-    [GeneratedRegex(@"<script[^>]*>.*?//playback\.archive\.org.*?</script>", RegexOptions.Singleline | RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"<script[^>]*>.*?//playback\.archive\.org.*?</script>",
+        RegexOptions.Singleline | RegexOptions.IgnoreCase)]
     private static partial Regex WaybackScriptRegex();
 
     [GeneratedRegex(@"<!--\s*FILE ARCHIVED ON.*?-->", RegexOptions.Singleline)]

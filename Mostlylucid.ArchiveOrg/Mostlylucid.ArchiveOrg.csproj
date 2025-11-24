@@ -18,22 +18,22 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="HtmlAgilityPack" Version="1.11.72" />
-        <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.0" />
-        <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.0" />
-        <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="9.0.0" />
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
-        <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
-        <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0" />
-        <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
-        <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.0" />
-        <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="9.0.0" />
-        <PackageReference Include="ReverseMarkdown" Version="4.6.0" />
-        <PackageReference Include="Serilog" Version="4.1.0" />
-        <PackageReference Include="Serilog.Extensions.Hosting" Version="8.0.0" />
-        <PackageReference Include="Serilog.Settings.Configuration" Version="8.0.4" />
-        <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
-        <PackageReference Include="System.Text.Json" Version="9.0.0" />
+        <PackageReference Include="HtmlAgilityPack" Version="1.11.72"/>
+        <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="9.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="9.0.0"/>
+        <PackageReference Include="ReverseMarkdown" Version="4.6.0"/>
+        <PackageReference Include="Serilog" Version="4.1.0"/>
+        <PackageReference Include="Serilog.Extensions.Hosting" Version="8.0.0"/>
+        <PackageReference Include="Serilog.Settings.Configuration" Version="8.0.4"/>
+        <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0"/>
+        <PackageReference Include="System.Text.Json" Version="9.0.0"/>
     </ItemGroup>
 
 </Project>

@@ -1,7 +1,9 @@
+using System.Threading.Channels;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Mostlylucid.ArchiveOrg;
 using Mostlylucid.ArchiveOrg.Config;
 using Mostlylucid.ArchiveOrg.Services;
@@ -17,7 +19,7 @@ if (!File.Exists(configPath))
     configPath = Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json");
     if (!File.Exists(configPath))
     {
-        Console.WriteLine($"ERROR: appsettings.json not found!");
+        Console.WriteLine("ERROR: appsettings.json not found!");
         Console.WriteLine($"  Checked: {Path.Combine(exeDirectory, "appsettings.json")}");
         Console.WriteLine($"  Checked: {Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json")}");
         return 1;
@@ -30,8 +32,8 @@ Console.WriteLine($"Loading config from: {basePath}");
 // Build configuration
 var configuration = new ConfigurationBuilder()
     .SetBasePath(basePath)
-    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
-    .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production"}.json", optional: true)
+    .AddJsonFile("appsettings.json", false, false)
+    .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production"}.json", true)
     .AddEnvironmentVariables()
     .AddCommandLine(args)
     .Build();
@@ -66,10 +68,7 @@ try
     // Build host
     var host = Host.CreateDefaultBuilder(args)
         .UseSerilog()
-        .ConfigureServices((context, services) =>
-        {
-            services.AddArchiveOrgServices(configuration, basePath);
-        })
+        .ConfigureServices((context, services) => { services.AddArchiveOrgServices(configuration, basePath); })
         .Build();
 
     // Parse command - default to "full" if no command specified
@@ -121,7 +120,7 @@ return 0;
 static async Task RunDownloadAsync(IServiceProvider services, CancellationToken cancellationToken = default)
 {
     var downloader = services.GetRequiredService<IArchiveDownloader>();
-    var options = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<ArchiveOrgOptions>>().Value;
+    var options = services.GetRequiredService<IOptions<ArchiveOrgOptions>>().Value;
     var logger = services.GetRequiredService<ILogger<Program>>();
 
     logger.LogInformation("Starting download from Archive.org");
@@ -142,12 +141,10 @@ static async Task RunDownloadAsync(IServiceProvider services, CancellationToken 
     var progress = new Progress<DownloadProgress>(p =>
     {
         if (p.ProcessedRecords % 10 == 0 || p.ProcessedRecords == p.TotalRecords)
-        {
             logger.LogInformation(
                 "Download Progress: {Processed}/{Total} ({Percent:F1}%) - Success: {Success}, Failed: {Failed}",
                 p.ProcessedRecords, p.TotalRecords, p.PercentComplete,
                 p.SuccessfulDownloads, p.FailedDownloads);
-        }
     });
 
     var results = await downloader.DownloadAllAsync(progress, cancellationToken);
@@ -161,7 +158,7 @@ static async Task RunDownloadAsync(IServiceProvider services, CancellationToken 
 static async Task RunConvertAsync(IServiceProvider services, CancellationToken cancellationToken = default)
 {
     var converter = services.GetRequiredService<IHtmlToMarkdownConverter>();
-    var options = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<MarkdownConversionOptions>>().Value;
+    var options = services.GetRequiredService<IOptions<MarkdownConversionOptions>>().Value;
     var logger = services.GetRequiredService<ILogger<Program>>();
 
     logger.LogInformation("Starting HTML to Markdown conversion");
@@ -181,12 +178,10 @@ static async Task RunConvertAsync(IServiceProvider services, CancellationToken c
     logger.LogInformation("Conversion complete. Total articles: {Count}", articles.Count);
 
     foreach (var article in articles)
-    {
         logger.LogInformation("  - {Title} [{Categories}] -> {Path}",
             article.Title,
             string.Join(", ", article.Categories),
             article.OutputFilePath);
-    }
 }
 
 static async Task RunFullPipelineAsync(IServiceProvider services, CancellationToken cancellationToken = default)
@@ -194,8 +189,8 @@ static async Task RunFullPipelineAsync(IServiceProvider services, CancellationTo
     var logger = services.GetRequiredService<ILogger<Program>>();
     var downloader = services.GetRequiredService<IArchiveDownloader>();
     var converter = services.GetRequiredService<IHtmlToMarkdownConverter>();
-    var downloadOptions = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<ArchiveOrgOptions>>().Value;
-    var convertOptions = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<MarkdownConversionOptions>>().Value;
+    var downloadOptions = services.GetRequiredService<IOptions<ArchiveOrgOptions>>().Value;
+    var convertOptions = services.GetRequiredService<IOptions<MarkdownConversionOptions>>().Value;
 
     logger.LogInformation("Running full pipeline: Download + Convert (parallel)");
     logger.LogInformation("Target URL: {Url}", downloadOptions.TargetUrl);
@@ -204,10 +199,10 @@ static async Task RunFullPipelineAsync(IServiceProvider services, CancellationTo
         downloadOptions.RequestTimeoutSeconds, downloadOptions.MaxRetries);
 
     // Use a channel to pass downloaded files to the converter
-    var channel = System.Threading.Channels.Channel.CreateBounded<string>(
-        new System.Threading.Channels.BoundedChannelOptions(10)
+    var channel = Channel.CreateBounded<string>(
+        new BoundedChannelOptions(10)
         {
-            FullMode = System.Threading.Channels.BoundedChannelFullMode.Wait
+            FullMode = BoundedChannelFullMode.Wait
         });
 
     // Stats tracking
@@ -228,25 +223,20 @@ static async Task RunFullPipelineAsync(IServiceProvider services, CancellationTo
                     convertStats.Successful += articles.Count;
 
                     if (articles.Count > 1)
-                    {
                         logger.LogInformation("Converted {Count} posts from: {File}",
                             articles.Count, Path.GetFileName(filePath));
-                    }
                     else if (articles.Count == 1)
-                    {
                         logger.LogInformation("Converted: {File} -> {Output}",
                             Path.GetFileName(filePath), articles[0].OutputFilePath);
-                    }
                     else
-                    {
                         logger.LogDebug("Skipped (no articles): {File}", Path.GetFileName(filePath));
-                    }
                 }
                 catch (Exception ex)
                 {
                     logger.LogError(ex, "Failed to convert: {File}", filePath);
                     convertStats.Failed++;
                 }
+
                 convertStats.Processed++;
             }
         }
@@ -270,7 +260,8 @@ static async Task RunFullPipelineAsync(IServiceProvider services, CancellationTo
         var existingHtmlFiles = Directory.GetFiles(downloadOptions.OutputDirectory, "*.html");
         if (existingHtmlFiles.Length > 0)
         {
-            logger.LogInformation("Found {Count} existing HTML files, queueing unconverted ones...", existingHtmlFiles.Length);
+            logger.LogInformation("Found {Count} existing HTML files, queueing unconverted ones...",
+                existingHtmlFiles.Length);
             var queuedCount = 0;
             foreach (var htmlFile in existingHtmlFiles)
             {
@@ -278,6 +269,7 @@ static async Task RunFullPipelineAsync(IServiceProvider services, CancellationTo
                 await channel.Writer.WriteAsync(htmlFile, cancellationToken);
                 queuedCount++;
             }
+
             logger.LogInformation("Queued {Count} existing files for conversion", queuedCount);
         }
 
@@ -313,14 +305,10 @@ static async Task RunFullPipelineAsync(IServiceProvider services, CancellationTo
 
                 // Send to converter if we have a file path
                 if (!string.IsNullOrEmpty(result.FilePath) && File.Exists(result.FilePath))
-                {
                     // Always queue - the converter will skip if already converted or should be filtered
                     await channel.Writer.WriteAsync(result.FilePath, cancellationToken);
-                }
                 else
-                {
                     logger.LogWarning("Download succeeded but no file path: {Url}", record.OriginalUrl);
-                }
             }
             else
             {
@@ -329,12 +317,10 @@ static async Task RunFullPipelineAsync(IServiceProvider services, CancellationTo
 
             // Log progress every 10 items
             if (downloadStats.Processed % 10 == 0 || downloadStats.Processed == downloadStats.Total)
-            {
                 logger.LogInformation(
                     "Pipeline: Download {DProc}/{DTotal} (OK:{DOk} Fail:{DFail}) | Convert {CProc} (OK:{COk} Fail:{CFail})",
                     downloadStats.Processed, downloadStats.Total, downloadStats.Successful, downloadStats.Failed,
                     convertStats.Processed, convertStats.Successful, convertStats.Failed);
-            }
         }
     }
     finally
@@ -413,10 +399,10 @@ static void PrintHelp()
 // Make Program class accessible for generic logger
 public partial class Program;
 
-class PipelineStats
+internal class PipelineStats
 {
-    public int Total;
+    public int Failed;
     public int Processed;
     public int Successful;
-    public int Failed;
+    public int Total;
 }

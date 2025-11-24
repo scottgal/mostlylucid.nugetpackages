@@ -1,4 +1,7 @@
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Web;
 using Mostlylucid.LlmSeoMetadata.Extensions;
 using Mostlylucid.LlmSeoMetadata.Models;
 using Mostlylucid.LlmSeoMetadata.Services;
@@ -48,10 +51,8 @@ app.MapGet("/api/health", (ISeoMetadataService seoService) =>
 }).WithName("HealthCheck").WithOpenApi();
 
 // Get service statistics
-app.MapGet("/api/stats", (ISeoMetadataService seoService) =>
-{
-    return Results.Ok(seoService.GetStatistics());
-}).WithName("GetStatistics").WithOpenApi();
+app.MapGet("/api/stats", (ISeoMetadataService seoService) => { return Results.Ok(seoService.GetStatistics()); })
+    .WithName("GetStatistics").WithOpenApi();
 
 // Generate complete SEO metadata
 app.MapPost("/api/generate", async (
@@ -224,18 +225,19 @@ app.Run();
 
 static string RenderSeoHtml(SeoMetadata metadata)
 {
-    var sb = new System.Text.StringBuilder();
+    var sb = new StringBuilder();
     sb.AppendLine("<!DOCTYPE html>");
     sb.AppendLine("<html>");
     sb.AppendLine("<head>");
     sb.AppendLine("  <meta charset=\"utf-8\">");
-    sb.AppendLine($"  <title>SEO Demo</title>");
+    sb.AppendLine("  <title>SEO Demo</title>");
 
     if (!string.IsNullOrEmpty(metadata.MetaDescription))
-        sb.AppendLine($"  <meta name=\"description\" content=\"{System.Web.HttpUtility.HtmlEncode(metadata.MetaDescription)}\">");
+        sb.AppendLine($"  <meta name=\"description\" content=\"{HttpUtility.HtmlEncode(metadata.MetaDescription)}\">");
 
     if (metadata.Keywords?.Count > 0)
-        sb.AppendLine($"  <meta name=\"keywords\" content=\"{System.Web.HttpUtility.HtmlEncode(string.Join(", ", metadata.Keywords))}\">");
+        sb.AppendLine(
+            $"  <meta name=\"keywords\" content=\"{HttpUtility.HtmlEncode(string.Join(", ", metadata.Keywords))}\">");
 
     if (!string.IsNullOrEmpty(metadata.CanonicalUrl))
         sb.AppendLine($"  <link rel=\"canonical\" href=\"{metadata.CanonicalUrl}\">");
@@ -244,9 +246,9 @@ static string RenderSeoHtml(SeoMetadata metadata)
     {
         var og = metadata.OpenGraph;
         if (!string.IsNullOrEmpty(og.Title))
-            sb.AppendLine($"  <meta property=\"og:title\" content=\"{System.Web.HttpUtility.HtmlEncode(og.Title)}\">");
+            sb.AppendLine($"  <meta property=\"og:title\" content=\"{HttpUtility.HtmlEncode(og.Title)}\">");
         if (!string.IsNullOrEmpty(og.Description))
-            sb.AppendLine($"  <meta property=\"og:description\" content=\"{System.Web.HttpUtility.HtmlEncode(og.Description)}\">");
+            sb.AppendLine($"  <meta property=\"og:description\" content=\"{HttpUtility.HtmlEncode(og.Description)}\">");
         if (!string.IsNullOrEmpty(og.Type))
             sb.AppendLine($"  <meta property=\"og:type\" content=\"{og.Type}\">");
         if (!string.IsNullOrEmpty(og.Url))
@@ -254,7 +256,7 @@ static string RenderSeoHtml(SeoMetadata metadata)
         if (!string.IsNullOrEmpty(og.Image))
             sb.AppendLine($"  <meta property=\"og:image\" content=\"{og.Image}\">");
         if (!string.IsNullOrEmpty(og.SiteName))
-            sb.AppendLine($"  <meta property=\"og:site_name\" content=\"{System.Web.HttpUtility.HtmlEncode(og.SiteName)}\">");
+            sb.AppendLine($"  <meta property=\"og:site_name\" content=\"{HttpUtility.HtmlEncode(og.SiteName)}\">");
     }
 
     if (metadata.JsonLd != null)
@@ -262,7 +264,7 @@ static string RenderSeoHtml(SeoMetadata metadata)
         var jsonLdOptions = new JsonSerializerOptions
         {
             WriteIndented = true,
-            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
         var jsonLd = JsonSerializer.Serialize(metadata.JsonLd, jsonLdOptions);
         sb.AppendLine($"  <script type=\"application/ld+json\">{jsonLd}</script>");

@@ -3,12 +3,12 @@ using Mostlylucid.RagLlmSearch.Models;
 namespace Mostlylucid.RagLlmSearch.LlmServices;
 
 /// <summary>
-/// Interface for LLM service operations
+///     Interface for LLM service operations
 /// </summary>
 public interface ILlmService
 {
     /// <summary>
-    /// Generates a chat response based on conversation history and context
+    ///     Generates a chat response based on conversation history and context
     /// </summary>
     /// <param name="messages">Conversation history</param>
     /// <param name="context">Optional RAG/search context to include</param>
@@ -20,7 +20,7 @@ public interface ILlmService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Generates a streaming chat response
+    ///     Generates a streaming chat response
     /// </summary>
     /// <param name="messages">Conversation history</param>
     /// <param name="context">Optional RAG/search context to include</param>
@@ -32,7 +32,7 @@ public interface ILlmService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Generates embeddings for text
+    ///     Generates embeddings for text
     /// </summary>
     /// <param name="text">Text to embed</param>
     /// <param name="cancellationToken">Cancellation token</param>
@@ -40,12 +40,12 @@ public interface ILlmService
     Task<float[]> GenerateEmbeddingAsync(string text, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Checks if the LLM service is available
+    ///     Checks if the LLM service is available
     /// </summary>
     Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Determines if a query needs web search based on its content
+    ///     Determines if a query needs web search based on its content
     /// </summary>
     /// <param name="query">The user's query</param>
     /// <param name="cancellationToken">Cancellation token</param>

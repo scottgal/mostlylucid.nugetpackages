@@ -4,7 +4,7 @@ using Mostlylucid.LlmPiiRedactor.Models;
 namespace Mostlylucid.LlmPiiRedactor.Detectors;
 
 /// <summary>
-/// Detects credit card numbers with Luhn algorithm validation.
+///     Detects credit card numbers with Luhn algorithm validation.
 /// </summary>
 public class CreditCardDetector : BasePiiDetector
 {
@@ -30,7 +30,7 @@ public class CreditCardDetector : BasePiiDetector
     }
 
     /// <summary>
-    /// Validates a number using the Luhn algorithm (mod 10).
+    ///     Validates a number using the Luhn algorithm (mod 10).
     /// </summary>
     private static bool ValidateLuhn(string number)
     {
@@ -72,7 +72,7 @@ public class CreditCardDetector : BasePiiDetector
     }
 
     /// <summary>
-    /// Gets the card type based on the number prefix.
+    ///     Gets the card type based on the number prefix.
     /// </summary>
     private static string? GetCardType(string number)
     {

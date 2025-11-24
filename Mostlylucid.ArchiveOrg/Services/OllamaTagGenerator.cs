@@ -10,8 +10,8 @@ namespace Mostlylucid.ArchiveOrg.Services;
 public class OllamaTagGenerator : IOllamaTagGenerator
 {
     private readonly HttpClient _httpClient;
-    private readonly OllamaOptions _options;
     private readonly ILogger<OllamaTagGenerator> _logger;
+    private readonly OllamaOptions _options;
 
     public OllamaTagGenerator(
         HttpClient httpClient,
@@ -127,7 +127,6 @@ public class OllamaTagGenerator : IOllamaTagGenerator
                 var tags = JsonSerializer.Deserialize<List<string>>(jsonArray);
 
                 if (tags != null)
-                {
                     // Clean up and validate tags
                     return tags
                         .Where(t => !string.IsNullOrWhiteSpace(t))
@@ -135,7 +134,6 @@ public class OllamaTagGenerator : IOllamaTagGenerator
                         .Where(t => t.Length >= 2 && t.Length <= 50)
                         .Take(_options.MaxTags)
                         .ToList();
-                }
             }
 
             _logger.LogWarning("Could not parse JSON array from Ollama response: {Response}", response);
@@ -151,30 +149,23 @@ public class OllamaTagGenerator : IOllamaTagGenerator
 
 internal class OllamaGenerateRequest
 {
-    [JsonPropertyName("model")]
-    public string Model { get; set; } = string.Empty;
+    [JsonPropertyName("model")] public string Model { get; set; } = string.Empty;
 
-    [JsonPropertyName("prompt")]
-    public string Prompt { get; set; } = string.Empty;
+    [JsonPropertyName("prompt")] public string Prompt { get; set; } = string.Empty;
 
-    [JsonPropertyName("stream")]
-    public bool Stream { get; set; }
+    [JsonPropertyName("stream")] public bool Stream { get; set; }
 
-    [JsonPropertyName("options")]
-    public OllamaRequestOptions? Options { get; set; }
+    [JsonPropertyName("options")] public OllamaRequestOptions? Options { get; set; }
 }
 
 internal class OllamaRequestOptions
 {
-    [JsonPropertyName("temperature")]
-    public float Temperature { get; set; }
+    [JsonPropertyName("temperature")] public float Temperature { get; set; }
 }
 
 internal class OllamaGenerateResponse
 {
-    [JsonPropertyName("response")]
-    public string Response { get; set; } = string.Empty;
+    [JsonPropertyName("response")] public string Response { get; set; } = string.Empty;
 
-    [JsonPropertyName("done")]
-    public bool Done { get; set; }
+    [JsonPropertyName("done")] public bool Done { get; set; }
 }

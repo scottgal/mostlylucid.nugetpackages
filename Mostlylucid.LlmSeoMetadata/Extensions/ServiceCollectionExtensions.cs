@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.LlmSeoMetadata.Data;
@@ -49,17 +50,15 @@ public static class ServiceCollectionExtensions
             var baseService = sp.GetRequiredService<OllamaSeoMetadataService>();
 
             // If database cache is disabled, return base service directly
-            if (!cacheOptions.Enabled)
-            {
-                return baseService;
-            }
+            if (!cacheOptions.Enabled) return baseService;
 
             // Wrap with database caching
             var dbContext = sp.GetService<SeoMetadataDbContext>();
             if (dbContext == null)
             {
                 var logger = sp.GetRequiredService<ILogger<OllamaSeoMetadataService>>();
-                logger.LogWarning("Database caching enabled but SeoMetadataDbContext not registered. Using memory-only cache.");
+                logger.LogWarning(
+                    "Database caching enabled but SeoMetadataDbContext not registered. Using memory-only cache.");
                 return baseService;
             }
 
@@ -103,10 +102,7 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         string connectionString)
     {
-        services.AddDbContext<SeoMetadataDbContext>(options =>
-        {
-            options.UseNpgsql(connectionString);
-        });
+        services.AddDbContext<SeoMetadataDbContext>(options => { options.UseNpgsql(connectionString); });
 
         // Ensure database is created
         services.AddHostedService<SeoMetadataDatabaseInitializer>();
@@ -165,10 +161,10 @@ public static class ServiceCollectionExtensions
 /// <summary>
 ///     Background service to initialize the SEO metadata database
 /// </summary>
-internal class SeoMetadataDatabaseInitializer : Microsoft.Extensions.Hosting.IHostedService
+internal class SeoMetadataDatabaseInitializer : IHostedService
 {
-    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<SeoMetadataDatabaseInitializer> _logger;
+    private readonly IServiceProvider _serviceProvider;
 
     public SeoMetadataDatabaseInitializer(
         IServiceProvider serviceProvider,
@@ -184,7 +180,6 @@ internal class SeoMetadataDatabaseInitializer : Microsoft.Extensions.Hosting.IHo
         var dbContext = scope.ServiceProvider.GetService<SeoMetadataDbContext>();
 
         if (dbContext != null)
-        {
             try
             {
                 await dbContext.Database.EnsureCreatedAsync(cancellationToken);
@@ -194,8 +189,10 @@ internal class SeoMetadataDatabaseInitializer : Microsoft.Extensions.Hosting.IHo
             {
                 _logger.LogWarning(ex, "Failed to initialize SEO metadata database");
             }
-        }
     }
 
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
 }

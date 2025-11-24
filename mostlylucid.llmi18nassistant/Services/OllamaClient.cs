@@ -63,7 +63,7 @@ public class OllamaClient : IOllamaClient
             var response = await _httpClient.PostAsJsonAsync("/api/generate", request, cancellationToken);
             response.EnsureSuccessStatusCode();
 
-            var result = await response.Content.ReadFromJsonAsync<OllamaResponse>(cancellationToken: cancellationToken);
+            var result = await response.Content.ReadFromJsonAsync<OllamaResponse>(cancellationToken);
 
             if (result?.Response == null)
                 throw new InvalidOperationException("Empty response from Ollama");
@@ -137,7 +137,8 @@ public class OllamaClient : IOllamaClient
     {
         var sb = new StringBuilder();
 
-        sb.AppendLine($"You are a professional translator. Translate the following text from {sourceLanguage} to {targetLanguage}.");
+        sb.AppendLine(
+            $"You are a professional translator. Translate the following text from {sourceLanguage} to {targetLanguage}.");
         sb.AppendLine("IMPORTANT: Only output the translation, nothing else. Do not include explanations or notes.");
         sb.AppendLine("Maintain the original formatting, including any placeholders like {0}, {{name}}, or HTML tags.");
 

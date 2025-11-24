@@ -1,8 +1,10 @@
 # Mostlylucid.RagLlmSearch
 
-> **Note**: These packages are provided as-is. I'll get them working good enough to release but I can't commit to support. However they are Unlicense so have at it!
+> **Note**: These packages are provided as-is. I'll get them working good enough to release but I can't commit to
+> support. However they are Unlicense so have at it!
 
-A lightweight RAG (Retrieval Augmented Generation) enabled LLM package with multiple search provider support, conversation history, and real-time streaming via SignalR for ASP.NET Core applications.
+A lightweight RAG (Retrieval Augmented Generation) enabled LLM package with multiple search provider support,
+conversation history, and real-time streaming via SignalR for ASP.NET Core applications.
 
 ## Table of Contents
 
@@ -172,12 +174,12 @@ await connection.invoke('SendMessage', {
 
 ## Search Providers
 
-| Provider | Free Tier | API Key Required | Notes |
-|----------|-----------|------------------|-------|
-| **DuckDuckGo** | Unlimited | No | Instant Answer API, best for quick facts |
-| **Brave** | 2000/month | Yes | Full web search, good results |
-| **Tavily** | Limited | Yes | AI-optimized, includes summaries |
-| **SerpApi** | 100/month | Yes | Google results, comprehensive |
+| Provider       | Free Tier  | API Key Required | Notes                                    |
+|----------------|------------|------------------|------------------------------------------|
+| **DuckDuckGo** | Unlimited  | No               | Instant Answer API, best for quick facts |
+| **Brave**      | 2000/month | Yes              | Full web search, good results            |
+| **Tavily**     | Limited    | Yes              | AI-optimized, includes summaries         |
+| **SerpApi**    | 100/month  | Yes              | Google results, comprehensive            |
 
 ### Getting API Keys
 
@@ -234,21 +236,21 @@ public class ChatRequest
 
 ### Hub Methods
 
-| Method | Parameters | Returns | Description |
-|--------|------------|---------|-------------|
-| `SendMessage` | `ChatRequest` | - | Stream a chat response |
-| `GetConversation` | `string conversationId` | `Conversation` | Get conversation with messages |
-| `GetUserConversations` | `string userId` | `List<Conversation>` | List user's conversations |
-| `DeleteConversation` | `string conversationId` | - | Delete a conversation |
-| `Search` | `string query, string? provider` | `SearchResponse` | Perform web search |
-| `GetAvailableProviders` | - | `IEnumerable<string>` | List available providers |
+| Method                  | Parameters                       | Returns               | Description                    |
+|-------------------------|----------------------------------|-----------------------|--------------------------------|
+| `SendMessage`           | `ChatRequest`                    | -                     | Stream a chat response         |
+| `GetConversation`       | `string conversationId`          | `Conversation`        | Get conversation with messages |
+| `GetUserConversations`  | `string userId`                  | `List<Conversation>`  | List user's conversations      |
+| `DeleteConversation`    | `string conversationId`          | -                     | Delete a conversation          |
+| `Search`                | `string query, string? provider` | `SearchResponse`      | Perform web search             |
+| `GetAvailableProviders` | -                                | `IEnumerable<string>` | List available providers       |
 
 ### Client Events
 
-| Event | Payload | Description |
-|-------|---------|-------------|
-| `ReceiveChunk` | `ChatStreamChunk` | Streaming response chunk |
-| `ReceiveError` | `string error` | Error message |
+| Event                 | Payload                 | Description              |
+|-----------------------|-------------------------|--------------------------|
+| `ReceiveChunk`        | `ChatStreamChunk`       | Streaming response chunk |
+| `ReceiveError`        | `string error`          | Error message            |
 | `ConversationDeleted` | `string conversationId` | Conversation was deleted |
 
 ## RAG System
@@ -314,16 +316,16 @@ Open http://localhost:5000 in your browser.
 
 ### Demo Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/chat` | POST | Send chat message |
-| `/api/chat/conversations/{id}` | GET | Get conversation |
-| `/api/chat/search` | GET | Perform web search |
-| `/api/chat/providers` | GET | List providers |
-| `/api/chat/health` | GET | Health check |
-| `/api/chat/rag` | POST | Add RAG document |
-| `/api/chat/rag/search` | GET | Search RAG store |
-| `/chathub` | SignalR | Real-time chat hub |
+| Endpoint                       | Method  | Description        |
+|--------------------------------|---------|--------------------|
+| `/api/chat`                    | POST    | Send chat message  |
+| `/api/chat/conversations/{id}` | GET     | Get conversation   |
+| `/api/chat/search`             | GET     | Perform web search |
+| `/api/chat/providers`          | GET     | List providers     |
+| `/api/chat/health`             | GET     | Health check       |
+| `/api/chat/rag`                | POST    | Add RAG document   |
+| `/api/chat/rag/search`         | GET     | Search RAG store   |
+| `/chathub`                     | SignalR | Real-time chat hub |
 
 ## License
 

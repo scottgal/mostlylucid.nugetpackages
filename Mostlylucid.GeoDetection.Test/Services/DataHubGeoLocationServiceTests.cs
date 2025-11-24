@@ -1,11 +1,10 @@
+using System.Net;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Moq;
 using Moq.Protected;
 using Mostlylucid.GeoDetection.Models;
 using Mostlylucid.GeoDetection.Services;
-using System.Net;
 
 namespace Mostlylucid.GeoDetection.Test.Services;
 
@@ -15,8 +14,8 @@ namespace Mostlylucid.GeoDetection.Test.Services;
 /// </summary>
 public class DataHubGeoLocationServiceTests
 {
-    private readonly Mock<ILogger<DataHubGeoLocationService>> _loggerMock;
     private readonly Mock<IHttpClientFactory> _httpClientFactoryMock;
+    private readonly Mock<ILogger<DataHubGeoLocationService>> _loggerMock;
     private readonly IMemoryCache _memoryCache;
     private readonly IOptions<GeoLite2Options> _options;
 

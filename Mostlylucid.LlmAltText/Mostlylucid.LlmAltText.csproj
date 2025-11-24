@@ -5,7 +5,7 @@
         <Nullable>enable</Nullable>
 
         <IsPackable>true</IsPackable>
-        <PackageId>Mostlylucid.LlmAltText</PackageId>
+        <PackageId>mostlylucid.llmalttext</PackageId>
         <Authors>Scott Galloway</Authors>
         <PackageIcon>icon.png</PackageIcon>
         <RepositoryUrl>https://github.com/scottgal/mostlylucidweb/tree/main/Mostlylucid.LlmAltText</RepositoryUrl>

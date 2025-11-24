@@ -5,7 +5,7 @@ using ModelLogLevel = Mostlylucid.LlmLogSummarizer.Models.LogLevel;
 namespace Mostlylucid.LlmLogSummarizer.Clustering;
 
 /// <summary>
-/// Clusters similar exceptions using fingerprinting and similarity algorithms.
+///     Clusters similar exceptions using fingerprinting and similarity algorithms.
 /// </summary>
 public class ExceptionClusterer : IExceptionClusterer
 {
@@ -86,9 +86,7 @@ public class ExceptionClusterer : IExceptionClusterer
                 current.PreviousPeriodCount = historical.Count;
 
                 if (historical.Count > 0)
-                {
-                    current.TrendPercent = ((double)(current.Count - historical.Count) / historical.Count) * 100;
-                }
+                    current.TrendPercent = (double)(current.Count - historical.Count) / historical.Count * 100;
             }
         }
     }
@@ -139,12 +137,10 @@ public class ExceptionClusterer : IExceptionClusterer
 
         // Then try exception type + similar message
         if (!string.IsNullOrEmpty(current.ExceptionType))
-        {
             return historical
                 .Where(h => h.ExceptionType == current.ExceptionType)
                 .OrderByDescending(h => CalculateSimilarity(h.RepresentativeMessage, current.RepresentativeMessage))
                 .FirstOrDefault(h => CalculateSimilarity(h.RepresentativeMessage, current.RepresentativeMessage) > 0.7);
-        }
 
         return null;
     }
@@ -205,8 +201,8 @@ public class ExceptionClusterer : IExceptionClusterer
     }
 
     /// <summary>
-    /// Calculates similarity between two strings using Levenshtein distance.
-    /// Returns value between 0.0 (completely different) and 1.0 (identical).
+    ///     Calculates similarity between two strings using Levenshtein distance.
+    ///     Returns value between 0.0 (completely different) and 1.0 (identical).
     /// </summary>
     private static double CalculateSimilarity(string s1, string s2)
     {
@@ -225,11 +221,11 @@ public class ExceptionClusterer : IExceptionClusterer
         var maxLen = Math.Max(s1.Length, s2.Length);
         var distance = LevenshteinDistance(s1, s2);
 
-        return 1.0 - ((double)distance / maxLen);
+        return 1.0 - (double)distance / maxLen;
     }
 
     /// <summary>
-    /// Calculates the Levenshtein distance between two strings.
+    ///     Calculates the Levenshtein distance between two strings.
     /// </summary>
     private static int LevenshteinDistance(string s1, string s2)
     {

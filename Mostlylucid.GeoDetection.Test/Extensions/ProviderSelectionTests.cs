@@ -91,10 +91,7 @@ public class ProviderSelectionTests
         services.AddLogging();
 
         // Act
-        services.AddGeoRoutingWithDataHub(options =>
-        {
-            options.AllowedCountries = new[] { "US", "CA" };
-        });
+        services.AddGeoRoutingWithDataHub(options => { options.AllowedCountries = new[] { "US", "CA" }; });
 
         // Assert
         var provider = services.BuildServiceProvider();

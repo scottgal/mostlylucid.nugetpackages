@@ -272,14 +272,11 @@ public class JsonLdMetadata
 /// </summary>
 public class JsonLdAuthor
 {
-    [JsonPropertyName("@type")]
-    public string Type { get; set; } = "Person";
+    [JsonPropertyName("@type")] public string Type { get; set; } = "Person";
 
-    [JsonPropertyName("name")]
-    public string? Name { get; set; }
+    [JsonPropertyName("name")] public string? Name { get; set; }
 
-    [JsonPropertyName("url")]
-    public string? Url { get; set; }
+    [JsonPropertyName("url")] public string? Url { get; set; }
 }
 
 /// <summary>
@@ -287,17 +284,13 @@ public class JsonLdAuthor
 /// </summary>
 public class JsonLdOrganization
 {
-    [JsonPropertyName("@type")]
-    public string Type { get; set; } = "Organization";
+    [JsonPropertyName("@type")] public string Type { get; set; } = "Organization";
 
-    [JsonPropertyName("name")]
-    public string? Name { get; set; }
+    [JsonPropertyName("name")] public string? Name { get; set; }
 
-    [JsonPropertyName("url")]
-    public string? Url { get; set; }
+    [JsonPropertyName("url")] public string? Url { get; set; }
 
-    [JsonPropertyName("logo")]
-    public JsonLdImageObject? Logo { get; set; }
+    [JsonPropertyName("logo")] public JsonLdImageObject? Logo { get; set; }
 }
 
 /// <summary>
@@ -305,17 +298,13 @@ public class JsonLdOrganization
 /// </summary>
 public class JsonLdImageObject
 {
-    [JsonPropertyName("@type")]
-    public string Type { get; set; } = "ImageObject";
+    [JsonPropertyName("@type")] public string Type { get; set; } = "ImageObject";
 
-    [JsonPropertyName("url")]
-    public string? Url { get; set; }
+    [JsonPropertyName("url")] public string? Url { get; set; }
 
-    [JsonPropertyName("width")]
-    public int? Width { get; set; }
+    [JsonPropertyName("width")] public int? Width { get; set; }
 
-    [JsonPropertyName("height")]
-    public int? Height { get; set; }
+    [JsonPropertyName("height")] public int? Height { get; set; }
 }
 
 /// <summary>
@@ -323,11 +312,9 @@ public class JsonLdImageObject
 /// </summary>
 public class JsonLdMainEntity
 {
-    [JsonPropertyName("@type")]
-    public string Type { get; set; } = "WebPage";
+    [JsonPropertyName("@type")] public string Type { get; set; } = "WebPage";
 
-    [JsonPropertyName("@id")]
-    public string? Id { get; set; }
+    [JsonPropertyName("@id")] public string? Id { get; set; }
 }
 
 /// <summary>
@@ -335,23 +322,17 @@ public class JsonLdMainEntity
 /// </summary>
 public class JsonLdOffer
 {
-    [JsonPropertyName("@type")]
-    public string Type { get; set; } = "Offer";
+    [JsonPropertyName("@type")] public string Type { get; set; } = "Offer";
 
-    [JsonPropertyName("price")]
-    public string? Price { get; set; }
+    [JsonPropertyName("price")] public string? Price { get; set; }
 
-    [JsonPropertyName("priceCurrency")]
-    public string? PriceCurrency { get; set; }
+    [JsonPropertyName("priceCurrency")] public string? PriceCurrency { get; set; }
 
-    [JsonPropertyName("availability")]
-    public string? Availability { get; set; }
+    [JsonPropertyName("availability")] public string? Availability { get; set; }
 
-    [JsonPropertyName("url")]
-    public string? Url { get; set; }
+    [JsonPropertyName("url")] public string? Url { get; set; }
 
-    [JsonPropertyName("priceValidUntil")]
-    public string? PriceValidUntil { get; set; }
+    [JsonPropertyName("priceValidUntil")] public string? PriceValidUntil { get; set; }
 }
 
 /// <summary>
@@ -359,11 +340,9 @@ public class JsonLdOffer
 /// </summary>
 public class JsonLdBrand
 {
-    [JsonPropertyName("@type")]
-    public string Type { get; set; } = "Brand";
+    [JsonPropertyName("@type")] public string Type { get; set; } = "Brand";
 
-    [JsonPropertyName("name")]
-    public string? Name { get; set; }
+    [JsonPropertyName("name")] public string? Name { get; set; }
 }
 
 /// <summary>
@@ -371,20 +350,15 @@ public class JsonLdBrand
 /// </summary>
 public class JsonLdAggregateRating
 {
-    [JsonPropertyName("@type")]
-    public string Type { get; set; } = "AggregateRating";
+    [JsonPropertyName("@type")] public string Type { get; set; } = "AggregateRating";
 
-    [JsonPropertyName("ratingValue")]
-    public string? RatingValue { get; set; }
+    [JsonPropertyName("ratingValue")] public string? RatingValue { get; set; }
 
-    [JsonPropertyName("reviewCount")]
-    public string? ReviewCount { get; set; }
+    [JsonPropertyName("reviewCount")] public string? ReviewCount { get; set; }
 
-    [JsonPropertyName("bestRating")]
-    public string? BestRating { get; set; }
+    [JsonPropertyName("bestRating")] public string? BestRating { get; set; }
 
-    [JsonPropertyName("worstRating")]
-    public string? WorstRating { get; set; }
+    [JsonPropertyName("worstRating")] public string? WorstRating { get; set; }
 }
 
 /// <summary>

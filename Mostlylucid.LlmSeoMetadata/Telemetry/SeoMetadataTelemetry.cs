@@ -4,17 +4,17 @@ using Mostlylucid.LlmSeoMetadata.Models;
 namespace Mostlylucid.LlmSeoMetadata.Telemetry;
 
 /// <summary>
-/// Telemetry instrumentation for SEO metadata generation operations
+///     Telemetry instrumentation for SEO metadata generation operations
 /// </summary>
 public static class SeoMetadataTelemetry
 {
     /// <summary>
-    /// Activity source name for SEO metadata generation
+    ///     Activity source name for SEO metadata generation
     /// </summary>
     public const string ActivitySourceName = "Mostlylucid.LlmSeoMetadata";
 
     /// <summary>
-    /// Activity source for SEO metadata telemetry
+    ///     Activity source for SEO metadata telemetry
     /// </summary>
     public static readonly ActivitySource ActivitySource = new(ActivitySourceName, GetVersion());
 
@@ -24,13 +24,13 @@ public static class SeoMetadataTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for SEO metadata generation
+    ///     Starts an activity for SEO metadata generation
     /// </summary>
     /// <param name="contentType">The type of content being processed</param>
     /// <param name="title">The title of the content</param>
     public static Activity? StartGenerateMetadataActivity(SeoContentType? contentType = null, string? title = null)
     {
-        var activity = ActivitySource.StartActivity("SeoMetadata.GenerateMetadata", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("SeoMetadata.GenerateMetadata");
 
         if (activity != null)
         {
@@ -44,12 +44,12 @@ public static class SeoMetadataTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for generating meta description
+    ///     Starts an activity for generating meta description
     /// </summary>
     /// <param name="contentType">The type of content being processed</param>
     public static Activity? StartGenerateMetaDescriptionActivity(SeoContentType? contentType = null)
     {
-        var activity = ActivitySource.StartActivity("SeoMetadata.GenerateMetaDescription", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("SeoMetadata.GenerateMetaDescription");
 
         if (activity != null && contentType.HasValue)
         {
@@ -61,12 +61,12 @@ public static class SeoMetadataTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for generating OpenGraph metadata
+    ///     Starts an activity for generating OpenGraph metadata
     /// </summary>
     /// <param name="contentType">The type of content being processed</param>
     public static Activity? StartGenerateOpenGraphActivity(SeoContentType? contentType = null)
     {
-        var activity = ActivitySource.StartActivity("SeoMetadata.GenerateOpenGraph", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("SeoMetadata.GenerateOpenGraph");
 
         if (activity != null && contentType.HasValue)
         {
@@ -78,12 +78,12 @@ public static class SeoMetadataTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for generating JSON-LD structured data
+    ///     Starts an activity for generating JSON-LD structured data
     /// </summary>
     /// <param name="contentType">The type of content being processed</param>
     public static Activity? StartGenerateJsonLdActivity(SeoContentType? contentType = null)
     {
-        var activity = ActivitySource.StartActivity("SeoMetadata.GenerateJsonLd", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("SeoMetadata.GenerateJsonLd");
 
         if (activity != null && contentType.HasValue)
         {
@@ -95,13 +95,13 @@ public static class SeoMetadataTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for generating keywords
+    ///     Starts an activity for generating keywords
     /// </summary>
     /// <param name="contentType">The type of content being processed</param>
     /// <param name="maxKeywords">Maximum number of keywords requested</param>
     public static Activity? StartGenerateKeywordsActivity(SeoContentType? contentType = null, int? maxKeywords = null)
     {
-        var activity = ActivitySource.StartActivity("SeoMetadata.GenerateKeywords", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("SeoMetadata.GenerateKeywords");
 
         if (activity != null)
         {
@@ -116,23 +116,20 @@ public static class SeoMetadataTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for LLM API call
+    ///     Starts an activity for LLM API call
     /// </summary>
     /// <param name="model">The LLM model being used</param>
     public static Activity? StartLlmCallActivity(string? model = null)
     {
         var activity = ActivitySource.StartActivity("SeoMetadata.LlmCall", ActivityKind.Client);
 
-        if (activity != null && model != null)
-        {
-            activity.SetTag("mostlylucid.seometadata.llm_model", model);
-        }
+        if (activity != null && model != null) activity.SetTag("mostlylucid.seometadata.llm_model", model);
 
         return activity;
     }
 
     /// <summary>
-    /// Records SEO metadata generation result on the activity
+    ///     Records SEO metadata generation result on the activity
     /// </summary>
     /// <param name="activity">The activity to record on</param>
     /// <param name="response">The generation response</param>
@@ -164,7 +161,7 @@ public static class SeoMetadataTelemetry
     }
 
     /// <summary>
-    /// Records a cache hit on the activity
+    ///     Records a cache hit on the activity
     /// </summary>
     /// <param name="activity">The activity to record on</param>
     /// <param name="cacheKey">The cache key that was hit</param>
@@ -179,7 +176,7 @@ public static class SeoMetadataTelemetry
     }
 
     /// <summary>
-    /// Records a cache miss on the activity
+    ///     Records a cache miss on the activity
     /// </summary>
     /// <param name="activity">The activity to record on</param>
     public static void RecordCacheMiss(Activity? activity)
@@ -191,7 +188,7 @@ public static class SeoMetadataTelemetry
     }
 
     /// <summary>
-    /// Records generated keywords count
+    ///     Records generated keywords count
     /// </summary>
     /// <param name="activity">The activity to record on</param>
     /// <param name="keywordCount">Number of keywords generated</param>
@@ -205,7 +202,7 @@ public static class SeoMetadataTelemetry
     }
 
     /// <summary>
-    /// Records an exception on the activity
+    ///     Records an exception on the activity
     /// </summary>
     /// <param name="activity">The activity to record on</param>
     /// <param name="ex">The exception that occurred</param>
@@ -220,7 +217,7 @@ public static class SeoMetadataTelemetry
     }
 
     /// <summary>
-    /// Records a timeout on the activity
+    ///     Records a timeout on the activity
     /// </summary>
     /// <param name="activity">The activity to record on</param>
     /// <param name="timeoutSeconds">The timeout value in seconds</param>

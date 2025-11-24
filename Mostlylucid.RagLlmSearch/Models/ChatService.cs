@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.Extensions.Logging;
@@ -12,57 +13,59 @@ using Mostlylucid.RagLlmSearch.Telemetry;
 namespace Mostlylucid.RagLlmSearch.Models;
 
 /// <summary>
-/// Interface for the main chat service
+///     Interface for the main chat service
 /// </summary>
 public interface IChatService
 {
     /// <summary>
-    /// Sends a chat message and gets a response
+    ///     Sends a chat message and gets a response
     /// </summary>
     Task<ChatResponse> ChatAsync(ChatRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Sends a chat message and streams the response
+    ///     Sends a chat message and streams the response
     /// </summary>
-    IAsyncEnumerable<ChatStreamChunk> ChatStreamAsync(ChatRequest request, CancellationToken cancellationToken = default);
+    IAsyncEnumerable<ChatStreamChunk> ChatStreamAsync(ChatRequest request,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets a conversation by ID
+    ///     Gets a conversation by ID
     /// </summary>
     Task<Conversation?> GetConversationAsync(string conversationId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets all conversations for a user
+    ///     Gets all conversations for a user
     /// </summary>
     Task<List<Conversation>> GetUserConversationsAsync(string userId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Deletes a conversation
+    ///     Deletes a conversation
     /// </summary>
     Task DeleteConversationAsync(string conversationId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Performs a search using the configured provider
+    ///     Performs a search using the configured provider
     /// </summary>
-    Task<SearchResponse> SearchAsync(string query, string? provider = null, CancellationToken cancellationToken = default);
+    Task<SearchResponse> SearchAsync(string query, string? provider = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets available search providers
+    ///     Gets available search providers
     /// </summary>
     IEnumerable<string> GetAvailableProviders();
 }
 
 /// <summary>
-/// Main chat service that orchestrates LLM, RAG, and search
+///     Main chat service that orchestrates LLM, RAG, and search
 /// </summary>
 public class ChatService : IChatService
 {
-    private readonly ILlmService _llmService;
-    private readonly IRagService _ragService;
     private readonly IConversationService _conversationService;
-    private readonly ISearchProviderFactory _searchProviderFactory;
-    private readonly RagLlmSearchOptions _options;
+    private readonly ILlmService _llmService;
     private readonly ILogger<ChatService> _logger;
+    private readonly RagLlmSearchOptions _options;
+    private readonly IRagService _ragService;
+    private readonly ISearchProviderFactory _searchProviderFactory;
 
     public ChatService(
         ILlmService llmService,
@@ -87,7 +90,7 @@ public class ChatService : IChatService
             request.EnableRag,
             request.EnableWebSearch);
 
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var stopwatch = Stopwatch.StartNew();
         var response = new ChatResponse();
         var triggeredSearch = false;
         var usedRag = false;
@@ -114,14 +117,13 @@ public class ChatService : IChatService
             (context, sources, triggeredSearch, usedRag) = await GatherContextAsync(request, cancellationToken);
 
             if (triggeredSearch)
-            {
                 searchProvider = string.IsNullOrEmpty(request.SearchProvider)
                     ? _searchProviderFactory.GetDefaultProvider().Name
                     : request.SearchProvider;
-            }
 
             // Get conversation history
-            var messages = await _conversationService.GetMessagesAsync(conversation.Id, cancellationToken: cancellationToken);
+            var messages =
+                await _conversationService.GetMessagesAsync(conversation.Id, cancellationToken: cancellationToken);
 
             // Generate response
             var responseText = await _llmService.GenerateResponseAsync(messages, context, cancellationToken);
@@ -175,77 +177,73 @@ public class ChatService : IChatService
         var triggeredSearch = false;
         var usedRag = false;
         Conversation? conversation = null;
-        string messageId = Guid.NewGuid().ToString();
+        var messageId = Guid.NewGuid().ToString();
 
-        try
+        // Get or create conversation
+        conversation = await GetOrCreateConversationAsync(request, cancellationToken);
+
+        // Add user message
+        var userMessage = new ChatMessage
         {
-            // Get or create conversation
-            conversation = await GetOrCreateConversationAsync(request, cancellationToken);
+            Role = ChatRole.User,
+            Content = request.Message,
+            ConversationId = conversation.Id
+        };
+        await _conversationService.AddMessageAsync(conversation.Id, userMessage, cancellationToken);
 
-            // Add user message
-            var userMessage = new ChatMessage
-            {
-                Role = ChatRole.User,
-                Content = request.Message,
-                ConversationId = conversation.Id
-            };
-            await _conversationService.AddMessageAsync(conversation.Id, userMessage, cancellationToken);
+        // Gather context
+        string? context;
+        (context, sources, triggeredSearch, usedRag) = await GatherContextAsync(request, cancellationToken);
 
-            // Gather context
-            string? context;
-            (context, sources, triggeredSearch, usedRag) = await GatherContextAsync(request, cancellationToken);
+        // Get conversation history
+        var messages =
+            await _conversationService.GetMessagesAsync(conversation.Id, cancellationToken: cancellationToken);
 
-            // Get conversation history
-            var messages = await _conversationService.GetMessagesAsync(conversation.Id, cancellationToken: cancellationToken);
-
-            // Stream the response
-            await foreach (var chunk in _llmService.GenerateStreamingResponseAsync(messages, context, cancellationToken))
-            {
-                responseBuilder.Append(chunk);
-                yield return new ChatStreamChunk
-                {
-                    ConversationId = conversation.Id,
-                    MessageId = messageId,
-                    Content = chunk,
-                    IsFinal = false
-                };
-            }
-
-            // Save the complete assistant message
-            var assistantMessage = new ChatMessage
-            {
-                Id = messageId,
-                Role = ChatRole.Assistant,
-                Content = responseBuilder.ToString(),
-                ConversationId = conversation.Id,
-                Sources = sources,
-                TriggeredSearch = triggeredSearch,
-                UsedRagContext = usedRag
-            };
-            await _conversationService.AddMessageAsync(conversation.Id, assistantMessage, cancellationToken);
-
-            // Send final chunk with sources
+        // Stream the response
+        await foreach (var chunk in _llmService.GenerateStreamingResponseAsync(messages, context, cancellationToken))
+        {
+            responseBuilder.Append(chunk);
             yield return new ChatStreamChunk
             {
                 ConversationId = conversation.Id,
                 MessageId = messageId,
-                Content = string.Empty,
-                IsFinal = true,
-                Sources = sources
+                Content = chunk,
+                IsFinal = false
             };
         }
-        finally
+
+        // Save the complete assistant message
+        var assistantMessage = new ChatMessage
         {
-            // Error handling - yield error chunk if needed
-        }
+            Id = messageId,
+            Role = ChatRole.Assistant,
+            Content = responseBuilder.ToString(),
+            ConversationId = conversation.Id,
+            Sources = sources,
+            TriggeredSearch = triggeredSearch,
+            UsedRagContext = usedRag
+        };
+        await _conversationService.AddMessageAsync(conversation.Id, assistantMessage, cancellationToken);
+
+        // Send final chunk with sources
+        yield return new ChatStreamChunk
+        {
+            ConversationId = conversation.Id,
+            MessageId = messageId,
+            Content = string.Empty,
+            IsFinal = true,
+            Sources = sources
+        };
     }
 
-    public async Task<Conversation?> GetConversationAsync(string conversationId, CancellationToken cancellationToken = default)
+    public async Task<Conversation?> GetConversationAsync(string conversationId,
+        CancellationToken cancellationToken = default)
     {
         return await _conversationService.GetConversationAsync(conversationId, cancellationToken);
     }
 
-    public async Task<List<Conversation>> GetUserConversationsAsync(string userId, CancellationToken cancellationToken = default)
+    public async Task<List<Conversation>> GetUserConversationsAsync(string userId,
+        CancellationToken cancellationToken = default)
     {
         return await _conversationService.GetUserConversationsAsync(userId, cancellationToken: cancellationToken);
     }
@@ -255,13 +253,15 @@ public class ChatService : IChatService
         await _conversationService.DeleteConversationAsync(conversationId, cancellationToken);
     }
 
-    public async Task<SearchResponse> SearchAsync(string query, string? provider = null, CancellationToken cancellationToken = default)
+    public async Task<SearchResponse> SearchAsync(string query, string? provider = null,
+        CancellationToken cancellationToken = default)
     {
         var searchProvider = string.IsNullOrEmpty(provider)
             ? _searchProviderFactory.GetDefaultProvider()
             : _searchProviderFactory.GetProvider(provider) ?? _searchProviderFactory.GetDefaultProvider();
 
-        using var activity = RagSearchTelemetry.StartSearchActivity(query, searchProvider.Name, _options.MaxSearchResults);
+        using var activity =
+            RagSearchTelemetry.StartSearchActivity(query, searchProvider.Name, _options.MaxSearchResults);
 
         try
         {
@@ -281,7 +281,8 @@ public class ChatService : IChatService
         return _searchProviderFactory.GetAvailableProviders().Select(p => p.Name);
     }
 
-    private async Task<Conversation> GetOrCreateConversationAsync(ChatRequest request, CancellationToken cancellationToken)
+    private async Task<Conversation> GetOrCreateConversationAsync(ChatRequest request,
+        CancellationToken cancellationToken)
     {
         if (!string.IsNullOrEmpty(request.ConversationId))
         {
@@ -292,9 +293,10 @@ public class ChatService : IChatService
         return await _conversationService.CreateConversationAsync(request.UserId, cancellationToken: cancellationToken);
     }
 
-    private async Task<(string? Context, List<SourceReference> Sources, bool TriggeredSearch, bool UsedRag)> GatherContextAsync(
-        ChatRequest request,
-        CancellationToken cancellationToken)
+    private async Task<(string? Context, List<SourceReference> Sources, bool TriggeredSearch, bool UsedRag)>
+        GatherContextAsync(
+            ChatRequest request,
+            CancellationToken cancellationToken)
     {
         var sources = new List<SourceReference>();
         var contextParts = new List<string>();
@@ -319,7 +321,6 @@ public class ChatService : IChatService
                 {
                     contextParts.Add($"[Stored Knowledge - Score: {result.Score:F2}]\n{result.Document.Content}");
                     if (!string.IsNullOrEmpty(result.Document.SourceUrl))
-                    {
                         sources.Add(new SourceReference
                         {
                             Title = result.Document.Title,
@@ -329,7 +330,6 @@ public class ChatService : IChatService
                                 : result.Document.Content,
                             RelevanceScore = result.Score
                         });
-                    }
                 }
             }
         }
@@ -344,7 +344,8 @@ public class ChatService : IChatService
                 triggeredSearch = true;
                 var searchProvider = string.IsNullOrEmpty(request.SearchProvider)
                     ? _searchProviderFactory.GetDefaultProvider()
-                    : _searchProviderFactory.GetProvider(request.SearchProvider) ?? _searchProviderFactory.GetDefaultProvider();
+                    : _searchProviderFactory.GetProvider(request.SearchProvider) ??
+                      _searchProviderFactory.GetDefaultProvider();
 
                 var searchResponse = await searchProvider.SearchAsync(
                     request.Message,

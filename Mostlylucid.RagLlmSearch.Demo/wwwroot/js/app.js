@@ -326,7 +326,7 @@ class ChatApp {
         try {
             const response = await fetch('/api/chat/rag', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     title: this.ragTitle.value.trim() || 'User Input',
                     content: content,

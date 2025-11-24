@@ -30,6 +30,12 @@ public class EmbeddingGenerator : IEmbeddingGenerator, IDisposable
         _config = config.Value;
     }
 
+    public void Dispose()
+    {
+        _embedder?.Dispose();
+        _initLock.Dispose();
+    }
+
     /// <inheritdoc />
     public async Task<float[]> GenerateEmbeddingAsync(string text, CancellationToken cancellationToken = default)
     {
@@ -76,12 +82,6 @@ public class EmbeddingGenerator : IEmbeddingGenerator, IDisposable
 
         var denominator = MathF.Sqrt(norm1) * MathF.Sqrt(norm2);
         return denominator == 0 ? 0 : dotProduct / denominator;
-    }
-
-    public void Dispose()
-    {
-        _embedder?.Dispose();
-        _initLock.Dispose();
     }
 
     private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
@@ -149,7 +149,7 @@ public class EmbeddingGenerator : IEmbeddingGenerator, IDisposable
         response.EnsureSuccessStatusCode();
 
         var result = await response.Content.ReadFromJsonAsync<OllamaEmbeddingResponse>(
-            cancellationToken: cancellationToken);
+            cancellationToken);
 
         if (result?.Embedding == null || result.Embedding.Length == 0)
             throw new InvalidOperationException("Empty embedding response from Ollama");

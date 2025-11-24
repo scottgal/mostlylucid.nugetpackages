@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Xml.Linq;
 using Mostlylucid.LlmI18nAssistant.Models;
 
 namespace Mostlylucid.LlmI18nAssistant.Cli.Commands;
@@ -104,8 +105,8 @@ public class GlossaryCommandHandler
                 continue;
 
             // Check if entry exists
-            var existing = glossary.Entries.FirstOrDefault(
-                e => e.SourceTerm.Equals(key, StringComparison.OrdinalIgnoreCase));
+            var existing =
+                glossary.Entries.FirstOrDefault(e => e.SourceTerm.Equals(key, StringComparison.OrdinalIgnoreCase));
 
             if (existing != null)
             {
@@ -163,7 +164,7 @@ public class GlossaryCommandHandler
         else if (extension == ".resx")
         {
             var xml = await File.ReadAllTextAsync(filePath);
-            var doc = System.Xml.Linq.XDocument.Parse(xml);
+            var doc = XDocument.Parse(xml);
             foreach (var data in doc.Descendants("data"))
             {
                 var name = data.Attribute("name")?.Value;
@@ -186,6 +187,7 @@ public class GlossaryCommandHandler
                     var key = string.IsNullOrEmpty(prefix) ? prop.Name : $"{prefix}.{prop.Name}";
                     ExtractJsonEntries(prop.Value, key, entries);
                 }
+
                 break;
             case JsonValueKind.String:
                 entries[prefix] = element.GetString() ?? "";

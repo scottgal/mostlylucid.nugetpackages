@@ -7,8 +7,8 @@ namespace Mostlylucid.LlmAccessibilityAuditor.Test;
 
 public class HtmlAccessibilityParserTests
 {
-    private readonly HtmlAccessibilityParser _parser;
     private readonly Mock<ILogger<HtmlAccessibilityParser>> _loggerMock;
+    private readonly HtmlAccessibilityParser _parser;
 
     public HtmlAccessibilityParserTests()
     {

@@ -4,22 +4,10 @@ using Mostlylucid.LlmPiiRedactor.Models;
 namespace Mostlylucid.LlmPiiRedactor.Detectors;
 
 /// <summary>
-/// Detects API keys, tokens, and secrets.
+///     Detects API keys, tokens, and secrets.
 /// </summary>
 public class ApiKeyDetector : BasePiiDetector
 {
-    public override PiiType PiiType => PiiType.ApiKey;
-    public override string Name => "ApiKeyDetector";
-    public override int Priority => 1; // Highest priority for security
-
-    // Patterns for common API key formats
-    // AWS: AKIA[0-9A-Z]{16}
-    // GitHub: ghp_[a-zA-Z0-9]{36}
-    // Stripe: sk_live_[a-zA-Z0-9]{24}
-    // Generic: long alphanumeric strings with mixed case
-    protected override string Pattern =>
-        @"(?<!\w)(?:AKIA[0-9A-Z]{16}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|sk_live_[a-zA-Z0-9]{24,}|sk_test_[a-zA-Z0-9]{24,}|pk_live_[a-zA-Z0-9]{24,}|pk_test_[a-zA-Z0-9]{24,}|xox[baprs]-[a-zA-Z0-9-]{10,}|sq0atp-[a-zA-Z0-9_-]{22}|sq0csp-[a-zA-Z0-9_-]{43}|AIza[0-9A-Za-z_-]{35}|[a-zA-Z0-9]{32,64})(?!\w)";
-
     // Known API key prefixes with their services
     private static readonly Dictionary<string, string> KnownPrefixes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -37,6 +25,18 @@ public class ApiKeyDetector : BasePiiDetector
         { "sq0csp-", "Square OAuth Secret" },
         { "AIza", "Google API Key" }
     };
+
+    public override PiiType PiiType => PiiType.ApiKey;
+    public override string Name => "ApiKeyDetector";
+    public override int Priority => 1; // Highest priority for security
+
+    // Patterns for common API key formats
+    // AWS: AKIA[0-9A-Z]{16}
+    // GitHub: ghp_[a-zA-Z0-9]{36}
+    // Stripe: sk_live_[a-zA-Z0-9]{24}
+    // Generic: long alphanumeric strings with mixed case
+    protected override string Pattern =>
+        @"(?<!\w)(?:AKIA[0-9A-Z]{16}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|sk_live_[a-zA-Z0-9]{24,}|sk_test_[a-zA-Z0-9]{24,}|pk_live_[a-zA-Z0-9]{24,}|pk_test_[a-zA-Z0-9]{24,}|xox[baprs]-[a-zA-Z0-9-]{10,}|sq0atp-[a-zA-Z0-9_-]{22}|sq0csp-[a-zA-Z0-9_-]{43}|AIza[0-9A-Za-z_-]{35}|[a-zA-Z0-9]{32,64})(?!\w)";
 
     protected override bool ValidateMatch(Match match, string originalText)
     {

@@ -262,13 +262,13 @@ public class IImageAnalysisServiceTests
         // Arrange
         var mockService = new Mock<IImageAnalysisService>();
         mockService.Setup(s => s.GenerateAltTextAsync(
-                null!,
+                (Stream)null!,
                 It.IsAny<string>()))
             .ThrowsAsync(new ArgumentNullException("imageStream"));
 
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            mockService.Object.GenerateAltTextAsync(null!, "CAPTION"));
+            mockService.Object.GenerateAltTextAsync((Stream)null!, "CAPTION"));
     }
 
     [Fact]
@@ -276,11 +276,11 @@ public class IImageAnalysisServiceTests
     {
         // Arrange
         var mockService = new Mock<IImageAnalysisService>();
-        mockService.Setup(s => s.ExtractTextAsync(null!))
+        mockService.Setup(s => s.ExtractTextAsync((Stream)null!))
             .ThrowsAsync(new ArgumentNullException("imageStream"));
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentNullException>(() => mockService.Object.ExtractTextAsync(null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => mockService.Object.ExtractTextAsync((Stream)null!));
     }
 
     [Fact]
@@ -288,11 +288,11 @@ public class IImageAnalysisServiceTests
     {
         // Arrange
         var mockService = new Mock<IImageAnalysisService>();
-        mockService.Setup(s => s.AnalyzeImageAsync(null!))
+        mockService.Setup(s => s.AnalyzeImageAsync((Stream)null!))
             .ThrowsAsync(new ArgumentNullException("imageStream"));
 
         // Act & Assert
-        await Assert.ThrowsAsync<ArgumentNullException>(() => mockService.Object.AnalyzeImageAsync(null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => mockService.Object.AnalyzeImageAsync((Stream)null!));
     }
 
     [Fact]

@@ -6,7 +6,7 @@ using Mostlylucid.LlmLogSummarizer.Models;
 namespace Mostlylucid.LlmLogSummarizer.Outputs;
 
 /// <summary>
-/// Outputs summary reports as Markdown files.
+///     Outputs summary reports as Markdown files.
 /// </summary>
 public class MarkdownOutputProvider : IOutputProvider
 {
@@ -65,7 +65,7 @@ public class MarkdownOutputProvider : IOutputProvider
         var sb = new StringBuilder();
 
         // Header
-        sb.AppendLine($"# Log Summary Report");
+        sb.AppendLine("# Log Summary Report");
         sb.AppendLine();
         sb.AppendLine($"**Generated:** {report.GeneratedAt:yyyy-MM-dd HH:mm:ss} UTC");
         sb.AppendLine($"**Period:** {report.PeriodStart:yyyy-MM-dd HH:mm} to {report.PeriodEnd:yyyy-MM-dd HH:mm}");
@@ -111,10 +111,7 @@ public class MarkdownOutputProvider : IOutputProvider
         {
             sb.AppendLine("## Key Insights");
             sb.AppendLine();
-            foreach (var insight in report.KeyInsights)
-            {
-                sb.AppendLine($"- {insight}");
-            }
+            foreach (var insight in report.KeyInsights) sb.AppendLine($"- {insight}");
             sb.AppendLine();
         }
 
@@ -125,10 +122,7 @@ public class MarkdownOutputProvider : IOutputProvider
             sb.AppendLine();
             sb.AppendLine("These errors were first seen in this period:");
             sb.AppendLine();
-            foreach (var cluster in report.NewErrorTypes.Take(10))
-            {
-                WriteClusterSummary(sb, cluster);
-            }
+            foreach (var cluster in report.NewErrorTypes.Take(10)) WriteClusterSummary(sb, cluster);
         }
 
         // Trending Up (Warning)
@@ -141,7 +135,8 @@ public class MarkdownOutputProvider : IOutputProvider
             foreach (var cluster in report.TrendingUp.Take(5))
             {
                 sb.AppendLine($"### {cluster.Title}");
-                sb.AppendLine($"**Occurrences:** {cluster.Count} (+{cluster.TrendPercent:F0}% from {cluster.PreviousPeriodCount})");
+                sb.AppendLine(
+                    $"**Occurrences:** {cluster.Count} (+{cluster.TrendPercent:F0}% from {cluster.PreviousPeriodCount})");
                 sb.AppendLine();
             }
         }
@@ -149,10 +144,7 @@ public class MarkdownOutputProvider : IOutputProvider
         // Top Error Patterns
         sb.AppendLine("## Top Error Patterns");
         sb.AppendLine();
-        foreach (var cluster in report.TopErrorPatterns.Take(10))
-        {
-            WriteClusterDetail(sb, cluster);
-        }
+        foreach (var cluster in report.TopErrorPatterns.Take(10)) WriteClusterDetail(sb, cluster);
 
         // Recommended Actions
         if (report.RecommendedActions.Any())
@@ -160,9 +152,7 @@ public class MarkdownOutputProvider : IOutputProvider
             sb.AppendLine("## Recommended Actions");
             sb.AppendLine();
             for (var i = 0; i < report.RecommendedActions.Count; i++)
-            {
                 sb.AppendLine($"{i + 1}. {report.RecommendedActions[i]}");
-            }
             sb.AppendLine();
         }
 
@@ -173,7 +163,8 @@ public class MarkdownOutputProvider : IOutputProvider
         sb.AppendLine();
         sb.AppendLine($"- **Collection Time:** {report.ProcessingStats.CollectionDuration.TotalSeconds:F2}s");
         sb.AppendLine($"- **Clustering Time:** {report.ProcessingStats.ClusteringDuration.TotalSeconds:F2}s");
-        sb.AppendLine($"- **LLM Summarization Time:** {report.ProcessingStats.LlmSummarizationDuration.TotalSeconds:F2}s");
+        sb.AppendLine(
+            $"- **LLM Summarization Time:** {report.ProcessingStats.LlmSummarizationDuration.TotalSeconds:F2}s");
         sb.AppendLine($"- **Total Time:** {report.ProcessingStats.TotalDuration.TotalSeconds:F2}s");
         sb.AppendLine($"- **LLM Calls:** {report.ProcessingStats.LlmCallCount}");
 
@@ -205,9 +196,7 @@ public class MarkdownOutputProvider : IOutputProvider
         sb.AppendLine($"**Time Range:** {cluster.FirstOccurrence:HH:mm} - {cluster.LastOccurrence:HH:mm}");
 
         if (cluster.SourceContexts.Any())
-        {
             sb.AppendLine($"**Sources:** {string.Join(", ", cluster.SourceContexts.Take(3))}");
-        }
         sb.AppendLine();
 
         if (!string.IsNullOrEmpty(cluster.LlmSummary))

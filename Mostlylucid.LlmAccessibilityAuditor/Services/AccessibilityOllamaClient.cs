@@ -8,13 +8,13 @@ using Mostlylucid.LlmAccessibilityAuditor.Models;
 namespace Mostlylucid.LlmAccessibilityAuditor.Services;
 
 /// <summary>
-/// Client for Ollama LLM API for accessibility analysis
+///     Client for Ollama LLM API for accessibility analysis
 /// </summary>
 public class AccessibilityOllamaClient : IAccessibilityOllamaClient
 {
-    private readonly AccessibilityAuditorOptions _options;
     private readonly HttpClient _httpClient;
     private readonly ILogger<AccessibilityOllamaClient> _logger;
+    private readonly AccessibilityAuditorOptions _options;
 
     public AccessibilityOllamaClient(
         ILogger<AccessibilityOllamaClient> logger,
@@ -84,9 +84,7 @@ public class AccessibilityOllamaClient : IAccessibilityOllamaClient
         CancellationToken cancellationToken = default)
     {
         if (issues.Count == 0)
-        {
             return "No accessibility issues were found. The page appears to follow accessibility best practices.";
-        }
 
         var prompt = BuildSummaryPrompt(issues);
 
@@ -118,7 +116,8 @@ public class AccessibilityOllamaClient : IAccessibilityOllamaClient
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error generating summary with Ollama");
-            return $"Found {issues.Count} accessibility issues: {issues.Count(i => i.Severity == IssueSeverity.Critical)} critical, {issues.Count(i => i.Severity == IssueSeverity.Serious)} serious.";
+            return
+                $"Found {issues.Count} accessibility issues: {issues.Count(i => i.Severity == IssueSeverity.Critical)} critical, {issues.Count(i => i.Severity == IssueSeverity.Serious)} serious.";
         }
     }
 
@@ -146,10 +145,7 @@ public class AccessibilityOllamaClient : IAccessibilityOllamaClient
         if (existingIssues != null && existingIssues.Count > 0)
         {
             sb.AppendLine("The following issues have already been detected by rule-based analysis:");
-            foreach (var issue in existingIssues.Take(10))
-            {
-                sb.AppendLine($"- [{issue.Type}] {issue.Description}");
-            }
+            foreach (var issue in existingIssues.Take(10)) sb.AppendLine($"- [{issue.Type}] {issue.Description}");
             sb.AppendLine();
             sb.AppendLine("Please identify ADDITIONAL issues not covered above.");
             sb.AppendLine();
@@ -208,18 +204,13 @@ Assign appropriate severity: Critical for blocking issues, Serious for significa
         foreach (var group in grouped)
         {
             sb.AppendLine($"**{group.Key}** ({group.Count()}):");
-            foreach (var issue in group.Take(3))
-            {
-                sb.AppendLine($"  - {issue.Description}");
-            }
-            if (group.Count() > 3)
-            {
-                sb.AppendLine($"  - ...and {group.Count() - 3} more");
-            }
+            foreach (var issue in group.Take(3)) sb.AppendLine($"  - {issue.Description}");
+            if (group.Count() > 3) sb.AppendLine($"  - ...and {group.Count() - 3} more");
         }
 
         sb.AppendLine();
-        sb.AppendLine("Write a 2-3 sentence summary highlighting the most important findings and overall accessibility status.");
+        sb.AppendLine(
+            "Write a 2-3 sentence summary highlighting the most important findings and overall accessibility status.");
 
         return sb.ToString();
     }
@@ -243,9 +234,7 @@ Assign appropriate severity: Critical for blocking issues, Serious for significa
                 });
 
                 if (parsed?.Issues != null)
-                {
                     foreach (var llmIssue in parsed.Issues)
-                    {
                         issues.Add(new AccessibilityIssue
                         {
                             Type = ParseIssueType(llmIssue.Type),
@@ -257,8 +246,6 @@ Assign appropriate severity: Critical for blocking issues, Serious for significa
                             Confidence = llmIssue.Confidence,
                             Source = DetectionSource.LlmAnalysis
                         });
-                    }
-                }
             }
         }
         catch (Exception ex)
@@ -278,7 +265,8 @@ Assign appropriate severity: Critical for blocking issues, Serious for significa
             "missingarialabel" or "missing_aria_label" or "aria" => AccessibilityIssueType.MissingAriaLabel,
             "missingalttext" or "missing_alt_text" or "alt" => AccessibilityIssueType.MissingAltText,
             "emptyalttext" or "empty_alt_text" => AccessibilityIssueType.EmptyAltText,
-            "badheadinghierarchy" or "heading_hierarchy" or "heading" or "headings" => AccessibilityIssueType.BadHeadingHierarchy,
+            "badheadinghierarchy" or "heading_hierarchy" or "heading" or "headings" => AccessibilityIssueType
+                .BadHeadingHierarchy,
             "skippedheadinglevel" or "skipped_heading" => AccessibilityIssueType.SkippedHeadingLevel,
             "multipleh1elements" or "multiple_h1" => AccessibilityIssueType.MultipleH1Elements,
             "suspiciouscontrast" or "contrast" or "color_contrast" => AccessibilityIssueType.SuspiciousContrast,

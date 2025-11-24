@@ -10,10 +10,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddCors(options =>
 {
-    options.AddDefaultPolicy(policy =>
-    {
-        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
-    });
+    options.AddDefaultPolicy(policy => { policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader(); });
 });
 
 // Add LLM I18n Assistant services
@@ -37,195 +34,198 @@ app.MapGet("/health", () => Results.Ok(new { Status = "Healthy", Timestamp = Dat
 
 // Service status
 app.MapGet("/i18n/status", async (ILlmI18nAssistant assistant, CancellationToken ct) =>
-{
-    var status = await assistant.CheckServicesAsync(ct);
-    return Results.Ok(status);
-})
-.WithName("GetServiceStatus")
-.WithOpenApi()
-.WithTags("Status");
+    {
+        var status = await assistant.CheckServicesAsync(ct);
+        return Results.Ok(status);
+    })
+    .WithName("GetServiceStatus")
+    .WithOpenApi()
+    .WithTags("Status");
 
 // Translate a single string
-app.MapPost("/i18n/translate/string", async (TranslateStringRequest request, ILlmI18nAssistant assistant, CancellationToken ct) =>
-{
-    if (string.IsNullOrWhiteSpace(request.Text))
-        return Results.BadRequest(new { Error = "Text is required" });
-
-    try
-    {
-        var translation = await assistant.TranslateStringAsync(
-            request.Text,
-            request.SourceLanguage ?? "en",
-            request.TargetLanguage,
-            request.Context,
-            ct);
-
-        return Results.Ok(new TranslateStringResponse
+app.MapPost("/i18n/translate/string",
+        async (TranslateStringRequest request, ILlmI18nAssistant assistant, CancellationToken ct) =>
         {
-            SourceText = request.Text,
-            TranslatedText = translation,
-            SourceLanguage = request.SourceLanguage ?? "en",
-            TargetLanguage = request.TargetLanguage
-        });
-    }
-    catch (Exception ex)
-    {
-        return Results.BadRequest(new { Error = ex.Message });
-    }
-})
-.WithName("TranslateString")
-.WithOpenApi()
-.WithTags("Translation");
+            if (string.IsNullOrWhiteSpace(request.Text))
+                return Results.BadRequest(new { Error = "Text is required" });
+
+            try
+            {
+                var translation = await assistant.TranslateStringAsync(
+                    request.Text,
+                    request.SourceLanguage ?? "en",
+                    request.TargetLanguage,
+                    request.Context,
+                    ct);
+
+                return Results.Ok(new TranslateStringResponse
+                {
+                    SourceText = request.Text,
+                    TranslatedText = translation,
+                    SourceLanguage = request.SourceLanguage ?? "en",
+                    TargetLanguage = request.TargetLanguage
+                });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        })
+    .WithName("TranslateString")
+    .WithOpenApi()
+    .WithTags("Translation");
 
 // Translate a batch of strings
-app.MapPost("/i18n/translate/batch", async (TranslateBatchRequest request, ILlmI18nAssistant assistant, CancellationToken ct) =>
-{
-    if (request.Entries == null || request.Entries.Count == 0)
-        return Results.BadRequest(new { Error = "Entries are required" });
-
-    try
-    {
-        var options = new TranslationOptions
+app.MapPost("/i18n/translate/batch",
+        async (TranslateBatchRequest request, ILlmI18nAssistant assistant, CancellationToken ct) =>
         {
-            UseConsistencyMode = request.UseConsistencyMode ?? true
-        };
+            if (request.Entries == null || request.Entries.Count == 0)
+                return Results.BadRequest(new { Error = "Entries are required" });
 
-        var translations = await assistant.TranslateBatchAsync(
-            request.Entries,
-            request.SourceLanguage ?? "en",
-            request.TargetLanguage,
-            options,
-            ct);
+            try
+            {
+                var options = new TranslationOptions
+                {
+                    UseConsistencyMode = request.UseConsistencyMode ?? true
+                };
 
-        return Results.Ok(new TranslateBatchResponse
-        {
-            Entries = translations,
-            SourceLanguage = request.SourceLanguage ?? "en",
-            TargetLanguage = request.TargetLanguage,
-            Count = translations.Count
-        });
-    }
-    catch (Exception ex)
-    {
-        return Results.BadRequest(new { Error = ex.Message });
-    }
-})
-.WithName("TranslateBatch")
-.WithOpenApi()
-.WithTags("Translation");
+                var translations = await assistant.TranslateBatchAsync(
+                    request.Entries,
+                    request.SourceLanguage ?? "en",
+                    request.TargetLanguage,
+                    options,
+                    ct);
+
+                return Results.Ok(new TranslateBatchResponse
+                {
+                    Entries = translations,
+                    SourceLanguage = request.SourceLanguage ?? "en",
+                    TargetLanguage = request.TargetLanguage,
+                    Count = translations.Count
+                });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { Error = ex.Message });
+            }
+        })
+    .WithName("TranslateBatch")
+    .WithOpenApi()
+    .WithTags("Translation");
 
 // Translate a resource file (multipart/form-data)
 app.MapPost("/i18n/translate/file", async (
-    IFormFile file,
-    string targetLanguage,
-    string? sourceLanguage,
-    bool? useConsistencyMode,
-    ILlmI18nAssistant assistant,
-    IResourceFileParser parser,
-    CancellationToken ct) =>
-{
-    if (file.Length == 0)
-        return Results.BadRequest(new { Error = "File is required" });
-
-    try
+        IFormFile file,
+        string targetLanguage,
+        string? sourceLanguage,
+        bool? useConsistencyMode,
+        ILlmI18nAssistant assistant,
+        IResourceFileParser parser,
+        CancellationToken ct) =>
     {
-        var fileType = parser.GetFileType(file.FileName);
+        if (file.Length == 0)
+            return Results.BadRequest(new { Error = "File is required" });
 
-        using var stream = file.OpenReadStream();
-
-        var options = new TranslationOptions
+        try
         {
-            UseConsistencyMode = useConsistencyMode ?? true
-        };
+            var fileType = parser.GetFileType(file.FileName);
 
-        var result = await assistant.TranslateResourceStreamAsync(
-            stream,
-            fileType,
-            sourceLanguage ?? "en",
-            targetLanguage,
-            options,
-            ct);
+            using var stream = file.OpenReadStream();
 
-        // Return as downloadable file
-        using var outputStream = new MemoryStream();
-        await parser.WriteAsync(result, outputStream, fileType, ct);
-        outputStream.Position = 0;
+            var options = new TranslationOptions
+            {
+                UseConsistencyMode = useConsistencyMode ?? true
+            };
 
-        var outputFileName = $"{Path.GetFileNameWithoutExtension(file.FileName)}.{targetLanguage}{Path.GetExtension(file.FileName)}";
+            var result = await assistant.TranslateResourceStreamAsync(
+                stream,
+                fileType,
+                sourceLanguage ?? "en",
+                targetLanguage,
+                options,
+                ct);
 
-        return Results.File(
-            outputStream.ToArray(),
-            "application/octet-stream",
-            outputFileName);
-    }
-    catch (Exception ex)
-    {
-        return Results.BadRequest(new { Error = ex.Message });
-    }
-})
-.WithName("TranslateFile")
-.WithOpenApi()
-.WithTags("Translation")
-.DisableAntiforgery();
+            // Return as downloadable file
+            using var outputStream = new MemoryStream();
+            await parser.WriteAsync(result, outputStream, fileType, ct);
+            outputStream.Position = 0;
+
+            var outputFileName =
+                $"{Path.GetFileNameWithoutExtension(file.FileName)}.{targetLanguage}{Path.GetExtension(file.FileName)}";
+
+            return Results.File(
+                outputStream.ToArray(),
+                "application/octet-stream",
+                outputFileName);
+        }
+        catch (Exception ex)
+        {
+            return Results.BadRequest(new { Error = ex.Message });
+        }
+    })
+    .WithName("TranslateFile")
+    .WithOpenApi()
+    .WithTags("Translation")
+    .DisableAntiforgery();
 
 // Translate and return JSON result (for inspection)
 app.MapPost("/i18n/translate/file/json", async (
-    IFormFile file,
-    string targetLanguage,
-    string? sourceLanguage,
-    bool? useConsistencyMode,
-    ILlmI18nAssistant assistant,
-    IResourceFileParser parser,
-    CancellationToken ct) =>
-{
-    if (file.Length == 0)
-        return Results.BadRequest(new { Error = "File is required" });
-
-    try
+        IFormFile file,
+        string targetLanguage,
+        string? sourceLanguage,
+        bool? useConsistencyMode,
+        ILlmI18nAssistant assistant,
+        IResourceFileParser parser,
+        CancellationToken ct) =>
     {
-        var fileType = parser.GetFileType(file.FileName);
+        if (file.Length == 0)
+            return Results.BadRequest(new { Error = "File is required" });
 
-        using var stream = file.OpenReadStream();
-
-        var options = new TranslationOptions
+        try
         {
-            UseConsistencyMode = useConsistencyMode ?? true
-        };
+            var fileType = parser.GetFileType(file.FileName);
 
-        var result = await assistant.TranslateResourceStreamAsync(
-            stream,
-            fileType,
-            sourceLanguage ?? "en",
-            targetLanguage,
-            options,
-            ct);
+            using var stream = file.OpenReadStream();
 
-        return Results.Ok(new TranslateFileResponse
-        {
-            SourceLanguage = result.SourceLanguage,
-            TargetLanguage = result.TargetLanguage,
-            Success = result.Success,
-            Statistics = result.Statistics,
-            Entries = result.Entries.Select(e => new TranslatedEntry
+            var options = new TranslationOptions
             {
-                Key = e.Key,
-                OriginalValue = e.Value,
-                TranslatedValue = e.TranslatedValue,
-                Method = e.TranslationMethod?.ToString()
-            }).ToList(),
-            Errors = result.Errors.Select(e => e.Message).ToList(),
-            DurationMs = (int)result.Duration.TotalMilliseconds
-        });
-    }
-    catch (Exception ex)
-    {
-        return Results.BadRequest(new { Error = ex.Message });
-    }
-})
-.WithName("TranslateFileJson")
-.WithOpenApi()
-.WithTags("Translation")
-.DisableAntiforgery();
+                UseConsistencyMode = useConsistencyMode ?? true
+            };
+
+            var result = await assistant.TranslateResourceStreamAsync(
+                stream,
+                fileType,
+                sourceLanguage ?? "en",
+                targetLanguage,
+                options,
+                ct);
+
+            return Results.Ok(new TranslateFileResponse
+            {
+                SourceLanguage = result.SourceLanguage,
+                TargetLanguage = result.TargetLanguage,
+                Success = result.Success,
+                Statistics = result.Statistics,
+                Entries = result.Entries.Select(e => new TranslatedEntry
+                {
+                    Key = e.Key,
+                    OriginalValue = e.Value,
+                    TranslatedValue = e.TranslatedValue,
+                    Method = e.TranslationMethod?.ToString()
+                }).ToList(),
+                Errors = result.Errors.Select(e => e.Message).ToList(),
+                DurationMs = (int)result.Duration.TotalMilliseconds
+            });
+        }
+        catch (Exception ex)
+        {
+            return Results.BadRequest(new { Error = ex.Message });
+        }
+    })
+    .WithName("TranslateFileJson")
+    .WithOpenApi()
+    .WithTags("Translation")
+    .DisableAntiforgery();
 
 app.Run();
 

@@ -6,20 +6,21 @@ using Mostlylucid.LlmLogSummarizer.Models;
 using Mostlylucid.LlmLogSummarizer.Outputs;
 using Mostlylucid.LlmLogSummarizer.Sources;
 using Mostlylucid.LlmLogSummarizer.Telemetry;
+using LogLevel = Mostlylucid.LlmLogSummarizer.Models.LogLevel;
 
 namespace Mostlylucid.LlmLogSummarizer.Services;
 
 /// <summary>
-/// Orchestrates the log summarization process.
+///     Orchestrates the log summarization process.
 /// </summary>
 public class LogSummarizationOrchestrator : ILogSummarizationOrchestrator
 {
-    private readonly ILogSourceAggregator _sourceAggregator;
     private readonly IExceptionClusterer _clusterer;
-    private readonly ILogSummarizer _summarizer;
-    private readonly IEnumerable<IOutputProvider> _outputProviders;
-    private readonly LogSummarizerOptions _options;
     private readonly ILogger<LogSummarizationOrchestrator> _logger;
+    private readonly LogSummarizerOptions _options;
+    private readonly IEnumerable<IOutputProvider> _outputProviders;
+    private readonly ILogSourceAggregator _sourceAggregator;
+    private readonly ILogSummarizer _summarizer;
 
     // Store historical clusters for trend analysis
     private List<ExceptionCluster> _previousPeriodClusters = new();
@@ -142,10 +143,10 @@ public class LogSummarizationOrchestrator : ILogSummarizationOrchestrator
         var sources = new HashSet<string>();
 
         await foreach (var entry in _sourceAggregator.GetAllEntriesAsync(
-            report.PeriodStart,
-            report.PeriodEnd,
-            _options.MaxEntriesPerRun,
-            cancellationToken))
+                           report.PeriodStart,
+                           report.PeriodEnd,
+                           _options.MaxEntriesPerRun,
+                           cancellationToken))
         {
             entries.Add(entry);
             if (!string.IsNullOrEmpty(entry.SourceName))
@@ -156,9 +157,9 @@ public class LogSummarizationOrchestrator : ILogSummarizationOrchestrator
         report.SourcesAnalyzed = sources.ToList();
 
         // Count by level
-        report.ErrorCount = entries.Count(e => e.Level == Models.LogLevel.Error);
-        report.WarningCount = entries.Count(e => e.Level == Models.LogLevel.Warning);
-        report.CriticalCount = entries.Count(e => e.Level == Models.LogLevel.Critical);
+        report.ErrorCount = entries.Count(e => e.Level == LogLevel.Error);
+        report.WarningCount = entries.Count(e => e.Level == LogLevel.Warning);
+        report.CriticalCount = entries.Count(e => e.Level == LogLevel.Critical);
 
         _logger.LogDebug(
             "Collected {Total} logs: {Errors} errors, {Warnings} warnings, {Critical} critical",
@@ -220,7 +221,6 @@ public class LogSummarizationOrchestrator : ILogSummarizationOrchestrator
 
         // Summarize top clusters
         foreach (var cluster in report.TopErrorPatterns.Take(_options.TopPatternsCount))
-        {
             try
             {
                 cluster.LlmSummary = await _summarizer.SummarizeClusterAsync(cluster, cancellationToken);
@@ -229,7 +229,8 @@ public class LogSummarizationOrchestrator : ILogSummarizationOrchestrator
                 // Only generate suggested actions for high-severity issues
                 if (cluster.Severity >= ClusterSeverity.Medium)
                 {
-                    cluster.SuggestedAction = await _summarizer.GenerateSuggestedActionAsync(cluster, cancellationToken);
+                    cluster.SuggestedAction =
+                        await _summarizer.GenerateSuggestedActionAsync(cluster, cancellationToken);
                     llmCallCount++;
                 }
             }
@@ -237,7 +238,6 @@ public class LogSummarizationOrchestrator : ILogSummarizationOrchestrator
             {
                 _logger.LogWarning(ex, "Failed to summarize cluster {Title}", cluster.Title);
             }
-        }
 
         // Generate executive summary
         try
@@ -276,7 +276,7 @@ public class LogSummarizationOrchestrator : ILogSummarizationOrchestrator
 
         return (report.CriticalCount, errorRate, report.NewErrorTypes.Count) switch
         {
-            ( > 0, _, _) => HealthStatus.Critical,
+            (> 0, _, _) => HealthStatus.Critical,
             (_, > 0.1, _) => HealthStatus.Unhealthy,
             (_, > 0.05, _) or (_, _, > 5) => HealthStatus.Degraded,
             _ => HealthStatus.Healthy
@@ -292,7 +292,6 @@ public class LogSummarizationOrchestrator : ILogSummarizationOrchestrator
             string.Join(", ", enabledProviders.Select(p => p.Name)));
 
         foreach (var provider in enabledProviders)
-        {
             try
             {
                 await provider.OutputAsync(report, cancellationToken);
@@ -301,19 +300,18 @@ public class LogSummarizationOrchestrator : ILogSummarizationOrchestrator
             {
                 _logger.LogError(ex, "Failed to output to {Provider}", provider.Name);
             }
-        }
 
         return enabledProviders.Count;
     }
 }
 
 /// <summary>
-/// Interface for the log summarization orchestrator.
+///     Interface for the log summarization orchestrator.
 /// </summary>
 public interface ILogSummarizationOrchestrator
 {
     /// <summary>
-    /// Runs the complete log summarization process.
+    ///     Runs the complete log summarization process.
     /// </summary>
     Task<SummaryReport> RunSummarizationAsync(CancellationToken cancellationToken = default);
 }

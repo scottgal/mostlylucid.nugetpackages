@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.RegularExpressions;
 using HtmlAgilityPack;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -8,13 +7,10 @@ using Mostlylucid.LlmAccessibilityAuditor.Models;
 namespace Mostlylucid.LlmAccessibilityAuditor.Services;
 
 /// <summary>
-/// Service for parsing HTML and detecting accessibility issues using rule-based analysis
+///     Service for parsing HTML and detecting accessibility issues using rule-based analysis
 /// </summary>
-public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
+public class HtmlAccessibilityParser : IHtmlAccessibilityParser
 {
-    private readonly ILogger<HtmlAccessibilityParser> _logger;
-    private readonly AccessibilityAuditorOptions _options;
-
     // CSS classes that may indicate low contrast (common patterns)
     private static readonly HashSet<string> LowContrastClasses = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -28,6 +24,8 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
 
     // Interactive element selectors
     private static readonly string[] InteractiveElements = { "button", "a", "input", "select", "textarea" };
+    private readonly ILogger<HtmlAccessibilityParser> _logger;
+    private readonly AccessibilityAuditorOptions _options;
 
     public HtmlAccessibilityParser(
         ILogger<HtmlAccessibilityParser> logger,
@@ -37,7 +35,8 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
         _options = options.Value;
     }
 
-    public Task<List<AccessibilityIssue>> ParseAndAnalyzeAsync(string html, CancellationToken cancellationToken = default)
+    public Task<List<AccessibilityIssue>> ParseAndAnalyzeAsync(string html,
+        CancellationToken cancellationToken = default)
     {
         var issues = new List<AccessibilityIssue>();
 
@@ -118,9 +117,7 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
 
             // Truncate if needed
             if (result.Length > maxLength)
-            {
                 result = result.Substring(0, maxLength - 50) + "\n<!-- ... truncated ... -->";
-            }
 
             return result;
         }
@@ -154,7 +151,6 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
         var lang = html?.GetAttributeValue("lang", null);
 
         if (string.IsNullOrWhiteSpace(lang))
-        {
             issues.Add(new AccessibilityIssue
             {
                 Type = AccessibilityIssueType.MissingLanguage,
@@ -167,7 +163,6 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
                 WcagLevel = "A",
                 Source = DetectionSource.HtmlParser
             });
-        }
     }
 
     private void CheckMissingTitle(HtmlDocument doc, List<AccessibilityIssue> issues)
@@ -176,7 +171,6 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
         var titleText = title?.InnerText?.Trim();
 
         if (string.IsNullOrWhiteSpace(titleText))
-        {
             issues.Add(new AccessibilityIssue
             {
                 Type = AccessibilityIssueType.MissingTitle,
@@ -189,7 +183,6 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
                 WcagLevel = "A",
                 Source = DetectionSource.HtmlParser
             });
-        }
     }
 
     private void CheckHeadingHierarchy(HtmlDocument doc, List<AccessibilityIssue> issues)
@@ -209,7 +202,6 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
             {
                 h1Count++;
                 if (h1Count > 1)
-                {
                     issues.Add(new AccessibilityIssue
                     {
                         Type = AccessibilityIssueType.MultipleH1Elements,
@@ -222,12 +214,10 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
                         WcagLevel = "A",
                         Source = DetectionSource.HtmlParser
                     });
-                }
             }
 
             // Check for skipped levels (e.g., h1 -> h3)
             if (lastLevel > 0 && level > lastLevel + 1)
-            {
                 issues.Add(new AccessibilityIssue
                 {
                     Type = AccessibilityIssueType.SkippedHeadingLevel,
@@ -240,14 +230,12 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
                     WcagLevel = "A",
                     Source = DetectionSource.HtmlParser
                 });
-            }
 
             lastLevel = level;
         }
 
         // Check if page starts without h1
         if (headings.Count > 0 && int.Parse(headings[0].Name[1].ToString()) != 1)
-        {
             issues.Add(new AccessibilityIssue
             {
                 Type = AccessibilityIssueType.BadHeadingHierarchy,
@@ -260,7 +248,6 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
                 WcagLevel = "A",
                 Source = DetectionSource.HtmlParser
             });
-        }
     }
 
     private void CheckImages(HtmlDocument doc, List<AccessibilityIssue> issues)
@@ -279,7 +266,6 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
                 continue;
 
             if (alt == null)
-            {
                 issues.Add(new AccessibilityIssue
                 {
                     Type = AccessibilityIssueType.MissingAltText,
@@ -292,12 +278,9 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
                     WcagLevel = "A",
                     Source = DetectionSource.HtmlParser
                 });
-            }
             else if (string.IsNullOrWhiteSpace(alt))
-            {
                 // Empty alt might be intentional for decorative images, but flag if no role
                 if (role == null)
-                {
                     issues.Add(new AccessibilityIssue
                     {
                         Type = AccessibilityIssueType.EmptyAltText,
@@ -305,13 +288,12 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
                         Description = "Image has empty alt text - verify this is decorative",
                         Element = TruncateElement(img.OuterHtml),
                         Selector = GetSelector(img),
-                        SuggestedFix = "If decorative, add role=\"presentation\". If informative, provide descriptive alt text",
+                        SuggestedFix =
+                            "If decorative, add role=\"presentation\". If informative, provide descriptive alt text",
                         WcagReference = "1.1.1",
                         WcagLevel = "A",
                         Source = DetectionSource.HtmlParser
                     });
-                }
-            }
         }
     }
 
@@ -321,9 +303,7 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
         if (buttons == null) return;
 
         foreach (var button in buttons)
-        {
             if (!HasAccessibleName(button))
-            {
                 issues.Add(new AccessibilityIssue
                 {
                     Type = AccessibilityIssueType.ButtonNoAccessibleName,
@@ -336,8 +316,6 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
                     WcagLevel = "A",
                     Source = DetectionSource.HtmlParser
                 });
-            }
-        }
     }
 
     private void CheckLinks(HtmlDocument doc, List<AccessibilityIssue> issues)
@@ -346,9 +324,7 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
         if (links == null) return;
 
         foreach (var link in links)
-        {
             if (!HasAccessibleName(link))
-            {
                 issues.Add(new AccessibilityIssue
                 {
                     Type = AccessibilityIssueType.LinkNoAccessibleName,
@@ -361,13 +337,12 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
                     WcagLevel = "A",
                     Source = DetectionSource.HtmlParser
                 });
-            }
-        }
     }
 
     private void CheckFormInputs(HtmlDocument doc, List<AccessibilityIssue> issues)
     {
-        var inputs = doc.DocumentNode.SelectNodes("//input[not(@type='hidden' or @type='submit' or @type='button' or @type='image')]|//select|//textarea");
+        var inputs = doc.DocumentNode.SelectNodes(
+            "//input[not(@type='hidden' or @type='submit' or @type='button' or @type='image')]|//select|//textarea");
         if (inputs == null) return;
 
         foreach (var input in inputs)
@@ -393,7 +368,8 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
                 hasLabel = parentLabel != null;
             }
 
-            if (!hasLabel && string.IsNullOrEmpty(ariaLabel) && string.IsNullOrEmpty(ariaLabelledby) && string.IsNullOrEmpty(title))
+            if (!hasLabel && string.IsNullOrEmpty(ariaLabel) && string.IsNullOrEmpty(ariaLabelledby) &&
+                string.IsNullOrEmpty(title))
             {
                 var severity = IssueSeverity.Critical;
                 var fix = "Add a <label for=\"inputId\"> element or aria-label attribute";
@@ -426,12 +402,10 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
         // Check for empty aria-labels
         var elementsWithAriaLabel = doc.DocumentNode.SelectNodes("//*[@aria-label]");
         if (elementsWithAriaLabel != null)
-        {
             foreach (var element in elementsWithAriaLabel)
             {
                 var ariaLabel = element.GetAttributeValue("aria-label", "");
                 if (string.IsNullOrWhiteSpace(ariaLabel))
-                {
                     issues.Add(new AccessibilityIssue
                     {
                         Type = AccessibilityIssueType.MissingAriaLabel,
@@ -444,14 +418,11 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
                         WcagLevel = "A",
                         Source = DetectionSource.HtmlParser
                     });
-                }
             }
-        }
 
         // Check for aria-labelledby referencing non-existent IDs
         var elementsWithLabelledby = doc.DocumentNode.SelectNodes("//*[@aria-labelledby]");
         if (elementsWithLabelledby != null)
-        {
             foreach (var element in elementsWithLabelledby)
             {
                 var labelledby = element.GetAttributeValue("aria-labelledby", "");
@@ -461,7 +432,6 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
                 {
                     var target = doc.DocumentNode.SelectSingleNode($"//*[@id='{id}']");
                     if (target == null)
-                    {
                         issues.Add(new AccessibilityIssue
                         {
                             Type = AccessibilityIssueType.MissingAriaLabel,
@@ -474,17 +444,14 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
                             WcagLevel = "A",
                             Source = DetectionSource.HtmlParser
                         });
-                    }
                 }
             }
-        }
     }
 
     private void CheckLandmarks(HtmlDocument doc, List<AccessibilityIssue> issues)
     {
         var main = doc.DocumentNode.SelectSingleNode("//main|//*[@role='main']");
         if (main == null)
-        {
             issues.Add(new AccessibilityIssue
             {
                 Type = AccessibilityIssueType.MissingLandmark,
@@ -497,7 +464,6 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
                 WcagLevel = "A",
                 Source = DetectionSource.HtmlParser
             });
-        }
     }
 
     private void CheckContrastIndicators(HtmlDocument doc, List<AccessibilityIssue> issues)
@@ -507,13 +473,11 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
         {
             var elements = doc.DocumentNode.SelectNodes($"//*[contains(@class, '{className}')]");
             if (elements != null)
-            {
                 foreach (var element in elements.Take(3)) // Limit to avoid noise
                 {
                     // Only flag if it contains meaningful text
                     var text = element.InnerText?.Trim();
                     if (!string.IsNullOrEmpty(text) && text.Length > 2)
-                    {
                         issues.Add(new AccessibilityIssue
                         {
                             Type = AccessibilityIssueType.LowContrastIndicator,
@@ -527,9 +491,7 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
                             Source = DetectionSource.HtmlParser,
                             Context = "This is a heuristic check. Use a contrast checker tool to verify."
                         });
-                    }
                 }
-            }
         }
     }
 
@@ -546,7 +508,6 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
 
             var headers = table.SelectNodes(".//th");
             if (headers == null || headers.Count == 0)
-            {
                 issues.Add(new AccessibilityIssue
                 {
                     Type = AccessibilityIssueType.TableNoHeaders,
@@ -554,12 +515,12 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
                     Description = "Data table has no header cells (<th>)",
                     Element = TruncateElement(table.OuterHtml, 200),
                     Selector = GetSelector(table),
-                    SuggestedFix = "Add <th> elements for column/row headers, or role=\"presentation\" if not a data table",
+                    SuggestedFix =
+                        "Add <th> elements for column/row headers, or role=\"presentation\" if not a data table",
                     WcagReference = "1.3.1",
                     WcagLevel = "A",
                     Source = DetectionSource.HtmlParser
                 });
-            }
         }
     }
 
@@ -581,7 +542,6 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
         });
 
         if (!hasSkipLink)
-        {
             issues.Add(new AccessibilityIssue
             {
                 Type = AccessibilityIssueType.MissingSkipLink,
@@ -595,7 +555,6 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
                 Source = DetectionSource.HtmlParser,
                 Context = "Skip links help keyboard users bypass repetitive navigation"
             });
-        }
     }
 
     private static bool HasAccessibleName(HtmlNode element)
@@ -625,7 +584,8 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
         }
 
         // Check for sr-only text
-        var srOnly = element.SelectSingleNode(".//*[contains(@class, 'sr-only') or contains(@class, 'visually-hidden')]");
+        var srOnly =
+            element.SelectSingleNode(".//*[contains(@class, 'sr-only') or contains(@class, 'visually-hidden')]");
         if (srOnly != null && !string.IsNullOrWhiteSpace(srOnly.InnerText)) return true;
 
         return false;
@@ -636,17 +596,13 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
         // Get text excluding hidden elements
         var text = new StringBuilder();
         foreach (var child in element.DescendantsAndSelf())
-        {
             if (child.NodeType == HtmlNodeType.Text)
             {
                 var parent = child.ParentNode;
                 var ariaHidden = parent?.GetAttributeValue("aria-hidden", null);
-                if (ariaHidden != "true")
-                {
-                    text.Append(child.InnerText);
-                }
+                if (ariaHidden != "true") text.Append(child.InnerText);
             }
-        }
+
         return text.ToString().Trim();
     }
 
@@ -666,10 +622,7 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
 
             var className = current.GetAttributeValue("class", null)?.Split(' ').FirstOrDefault();
             var selector = current.Name;
-            if (!string.IsNullOrEmpty(className))
-            {
-                selector += $".{className}";
-            }
+            if (!string.IsNullOrEmpty(className)) selector += $".{className}";
 
             parts.Insert(0, selector);
             current = current.ParentNode;
@@ -691,12 +644,8 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
     {
         var nodes = doc.DocumentNode.SelectNodes(xpath);
         if (nodes != null)
-        {
             foreach (var node in nodes.ToList())
-            {
                 node.Remove();
-            }
-        }
     }
 
     private void AppendElementsOfType(StringBuilder sb, HtmlNode root, string xpath, string label, int limit = 10)
@@ -705,14 +654,8 @@ public partial class HtmlAccessibilityParser : IHtmlAccessibilityParser
         if (elements == null || elements.Count == 0) return;
 
         sb.AppendLine($"<!-- {label}: -->");
-        foreach (var el in elements.Take(limit))
-        {
-            sb.AppendLine(TruncateElement(el.OuterHtml, 200));
-        }
-        if (elements.Count > limit)
-        {
-            sb.AppendLine($"<!-- ... and {elements.Count - limit} more {label.ToLower()} -->");
-        }
+        foreach (var el in elements.Take(limit)) sb.AppendLine(TruncateElement(el.OuterHtml, 200));
+        if (elements.Count > limit) sb.AppendLine($"<!-- ... and {elements.Count - limit} more {label.ToLower()} -->");
         sb.AppendLine();
     }
 }

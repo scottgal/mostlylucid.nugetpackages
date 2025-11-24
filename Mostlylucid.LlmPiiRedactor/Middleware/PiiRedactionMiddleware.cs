@@ -8,12 +8,12 @@ using Mostlylucid.LlmPiiRedactor.Services;
 namespace Mostlylucid.LlmPiiRedactor.Middleware;
 
 /// <summary>
-/// Middleware that redacts PII from request/response bodies and headers.
+///     Middleware that redacts PII from request/response bodies and headers.
 /// </summary>
 public class PiiRedactionMiddleware
 {
-    private readonly RequestDelegate _next;
     private readonly ILogger<PiiRedactionMiddleware> _logger;
+    private readonly RequestDelegate _next;
     private readonly PiiMiddlewareOptions _options;
 
     public PiiRedactionMiddleware(
@@ -35,32 +35,20 @@ public class PiiRedactionMiddleware
         }
 
         // Redact request headers
-        if (_options.RedactRequestHeaders)
-        {
-            RedactHeaders(context.Request.Headers, redactionService);
-        }
+        if (_options.RedactRequestHeaders) RedactHeaders(context.Request.Headers, redactionService);
 
         // Redact query strings
-        if (_options.RedactQueryStrings)
-        {
-            RedactQueryString(context, redactionService);
-        }
+        if (_options.RedactQueryStrings) RedactQueryString(context, redactionService);
 
         // Handle request body redaction
         if (_options.RedactRequestBody && IsProcessableContentType(context.Request.ContentType))
-        {
             await RedactRequestBody(context, redactionService);
-        }
 
         // Handle response body redaction
         if (_options.RedactResponseBody)
-        {
             await RedactResponseBody(context, redactionService);
-        }
         else
-        {
             await _next(context);
-        }
     }
 
     private bool IsPathExcluded(PathString path)
@@ -68,7 +56,6 @@ public class PiiRedactionMiddleware
         var pathValue = path.Value ?? "";
 
         foreach (var excludedPath in _options.ExcludedPaths)
-        {
             if (excludedPath.EndsWith('*'))
             {
                 var prefix = excludedPath[..^1];
@@ -79,7 +66,6 @@ public class PiiRedactionMiddleware
             {
                 return true;
             }
-        }
 
         return false;
     }
@@ -132,17 +118,11 @@ public class PiiRedactionMiddleware
                 }
             }
 
-            if (hasChanges)
-            {
-                headersToRedact.Add((header.Key, string.Join(", ", newValues)));
-            }
+            if (hasChanges) headersToRedact.Add((header.Key, string.Join(", ", newValues)));
         }
 
         // Apply changes
-        foreach (var (key, value) in headersToRedact)
-        {
-            headers[key] = value;
-        }
+        foreach (var (key, value) in headersToRedact) headers[key] = value;
     }
 
     private static void RedactQueryString(HttpContext context, IPiiRedactionService redactionService)
@@ -179,12 +159,12 @@ public class PiiRedactionMiddleware
         }
 
         if (hasChanges)
-        {
             // Note: QueryString is read-only in ASP.NET Core, but we've logged the original
             // The redacted values are available in context.Items for logging purposes
             context.Items["PII_RedactedQuery"] = new QueryString("?" +
-                string.Join("&", newQueryItems.Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value)}")));
-        }
+                                                                 string.Join("&",
+                                                                     newQueryItems.Select(kv =>
+                                                                         $"{kv.Key}={Uri.EscapeDataString(kv.Value)}")));
     }
 
     private async Task RedactRequestBody(HttpContext context, IPiiRedactionService redactionService)
@@ -243,15 +223,10 @@ public class PiiRedactionMiddleware
                         context.Response.ContentLength = bytes.Length;
 
                         if (_options.AddRedactionHeader)
-                        {
                             context.Response.Headers[_options.RedactionHeaderName] = "true";
-                        }
 
                         // Redact response headers
-                        if (_options.RedactResponseHeaders)
-                        {
-                            RedactHeaders(context.Response.Headers, redactionService);
-                        }
+                        if (_options.RedactResponseHeaders) RedactHeaders(context.Response.Headers, redactionService);
 
                         await originalBodyStream.WriteAsync(bytes);
                         _logger.LogDebug("Redacted PII from response body");

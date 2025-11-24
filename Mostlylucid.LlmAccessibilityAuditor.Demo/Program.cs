@@ -1,6 +1,5 @@
 using Mostlylucid.LlmAccessibilityAuditor.Extensions;
 using Mostlylucid.LlmAccessibilityAuditor.Middleware;
-using Mostlylucid.LlmAccessibilityAuditor.Models;
 using Mostlylucid.LlmAccessibilityAuditor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -39,10 +38,7 @@ builder.Logging.AddDebug();
 var app = builder.Build();
 
 // Enable developer exception page in development
-if (app.Environment.IsDevelopment())
-{
-    app.UseDeveloperExceptionPage();
-}
+if (app.Environment.IsDevelopment()) app.UseDeveloperExceptionPage();
 
 app.UseStaticFiles();
 app.UseCors();
@@ -62,10 +58,7 @@ app.MapPost("/api/audit", async (HttpRequest request, IAccessibilityAuditor audi
     using var reader = new StreamReader(request.Body);
     var html = await reader.ReadToEndAsync();
 
-    if (string.IsNullOrWhiteSpace(html))
-    {
-        return Results.BadRequest(new { error = "HTML content is required" });
-    }
+    if (string.IsNullOrWhiteSpace(html)) return Results.BadRequest(new { error = "HTML content is required" });
 
     var report = await auditor.AuditAsync(html, "direct-api-audit");
     return Results.Ok(report);
@@ -77,10 +70,7 @@ app.MapPost("/api/audit/quick", async (HttpRequest request, IAccessibilityAudito
     using var reader = new StreamReader(request.Body);
     var html = await reader.ReadToEndAsync();
 
-    if (string.IsNullOrWhiteSpace(html))
-    {
-        return Results.BadRequest(new { error = "HTML content is required" });
-    }
+    if (string.IsNullOrWhiteSpace(html)) return Results.BadRequest(new { error = "HTML content is required" });
 
     var result = await auditor.QuickAuditAsync(html);
     return Results.Ok(result);
@@ -100,7 +90,9 @@ app.MapGet("/demo/mixed", () => Results.Content(GetMixedPage(), "text/html"));
 
 app.Run();
 
-static string GetGoodPage() => @"<!DOCTYPE html>
+static string GetGoodPage()
+{
+    return @"<!DOCTYPE html>
 <html lang=""en"">
 <head>
     <meta charset=""UTF-8"">
@@ -180,8 +172,11 @@ static string GetGoodPage() => @"<!DOCTYPE html>
     </footer>
 </body>
 </html>";
+}
 
-static string GetBadPage() => @"<!DOCTYPE html>
+static string GetBadPage()
+{
+    return @"<!DOCTYPE html>
 <html>
 <head>
     <meta charset=""UTF-8"">
@@ -236,8 +231,11 @@ static string GetBadPage() => @"<!DOCTYPE html>
     <span class=""opacity-50"">This text uses opacity that may affect readability.</span>
 </body>
 </html>";
+}
 
-static string GetMixedPage() => @"<!DOCTYPE html>
+static string GetMixedPage()
+{
+    return @"<!DOCTYPE html>
 <html lang=""en"">
 <head>
     <meta charset=""UTF-8"">
@@ -306,3 +304,4 @@ static string GetMixedPage() => @"<!DOCTYPE html>
     </footer>
 </body>
 </html>";
+}

@@ -4,7 +4,7 @@ using Mostlylucid.LlmPiiRedactor.Models;
 namespace Mostlylucid.LlmPiiRedactor.Detectors;
 
 /// <summary>
-/// Detects email addresses.
+///     Detects email addresses.
 /// </summary>
 public class EmailDetector : BasePiiDetector
 {

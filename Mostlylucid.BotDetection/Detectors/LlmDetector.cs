@@ -117,10 +117,7 @@ Important:
             var chat = new Chat(ollama);
             var responseBuilder = new StringBuilder();
 
-            await foreach (var token in chat.SendAsync(prompt, cts.Token))
-            {
-                responseBuilder.Append(token);
-            }
+            await foreach (var token in chat.SendAsync(prompt, cts.Token)) responseBuilder.Append(token);
 
             var response = responseBuilder.ToString();
 
@@ -133,7 +130,6 @@ Important:
                 var analysisResult = JsonSerializer.Deserialize<LlmAnalysisJson>(jsonText);
 
                 if (analysisResult != null)
-                {
                     return new LlmAnalysis
                     {
                         IsBot = analysisResult.IsBot,
@@ -142,7 +138,6 @@ Important:
                         BotType = ParseBotType(analysisResult.BotType),
                         Pattern = analysisResult.Pattern
                     };
-                }
             }
 
             _logger.LogWarning("Failed to parse LLM response: {Response}", response);

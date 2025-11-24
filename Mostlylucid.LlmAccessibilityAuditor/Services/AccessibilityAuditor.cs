@@ -7,14 +7,14 @@ using Mostlylucid.LlmAccessibilityAuditor.Telemetry;
 namespace Mostlylucid.LlmAccessibilityAuditor.Services;
 
 /// <summary>
-/// Main accessibility auditor service that combines rule-based and LLM analysis
+///     Main accessibility auditor service that combines rule-based and LLM analysis
 /// </summary>
 public class AccessibilityAuditor : IAccessibilityAuditor
 {
     private readonly IHtmlAccessibilityParser _htmlParser;
+    private readonly ILogger<AccessibilityAuditor> _logger;
     private readonly IAccessibilityOllamaClient _ollamaClient;
     private readonly AccessibilityAuditorOptions _options;
-    private readonly ILogger<AccessibilityAuditor> _logger;
 
     public AccessibilityAuditor(
         IHtmlAccessibilityParser htmlParser,
@@ -89,11 +89,9 @@ public class AccessibilityAuditor : IAccessibilityAuditor
 
                     // Generate human summary
                     if (report.Issues.Count > 0)
-                    {
                         report.HumanSummary = await _ollamaClient.GenerateSummaryAsync(
                             report.Issues,
                             cancellationToken);
-                    }
                 }
                 else
                 {
@@ -107,10 +105,7 @@ public class AccessibilityAuditor : IAccessibilityAuditor
             report.OverallScore = CalculateScore(report.Issues);
 
             // Generate fallback summary if LLM didn't provide one
-            if (string.IsNullOrEmpty(report.HumanSummary))
-            {
-                report.HumanSummary = GenerateFallbackSummary(report);
-            }
+            if (string.IsNullOrEmpty(report.HumanSummary)) report.HumanSummary = GenerateFallbackSummary(report);
 
             AccessibilityAuditorTelemetry.RecordResult(activity, report);
         }
@@ -152,10 +147,7 @@ public class AccessibilityAuditor : IAccessibilityAuditor
 
     public async Task<bool> IsReadyAsync(CancellationToken cancellationToken = default)
     {
-        if (!_options.EnableLlmAnalysis)
-        {
-            return true; // Only rule-based, always ready
-        }
+        if (!_options.EnableLlmAnalysis) return true; // Only rule-based, always ready
 
         return await _ollamaClient.IsAvailableAsync(cancellationToken);
     }
@@ -175,10 +167,7 @@ public class AccessibilityAuditor : IAccessibilityAuditor
                  p.Element.Contains(llmIssue.Element) ||
                  llmIssue.Element.Contains(p.Element)));
 
-            if (!isDuplicate)
-            {
-                result.Add(llmIssue);
-            }
+            if (!isDuplicate) result.Add(llmIssue);
         }
 
         return result;
@@ -192,7 +181,6 @@ public class AccessibilityAuditor : IAccessibilityAuditor
         var score = 100.0;
 
         foreach (var issue in issues)
-        {
             score -= issue.Severity switch
             {
                 IssueSeverity.Critical => 15,
@@ -202,7 +190,6 @@ public class AccessibilityAuditor : IAccessibilityAuditor
                 IssueSeverity.Info => 0.5,
                 _ => 1
             };
-        }
 
         return Math.Max(0, Math.Min(100, (int)Math.Round(score)));
     }
@@ -210,24 +197,21 @@ public class AccessibilityAuditor : IAccessibilityAuditor
     private static string GenerateFallbackSummary(AccessibilityAuditReport report)
     {
         if (report.Issues.Count == 0)
-        {
             return "No accessibility issues were detected. The page appears to follow accessibility best practices.";
-        }
 
         var critical = report.Summary.CriticalCount;
         var serious = report.Summary.SeriousCount;
         var total = report.Summary.TotalIssues;
 
         if (critical > 0)
-        {
-            return $"Found {total} accessibility issues including {critical} critical issues that may prevent some users from accessing content. Immediate attention recommended.";
-        }
+            return
+                $"Found {total} accessibility issues including {critical} critical issues that may prevent some users from accessing content. Immediate attention recommended.";
 
         if (serious > 0)
-        {
-            return $"Found {total} accessibility issues including {serious} serious issues that may significantly impact user experience. Review and fix recommended.";
-        }
+            return
+                $"Found {total} accessibility issues including {serious} serious issues that may significantly impact user experience. Review and fix recommended.";
 
-        return $"Found {total} accessibility issues. While not critical, addressing these would improve the experience for users of assistive technologies.";
+        return
+            $"Found {total} accessibility issues. While not critical, addressing these would improve the experience for users of assistive technologies.";
     }
 }

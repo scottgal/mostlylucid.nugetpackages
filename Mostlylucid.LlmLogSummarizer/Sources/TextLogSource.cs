@@ -1,20 +1,24 @@
+using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.LlmLogSummarizer.Models;
+using LogLevel = Mostlylucid.LlmLogSummarizer.Models.LogLevel;
 
 namespace Mostlylucid.LlmLogSummarizer.Sources;
 
 /// <summary>
-/// Log source for plain text log files.
+///     Log source for plain text log files.
 /// </summary>
 public class TextLogSource : ILogSource
 {
+    // Default pattern: 2024-01-15 10:30:45.123 [Error] Some message here
+    private const string DefaultPattern =
+        @"^(?<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?)\s*\[?(?<level>\w+)\]?\s*(?<message>.*)$";
+
     private readonly TextLogSourceConfig _config;
     private readonly ILogger<TextLogSource> _logger;
     private readonly Regex? _parseRegex;
-
-    // Default pattern: 2024-01-15 10:30:45.123 [Error] Some message here
-    private const string DefaultPattern = @"^(?<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?)\s*\[?(?<level>\w+)\]?\s*(?<message>.*)$";
 
     public TextLogSource(TextLogSourceConfig config, ILogger<TextLogSource> logger)
     {
@@ -33,7 +37,7 @@ public class TextLogSource : ILogSource
         DateTimeOffset from,
         DateTimeOffset to,
         int maxEntries,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var files = GetLogFiles(from, to);
         var entriesYielded = 0;
@@ -93,12 +97,10 @@ public class TextLogSource : ILogSource
 
         // Directory with default pattern
         if (Directory.Exists(path))
-        {
             return Directory.EnumerateFiles(path, "*.log")
                 .Concat(Directory.EnumerateFiles(path, "*.txt"))
                 .Where(f => ShouldIncludeFile(f, from))
                 .OrderByDescending(f => new FileInfo(f).LastWriteTimeUtc);
-        }
 
         return Enumerable.Empty<string>();
     }
@@ -113,7 +115,7 @@ public class TextLogSource : ILogSource
         string filePath,
         DateTimeOffset from,
         DateTimeOffset to,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var reader = new StreamReader(stream);
@@ -172,30 +174,18 @@ public class TextLogSource : ILogSource
         if (match.Groups.TryGetValue("timestamp", out var tsGroup) && tsGroup.Success)
         {
             if (DateTimeOffset.TryParseExact(tsGroup.Value, _config.TimestampFormat,
-                    null, System.Globalization.DateTimeStyles.AssumeLocal, out var ts))
-            {
+                    null, DateTimeStyles.AssumeLocal, out var ts))
                 entry.Timestamp = ts;
-            }
-            else if (DateTimeOffset.TryParse(tsGroup.Value, out ts))
-            {
-                entry.Timestamp = ts;
-            }
+            else if (DateTimeOffset.TryParse(tsGroup.Value, out ts)) entry.Timestamp = ts;
         }
 
         if (match.Groups.TryGetValue("level", out var levelGroup) && levelGroup.Success)
-        {
             entry.Level = ParseLogLevel(levelGroup.Value);
-        }
 
-        if (match.Groups.TryGetValue("message", out var msgGroup) && msgGroup.Success)
-        {
-            entry.Message = msgGroup.Value;
-        }
+        if (match.Groups.TryGetValue("message", out var msgGroup) && msgGroup.Success) entry.Message = msgGroup.Value;
 
         if (match.Groups.TryGetValue("source", out var srcGroup) && srcGroup.Success)
-        {
             entry.SourceContext = srcGroup.Value;
-        }
 
         return entry;
     }
@@ -235,17 +225,17 @@ public class TextLogSource : ILogSource
         }
     }
 
-    private static Models.LogLevel ParseLogLevel(string? level)
+    private static LogLevel ParseLogLevel(string? level)
     {
         return level?.ToLowerInvariant() switch
         {
-            "trace" or "verbose" or "vrb" => Models.LogLevel.Trace,
-            "debug" or "dbg" => Models.LogLevel.Debug,
-            "information" or "info" or "inf" => Models.LogLevel.Information,
-            "warning" or "warn" or "wrn" => Models.LogLevel.Warning,
-            "error" or "err" => Models.LogLevel.Error,
-            "fatal" or "critical" or "crit" or "ftl" => Models.LogLevel.Critical,
-            _ => Models.LogLevel.Information
+            "trace" or "verbose" or "vrb" => LogLevel.Trace,
+            "debug" or "dbg" => LogLevel.Debug,
+            "information" or "info" or "inf" => LogLevel.Information,
+            "warning" or "warn" or "wrn" => LogLevel.Warning,
+            "error" or "err" => LogLevel.Error,
+            "fatal" or "critical" or "crit" or "ftl" => LogLevel.Critical,
+            _ => LogLevel.Information
         };
     }
 }

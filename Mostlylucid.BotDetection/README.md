@@ -1,6 +1,7 @@
 # Mostlylucid.BotDetection
 
-> **Note**: These packages are provided as-is. I'll get them working good enough to release but I can't commit to support. However they are Unlicense so have at it!
+> **Note**: These packages are provided as-is. I'll get them working good enough to release but I can't commit to
+> support. However they are Unlicense so have at it!
 
 Bot detection middleware for ASP.NET Core applications with behavioral analysis, header inspection, IP-based detection,
 and optional LLM-based classification.
@@ -199,21 +200,21 @@ builder.Services.AddBotDetection(options =>
 
 ## Configuration Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `EnableBehavioralAnalysis` | bool | `true` | Enable behavioral analysis |
-| `EnableHeaderDetection` | bool | `true` | Enable header inspection |
-| `EnableUserAgentDetection` | bool | `true` | Enable user-agent matching |
-| `EnableIpDetection` | bool | `true` | Enable IP-based detection |
-| `EnableLlmDetection` | bool | `false` | Enable LLM-based classification |
-| `BlockBots` | bool | `false` | Automatically block detected bots |
-| `BotBlockStatusCode` | int | `403` | HTTP status code for blocked bots |
-| `MinConfidenceToBlock` | double | `0.7` | Minimum confidence to trigger blocking |
-| `CacheExpirationMinutes` | int | `30` | Cache duration for detection results |
-| `MaxRequestsPerMinute` | int | `100` | Threshold for behavioral analysis |
-| `OllamaEndpoint` | string | `"http://localhost:11434"` | Ollama API endpoint |
-| `OllamaModel` | string | `"llama3.2:3b"` | Ollama model for LLM detection |
-| `LlmTimeoutMs` | int | `5000` | LLM request timeout in milliseconds |
+| Option                     | Type   | Default                    | Description                            |
+|----------------------------|--------|----------------------------|----------------------------------------|
+| `EnableBehavioralAnalysis` | bool   | `true`                     | Enable behavioral analysis             |
+| `EnableHeaderDetection`    | bool   | `true`                     | Enable header inspection               |
+| `EnableUserAgentDetection` | bool   | `true`                     | Enable user-agent matching             |
+| `EnableIpDetection`        | bool   | `true`                     | Enable IP-based detection              |
+| `EnableLlmDetection`       | bool   | `false`                    | Enable LLM-based classification        |
+| `BlockBots`                | bool   | `false`                    | Automatically block detected bots      |
+| `BotBlockStatusCode`       | int    | `403`                      | HTTP status code for blocked bots      |
+| `MinConfidenceToBlock`     | double | `0.7`                      | Minimum confidence to trigger blocking |
+| `CacheExpirationMinutes`   | int    | `30`                       | Cache duration for detection results   |
+| `MaxRequestsPerMinute`     | int    | `100`                      | Threshold for behavioral analysis      |
+| `OllamaEndpoint`           | string | `"http://localhost:11434"` | Ollama API endpoint                    |
+| `OllamaModel`              | string | `"llama3.2:3b"`            | Ollama model for LLM detection         |
+| `LlmTimeoutMs`             | int    | `5000`                     | LLM request timeout in milliseconds    |
 
 ## Detection Result
 

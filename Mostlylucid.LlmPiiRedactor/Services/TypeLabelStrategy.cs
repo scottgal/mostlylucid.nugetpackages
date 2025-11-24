@@ -3,8 +3,8 @@ using Mostlylucid.LlmPiiRedactor.Models;
 namespace Mostlylucid.LlmPiiRedactor.Services;
 
 /// <summary>
-/// Redacts by replacing with a simple type label.
-/// Example: "john@example.com" -> "[EMAIL]"
+///     Redacts by replacing with a simple type label.
+///     Example: "john@example.com" -> "[EMAIL]"
 /// </summary>
 public class TypeLabelStrategy : IRedactionStrategy
 {

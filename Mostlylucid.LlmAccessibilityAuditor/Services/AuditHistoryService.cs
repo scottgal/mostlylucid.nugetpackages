@@ -5,14 +5,14 @@ using Mostlylucid.LlmAccessibilityAuditor.Models;
 namespace Mostlylucid.LlmAccessibilityAuditor.Services;
 
 /// <summary>
-/// In-memory service for storing audit history
+///     In-memory service for storing audit history
 /// </summary>
 public class AuditHistoryService : IAuditHistoryService
 {
-    private readonly ConcurrentQueue<AccessibilityAuditReport> _reports = new();
-    private readonly ConcurrentDictionary<string, AccessibilityAuditReport> _reportById = new();
-    private readonly AccessibilityAuditorOptions _options;
     private readonly object _lock = new();
+    private readonly AccessibilityAuditorOptions _options;
+    private readonly ConcurrentDictionary<string, AccessibilityAuditReport> _reportById = new();
+    private readonly ConcurrentQueue<AccessibilityAuditReport> _reports = new();
 
     public AuditHistoryService(IOptions<AccessibilityAuditorOptions> options)
     {
@@ -28,12 +28,8 @@ public class AuditHistoryService : IAuditHistoryService
 
         // Trim if over limit
         while (_reports.Count > _options.MaxHistoryCount)
-        {
             if (_reports.TryDequeue(out var old))
-            {
                 _reportById.TryRemove(old.ReportId, out _);
-            }
-        }
     }
 
     public IReadOnlyList<AccessibilityAuditReport> GetRecentReports(int count = 10)
@@ -62,7 +58,10 @@ public class AuditHistoryService : IAuditHistoryService
     {
         lock (_lock)
         {
-            while (_reports.TryDequeue(out _)) { }
+            while (_reports.TryDequeue(out _))
+            {
+            }
+
             _reportById.Clear();
         }
     }
@@ -77,7 +76,9 @@ public class AuditHistoryService : IAuditHistoryService
             TotalAudits = reports.Count,
             TotalIssuesFound = allIssues.Count,
             AverageIssuesPerPage = reports.Count > 0 ? (double)allIssues.Count / reports.Count : 0,
-            AverageScore = reports.Count > 0 ? reports.Where(r => r.OverallScore.HasValue).Average(r => r.OverallScore!.Value) : 0,
+            AverageScore = reports.Count > 0
+                ? reports.Where(r => r.OverallScore.HasValue).Average(r => r.OverallScore!.Value)
+                : 0,
             IssuesByType = allIssues
                 .GroupBy(i => i.Type.ToString())
                 .ToDictionary(g => g.Key, g => g.Count()),

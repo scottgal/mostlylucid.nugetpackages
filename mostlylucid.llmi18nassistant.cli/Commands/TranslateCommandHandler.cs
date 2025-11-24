@@ -66,7 +66,9 @@ public class TranslateCommandHandler
                 UseConsistencyMode = consistency,
                 OnProgress = progress =>
                 {
-                    Console.Write($"\r[{progress.TargetLanguage}] {progress.CurrentIndex}/{progress.TotalCount}: {progress.CurrentKey}".PadRight(80));
+                    Console.Write(
+                        $"\r[{progress.TargetLanguage}] {progress.CurrentIndex}/{progress.TotalCount}: {progress.CurrentKey}"
+                            .PadRight(80));
                 }
             };
 

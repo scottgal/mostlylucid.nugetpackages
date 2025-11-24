@@ -10,12 +10,12 @@ public class CreditCardDetectorTests
     private readonly CreditCardDetector _detector = new();
 
     [Theory]
-    [InlineData("4111111111111111", "Visa")]  // Visa test number
+    [InlineData("4111111111111111", "Visa")] // Visa test number
     [InlineData("4111-1111-1111-1111", "Visa with dashes")]
     [InlineData("4111 1111 1111 1111", "Visa with spaces")]
-    [InlineData("5500000000000004", "MasterCard")]  // MasterCard test number
-    [InlineData("340000000000009", "Amex")]  // Amex test number
-    [InlineData("6011000000000004", "Discover")]  // Discover test number
+    [InlineData("5500000000000004", "MasterCard")] // MasterCard test number
+    [InlineData("340000000000009", "Amex")] // Amex test number
+    [InlineData("6011000000000004", "Discover")] // Discover test number
     public void Detect_ValidCreditCards_ReturnsMatches(string cardNumber, string description)
     {
         var text = $"Payment card: {cardNumber}";
@@ -27,9 +27,9 @@ public class CreditCardDetectorTests
     }
 
     [Theory]
-    [InlineData("1234567890123456")]  // Fails Luhn check
-    [InlineData("4111111111111112")]  // Fails Luhn check (wrong check digit)
-    [InlineData("123456789")]  // Too short
+    [InlineData("1234567890123456")] // Fails Luhn check
+    [InlineData("4111111111111112")] // Fails Luhn check (wrong check digit)
+    [InlineData("123456789")] // Too short
     public void Detect_InvalidCreditCards_ReturnsEmpty(string cardNumber)
     {
         var text = $"Number: {cardNumber}";

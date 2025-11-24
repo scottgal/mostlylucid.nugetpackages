@@ -1,13 +1,12 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.RagLlmSearch.Models;
-
 using ConversationModel = Mostlylucid.RagLlmSearch.Models.Conversation;
 
 namespace Mostlylucid.RagLlmSearch.SignalR;
 
 /// <summary>
-/// SignalR hub for real-time chat streaming
+///     SignalR hub for real-time chat streaming
 /// </summary>
 public class ChatHub : Hub<IChatHubClient>
 {
@@ -21,7 +20,7 @@ public class ChatHub : Hub<IChatHubClient>
     }
 
     /// <summary>
-    /// Sends a chat message and streams the response to the client
+    ///     Sends a chat message and streams the response to the client
     /// </summary>
     /// <param name="request">The chat request</param>
     public async Task SendMessage(ChatRequest request)
@@ -31,9 +30,7 @@ public class ChatHub : Hub<IChatHubClient>
         try
         {
             await foreach (var chunk in _chatService.ChatStreamAsync(request, Context.ConnectionAborted))
-            {
                 await Clients.Caller.ReceiveChunk(chunk);
-            }
         }
         catch (OperationCanceledException)
         {
@@ -47,7 +44,7 @@ public class ChatHub : Hub<IChatHubClient>
     }
 
     /// <summary>
-    /// Gets conversation history
+    ///     Gets conversation history
     /// </summary>
     /// <param name="conversationId">The conversation ID</param>
     public async Task<ConversationModel?> GetConversation(string conversationId)
@@ -56,7 +53,7 @@ public class ChatHub : Hub<IChatHubClient>
     }
 
     /// <summary>
-    /// Gets all conversations for the current user
+    ///     Gets all conversations for the current user
     /// </summary>
     /// <param name="userId">The user ID</param>
     public async Task<List<ConversationModel>> GetUserConversations(string userId)
@@ -65,7 +62,7 @@ public class ChatHub : Hub<IChatHubClient>
     }
 
     /// <summary>
-    /// Deletes a conversation
+    ///     Deletes a conversation
     /// </summary>
     /// <param name="conversationId">The conversation ID</param>
     public async Task DeleteConversation(string conversationId)
@@ -75,7 +72,7 @@ public class ChatHub : Hub<IChatHubClient>
     }
 
     /// <summary>
-    /// Performs a web search
+    ///     Performs a web search
     /// </summary>
     /// <param name="query">The search query</param>
     /// <param name="provider">Optional provider name</param>
@@ -85,7 +82,7 @@ public class ChatHub : Hub<IChatHubClient>
     }
 
     /// <summary>
-    /// Gets available search providers
+    ///     Gets available search providers
     /// </summary>
     public IEnumerable<string> GetAvailableProviders()
     {
@@ -106,22 +103,22 @@ public class ChatHub : Hub<IChatHubClient>
 }
 
 /// <summary>
-/// Client interface for the ChatHub
+///     Client interface for the ChatHub
 /// </summary>
 public interface IChatHubClient
 {
     /// <summary>
-    /// Receives a streaming chunk of the response
+    ///     Receives a streaming chunk of the response
     /// </summary>
     Task ReceiveChunk(ChatStreamChunk chunk);
 
     /// <summary>
-    /// Receives an error message
+    ///     Receives an error message
     /// </summary>
     Task ReceiveError(string error);
 
     /// <summary>
-    /// Notifies that a conversation was deleted
+    ///     Notifies that a conversation was deleted
     /// </summary>
     Task ConversationDeleted(string conversationId);
 }

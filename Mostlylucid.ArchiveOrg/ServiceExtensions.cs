@@ -10,7 +10,7 @@ namespace Mostlylucid.ArchiveOrg;
 public static class ServiceExtensions
 {
     /// <summary>
-    /// Add all Archive.org downloader services
+    ///     Add all Archive.org downloader services
     /// </summary>
     public static IServiceCollection AddArchiveOrgServices(
         this IServiceCollection services,
@@ -26,9 +26,7 @@ public static class ServiceExtensions
             configuration.GetSection(ArchiveOrgOptions.SectionName).Bind(options);
             // Resolve relative paths
             if (!Path.IsPathRooted(options.OutputDirectory))
-            {
                 options.OutputDirectory = Path.GetFullPath(Path.Combine(basePath, options.OutputDirectory));
-            }
         });
 
         services.Configure<MarkdownConversionOptions>(options =>
@@ -36,13 +34,9 @@ public static class ServiceExtensions
             configuration.GetSection(MarkdownConversionOptions.SectionName).Bind(options);
             // Resolve relative paths
             if (!Path.IsPathRooted(options.InputDirectory))
-            {
                 options.InputDirectory = Path.GetFullPath(Path.Combine(basePath, options.InputDirectory));
-            }
             if (!Path.IsPathRooted(options.OutputDirectory))
-            {
                 options.OutputDirectory = Path.GetFullPath(Path.Combine(basePath, options.OutputDirectory));
-            }
         });
 
         services.Configure<OllamaOptions>(configuration.GetSection(OllamaOptions.SectionName));

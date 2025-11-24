@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Web;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -11,12 +12,12 @@ using Mostlylucid.LlmAccessibilityAuditor.Services;
 namespace Mostlylucid.LlmAccessibilityAuditor.Middleware;
 
 /// <summary>
-/// Extension methods for mapping the accessibility diagnostic endpoint
+///     Extension methods for mapping the accessibility diagnostic endpoint
 /// </summary>
 public static class AccessibilityDiagnosticEndpoint
 {
     /// <summary>
-    /// Map the accessibility diagnostic endpoint
+    ///     Map the accessibility diagnostic endpoint
     /// </summary>
     public static IEndpointRouteBuilder MapAccessibilityDiagnostics(this IEndpointRouteBuilder endpoints)
     {
@@ -39,20 +40,21 @@ public static class AccessibilityDiagnosticEndpoint
         });
 
         // Get specific report
-        endpoints.MapGet($"{basePath}/report/{{reportId}}", async (HttpContext context, IAuditHistoryService historyService, string reportId) =>
-        {
-            var report = historyService.GetReport(reportId);
-            if (report == null)
+        endpoints.MapGet($"{basePath}/report/{{reportId}}",
+            async (HttpContext context, IAuditHistoryService historyService, string reportId) =>
             {
-                context.Response.StatusCode = 404;
-                await context.Response.WriteAsync("Report not found");
-                return;
-            }
+                var report = historyService.GetReport(reportId);
+                if (report == null)
+                {
+                    context.Response.StatusCode = 404;
+                    await context.Response.WriteAsync("Report not found");
+                    return;
+                }
 
-            var html = GenerateReportHtml(report);
-            context.Response.ContentType = "text/html; charset=utf-8";
-            await context.Response.WriteAsync(html);
-        });
+                var html = GenerateReportHtml(report);
+                context.Response.ContentType = "text/html; charset=utf-8";
+                await context.Response.WriteAsync(html);
+            });
 
         // JSON API for reports
         endpoints.MapGet($"{basePath}/api/reports", async (HttpContext context, IAuditHistoryService historyService) =>
@@ -67,22 +69,23 @@ public static class AccessibilityDiagnosticEndpoint
         });
 
         // JSON API for single report
-        endpoints.MapGet($"{basePath}/api/report/{{reportId}}", async (HttpContext context, IAuditHistoryService historyService, string reportId) =>
-        {
-            var report = historyService.GetReport(reportId);
-            if (report == null)
+        endpoints.MapGet($"{basePath}/api/report/{{reportId}}",
+            async (HttpContext context, IAuditHistoryService historyService, string reportId) =>
             {
-                context.Response.StatusCode = 404;
-                return;
-            }
+                var report = historyService.GetReport(reportId);
+                if (report == null)
+                {
+                    context.Response.StatusCode = 404;
+                    return;
+                }
 
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync(JsonSerializer.Serialize(report, new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            }));
-        });
+                context.Response.ContentType = "application/json";
+                await context.Response.WriteAsync(JsonSerializer.Serialize(report, new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                }));
+            });
 
         // Statistics endpoint
         endpoints.MapGet($"{basePath}/api/stats", async (HttpContext context, IAuditHistoryService historyService) =>
@@ -102,7 +105,8 @@ public static class AccessibilityDiagnosticEndpoint
             var isReady = await auditor.IsReadyAsync(context.RequestAborted);
             context.Response.StatusCode = isReady ? 200 : 503;
             context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync(JsonSerializer.Serialize(new { ready = isReady, status = isReady ? "healthy" : "unhealthy" }));
+            await context.Response.WriteAsync(JsonSerializer.Serialize(new
+                { ready = isReady, status = isReady ? "healthy" : "unhealthy" }));
         });
 
         // Clear history
@@ -194,8 +198,9 @@ public static class AccessibilityDiagnosticEndpoint
             var maxCount = stats.IssuesByType.Values.Max();
             foreach (var (type, count) in stats.IssuesByType.OrderByDescending(x => x.Value).Take(8))
             {
-                var height = maxCount > 0 ? (count * 100 / maxCount) : 0;
-                sb.AppendLine($@"<div class=""bar"" style=""height: {Math.Max(4, height)}%;"" title=""{type}: {count}""><span class=""bar-label"">{type.Replace("Missing", "").Replace("No", "")}</span></div>");
+                var height = maxCount > 0 ? count * 100 / maxCount : 0;
+                sb.AppendLine(
+                    $@"<div class=""bar"" style=""height: {Math.Max(4, height)}%;"" title=""{type}: {count}""><span class=""bar-label"">{type.Replace("Missing", "").Replace("No", "")}</span></div>");
             }
 
             sb.AppendLine(@"</div></div>");
@@ -206,30 +211,34 @@ public static class AccessibilityDiagnosticEndpoint
         <div class=""report-list"">");
 
         if (reports.Count == 0)
-        {
-            sb.AppendLine(@"<div class=""empty"">No audits yet. Browse some pages with the middleware enabled to see results here.</div>");
-        }
+            sb.AppendLine(
+                @"<div class=""empty"">No audits yet. Browse some pages with the middleware enabled to see results here.</div>");
         else
-        {
             foreach (var report in reports)
             {
-                var scoreClass = report.OverallScore >= 80 ? "score-good" : report.OverallScore >= 50 ? "score-ok" : "score-bad";
+                var scoreClass = report.OverallScore >= 80 ? "score-good" :
+                    report.OverallScore >= 50 ? "score-ok" : "score-bad";
 
                 sb.AppendLine($@"
             <a href=""/_accessibility/report/{report.ReportId}"" class=""report-item"">
                 <div class=""report-score {scoreClass}"">{report.OverallScore ?? 0}</div>
                 <div class=""report-info"">
-                    <div class=""report-url"">{System.Web.HttpUtility.HtmlEncode(report.PageUrl ?? "Unknown")}</div>
+                    <div class=""report-url"">{HttpUtility.HtmlEncode(report.PageUrl ?? "Unknown")}</div>
                     <div class=""report-meta"">{report.AuditedAt:g} | {report.AuditDurationMs}ms | {report.Summary.TotalIssues} issues</div>
                 </div>
                 <div class=""report-issues"">
-                    " + (report.Summary.CriticalCount > 0 ? $@"<span class=""badge badge-critical"">{report.Summary.CriticalCount} critical</span>" : "") + @"
-                    " + (report.Summary.SeriousCount > 0 ? $@"<span class=""badge badge-serious"">{report.Summary.SeriousCount} serious</span>" : "") + @"
-                    " + (report.Summary.ModerateCount > 0 ? $@"<span class=""badge badge-moderate"">{report.Summary.ModerateCount} moderate</span>" : "") + @"
+                    " + (report.Summary.CriticalCount > 0
+                    ? $@"<span class=""badge badge-critical"">{report.Summary.CriticalCount} critical</span>"
+                    : "") + @"
+                    " + (report.Summary.SeriousCount > 0
+                    ? $@"<span class=""badge badge-serious"">{report.Summary.SeriousCount} serious</span>"
+                    : "") + @"
+                    " + (report.Summary.ModerateCount > 0
+                    ? $@"<span class=""badge badge-moderate"">{report.Summary.ModerateCount} moderate</span>"
+                    : "") + @"
                 </div>
             </a>");
             }
-        }
 
         sb.AppendLine(@"
         </div>
@@ -258,7 +267,7 @@ public static class AccessibilityDiagnosticEndpoint
 <head>
     <meta charset=""utf-8"">
     <meta name=""viewport"" content=""width=device-width, initial-scale=1"">
-    <title>Audit Report - {System.Web.HttpUtility.HtmlEncode(report.PageTitle ?? report.PageUrl ?? "Unknown")}</title>
+    <title>Audit Report - {HttpUtility.HtmlEncode(report.PageTitle ?? report.PageUrl ?? "Unknown")}</title>
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
         body {{ font-family: system-ui, -apple-system, sans-serif; background: #f3f4f6; color: #1f2937; line-height: 1.5; }}
@@ -302,16 +311,16 @@ public static class AccessibilityDiagnosticEndpoint
         <a href=""/_accessibility"" class=""back"">Back to Dashboard</a>
 
         <div class=""header"">
-            <h1>{System.Web.HttpUtility.HtmlEncode(report.PageTitle ?? "Untitled Page")}</h1>
+            <h1>{HttpUtility.HtmlEncode(report.PageTitle ?? "Untitled Page")}</h1>
             <div class=""header-meta"">
-                <strong>URL:</strong> {System.Web.HttpUtility.HtmlEncode(report.PageUrl ?? "Unknown")} |
+                <strong>URL:</strong> {HttpUtility.HtmlEncode(report.PageUrl ?? "Unknown")} |
                 <strong>Audited:</strong> {report.AuditedAt:g} |
                 <strong>Duration:</strong> {report.AuditDurationMs}ms |
                 <strong>LLM:</strong> {(report.LlmAnalysisPerformed ? $"Yes ({report.LlmModel})" : "No")}
             </div>
             <div class=""score-display"">
                 <div class=""score-circle {(report.OverallScore >= 80 ? "score-good" : report.OverallScore >= 50 ? "score-ok" : "score-bad")}"">{report.OverallScore ?? 0}</div>
-                <div class=""summary"">{System.Web.HttpUtility.HtmlEncode(report.HumanSummary ?? "")}</div>
+                <div class=""summary"">{HttpUtility.HtmlEncode(report.HumanSummary ?? "")}</div>
             </div>
         </div>
 
@@ -327,31 +336,40 @@ public static class AccessibilityDiagnosticEndpoint
             <div class=""issue-header"" onclick=""toggleDetails({issueIndex})"">
                 <span class=""issue-severity"" style=""background: {bg}; color: {text};"">{issue.Severity}</span>
                 <span class=""issue-type"">{issue.Type}</span>
-                <span class=""issue-desc"">{System.Web.HttpUtility.HtmlEncode(issue.Description)}</span>
+                <span class=""issue-desc"">{HttpUtility.HtmlEncode(issue.Description)}</span>
             </div>
             <div class=""issue-details"" id=""details-{issueIndex}"">
-                " + (!string.IsNullOrEmpty(issue.Element) ? $@"
+                " + (!string.IsNullOrEmpty(issue.Element)
+                ? $@"
                 <div class=""detail-row"">
                     <div class=""detail-label"">Element</div>
-                    <div class=""code"">{System.Web.HttpUtility.HtmlEncode(issue.Element)}</div>
-                </div>" : "") + @"
+                    <div class=""code"">{HttpUtility.HtmlEncode(issue.Element)}</div>
+                </div>"
+                : "") + @"
 
-                " + (!string.IsNullOrEmpty(issue.Selector) ? $@"
+                " + (!string.IsNullOrEmpty(issue.Selector)
+                ? $@"
                 <div class=""detail-row"">
                     <div class=""detail-label"">Selector</div>
-                    <div class=""detail-value""><code>{System.Web.HttpUtility.HtmlEncode(issue.Selector)}</code></div>
-                </div>" : "") + @"
+                    <div class=""detail-value""><code>{HttpUtility.HtmlEncode(issue.Selector)}</code></div>
+                </div>"
+                : "") + @"
 
-                " + (!string.IsNullOrEmpty(issue.SuggestedFix) ? $@"
+                " + (!string.IsNullOrEmpty(issue.SuggestedFix)
+                ? $@"
                 <div class=""detail-row"">
                     <div class=""detail-label"">Suggested Fix</div>
-                    <div class=""fix"">{System.Web.HttpUtility.HtmlEncode(issue.SuggestedFix)}</div>
-                </div>" : "") + @"
+                    <div class=""fix"">{HttpUtility.HtmlEncode(issue.SuggestedFix)}</div>
+                </div>"
+                : "") + @"
 
-                " + (!string.IsNullOrEmpty(issue.WcagReference) ? $@"
+                " + (!string.IsNullOrEmpty(issue.WcagReference)
+                ? $@"
                 <div class=""detail-row"">
-                    <div class=""wcag"">WCAG {issue.WcagReference} (Level {issue.WcagLevel ?? "?"}) | Source: {issue.Source}" + (issue.Confidence.HasValue ? $" | Confidence: {issue.Confidence:P0}" : "") + @"</div>
-                </div>" : "") + @"
+                    <div class=""wcag"">WCAG {issue.WcagReference} (Level {issue.WcagLevel ?? "?"}) | Source: {issue.Source}" +
+                  (issue.Confidence.HasValue ? $" | Confidence: {issue.Confidence:P0}" : "") + @"</div>
+                </div>"
+                : "") + @"
             </div>
         </div>");
             issueIndex++;

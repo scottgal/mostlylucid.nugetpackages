@@ -64,13 +64,10 @@ public class AuditHistoryServiceTests
             .ToList();
 
         // Act
-        foreach (var report in reports)
-        {
-            service.AddReport(report);
-        }
+        foreach (var report in reports) service.AddReport(report);
 
         // Assert
-        var recent = service.GetRecentReports(10);
+        var recent = service.GetRecentReports();
         Assert.Equal(5, recent.Count); // Max is 5
         Assert.Null(service.GetReport(reports[0].ReportId)); // First one should be removed
         Assert.Null(service.GetReport(reports[1].ReportId)); // Second one should be removed
@@ -89,7 +86,7 @@ public class AuditHistoryServiceTests
         service.AddReport(report2);
 
         // Act
-        var recent = service.GetRecentReports(10);
+        var recent = service.GetRecentReports();
 
         // Assert
         Assert.Equal(2, recent.Count);
@@ -102,10 +99,8 @@ public class AuditHistoryServiceTests
     {
         // Arrange
         var service = CreateService();
-        for (int i = 0; i < 5; i++)
-        {
+        for (var i = 0; i < 5; i++)
             service.AddReport(new AccessibilityAuditReport { PageUrl = $"https://example.com/{i}" });
-        }
 
         // Act
         var recent = service.GetRecentReports(2);
@@ -143,7 +138,7 @@ public class AuditHistoryServiceTests
         service.Clear();
 
         // Assert
-        var recent = service.GetRecentReports(10);
+        var recent = service.GetRecentReports();
         Assert.Empty(recent);
     }
 

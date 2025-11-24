@@ -8,16 +8,16 @@ using Mostlylucid.LlmPiiRedactor.Telemetry;
 namespace Mostlylucid.LlmPiiRedactor.Services;
 
 /// <summary>
-/// Main service for PII detection and redaction.
+///     Main service for PII detection and redaction.
 /// </summary>
 public class PiiRedactionService : IPiiRedactionService
 {
+    private readonly IEnumerable<IPiiDetector> _detectors;
     private readonly ILogger<PiiRedactionService> _logger;
     private readonly PiiRedactionOptions _options;
-    private readonly IEnumerable<IPiiDetector> _detectors;
-    private readonly Dictionary<RedactionStyle, IRedactionStrategy> _strategies;
     private readonly PiiRedactionStatistics _statistics = new();
     private readonly object _statsLock = new();
+    private readonly Dictionary<RedactionStyle, IRedactionStrategy> _strategies;
 
     public PiiRedactionService(
         ILogger<PiiRedactionService> logger,
@@ -64,10 +64,7 @@ public class PiiRedactionService : IPiiRedactionService
             var redactedText = ApplyRedactions(processText, matches);
 
             // Update statistics
-            if (_options.EnableStatistics)
-            {
-                UpdateStatistics(text.Length, matches);
-            }
+            if (_options.EnableStatistics) UpdateStatistics(text.Length, matches);
 
             _logger.LogDebug("Redacted {Count} PII instances from text", matches.Count);
 

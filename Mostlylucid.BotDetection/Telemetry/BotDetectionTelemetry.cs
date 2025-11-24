@@ -4,17 +4,17 @@ using Mostlylucid.BotDetection.Models;
 namespace Mostlylucid.BotDetection.Telemetry;
 
 /// <summary>
-/// Telemetry instrumentation for bot detection operations
+///     Telemetry instrumentation for bot detection operations
 /// </summary>
 public static class BotDetectionTelemetry
 {
     /// <summary>
-    /// Activity source name for bot detection
+    ///     Activity source name for bot detection
     /// </summary>
     public const string ActivitySourceName = "Mostlylucid.BotDetection";
 
     /// <summary>
-    /// Activity source for bot detection telemetry
+    ///     Activity source for bot detection telemetry
     /// </summary>
     public static readonly ActivitySource ActivitySource = new(ActivitySourceName, GetVersion());
 
@@ -24,11 +24,11 @@ public static class BotDetectionTelemetry
     }
 
     /// <summary>
-    /// Starts an activity for bot detection
+    ///     Starts an activity for bot detection
     /// </summary>
     public static Activity? StartDetectActivity(string? clientIp = null, string? userAgent = null)
     {
-        var activity = ActivitySource.StartActivity("BotDetection.Detect", ActivityKind.Internal);
+        var activity = ActivitySource.StartActivity("BotDetection.Detect");
 
         if (activity != null)
         {
@@ -42,7 +42,7 @@ public static class BotDetectionTelemetry
     }
 
     /// <summary>
-    /// Records bot detection result on the activity
+    ///     Records bot detection result on the activity
     /// </summary>
     public static void RecordResult(Activity? activity, BotDetectionResult result)
     {
@@ -66,7 +66,7 @@ public static class BotDetectionTelemetry
     }
 
     /// <summary>
-    /// Records an exception on the activity
+    ///     Records an exception on the activity
     /// </summary>
     public static void RecordException(Activity? activity, Exception ex)
     {

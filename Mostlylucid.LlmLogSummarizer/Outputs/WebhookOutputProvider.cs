@@ -6,7 +6,7 @@ using Mostlylucid.LlmLogSummarizer.Models;
 namespace Mostlylucid.LlmLogSummarizer.Outputs;
 
 /// <summary>
-/// Outputs summary reports to a generic webhook.
+///     Outputs summary reports to a generic webhook.
 /// </summary>
 public class WebhookOutputProvider : IOutputProvider
 {
@@ -51,10 +51,7 @@ public class WebhookOutputProvider : IOutputProvider
             };
 
             // Add custom headers
-            foreach (var header in _config.Headers)
-            {
-                request.Headers.TryAddWithoutValidation(header.Key, header.Value);
-            }
+            foreach (var header in _config.Headers) request.Headers.TryAddWithoutValidation(header.Key, header.Value);
 
             var response = await _httpClient.SendAsync(request, cancellationToken);
             response.EnsureSuccessStatusCode();

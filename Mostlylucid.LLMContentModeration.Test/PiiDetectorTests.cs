@@ -6,8 +6,8 @@ namespace Mostlylucid.LLMContentModeration.Test;
 
 public class PiiDetectorTests
 {
-    private readonly PiiDetector _detector;
     private readonly PiiDetectionOptions _defaultOptions;
+    private readonly PiiDetector _detector;
 
     public PiiDetectorTests()
     {
@@ -26,32 +26,6 @@ public class PiiDetectorTests
             UnmaskedChars = 2
         };
     }
-
-    #region Email Detection Tests
-
-    [Theory]
-    [InlineData("Contact me at john@example.com for more info")]
-    [InlineData("Email: test.user+tag@subdomain.example.co.uk")]
-    [InlineData("user_name123@domain.org")]
-    public void DetectPii_ValidEmail_DetectsEmail(string content)
-    {
-        var matches = _detector.DetectPii(content, _defaultOptions);
-
-        Assert.Contains(matches, m => m.Type == PiiType.Email);
-    }
-
-    [Theory]
-    [InlineData("This is not an email")]
-    [InlineData("Invalid @email format")]
-    [InlineData("user@")]
-    public void DetectPii_InvalidEmail_DoesNotDetect(string content)
-    {
-        var matches = _detector.DetectPii(content, _defaultOptions);
-
-        Assert.DoesNotContain(matches, m => m.Type == PiiType.Email);
-    }
-
-    #endregion
 
     #region Phone Detection Tests
 
@@ -99,6 +73,65 @@ public class PiiDetectorTests
 
     #endregion
 
+    #region Address Detection Tests
+
+    [Theory]
+    [InlineData("I live at 123 Main Street")]
+    [InlineData("Office: 456 Oak Avenue")]
+    [InlineData("Send to 789 Pine Road")]
+    [InlineData("Located at 321 Maple Boulevard")]
+    public void DetectPii_ValidAddress_DetectsAddress(string content)
+    {
+        var matches = _detector.DetectPii(content, _defaultOptions);
+
+        Assert.Contains(matches, m => m.Type == PiiType.Address);
+    }
+
+    #endregion
+
+    #region Position Tracking Tests
+
+    [Fact]
+    public void DetectPii_TracksPosition_Correctly()
+    {
+        var content = "Contact john@example.com";
+        var matches = _detector.DetectPii(content, _defaultOptions);
+
+        var emailMatch = matches.First(m => m.Type == PiiType.Email);
+
+        Assert.Equal(8, emailMatch.StartIndex);
+        Assert.Equal(24, emailMatch.EndIndex);
+        Assert.Equal("john@example.com", content[emailMatch.StartIndex..emailMatch.EndIndex]);
+    }
+
+    #endregion
+
+    #region Email Detection Tests
+
+    [Theory]
+    [InlineData("Contact me at john@example.com for more info")]
+    [InlineData("Email: test.user+tag@subdomain.example.co.uk")]
+    [InlineData("user_name123@domain.org")]
+    public void DetectPii_ValidEmail_DetectsEmail(string content)
+    {
+        var matches = _detector.DetectPii(content, _defaultOptions);
+
+        Assert.Contains(matches, m => m.Type == PiiType.Email);
+    }
+
+    [Theory]
+    [InlineData("This is not an email")]
+    [InlineData("Invalid @email format")]
+    [InlineData("user@")]
+    public void DetectPii_InvalidEmail_DoesNotDetect(string content)
+    {
+        var matches = _detector.DetectPii(content, _defaultOptions);
+
+        Assert.DoesNotContain(matches, m => m.Type == PiiType.Email);
+    }
+
+    #endregion
+
     #region SSN Detection Tests
 
     [Theory]
@@ -118,22 +151,6 @@ public class PiiDetectorTests
         var matches = _detector.DetectPii(content, _defaultOptions);
 
         Assert.DoesNotContain(matches, m => m.Type == PiiType.SocialSecurityNumber);
-    }
-
-    #endregion
-
-    #region Address Detection Tests
-
-    [Theory]
-    [InlineData("I live at 123 Main Street")]
-    [InlineData("Office: 456 Oak Avenue")]
-    [InlineData("Send to 789 Pine Road")]
-    [InlineData("Located at 321 Maple Boulevard")]
-    public void DetectPii_ValidAddress_DetectsAddress(string content)
-    {
-        var matches = _detector.DetectPii(content, _defaultOptions);
-
-        Assert.Contains(matches, m => m.Type == PiiType.Address);
     }
 
     #endregion
@@ -248,23 +265,6 @@ public class PiiDetectorTests
 
         Assert.Single(matches);
         Assert.Equal(PiiType.Email, matches[0].Type);
-    }
-
-    #endregion
-
-    #region Position Tracking Tests
-
-    [Fact]
-    public void DetectPii_TracksPosition_Correctly()
-    {
-        var content = "Contact john@example.com";
-        var matches = _detector.DetectPii(content, _defaultOptions);
-
-        var emailMatch = matches.First(m => m.Type == PiiType.Email);
-
-        Assert.Equal(8, emailMatch.StartIndex);
-        Assert.Equal(24, emailMatch.EndIndex);
-        Assert.Equal("john@example.com", content[emailMatch.StartIndex..emailMatch.EndIndex]);
     }
 
     #endregion

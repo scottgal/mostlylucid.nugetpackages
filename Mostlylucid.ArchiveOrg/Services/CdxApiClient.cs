@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.ArchiveOrg.Config;
@@ -34,7 +35,6 @@ public class CdxApiClient : ICdxApiClient
         var timeout = TimeSpan.FromSeconds(_options.RequestTimeoutSeconds);
 
         for (var attempt = 1; attempt <= maxRetries; attempt++)
-        {
             try
             {
                 // Build the CDX API URL
@@ -47,39 +47,22 @@ public class CdxApiClient : ICdxApiClient
                 };
 
                 // Add date filters if specified
-                if (startDate.HasValue)
-                {
-                    queryParams.Add($"from={startDate.Value:yyyyMMdd}");
-                }
+                if (startDate.HasValue) queryParams.Add($"from={startDate.Value:yyyyMMdd}");
 
-                if (endDate.HasValue)
-                {
-                    queryParams.Add($"to={endDate.Value:yyyyMMdd}");
-                }
+                if (endDate.HasValue) queryParams.Add($"to={endDate.Value:yyyyMMdd}");
 
                 // Add MIME type filter
                 if (_options.MimeTypes.Count > 0)
-                {
                     foreach (var mimeType in _options.MimeTypes)
-                    {
                         queryParams.Add($"filter=mimetype:{mimeType}");
-                    }
-                }
 
                 // Add status code filter
                 if (_options.StatusCodes.Count > 0)
-                {
                     foreach (var statusCode in _options.StatusCodes)
-                    {
                         queryParams.Add($"filter=statuscode:{statusCode}");
-                    }
-                }
 
                 // Collapse to unique URLs if requested
-                if (_options.UniqueUrlsOnly)
-                {
-                    queryParams.Add("collapse=urlkey");
-                }
+                if (_options.UniqueUrlsOnly) queryParams.Add("collapse=urlkey");
 
                 var apiUrl = $"{CdxApiBaseUrl}?{string.Join("&", queryParams)}";
                 _logger.LogInformation("Fetching CDX records from: {Url} (attempt {Attempt}/{MaxRetries})",
@@ -114,7 +97,8 @@ public class CdxApiClient : ICdxApiClient
                                                    jsonEx.Message.Contains("truncated"))
                 {
                     // Response was truncated - try to salvage what we can
-                    _logger.LogWarning("CDX response appears truncated at line {Line}, attempting to parse partial data...",
+                    _logger.LogWarning(
+                        "CDX response appears truncated at line {Line}, attempting to parse partial data...",
                         jsonEx.LineNumber);
 
                     // Try to fix the JSON by finding the last complete array and closing it
@@ -125,7 +109,8 @@ public class CdxApiClient : ICdxApiClient
                         try
                         {
                             jsonArray = JsonSerializer.Deserialize<string[][]>(fixedContent);
-                            _logger.LogInformation("Successfully parsed truncated response - recovered {Count:N0} records",
+                            _logger.LogInformation(
+                                "Successfully parsed truncated response - recovered {Count:N0} records",
                                 jsonArray?.Length ?? 0);
                         }
                         catch
@@ -147,7 +132,6 @@ public class CdxApiClient : ICdxApiClient
                 var processedCount = 0;
                 var filteredCount = 0;
                 foreach (var row in jsonArray.Skip(1))
-                {
                     try
                     {
                         var record = CdxRecord.FromJsonArray(row);
@@ -155,26 +139,19 @@ public class CdxApiClient : ICdxApiClient
 
                         // Apply include/exclude filters
                         if (ShouldIncludeRecord(record))
-                        {
                             records.Add(record);
-                        }
                         else
-                        {
                             filteredCount++;
-                        }
 
                         // Log progress every 1000 records
                         if (processedCount % 1000 == 0)
-                        {
                             _logger.LogInformation("Processing CDX records: {Processed:N0}/{Total:N0}...",
                                 processedCount, jsonArray.Length - 1);
-                        }
                     }
                     catch (Exception ex)
                     {
                         _logger.LogWarning(ex, "Failed to parse CDX record: {Row}", string.Join(",", row));
                     }
-                }
 
                 _logger.LogInformation("Found {Count:N0} CDX records for URL: {Url} (filtered out {Filtered:N0})",
                     records.Count, url, filteredCount);
@@ -183,7 +160,8 @@ public class CdxApiClient : ICdxApiClient
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 // This was a timeout, not a user cancellation
-                _logger.LogWarning("Timeout fetching CDX records (attempt {Attempt}/{MaxRetries})", attempt, maxRetries);
+                _logger.LogWarning("Timeout fetching CDX records (attempt {Attempt}/{MaxRetries})", attempt,
+                    maxRetries);
 
                 if (attempt < maxRetries)
                 {
@@ -192,11 +170,13 @@ public class CdxApiClient : ICdxApiClient
                     continue;
                 }
 
-                throw new TimeoutException($"Failed to fetch CDX records after {maxRetries} attempts (timeout: {_options.RequestTimeoutSeconds}s)");
+                throw new TimeoutException(
+                    $"Failed to fetch CDX records after {maxRetries} attempts (timeout: {_options.RequestTimeoutSeconds}s)");
             }
             catch (HttpRequestException ex)
             {
-                _logger.LogWarning(ex, "HTTP error fetching CDX records (attempt {Attempt}/{MaxRetries})", attempt, maxRetries);
+                _logger.LogWarning(ex, "HTTP error fetching CDX records (attempt {Attempt}/{MaxRetries})", attempt,
+                    maxRetries);
 
                 if (attempt < maxRetries)
                 {
@@ -226,7 +206,6 @@ public class CdxApiClient : ICdxApiClient
 
                 throw;
             }
-        }
 
         return records;
     }
@@ -237,24 +216,18 @@ public class CdxApiClient : ICdxApiClient
         if (_options.IncludePatterns.Count > 0)
         {
             var matches = _options.IncludePatterns.Any(pattern =>
-                System.Text.RegularExpressions.Regex.IsMatch(record.OriginalUrl, pattern));
+                Regex.IsMatch(record.OriginalUrl, pattern));
 
-            if (!matches)
-            {
-                return false;
-            }
+            if (!matches) return false;
         }
 
         // Check exclude patterns
         if (_options.ExcludePatterns.Count > 0)
         {
             var excluded = _options.ExcludePatterns.Any(pattern =>
-                System.Text.RegularExpressions.Regex.IsMatch(record.OriginalUrl, pattern));
+                Regex.IsMatch(record.OriginalUrl, pattern));
 
-            if (excluded)
-            {
-                return false;
-            }
+            if (excluded) return false;
         }
 
         return true;

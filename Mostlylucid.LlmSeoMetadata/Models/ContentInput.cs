@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+
 namespace Mostlylucid.LlmSeoMetadata.Models;
 
 /// <summary>
@@ -123,8 +126,8 @@ public class ContentInput
         // Generate a hash-based key from title and content
         var combined = $"{Title}:{Content.Length}:{ContentType}";
         return Convert.ToBase64String(
-            System.Security.Cryptography.SHA256.HashData(
-                System.Text.Encoding.UTF8.GetBytes(combined)))[..16];
+            SHA256.HashData(
+                Encoding.UTF8.GetBytes(combined)))[..16];
     }
 }
 
