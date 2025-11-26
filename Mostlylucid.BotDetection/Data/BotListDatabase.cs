@@ -418,20 +418,44 @@ public class BotListDatabase : IBotListDatabase, IDisposable
 
     private bool IsIpInRange(string ipAddress, string cidr)
     {
-        // Simplified IP range check - in production use a proper CIDR library
         try
         {
             var parts = cidr.Split('/');
             if (parts.Length != 2) return false;
 
-            var networkAddress = parts[0];
-            var prefix = int.Parse(parts[1]);
+            if (!System.Net.IPAddress.TryParse(parts[0], out var networkAddress))
+                return false;
 
-            // Simple prefix match for now
-            var networkBytes = networkAddress.Split('.').Take(prefix / 8).ToArray();
-            var ipBytes = ipAddress.Split('.').Take(prefix / 8).ToArray();
+            if (!int.TryParse(parts[1], out var prefixLength))
+                return false;
 
-            return networkBytes.SequenceEqual(ipBytes);
+            if (!System.Net.IPAddress.TryParse(ipAddress, out var ip))
+                return false;
+
+            var ipBytes = ip.GetAddressBytes();
+            var networkBytes = networkAddress.GetAddressBytes();
+
+            // IPv4 and IPv6 must match
+            if (ipBytes.Length != networkBytes.Length)
+                return false;
+
+            var fullBytes = prefixLength / 8;
+            var remainingBits = prefixLength % 8;
+
+            // Check full bytes
+            for (var i = 0; i < fullBytes; i++)
+                if (ipBytes[i] != networkBytes[i])
+                    return false;
+
+            // Check remaining bits with proper masking
+            if (remainingBits > 0 && fullBytes < ipBytes.Length)
+            {
+                var mask = (byte)(0xFF << (8 - remainingBits));
+                if ((ipBytes[fullBytes] & mask) != (networkBytes[fullBytes] & mask))
+                    return false;
+            }
+
+            return true;
         }
         catch
         {

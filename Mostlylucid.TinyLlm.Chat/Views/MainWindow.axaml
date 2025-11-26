@@ -1,0 +1,127 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Mostlylucid.TinyLlm.Chat.ViewModels"
+        xmlns:models="using:Mostlylucid.TinyLlm.Chat.Models"
+        xmlns:views="using:Mostlylucid.TinyLlm.Chat.Views"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="650"
+        x:Class="Mostlylucid.TinyLlm.Chat.Views.MainWindow"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="TinyLlm Chat - Local AI Assistant"
+        Width="900" Height="650"
+        MinWidth="600" MinHeight="400"
+        x:CompileBindings="False">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+    <Window.Styles>
+        <!-- User Message Style -->
+        <Style Selector="Border.user-message">
+            <Setter Property="Background" Value="#0078D4"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="12"/>
+            <Setter Property="Margin" Value="50,5,10,5"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+        </Style>
+
+        <Style Selector="TextBlock.user-message-text">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+
+        <!-- Assistant Message Style -->
+        <Style Selector="Border.assistant-message">
+            <Setter Property="Background" Value="#F3F2F1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="12"/>
+            <Setter Property="Margin" Value="10,5,50,5"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+        </Style>
+
+        <Style Selector="TextBlock.assistant-message-text">
+            <Setter Property="Foreground" Value="#323130"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="Auto,*,Auto">
+        <!-- Top Bar: Model Loading -->
+        <Border Grid.Row="0" Background="#F3F2F1" Padding="15" BorderBrush="#E1DFDD" BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="*,Auto,Auto">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="Model Path:" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                    <TextBox Text="{Binding ModelPath}"
+                             Watermark="C:\models\tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
+                             Width="400"
+                             VerticalAlignment="Center"/>
+                    <Button Content="Load Model"
+                            Command="{Binding LoadModelCommand}"
+                            Classes="accent"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" Margin="10,0">
+                    <TextBlock Text="●"
+                               Foreground="{Binding IsModelLoaded, Converter={x:Static views:BoolConverters.SuccessColor}}"
+                               FontSize="16" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <Button Grid.Column="2" Content="Clear Chat" Command="{Binding ClearChatCommand}"/>
+            </Grid>
+        </Border>
+
+        <!-- Chat Messages -->
+        <ScrollViewer Grid.Row="1" Name="ChatScrollViewer">
+            <ItemsControl ItemsSource="{Binding Messages}" Margin="10">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="models:ChatMessage">
+                        <Border Classes.user-message="{Binding IsUser}"
+                                Classes.assistant-message="{Binding !IsUser}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Content}"
+                                           Classes.user-message-text="{Binding IsUser}"
+                                           Classes.assistant-message-text="{Binding !IsUser}"/>
+                                <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}"
+                                           FontSize="10"
+                                           Opacity="0.7"
+                                           Margin="0,5,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!-- Input Area -->
+        <Border Grid.Row="2" Background="#F3F2F1" Padding="15" BorderBrush="#E1DFDD" BorderThickness="0,1,0,0">
+            <Grid ColumnDefinitions="*,Auto,Auto">
+                <TextBox Grid.Column="0"
+                         Text="{Binding UserInput}"
+                         Watermark="Type your message here..."
+                         AcceptsReturn="True"
+                         MaxHeight="100"
+                         VerticalContentAlignment="Top">
+                    <TextBox.KeyBindings>
+                        <KeyBinding Gesture="Enter" Command="{Binding SendMessageCommand}"/>
+                    </TextBox.KeyBindings>
+                </TextBox>
+
+                <Button Grid.Column="1"
+                        Content="Send"
+                        Command="{Binding SendMessageCommand}"
+                        IsVisible="{Binding !IsGenerating}"
+                        Margin="10,0,0,0"
+                        Classes="accent"/>
+
+                <Button Grid.Column="2"
+                        Content="Cancel"
+                        Command="{Binding CancelGenerationCommand}"
+                        IsVisible="{Binding IsGenerating}"
+                        Margin="10,0,0,0"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

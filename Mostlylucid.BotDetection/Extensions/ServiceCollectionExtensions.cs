@@ -33,8 +33,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDetector, HeaderDetector>();
         services.AddSingleton<IDetector, BehavioralDetector>();
         services.AddSingleton<IDetector, IpDetector>();
-        // LlmDetector disabled due to OllamaSharp API compatibility issues
-        // services.AddSingleton<IDetector, LlmDetector>();
+        services.AddSingleton<IDetector, LlmDetector>();
 
         // Add memory cache if not already registered
         services.AddMemoryCache();

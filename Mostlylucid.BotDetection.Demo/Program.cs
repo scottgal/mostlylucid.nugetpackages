@@ -1,7 +1,6 @@
 using Mostlylucid.BotDetection.Extensions;
+using Mostlylucid.BotDetection.Filters;
 using Mostlylucid.BotDetection.Middleware;
-using Mostlylucid.BotDetection.Models;
-using Mostlylucid.BotDetection.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,9 +12,10 @@ builder.Services.AddBotDetection(options =>
     options.EnableHeaderAnalysis = true;
     options.EnableIpDetection = true;
     options.EnableBehavioralAnalysis = true;
+    options.EnableTestMode = true; // Enable test mode for demo
 
     // Enable LLM detection (requires Ollama running)
-    options.EnableLlmDetection = false; // Set to true if you have Ollama running
+    options.EnableLlmDetection = false;
     options.OllamaEndpoint = "http://localhost:11434";
     options.OllamaModel = "qwen2.5:1.5b";
     options.LlmTimeoutMs = 2000;
@@ -41,57 +41,118 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 
-// Simple test endpoints
+// ==========================================
+// Built-in diagnostic endpoints
+// ==========================================
+// Maps: /bot-detection/check, /bot-detection/stats, /bot-detection/health
+app.MapBotDetectionEndpoints();
+
+// ==========================================
+// Demo endpoints using extension methods
+// ==========================================
+
+// Simple check using HttpContext extensions
 app.MapGet("/", (HttpContext context) =>
 {
-    var result = context.Items[BotDetectionMiddleware.BotDetectionResultKey] as BotDetectionResult;
-
     return Results.Ok(new
     {
-        message = "Bot Detection Demo API",
-        isBot = result?.IsBot ?? false,
-        confidence = result?.ConfidenceScore ?? 0.0,
-        botType = result?.BotType?.ToString(),
-        botName = result?.BotName,
-        processingTime = result?.ProcessingTimeMs ?? 0,
-        reasons = result?.Reasons.Select(r => new
+        message = "Bot Detection Demo API - v1.0.0",
+        isBot = context.IsBot(),
+        isHuman = context.IsHuman(),
+        isSearchEngine = context.IsSearchEngineBot(),
+        isVerifiedBot = context.IsVerifiedBot(),
+        confidence = context.GetBotConfidence(),
+        botType = context.GetBotType()?.ToString(),
+        botName = context.GetBotName(),
+        endpoints = new
         {
-            r.Category,
-            r.Detail,
-            r.ConfidenceImpact
-        })
+            diagnostics = new[] { "/bot-detection/check", "/bot-detection/stats", "/bot-detection/health" },
+            protected_endpoints = new[] { "/api/protected", "/api/humans-only", "/api/allow-search-engines" },
+            test_instructions = "Use header 'ml-bot-test-mode: googlebot' to simulate different bots"
+        }
     });
 });
 
-app.MapGet("/api/bot-check", (HttpContext context) =>
-{
-    var result = context.Items[BotDetectionMiddleware.BotDetectionResultKey] as BotDetectionResult;
-    return Results.Ok(result);
-});
+// ==========================================
+// Protected endpoints using endpoint filters
+// ==========================================
 
-app.MapGet("/api/stats", (IBotDetectionService botService) =>
-{
-    var stats = botService.GetStatistics();
-    return Results.Ok(stats);
-});
-
-app.MapGet("/api/test-bot", () =>
+// Block all bots
+app.MapGet("/api/protected", (HttpContext context) =>
 {
     return Results.Ok(new
     {
-        message = "To test bot detection, make requests with different User-Agents:",
-        examples = new[]
+        message = "This endpoint blocks all bots",
+        accessGranted = true,
+        visitor = context.IsHuman() ? "human" : "verified-bot"
+    });
+})
+.BlockBots(allowVerifiedBots: true) // Allow Googlebot etc.
+.WithName("ProtectedEndpoint")
+.WithSummary("Protected endpoint - blocks unverified bots");
+
+// Human only (blocks ALL bots)
+app.MapGet("/api/humans-only", (HttpContext context) =>
+{
+    return Results.Ok(new
+    {
+        message = "This endpoint is for humans only",
+        accessGranted = true
+    });
+})
+.RequireHuman()
+.WithName("HumansOnly")
+.WithSummary("Human-only endpoint - blocks all bots including verified ones");
+
+// Allow search engines
+app.MapGet("/api/allow-search-engines", (HttpContext context) =>
+{
+    return Results.Ok(new
+    {
+        message = "Search engines welcome here!",
+        isSearchEngine = context.IsSearchEngineBot(),
+        botName = context.GetBotName()
+    });
+})
+.BlockBots(allowSearchEngines: true)
+.WithName("AllowSearchEngines")
+.WithSummary("Allows search engine bots, blocks others");
+
+// High confidence blocking only
+app.MapGet("/api/strict-protection", (HttpContext context) =>
+{
+    return Results.Ok(new
+    {
+        message = "Only blocks high-confidence bots (>90%)",
+        confidence = context.GetBotConfidence()
+    });
+})
+.BlockBots(minConfidence: 0.9)
+.WithName("StrictProtection")
+.WithSummary("Only blocks bots with >90% confidence");
+
+// ==========================================
+// Test helpers
+// ==========================================
+
+app.MapGet("/api/test-modes", () =>
+{
+    return Results.Ok(new
+    {
+        message = "Test mode header values (use with 'ml-bot-test-mode' header)",
+        modes = new Dictionary<string, string>
         {
-            new { userAgent = "curl/7.68.0", expected = "Likely bot" },
-            new { userAgent = "python-requests/2.28.0", expected = "Likely bot" },
-            new { userAgent = "Googlebot/2.1", expected = "Verified bot (allowed)" },
-            new
-            {
-                userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", expected = "Likely human"
-            },
-            new { userAgent = "", expected = "Likely bot (missing)" }
+            ["disable"] = "Bypass detection entirely",
+            ["human"] = "Simulate human visitor",
+            ["bot"] = "Simulate generic bot",
+            ["googlebot"] = "Simulate Googlebot (SearchEngine, verified)",
+            ["bingbot"] = "Simulate Bingbot (SearchEngine, verified)",
+            ["scraper"] = "Simulate scraper bot",
+            ["malicious"] = "Simulate malicious bot",
+            ["social"] = "Simulate social media bot",
+            ["monitor"] = "Simulate monitoring bot"
         },
-        instructions = "Use: curl -H 'User-Agent: curl/7.68.0' http://localhost:5000/"
+        example = "curl -H 'ml-bot-test-mode: googlebot' http://localhost:5000/"
     });
 });
 

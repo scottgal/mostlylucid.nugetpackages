@@ -62,10 +62,10 @@ app.Run();
     "EnableUserAgentDetection": true,
     "EnableIpDetection": true,
     "EnableLlmDetection": false,
-    "BlockBots": false,
-    "CacheExpirationMinutes": 30,
-    "MaxRequestsPerMinute": 100,
-    "BotBlockStatusCode": 403,
+    "EnableTestMode": false,
+    "BotThreshold": 0.7,
+    "CacheDurationSeconds": 300,
+    "MaxRequestsPerMinute": 60,
     "OllamaEndpoint": "http://localhost:11434",
     "OllamaModel": "llama3.2:3b",
     "LlmTimeoutMs": 5000
@@ -135,10 +135,12 @@ builder.Services.AddBotDetection(options =>
 public class MyController : Controller
 {
     private readonly IBotDetectionService _botDetection;
+    private readonly ILogger<MyController> _logger;
 
-    public MyController(IBotDetectionService botDetection)
+    public MyController(IBotDetectionService botDetection, ILogger<MyController> logger)
     {
         _botDetection = botDetection;
+        _logger = logger;
     }
 
     public async Task<IActionResult> Index()
@@ -147,10 +149,10 @@ public class MyController : Controller
 
         if (result.IsBot)
         {
-            _logger.LogWarning("Bot detected: {BotType}, Confidence: {Confidence}",
-                result.BotType, result.Confidence);
+            _logger.LogWarning("Bot detected: {BotType}, Confidence: {Confidence:F2}",
+                result.BotType, result.ConfidenceScore);
 
-            // Handle bot traffic
+            // Handle bot traffic (optional - middleware handles detection automatically)
             return StatusCode(403);
         }
 
@@ -162,6 +164,9 @@ public class MyController : Controller
 ### Access Detection Result from HttpContext
 
 ```csharp
+using Mostlylucid.BotDetection.Middleware;
+using Mostlylucid.BotDetection.Models;
+
 public class MyMiddleware
 {
     private readonly RequestDelegate _next;
@@ -173,13 +178,13 @@ public class MyMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // Detection result is available after BotDetection middleware runs
-        var result = context.Features.Get<BotDetectionResult>();
+        // Detection result is stored in HttpContext.Items after middleware runs
+        var result = context.Items[BotDetectionMiddleware.BotDetectionResultKey] as BotDetectionResult;
 
         if (result?.IsBot == true)
         {
             // Log or handle bot traffic
-            context.Response.Headers.Add("X-Bot-Detected", "true");
+            context.Response.Headers.Append("X-Custom-Bot-Header", "true");
         }
 
         await _next(context);
@@ -200,21 +205,22 @@ builder.Services.AddBotDetection(options =>
 
 ## Configuration Options
 
-| Option                     | Type   | Default                    | Description                            |
-|----------------------------|--------|----------------------------|----------------------------------------|
-| `EnableBehavioralAnalysis` | bool   | `true`                     | Enable behavioral analysis             |
-| `EnableHeaderDetection`    | bool   | `true`                     | Enable header inspection               |
-| `EnableUserAgentDetection` | bool   | `true`                     | Enable user-agent matching             |
-| `EnableIpDetection`        | bool   | `true`                     | Enable IP-based detection              |
-| `EnableLlmDetection`       | bool   | `false`                    | Enable LLM-based classification        |
-| `BlockBots`                | bool   | `false`                    | Automatically block detected bots      |
-| `BotBlockStatusCode`       | int    | `403`                      | HTTP status code for blocked bots      |
-| `MinConfidenceToBlock`     | double | `0.7`                      | Minimum confidence to trigger blocking |
-| `CacheExpirationMinutes`   | int    | `30`                       | Cache duration for detection results   |
-| `MaxRequestsPerMinute`     | int    | `100`                      | Threshold for behavioral analysis      |
-| `OllamaEndpoint`           | string | `"http://localhost:11434"` | Ollama API endpoint                    |
-| `OllamaModel`              | string | `"llama3.2:3b"`            | Ollama model for LLM detection         |
-| `LlmTimeoutMs`             | int    | `5000`                     | LLM request timeout in milliseconds    |
+| Option                      | Type   | Default                    | Description                              |
+|-----------------------------|--------|----------------------------|------------------------------------------|
+| `EnableBehavioralAnalysis`  | bool   | `true`                     | Enable behavioral analysis               |
+| `EnableHeaderDetection`     | bool   | `true`                     | Enable header inspection                 |
+| `EnableUserAgentDetection`  | bool   | `true`                     | Enable user-agent matching               |
+| `EnableIpDetection`         | bool   | `true`                     | Enable IP-based detection                |
+| `EnableLlmDetection`        | bool   | `false`                    | Enable LLM-based classification          |
+| `EnableTestMode`            | bool   | `false`                    | Enable test mode header processing       |
+| `BotThreshold`              | double | `0.7`                      | Minimum confidence to classify as bot    |
+| `CacheDurationSeconds`      | int    | `300`                      | Cache duration for detection results     |
+| `MaxRequestsPerMinute`      | int    | `60`                       | Threshold for behavioral analysis        |
+| `OllamaEndpoint`            | string | `"http://localhost:11434"` | Ollama API endpoint                      |
+| `OllamaModel`               | string | `"llama3.2:3b"`            | Ollama model for LLM detection           |
+| `LlmTimeoutMs`              | int    | `5000`                     | LLM request timeout in milliseconds      |
+| `WhitelistedBotPatterns`    | list   | Common good bots           | Bot patterns to allow (Googlebot, etc.)  |
+| `DatacenterIpPrefixes`      | list   | AWS/Azure/GCP ranges       | Known datacenter IP CIDR ranges          |
 
 ## Detection Result
 
@@ -225,24 +231,31 @@ public class BotDetectionResult
     public bool IsBot { get; set; }
 
     // Confidence score (0.0 - 1.0)
-    public double Confidence { get; set; }
+    public double ConfidenceScore { get; set; }
 
-    // Type of bot detected
-    public BotType BotType { get; set; }
+    // Type of bot detected (nullable)
+    public BotType? BotType { get; set; }
+
+    // Identified bot name (e.g., "Googlebot", "AhrefsBot")
+    public string? BotName { get; set; }
 
     // Detailed reasons for detection
     public List<DetectionReason> Reasons { get; set; }
+
+    // Processing time in milliseconds
+    public long ProcessingTimeMs { get; set; }
 }
 
 public enum BotType
 {
     Unknown,
-    SearchEngine,    // Google, Bing, etc.
-    SocialMedia,     // Facebook, Twitter, etc.
-    MonitoringBot,   // Uptime monitors, etc.
-    Scraper,         // Web scrapers
-    GoodBot,         // Verified good bots
-    MaliciousBot     // Known bad actors
+    SearchEngine,      // Google, Bing, DuckDuckGo, etc.
+    SocialMediaBot,    // Facebook, Twitter, LinkedIn, etc.
+    MonitoringBot,     // Uptime monitors, health checks
+    Scraper,           // Web scrapers and crawlers
+    GoodBot,           // Generally beneficial bots
+    VerifiedBot,       // Verified legitimate bots (e.g., verified Googlebot)
+    MaliciousBot       // Known bad actors and attackers
 }
 ```
 
@@ -276,6 +289,66 @@ public class AdminController : Controller
         return Ok("Bot lists updated");
     }
 }
+```
+
+## Test Mode
+
+For development and testing, you can enable test mode to simulate bot detection without actual analysis:
+
+```csharp
+builder.Services.AddBotDetection(options =>
+{
+    options.EnableTestMode = true; // Only enable in development!
+});
+```
+
+When test mode is enabled, use the `ml-bot-test-mode` header to simulate detection results:
+
+| Header Value      | Result                                           |
+|-------------------|--------------------------------------------------|
+| `disable`         | Bypasses all detection (returns human)           |
+| `human`           | Simulates human traffic                          |
+| `bot`             | Simulates generic bot detection                  |
+| `googlebot`       | Simulates Googlebot (SearchEngine type)          |
+| `bingbot`         | Simulates Bingbot (SearchEngine type)            |
+| `scraper`         | Simulates scraper bot                            |
+| `malicious`       | Simulates malicious bot                          |
+| `social`          | Simulates social media bot                       |
+| `monitor`         | Simulates monitoring bot                         |
+| `<any-other>`     | Creates generic bot with given name              |
+
+Example:
+```bash
+# Test with curl
+curl -H "ml-bot-test-mode: googlebot" https://localhost:5001/api/data
+```
+
+> **Security Note**: Test mode headers are only processed when `EnableTestMode` is `true`.
+> In production, the header is completely ignored to prevent information leakage.
+
+## OpenTelemetry Integration
+
+The middleware automatically emits telemetry for monitoring:
+
+```csharp
+// Activities are created under "Mostlylucid.BotDetection" source
+// Tags include:
+// - mostlylucid.botdetection.is_bot
+// - mostlylucid.botdetection.confidence
+// - mostlylucid.botdetection.bot_type
+// - mostlylucid.botdetection.bot_name
+// - mostlylucid.botdetection.cache_hit
+// - mostlylucid.botdetection.detector_count
+```
+
+Configure your OpenTelemetry setup to capture these traces:
+
+```csharp
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing =>
+    {
+        tracing.AddSource("Mostlylucid.BotDetection");
+    });
 ```
 
 ## Advanced Usage

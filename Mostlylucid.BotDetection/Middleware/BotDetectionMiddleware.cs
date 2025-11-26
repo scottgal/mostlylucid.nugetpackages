@@ -28,54 +28,58 @@ public class BotDetectionMiddleware(
         //        ml-bot-test-mode: human        (forces human detection)
         //        ml-bot-test-mode: googlebot    (simulates Googlebot)
         //        ml-bot-test-mode: scraper      (simulates scraper bot)
-        var testMode = context.Request.Headers["ml-bot-test-mode"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(testMode) && _options.EnableTestMode)
+        // Security: Only check header when test mode is enabled to prevent information leakage
+        if (_options.EnableTestMode)
         {
-            _logger.LogInformation("Test mode: Simulating bot detection as '{Mode}'", testMode);
-
-            // If "disable", bypass all detection
-            if (testMode.Equals("disable", StringComparison.OrdinalIgnoreCase))
+            var testMode = context.Request.Headers["ml-bot-test-mode"].FirstOrDefault();
+            if (!string.IsNullOrEmpty(testMode))
             {
-                var disabledResult = new BotDetectionResult
-                {
-                    IsBot = false,
-                    ConfidenceScore = 0.0,
-                    Reasons = new List<DetectionReason>
-                    {
-                        new()
-                        {
-                            Category = "Test Mode",
-                            Detail = "Bot detection disabled via test header",
-                            ConfidenceImpact = 0.0
-                        }
-                    }
-                };
+                _logger.LogInformation("Test mode: Simulating bot detection as '{Mode}'", testMode);
 
-                context.Items[BotDetectionResultKey] = disabledResult;
-                context.Response.Headers.TryAdd("X-Test-Mode", "disabled");
+                // If "disable", bypass all detection
+                if (testMode.Equals("disable", StringComparison.OrdinalIgnoreCase))
+                {
+                    var disabledResult = new BotDetectionResult
+                    {
+                        IsBot = false,
+                        ConfidenceScore = 0.0,
+                        Reasons = new List<DetectionReason>
+                        {
+                            new()
+                            {
+                                Category = "Test Mode",
+                                Detail = "Bot detection disabled via test header",
+                                ConfidenceImpact = 0.0
+                            }
+                        }
+                    };
+
+                    context.Items[BotDetectionResultKey] = disabledResult;
+                    context.Response.Headers.TryAdd("X-Test-Mode", "disabled");
+                    await _next(context);
+                    return;
+                }
+
+                // Create test result based on test mode value
+                var testResult = CreateTestResult(testMode);
+                context.Items[BotDetectionResultKey] = testResult;
+
+                // Add test mode headers
+                context.Response.Headers.TryAdd("X-Test-Mode", "true");
+                if (testResult.IsBot)
+                {
+                    context.Response.Headers.TryAdd("X-Bot-Detected", "true");
+                    context.Response.Headers.TryAdd("X-Bot-Confidence",
+                        testResult.ConfidenceScore.ToString("F2"));
+                }
+
+                _logger.LogInformation(
+                    "Test mode result: IsBot={IsBot}, Type={BotType}, Confidence={Confidence:F2}",
+                    testResult.IsBot, testResult.BotType, testResult.ConfidenceScore);
+
                 await _next(context);
                 return;
             }
-
-            // Create test result based on test mode value
-            var testResult = CreateTestResult(testMode);
-            context.Items[BotDetectionResultKey] = testResult;
-
-            // Add test mode headers
-            context.Response.Headers.TryAdd("X-Test-Mode", "true");
-            if (testResult.IsBot)
-            {
-                context.Response.Headers.TryAdd("X-Bot-Detected", "true");
-                context.Response.Headers.TryAdd("X-Bot-Confidence",
-                    testResult.ConfidenceScore.ToString("F2"));
-            }
-
-            _logger.LogInformation(
-                "Test mode result: IsBot={IsBot}, Type={BotType}, Confidence={Confidence:F2}",
-                testResult.IsBot, testResult.BotType, testResult.ConfidenceScore);
-
-            await _next(context);
-            return;
         }
 
         // Run normal bot detection

@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -174,7 +176,18 @@ public class BotDetectionService(
         var accept = context.Request.Headers.Accept.ToString();
         var acceptLanguage = context.Request.Headers.AcceptLanguage.ToString();
 
-        return $"bot_detect_{ip}_{userAgent.GetHashCode()}_{accept.GetHashCode()}_{acceptLanguage.GetHashCode()}";
+        // Use SHA256 for stable hashing (GetHashCode() is not stable across app runs)
+        var input = $"{ip}|{userAgent}|{accept}|{acceptLanguage}";
+        var hash = ComputeStableHash(input);
+        return $"bot_detect_{hash}";
+    }
+
+    private static string ComputeStableHash(string input)
+    {
+        var bytes = Encoding.UTF8.GetBytes(input);
+        var hashBytes = SHA256.HashData(bytes);
+        // Use first 16 bytes (128 bits) for reasonable key length
+        return Convert.ToHexString(hashBytes, 0, 16);
     }
 
     private void UpdateStatistics(BotDetectionResult result)
