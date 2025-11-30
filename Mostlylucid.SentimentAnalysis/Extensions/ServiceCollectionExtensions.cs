@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Mostlylucid.SentimentAnalysis.Models;
 using Mostlylucid.SentimentAnalysis.Services;
 
@@ -11,6 +13,7 @@ public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Adds sentiment analysis services to the service collection.
+    /// Uses the provider specified in options (default: ONNX).
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configure">Optional configuration action for SentimentOptions.</param>
@@ -20,29 +23,51 @@ public static class ServiceCollectionExtensions
         Action<SentimentOptions>? configure = null)
     {
         // Configure options
-        if (configure != null)
-        {
-            services.Configure(configure);
-        }
-        else
-        {
-            services.Configure<SentimentOptions>(_ => { });
-        }
+        var options = new SentimentOptions();
+        configure?.Invoke(options);
 
-        // Register HttpClient for model downloads
+        services.Configure<SentimentOptions>(opt =>
+        {
+            opt.Provider = options.Provider;
+            opt.ModelPath = options.ModelPath;
+            opt.ModelUrl = options.ModelUrl;
+            opt.ModelFileName = options.ModelFileName;
+            opt.MaxChunkLength = options.MaxChunkLength;
+            opt.ChunkOverlap = options.ChunkOverlap;
+            opt.EnableDiagnosticLogging = options.EnableDiagnosticLogging;
+            opt.InferenceThreads = options.InferenceThreads;
+            opt.DownloadTimeoutSeconds = options.DownloadTimeoutSeconds;
+            opt.AutoDownloadModel = options.AutoDownloadModel;
+            opt.ModelLabels = options.ModelLabels;
+            opt.OllamaEndpoint = options.OllamaEndpoint;
+            opt.OllamaModel = options.OllamaModel;
+            opt.OllamaTimeoutMs = options.OllamaTimeoutMs;
+            opt.OllamaSystemPrompt = options.OllamaSystemPrompt;
+        });
+
+        // Register HttpClient for model downloads (used by ONNX provider)
         services.AddHttpClient("SentimentModelDownloader", client =>
         {
             client.DefaultRequestHeaders.Add("User-Agent", "MostlylucidSentimentAnalysis/1.0");
         });
 
-        // Register service as singleton (model should be loaded once)
-        services.AddSingleton<ISentimentAnalysisService, SentimentAnalysisService>();
+        // Register the appropriate service based on provider
+        services.AddSingleton<ISentimentAnalysisService>(sp =>
+        {
+            var opts = sp.GetRequiredService<IOptions<SentimentOptions>>().Value;
+
+            return opts.Provider switch
+            {
+                SentimentProvider.Ollama => ActivatorUtilities.CreateInstance<OllamaSentimentService>(sp),
+                _ => ActivatorUtilities.CreateInstance<SentimentAnalysisService>(sp)
+            };
+        });
 
         return services;
     }
 
     /// <summary>
-    /// Adds sentiment analysis services with a custom model path.
+    /// Adds sentiment analysis services using ONNX provider with a custom model path.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="modelPath">Path where models will be stored.</param>
@@ -53,7 +78,30 @@ public static class ServiceCollectionExtensions
     {
         return services.AddSentimentAnalysis(options =>
         {
+            options.Provider = SentimentProvider.Onnx;
             options.ModelPath = modelPath;
+        });
+    }
+
+    /// <summary>
+    /// Adds sentiment analysis services using Ollama provider.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="ollamaEndpoint">Ollama API endpoint (default: http://localhost:11434).</param>
+    /// <param name="model">Ollama model to use (default: llama3.2).</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddOllamaSentimentAnalysis(
+        this IServiceCollection services,
+        string? ollamaEndpoint = null,
+        string? model = null)
+    {
+        return services.AddSentimentAnalysis(options =>
+        {
+            options.Provider = SentimentProvider.Ollama;
+            if (ollamaEndpoint != null)
+                options.OllamaEndpoint = ollamaEndpoint;
+            if (model != null)
+                options.OllamaModel = model;
         });
     }
 }

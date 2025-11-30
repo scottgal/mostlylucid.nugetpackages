@@ -1,4 +1,5 @@
 using Mostlylucid.SentimentAnalysis.Models;
+using Xunit;
 
 namespace Mostlylucid.SentimentAnalysis.Tests;
 

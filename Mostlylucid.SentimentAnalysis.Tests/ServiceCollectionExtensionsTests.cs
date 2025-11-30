@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using Mostlylucid.SentimentAnalysis.Extensions;
 using Mostlylucid.SentimentAnalysis.Models;
 using Mostlylucid.SentimentAnalysis.Services;
+using Xunit;
 
 namespace Mostlylucid.SentimentAnalysis.Tests;
 

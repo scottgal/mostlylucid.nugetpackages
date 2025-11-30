@@ -35,6 +35,9 @@
         <!-- Tokenizer for BERT-based models -->
         <PackageReference Include="FastBertTokenizer" Version="1.0.28" />
 
+        <!-- Ollama for LLM-based sentiment analysis -->
+        <PackageReference Include="OllamaSharp" Version="5.1.12" />
+
         <!-- Microsoft Extensions -->
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.10"/>
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.10"/>

@@ -1,4 +1,5 @@
 using Mostlylucid.SentimentAnalysis.Telemetry;
+using Xunit;
 
 namespace Mostlylucid.SentimentAnalysis.Tests;
 

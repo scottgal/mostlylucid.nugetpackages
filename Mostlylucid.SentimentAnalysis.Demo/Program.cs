@@ -5,10 +5,26 @@ using Mostlylucid.SentimentAnalysis.Extensions;
 using Mostlylucid.SentimentAnalysis.Models;
 using Mostlylucid.SentimentAnalysis.Services;
 
+// Check for provider argument
+var useOllama = args.Contains("--ollama") || args.Contains("-o");
+var ollamaModel = args.SkipWhile(a => a != "--model" && a != "-m").Skip(1).FirstOrDefault() ?? "llama3.2";
+
 Console.WriteLine("=".PadRight(60, '='));
 Console.WriteLine("  Mostlylucid.SentimentAnalysis Demo");
-Console.WriteLine("  CPU-only ONNX Sentiment Analysis");
+if (useOllama)
+{
+    Console.WriteLine($"  Ollama Provider (model: {ollamaModel})");
+}
+else
+{
+    Console.WriteLine("  ONNX Provider (CPU-only)");
+}
 Console.WriteLine("=".PadRight(60, '='));
+Console.WriteLine();
+Console.WriteLine("Usage: dotnet run [--ollama|-o] [--model|-m <model>]");
+Console.WriteLine("  Default: ONNX provider (works offline)");
+Console.WriteLine("  --ollama: Use Ollama LLM provider (requires Ollama running)");
+Console.WriteLine("  --model:  Specify Ollama model (default: llama3.2)");
 Console.WriteLine();
 
 // Build services
@@ -20,17 +36,32 @@ services.AddLogging(builder =>
     builder.SetMinimumLevel(LogLevel.Information);
 });
 
-services.AddSentimentAnalysis(options =>
+if (useOllama)
 {
-    options.ModelPath = "./models/sentiment";
-    options.EnableDiagnosticLogging = true;
-});
+    services.AddOllamaSentimentAnalysis(model: ollamaModel);
+}
+else
+{
+    services.AddSentimentAnalysis(options =>
+    {
+        options.Provider = SentimentProvider.Onnx;
+        options.ModelPath = "./models/sentiment";
+        options.EnableDiagnosticLogging = true;
+    });
+}
 
 var serviceProvider = services.BuildServiceProvider();
 var sentiment = serviceProvider.GetRequiredService<ISentimentAnalysisService>();
 
 Console.WriteLine("Initializing sentiment analysis service...");
-Console.WriteLine("(Model will be downloaded on first run - ~60MB)");
+if (!useOllama)
+{
+    Console.WriteLine("(ONNX model will be downloaded on first run - ~60MB)");
+}
+else
+{
+    Console.WriteLine($"(Connecting to Ollama with model: {ollamaModel})");
+}
 Console.WriteLine();
 
 if (!sentiment.IsReady)
