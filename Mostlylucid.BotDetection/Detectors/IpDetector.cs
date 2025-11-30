@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Mostlylucid.BotDetection.Helpers;
 using Mostlylucid.BotDetection.Models;
 
 namespace Mostlylucid.BotDetection.Detectors;
@@ -55,7 +56,6 @@ public class IpDetector(
         }
 
         // Check if it's a Tor exit node (simplified check)
-        // In production, you'd want to maintain a list of Tor exit nodes
         if (IsTorExitNode(ipAddress))
         {
             confidence += 0.5;
@@ -91,53 +91,18 @@ public class IpDetector(
     private bool IsDatacenterIp(IPAddress ipAddress)
     {
         foreach (var prefix in _options.DatacenterIpPrefixes)
+        {
             try
             {
-                if (IsInSubnet(ipAddress, prefix)) return true;
+                if (CidrHelper.IsInSubnet(ipAddress, prefix)) return true;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Error checking IP prefix: {Prefix}", prefix);
             }
-
-        return false;
-    }
-
-    private bool IsInSubnet(IPAddress ipAddress, string cidr)
-    {
-        var parts = cidr.Split('/');
-        if (parts.Length != 2)
-            return false;
-
-        if (!IPAddress.TryParse(parts[0], out var networkAddress))
-            return false;
-
-        if (!int.TryParse(parts[1], out var prefixLength))
-            return false;
-
-        var ipBytes = ipAddress.GetAddressBytes();
-        var networkBytes = networkAddress.GetAddressBytes();
-
-        if (ipBytes.Length != networkBytes.Length)
-            return false;
-
-        var maskBytes = prefixLength / 8;
-        var maskBits = prefixLength % 8;
-
-        // Check full bytes
-        for (var i = 0; i < maskBytes; i++)
-            if (ipBytes[i] != networkBytes[i])
-                return false;
-
-        // Check remaining bits
-        if (maskBits > 0 && maskBytes < ipBytes.Length)
-        {
-            var mask = (byte)(0xFF << (8 - maskBits));
-            if ((ipBytes[maskBytes] & mask) != (networkBytes[maskBytes] & mask))
-                return false;
         }
 
-        return true;
+        return false;
     }
 
     private string? GetCloudProvider(IPAddress ipAddress)
@@ -163,7 +128,6 @@ public class IpDetector(
     {
         // This is a placeholder - in production, you'd maintain a list of Tor exit nodes
         // You can get this from https://check.torproject.org/exit-addresses
-        // For now, we'll return false
         return false;
     }
 }

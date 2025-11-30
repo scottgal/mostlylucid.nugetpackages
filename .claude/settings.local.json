@@ -30,7 +30,8 @@
       "Bash(curl:*)",
       "Bash(dotnet run:*)",
       "Bash(powershell:*)",
-      "Bash(dotnet:*)"
+      "Bash(dotnet:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": [],
     "ask": []

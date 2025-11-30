@@ -12,15 +12,22 @@ namespace Mostlylucid.BotDetection.Detectors;
 ///     Advanced LLM-based bot detection with learning capabilities
 ///     Uses a small language model (like qwen2.5:1.5b) to analyze request patterns
 /// </summary>
-public class LlmDetector(
-    ILogger<LlmDetector> logger,
-    IOptions<BotDetectionOptions> options)
-    : IDetector
+public class LlmDetector : IDetector, IDisposable
 {
-    private static readonly SemaphoreSlim _fileLock = new(1, 1);
-    private readonly string _learnedPatternsPath = Path.Combine(AppContext.BaseDirectory, "learned_bot_patterns.json");
-    private readonly ILogger<LlmDetector> _logger = logger;
-    private readonly BotDetectionOptions _options = options.Value;
+    private readonly SemaphoreSlim _fileLock = new(1, 1);
+    private readonly string _learnedPatternsPath;
+    private readonly ILogger<LlmDetector> _logger;
+    private readonly BotDetectionOptions _options;
+    private bool _disposed;
+
+    public LlmDetector(
+        ILogger<LlmDetector> logger,
+        IOptions<BotDetectionOptions> options)
+    {
+        _logger = logger;
+        _options = options.Value;
+        _learnedPatternsPath = Path.Combine(AppContext.BaseDirectory, "learned_bot_patterns.json");
+    }
 
     public string Name => "LLM Detector";
 
@@ -28,7 +35,8 @@ public class LlmDetector(
     {
         var result = new DetectorResult();
 
-        if (!_options.EnableLlmDetection || string.IsNullOrEmpty(_options.OllamaEndpoint)) return result;
+        if (!_options.EnableLlmDetection || string.IsNullOrEmpty(_options.OllamaEndpoint))
+            return result;
 
         try
         {
@@ -47,8 +55,8 @@ public class LlmDetector(
 
                 result.BotType = analysis.BotType;
 
-                // Learn from this detection
-                if (analysis.Confidence > 0.8) await LearnPattern(requestInfo, analysis, cancellationToken);
+                if (analysis.Confidence > 0.8)
+                    await LearnPattern(requestInfo, analysis, cancellationToken);
             }
         }
         catch (Exception ex)
@@ -57,6 +65,24 @@ public class LlmDetector(
         }
 
         return result;
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposed) return;
+
+        if (disposing)
+        {
+            _fileLock.Dispose();
+        }
+
+        _disposed = true;
     }
 
     private string BuildRequestInfo(HttpContext context)
@@ -117,9 +143,22 @@ Important:
             var chat = new Chat(ollama);
             var responseBuilder = new StringBuilder();
 
-            await foreach (var token in chat.SendAsync(prompt, cts.Token)) responseBuilder.Append(token);
+            await foreach (var token in chat.SendAsync(prompt, cts.Token))
+                responseBuilder.Append(token);
 
             var response = responseBuilder.ToString();
+
+            // Try to parse as JSON first
+            try
+            {
+                var analysisResult = JsonSerializer.Deserialize<LlmAnalysisJson>(response);
+                if (analysisResult != null)
+                    return CreateAnalysis(analysisResult);
+            }
+            catch (JsonException)
+            {
+                // Fall back to extracting JSON from response
+            }
 
             // Extract JSON from response (model might include extra text)
             var jsonStart = response.IndexOf('{');
@@ -130,14 +169,7 @@ Important:
                 var analysisResult = JsonSerializer.Deserialize<LlmAnalysisJson>(jsonText);
 
                 if (analysisResult != null)
-                    return new LlmAnalysis
-                    {
-                        IsBot = analysisResult.IsBot,
-                        Confidence = Math.Clamp(analysisResult.Confidence, 0.0, 1.0),
-                        Reasoning = analysisResult.Reasoning ?? "No reasoning provided",
-                        BotType = ParseBotType(analysisResult.BotType),
-                        Pattern = analysisResult.Pattern
-                    };
+                    return CreateAnalysis(analysisResult);
             }
 
             _logger.LogWarning("Failed to parse LLM response: {Response}", response);
@@ -154,6 +186,18 @@ Important:
         return new LlmAnalysis { IsBot = false, Confidence = 0.0, Reasoning = "Analysis failed" };
     }
 
+    private LlmAnalysis CreateAnalysis(LlmAnalysisJson result)
+    {
+        return new LlmAnalysis
+        {
+            IsBot = result.IsBot,
+            Confidence = Math.Clamp(result.Confidence, 0.0, 1.0),
+            Reasoning = result.Reasoning ?? "No reasoning provided",
+            BotType = ParseBotType(result.BotType),
+            Pattern = result.Pattern
+        };
+    }
+
     private async Task LearnPattern(string requestInfo, LlmAnalysis analysis, CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(analysis.Pattern))
@@ -164,14 +208,12 @@ Important:
         {
             var learnedPatterns = new List<LearnedPattern>();
 
-            // Load existing patterns
             if (File.Exists(_learnedPatternsPath))
             {
                 var json = await File.ReadAllTextAsync(_learnedPatternsPath, cancellationToken);
                 learnedPatterns = JsonSerializer.Deserialize<List<LearnedPattern>>(json) ?? new List<LearnedPattern>();
             }
 
-            // Add new pattern if not already learned
             var newPattern = new LearnedPattern
             {
                 Pattern = analysis.Pattern,
@@ -198,7 +240,6 @@ Important:
                 _logger.LogInformation("Learned new bot pattern: {Pattern}", analysis.Pattern);
             }
 
-            // Save updated patterns
             var options = new JsonSerializerOptions { WriteIndented = true };
             var updatedJson = JsonSerializer.Serialize(learnedPatterns, options);
             await File.WriteAllTextAsync(_learnedPatternsPath, updatedJson, cancellationToken);
@@ -213,7 +254,7 @@ Important:
         }
     }
 
-    private BotType ParseBotType(string? botType)
+    private static BotType ParseBotType(string? botType)
     {
         if (string.IsNullOrEmpty(botType))
             return BotType.Unknown;

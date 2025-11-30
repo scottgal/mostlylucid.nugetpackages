@@ -1,7 +1,4 @@
-using System.Net;
-using System.Reflection;
-using Microsoft.Extensions.Logging;
-using Mostlylucid.BotDetection.Data;
+using Mostlylucid.BotDetection.Helpers;
 
 namespace Mostlylucid.BotDetection.Test.Data;
 
@@ -10,24 +7,9 @@ namespace Mostlylucid.BotDetection.Test.Data;
 /// </summary>
 public class CidrMatchingTests
 {
-    private readonly MethodInfo _isIpInRangeMethod;
-    private readonly BotListDatabase _database;
-
-    public CidrMatchingTests()
+    private static bool IsIpInRange(string ipAddress, string cidr)
     {
-        var mockFetcher = new Mock<IBotListFetcher>();
-        var mockLogger = new Mock<ILogger<BotListDatabase>>();
-
-        _database = new BotListDatabase(mockFetcher.Object, mockLogger.Object, ":memory:");
-
-        // Access private method via reflection for testing
-        _isIpInRangeMethod = typeof(BotListDatabase)
-            .GetMethod("IsIpInRange", BindingFlags.NonPublic | BindingFlags.Instance)!;
-    }
-
-    private bool IsIpInRange(string ipAddress, string cidr)
-    {
-        return (bool)_isIpInRangeMethod.Invoke(_database, new object[] { ipAddress, cidr })!;
+        return CidrHelper.IsInSubnet(ipAddress, cidr);
     }
 
     #region Full Octet Boundary Tests (/8, /16, /24)

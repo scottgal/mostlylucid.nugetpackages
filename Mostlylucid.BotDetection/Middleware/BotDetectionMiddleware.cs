@@ -16,6 +16,22 @@ public class BotDetectionMiddleware(
     IOptions<BotDetectionOptions> options)
 {
     public const string BotDetectionResultKey = "BotDetectionResult";
+
+    private static readonly Dictionary<string, TestModeConfig> TestModeConfigs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["disable"] = new(false, 0.0, null, null, "Bot detection disabled via test header"),
+        ["human"] = new(false, 0.0, null, null, "Simulated human traffic"),
+        ["bot"] = new(true, 1.0, BotType.Unknown, "Test Bot", "Simulated bot traffic"),
+        ["googlebot"] = new(true, 0.95, BotType.SearchEngine, "Googlebot", "Simulated Googlebot"),
+        ["bingbot"] = new(true, 0.95, BotType.SearchEngine, "Bingbot", "Simulated Bingbot"),
+        ["scraper"] = new(true, 0.9, BotType.Scraper, "Test Scraper", "Simulated scraper bot"),
+        ["malicious"] = new(true, 1.0, BotType.MaliciousBot, "Test Malicious Bot", "Simulated malicious bot"),
+        ["social"] = new(true, 0.85, BotType.SocialMediaBot, "Test Social Bot", "Simulated social media bot"),
+        ["socialbot"] = new(true, 0.85, BotType.SocialMediaBot, "Test Social Bot", "Simulated social media bot"),
+        ["monitor"] = new(true, 0.8, BotType.MonitoringBot, "Test Monitoring Bot", "Simulated monitoring bot"),
+        ["monitoring"] = new(true, 0.8, BotType.MonitoringBot, "Test Monitoring Bot", "Simulated monitoring bot")
+    };
+
     private readonly ILogger<BotDetectionMiddleware> _logger = logger;
     private readonly RequestDelegate _next = next;
     private readonly BotDetectionOptions _options = options.Value;
@@ -23,11 +39,6 @@ public class BotDetectionMiddleware(
     public async Task InvokeAsync(HttpContext context, IBotDetectionService botDetectionService)
     {
         // Test mode: Allow overriding bot detection via header (off by default)
-        // Usage: ml-bot-test-mode: disable     (bypasses all detection)
-        //        ml-bot-test-mode: bot          (forces bot detection)
-        //        ml-bot-test-mode: human        (forces human detection)
-        //        ml-bot-test-mode: googlebot    (simulates Googlebot)
-        //        ml-bot-test-mode: scraper      (simulates scraper bot)
         // Security: Only check header when test mode is enabled to prevent information leakage
         if (_options.EnableTestMode)
         {
@@ -36,41 +47,16 @@ public class BotDetectionMiddleware(
             {
                 _logger.LogInformation("Test mode: Simulating bot detection as '{Mode}'", testMode);
 
-                // If "disable", bypass all detection
-                if (testMode.Equals("disable", StringComparison.OrdinalIgnoreCase))
-                {
-                    var disabledResult = new BotDetectionResult
-                    {
-                        IsBot = false,
-                        ConfidenceScore = 0.0,
-                        Reasons = new List<DetectionReason>
-                        {
-                            new()
-                            {
-                                Category = "Test Mode",
-                                Detail = "Bot detection disabled via test header",
-                                ConfidenceImpact = 0.0
-                            }
-                        }
-                    };
-
-                    context.Items[BotDetectionResultKey] = disabledResult;
-                    context.Response.Headers.TryAdd("X-Test-Mode", "disabled");
-                    await _next(context);
-                    return;
-                }
-
-                // Create test result based on test mode value
                 var testResult = CreateTestResult(testMode);
                 context.Items[BotDetectionResultKey] = testResult;
 
                 // Add test mode headers
-                context.Response.Headers.TryAdd("X-Test-Mode", "true");
+                context.Response.Headers.TryAdd("X-Test-Mode", testMode.Equals("disable", StringComparison.OrdinalIgnoreCase) ? "disabled" : "true");
+
                 if (testResult.IsBot)
                 {
                     context.Response.Headers.TryAdd("X-Bot-Detected", "true");
-                    context.Response.Headers.TryAdd("X-Bot-Confidence",
-                        testResult.ConfidenceScore.ToString("F2"));
+                    context.Response.Headers.TryAdd("X-Bot-Confidence", testResult.ConfidenceScore.ToString("F2"));
                 }
 
                 _logger.LogInformation(
@@ -92,8 +78,7 @@ public class BotDetectionMiddleware(
         if (result.IsBot)
         {
             context.Response.Headers.TryAdd("X-Bot-Detected", "true");
-            context.Response.Headers.TryAdd("X-Bot-Confidence",
-                result.ConfidenceScore.ToString("F2"));
+            context.Response.Headers.TryAdd("X-Bot-Confidence", result.ConfidenceScore.ToString("F2"));
 
             _logger.LogInformation(
                 "Bot detected: {BotType}, Confidence: {Confidence:F2}, IP: {IP}",
@@ -104,154 +89,48 @@ public class BotDetectionMiddleware(
         await _next(context);
     }
 
-    private BotDetectionResult CreateTestResult(string testMode)
+    private static BotDetectionResult CreateTestResult(string testMode)
     {
-        return testMode.ToLowerInvariant() switch
+        if (TestModeConfigs.TryGetValue(testMode, out var config))
         {
-            "human" => new BotDetectionResult
+            return new BotDetectionResult
             {
-                IsBot = false,
-                ConfidenceScore = 0.0,
+                IsBot = config.IsBot,
+                ConfidenceScore = config.Confidence,
+                BotType = config.BotType,
+                BotName = config.BotName,
                 Reasons = new List<DetectionReason>
                 {
                     new()
                     {
                         Category = "Test Mode",
-                        Detail = "Simulated human traffic",
-                        ConfidenceImpact = 0.0
+                        Detail = config.Detail,
+                        ConfidenceImpact = config.Confidence
                     }
                 }
-            },
-            "bot" => new BotDetectionResult
+            };
+        }
+
+        // Unknown test mode - create generic bot
+        return new BotDetectionResult
+        {
+            IsBot = true,
+            ConfidenceScore = 0.7,
+            BotType = BotType.Unknown,
+            BotName = $"Test {testMode}",
+            Reasons = new List<DetectionReason>
             {
-                IsBot = true,
-                ConfidenceScore = 1.0,
-                BotType = BotType.Unknown,
-                BotName = "Test Bot",
-                Reasons = new List<DetectionReason>
+                new()
                 {
-                    new()
-                    {
-                        Category = "Test Mode",
-                        Detail = "Simulated bot traffic",
-                        ConfidenceImpact = 1.0
-                    }
-                }
-            },
-            "googlebot" => new BotDetectionResult
-            {
-                IsBot = true,
-                ConfidenceScore = 0.95,
-                BotType = BotType.SearchEngine,
-                BotName = "Googlebot",
-                Reasons = new List<DetectionReason>
-                {
-                    new()
-                    {
-                        Category = "Test Mode",
-                        Detail = "Simulated Googlebot",
-                        ConfidenceImpact = 0.95
-                    }
-                }
-            },
-            "bingbot" => new BotDetectionResult
-            {
-                IsBot = true,
-                ConfidenceScore = 0.95,
-                BotType = BotType.SearchEngine,
-                BotName = "Bingbot",
-                Reasons = new List<DetectionReason>
-                {
-                    new()
-                    {
-                        Category = "Test Mode",
-                        Detail = "Simulated Bingbot",
-                        ConfidenceImpact = 0.95
-                    }
-                }
-            },
-            "scraper" => new BotDetectionResult
-            {
-                IsBot = true,
-                ConfidenceScore = 0.9,
-                BotType = BotType.Scraper,
-                BotName = "Test Scraper",
-                Reasons = new List<DetectionReason>
-                {
-                    new()
-                    {
-                        Category = "Test Mode",
-                        Detail = "Simulated scraper bot",
-                        ConfidenceImpact = 0.9
-                    }
-                }
-            },
-            "malicious" => new BotDetectionResult
-            {
-                IsBot = true,
-                ConfidenceScore = 1.0,
-                BotType = BotType.MaliciousBot,
-                BotName = "Test Malicious Bot",
-                Reasons = new List<DetectionReason>
-                {
-                    new()
-                    {
-                        Category = "Test Mode",
-                        Detail = "Simulated malicious bot",
-                        ConfidenceImpact = 1.0
-                    }
-                }
-            },
-            "social" or "socialbot" => new BotDetectionResult
-            {
-                IsBot = true,
-                ConfidenceScore = 0.85,
-                BotType = BotType.SocialMediaBot,
-                BotName = "Test Social Bot",
-                Reasons = new List<DetectionReason>
-                {
-                    new()
-                    {
-                        Category = "Test Mode",
-                        Detail = "Simulated social media bot",
-                        ConfidenceImpact = 0.85
-                    }
-                }
-            },
-            "monitor" or "monitoring" => new BotDetectionResult
-            {
-                IsBot = true,
-                ConfidenceScore = 0.8,
-                BotType = BotType.MonitoringBot,
-                BotName = "Test Monitoring Bot",
-                Reasons = new List<DetectionReason>
-                {
-                    new()
-                    {
-                        Category = "Test Mode",
-                        Detail = "Simulated monitoring bot",
-                        ConfidenceImpact = 0.8
-                    }
-                }
-            },
-            _ => new BotDetectionResult
-            {
-                IsBot = true,
-                ConfidenceScore = 0.7,
-                BotType = BotType.Unknown,
-                BotName = $"Test {testMode}",
-                Reasons = new List<DetectionReason>
-                {
-                    new()
-                    {
-                        Category = "Test Mode",
-                        Detail = $"Simulated '{testMode}' bot",
-                        ConfidenceImpact = 0.7
-                    }
+                    Category = "Test Mode",
+                    Detail = $"Simulated '{testMode}' bot",
+                    ConfidenceImpact = 0.7
                 }
             }
         };
     }
+
+    private record TestModeConfig(bool IsBot, double Confidence, BotType? BotType, string? BotName, string Detail);
 }
 
 /// <summary>

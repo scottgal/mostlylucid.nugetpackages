@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
+using Mostlylucid.BotDetection.Helpers;
 
 namespace Mostlylucid.BotDetection.Data;
 
@@ -30,6 +31,7 @@ public class BotInfo
 /// </summary>
 public class BotListDatabase : IBotListDatabase, IDisposable
 {
+    private const int MaxPatternsPerQuery = 500;
     private readonly string _dbPath;
     private readonly IBotListFetcher _fetcher;
     private readonly SemaphoreSlim _initLock = new(1, 1);
@@ -57,14 +59,13 @@ public class BotListDatabase : IBotListDatabase, IDisposable
 
             _logger.LogInformation("Initializing bot detection database at {Path}", _dbPath);
 
-            // Ensure directory exists
             var directory = Path.GetDirectoryName(_dbPath);
-            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory)) Directory.CreateDirectory(directory);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                Directory.CreateDirectory(directory);
 
             await using var connection = new SqliteConnection($"Data Source={_dbPath}");
             await connection.OpenAsync(cancellationToken);
 
-            // Create tables
             await using var cmd = connection.CreateCommand();
             cmd.CommandText = @"
                 CREATE TABLE IF NOT EXISTS bot_patterns (
@@ -102,7 +103,6 @@ public class BotListDatabase : IBotListDatabase, IDisposable
 
             _initialized = true;
 
-            // Check if we need to update lists
             var lastUpdate = await GetLastUpdateTimeAsync("bot_patterns", cancellationToken);
             if (lastUpdate == null || (DateTime.UtcNow - lastUpdate.Value).TotalHours > 24)
             {
@@ -127,7 +127,7 @@ public class BotListDatabase : IBotListDatabase, IDisposable
         await connection.OpenAsync(cancellationToken);
 
         await using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT pattern FROM bot_patterns";
+        cmd.CommandText = $"SELECT pattern FROM bot_patterns LIMIT {MaxPatternsPerQuery}";
 
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
@@ -159,7 +159,7 @@ public class BotListDatabase : IBotListDatabase, IDisposable
         await connection.OpenAsync(cancellationToken);
 
         await using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT name, pattern, category, url, is_verified FROM bot_patterns";
+        cmd.CommandText = $"SELECT name, pattern, category, url, is_verified FROM bot_patterns LIMIT {MaxPatternsPerQuery}";
 
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
@@ -201,11 +201,10 @@ public class BotListDatabase : IBotListDatabase, IDisposable
 
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
-        // Simple check - in production you'd want more efficient CIDR matching
         while (await reader.ReadAsync(cancellationToken))
         {
             var range = reader.GetString(0);
-            if (IsIpInRange(ipAddress, range)) return true;
+            if (CidrHelper.IsInSubnet(ipAddress, range)) return true;
         }
 
         return false;
@@ -219,7 +218,6 @@ public class BotListDatabase : IBotListDatabase, IDisposable
 
         try
         {
-            // Update bot patterns
             var patterns = await _fetcher.GetMatomoBotPatternsAsync(cancellationToken);
             var crawlerPatterns = await _fetcher.GetCrawlerUserAgentsAsync(cancellationToken);
 
@@ -230,14 +228,12 @@ public class BotListDatabase : IBotListDatabase, IDisposable
 
             try
             {
-                // Clear old patterns
                 await using (var cmd = connection.CreateCommand())
                 {
                     cmd.CommandText = "DELETE FROM bot_patterns";
                     await cmd.ExecuteNonQueryAsync(cancellationToken);
                 }
 
-                // Insert Matomo patterns
                 foreach (var pattern in patterns)
                 {
                     await using var cmd = connection.CreateCommand();
@@ -255,7 +251,6 @@ public class BotListDatabase : IBotListDatabase, IDisposable
                     await cmd.ExecuteNonQueryAsync(cancellationToken);
                 }
 
-                // Insert crawler patterns
                 foreach (var crawlerPattern in crawlerPatterns)
                 {
                     await using var cmd = connection.CreateCommand();
@@ -273,7 +268,6 @@ public class BotListDatabase : IBotListDatabase, IDisposable
                     await cmd.ExecuteNonQueryAsync(cancellationToken);
                 }
 
-                // Update metadata
                 await using (var cmd = connection.CreateCommand())
                 {
                     cmd.CommandText = @"
@@ -296,21 +290,18 @@ public class BotListDatabase : IBotListDatabase, IDisposable
                 throw;
             }
 
-            // Update datacenter IPs
             var ipRanges = await _fetcher.GetDatacenterIpRangesAsync(cancellationToken);
 
             await using var ipTransaction = await connection.BeginTransactionAsync(cancellationToken);
 
             try
             {
-                // Clear old ranges
                 await using (var cmd = connection.CreateCommand())
                 {
                     cmd.CommandText = "DELETE FROM datacenter_ips";
                     await cmd.ExecuteNonQueryAsync(cancellationToken);
                 }
 
-                // Insert new ranges
                 foreach (var range in ipRanges)
                 {
                     await using var cmd = connection.CreateCommand();
@@ -326,7 +317,6 @@ public class BotListDatabase : IBotListDatabase, IDisposable
                     await cmd.ExecuteNonQueryAsync(cancellationToken);
                 }
 
-                // Update metadata
                 await using (var cmd = connection.CreateCommand())
                 {
                     cmd.CommandText = @"
@@ -386,7 +376,7 @@ public class BotListDatabase : IBotListDatabase, IDisposable
         _initLock?.Dispose();
     }
 
-    private bool IsVerifiedBot(string? name)
+    private static bool IsVerifiedBot(string? name)
     {
         if (string.IsNullOrEmpty(name))
             return false;
@@ -395,9 +385,8 @@ public class BotListDatabase : IBotListDatabase, IDisposable
         return verifiedBots.Any(vb => name.Contains(vb, StringComparison.OrdinalIgnoreCase));
     }
 
-    private string DetectProvider(string ipRange)
+    private static string DetectProvider(string ipRange)
     {
-        // Simple heuristic based on IP range
         if (ipRange.StartsWith("3.") || ipRange.StartsWith("13.") ||
             ipRange.StartsWith("18.") || ipRange.StartsWith("52."))
             return "AWS";
@@ -414,52 +403,5 @@ public class BotListDatabase : IBotListDatabase, IDisposable
             return "Oracle";
 
         return "Unknown";
-    }
-
-    private bool IsIpInRange(string ipAddress, string cidr)
-    {
-        try
-        {
-            var parts = cidr.Split('/');
-            if (parts.Length != 2) return false;
-
-            if (!System.Net.IPAddress.TryParse(parts[0], out var networkAddress))
-                return false;
-
-            if (!int.TryParse(parts[1], out var prefixLength))
-                return false;
-
-            if (!System.Net.IPAddress.TryParse(ipAddress, out var ip))
-                return false;
-
-            var ipBytes = ip.GetAddressBytes();
-            var networkBytes = networkAddress.GetAddressBytes();
-
-            // IPv4 and IPv6 must match
-            if (ipBytes.Length != networkBytes.Length)
-                return false;
-
-            var fullBytes = prefixLength / 8;
-            var remainingBits = prefixLength % 8;
-
-            // Check full bytes
-            for (var i = 0; i < fullBytes; i++)
-                if (ipBytes[i] != networkBytes[i])
-                    return false;
-
-            // Check remaining bits with proper masking
-            if (remainingBits > 0 && fullBytes < ipBytes.Length)
-            {
-                var mask = (byte)(0xFF << (8 - remainingBits));
-                if ((ipBytes[fullBytes] & mask) != (networkBytes[fullBytes] & mask))
-                    return false;
-            }
-
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
     }
 }
