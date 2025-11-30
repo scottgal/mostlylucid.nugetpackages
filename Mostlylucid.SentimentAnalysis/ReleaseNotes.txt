@@ -1,0 +1,6 @@
+v1.0.0
+- Initial release
+- CPU-only ONNX sentiment analysis
+- Support for direct string analysis
+- Support for file analysis with automatic text chunking
+- Configurable model path and chunk size
