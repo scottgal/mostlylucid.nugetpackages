@@ -9,7 +9,7 @@
         <PackageId>mostlylucid.botdetection</PackageId>
         <Authors>Scott Galloway</Authors>
         <PackageIcon>icon.png</PackageIcon>
-        <RepositoryUrl>https://github.com/scottgal/mostlylucidweb/tree/main/Mostlylucid.BotDetection</RepositoryUrl>
+        <RepositoryUrl>https://github.com/scottgal/mostlylucid.nugetpackages</RepositoryUrl>
         <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageTags>bot-detection;middleware;aspnetcore;security;crawler;web</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
