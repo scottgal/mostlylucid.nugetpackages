@@ -32,16 +32,16 @@ jobs:
         echo "Publishing version: $TAG"
 
     - name: Restore dependencies
-      run: dotnet restore Mostlylucid.BotDetection.New/Mostlylucid.BotDetection.csproj
+      run: dotnet restore Mostlylucid.BotDetection/Mostlylucid.BotDetection.csproj
 
     - name: Build
-      run: dotnet build Mostlylucid.BotDetection.New/Mostlylucid.BotDetection.csproj --configuration Release --no-restore
+      run: dotnet build Mostlylucid.BotDetection/Mostlylucid.BotDetection.csproj --configuration Release --no-restore
 
     - name: Run tests
       run: dotnet test Mostlylucid.BotDetection.Test/Mostlylucid.BotDetection.Test.csproj --configuration Release --verbosity normal
 
     - name: Pack
-      run: dotnet pack Mostlylucid.BotDetection.New/Mostlylucid.BotDetection.csproj --configuration Release --no-build --output ./artifacts
+      run: dotnet pack Mostlylucid.BotDetection/Mostlylucid.BotDetection.csproj --configuration Release --no-build --output ./artifacts
 
     - name: Login to NuGet (OIDC)
       id: nuget_login
