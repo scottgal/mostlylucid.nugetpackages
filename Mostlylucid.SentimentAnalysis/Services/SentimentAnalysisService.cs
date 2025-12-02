@@ -255,11 +255,12 @@ public class SentimentAnalysisService : ISentimentAnalysisService, IDisposable
     {
         // Map model output to our sentiment scale
         // Model outputs: negative (0), neutral (1), positive (2)
+        // Note: The model's actual output order differs from the config.json id2label mapping
         var scores = new Dictionary<SentimentLabel, float>();
 
         if (probabilities.Length >= 3)
         {
-            // 3-class model (negative, neutral, positive)
+            // 3-class model: negative (0), neutral (1), positive (2)
             var negativeProb = probabilities[0];
             var neutralProb = probabilities[1];
             var positiveProb = probabilities[2];

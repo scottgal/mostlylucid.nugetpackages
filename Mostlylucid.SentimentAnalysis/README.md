@@ -177,7 +177,7 @@ services.AddSentimentAnalysis(options =>
     options.ModelFileName = "sentiment_model.onnx";
 
     // Custom model URL (if using a different model)
-    options.ModelUrl = "https://huggingface.co/.../model_quantized.onnx";
+    options.ModelUrl = "https://huggingface.co/.../model.onnx";
 
     // Enable detailed diagnostic logging
     options.EnableDiagnosticLogging = true;

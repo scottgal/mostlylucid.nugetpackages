@@ -119,4 +119,14 @@ public class MarkdownConversionOptions
     ///     Helps filter out stubs and navigation-only pages
     /// </summary>
     public int MinContentLength { get; set; } = 200;
+
+    /// <summary>
+    ///     Optional: Only convert archives from this date (inclusive)
+    /// </summary>
+    public DateTime? StartDate { get; set; }
+
+    /// <summary>
+    ///     Optional: Only convert archives up to this date (inclusive)
+    /// </summary>
+    public DateTime? EndDate { get; set; }
 }

@@ -39,10 +39,10 @@ public class SentimentOptions
 
     /// <summary>
     /// The URL to download the ONNX model from if not present locally.
-    /// Uses a quantized DistilBERT model fine-tuned for sentiment analysis.
+    /// Uses a DistilBERT model fine-tuned for sentiment analysis.
     /// </summary>
     public string ModelUrl { get; set; } =
-        "https://huggingface.co/lxyuan/distilbert-base-multilingual-cased-sentiments-student/resolve/main/onnx/model_quantized.onnx";
+        "https://huggingface.co/lxyuan/distilbert-base-multilingual-cased-sentiments-student/resolve/main/onnx/model.onnx";
 
     /// <summary>
     /// The filename for the ONNX model.

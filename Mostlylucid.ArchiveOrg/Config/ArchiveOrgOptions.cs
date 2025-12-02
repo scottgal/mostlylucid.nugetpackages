@@ -11,6 +11,27 @@ public class ArchiveOrgOptions
     public string TargetUrl { get; set; } = string.Empty;
 
     /// <summary>
+    ///     Additional URLs to download from Archive.org (for http/https variants)
+    ///     e.g., ["http://example.com", "https://www.example.com"]
+    /// </summary>
+    public List<string> AdditionalUrls { get; set; } = [];
+
+    /// <summary>
+    ///     Gets all target URLs (TargetUrl + AdditionalUrls)
+    /// </summary>
+    public IEnumerable<string> AllTargetUrls
+    {
+        get
+        {
+            if (!string.IsNullOrEmpty(TargetUrl))
+                yield return TargetUrl;
+            foreach (var url in AdditionalUrls)
+                if (!string.IsNullOrEmpty(url))
+                    yield return url;
+        }
+    }
+
+    /// <summary>
     ///     Optional: Only download snapshots up to this date (inclusive)
     ///     Format: yyyy-MM-dd
     /// </summary>

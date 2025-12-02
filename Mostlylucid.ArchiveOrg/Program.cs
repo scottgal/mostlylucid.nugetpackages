@@ -277,7 +277,7 @@ static async Task RunFullPipelineAsync(IServiceProvider services, CancellationTo
         logger.LogInformation("Fetching CDX records...");
 
         var records = await cdxClient.GetCdxRecordsAsync(
-            downloadOptions.TargetUrl,
+            downloadOptions.AllTargetUrls,
             downloadOptions.StartDate,
             downloadOptions.EndDate,
             cancellationToken);

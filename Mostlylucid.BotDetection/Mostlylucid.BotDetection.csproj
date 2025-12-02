@@ -18,6 +18,7 @@
         </Description>
         <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildProjectDirectory)/ReleaseNotes.txt"))</PackageReleaseNotes>
         <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     </PropertyGroup>
     <PropertyGroup>
         <MinVerTagPrefix>botdetection-v</MinVerTagPrefix>

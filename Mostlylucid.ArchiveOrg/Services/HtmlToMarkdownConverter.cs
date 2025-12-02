@@ -115,6 +115,24 @@ public partial class HtmlToMarkdownConverter : IHtmlToMarkdownConverter
             // Extract metadata from our archive comment
             var metadata = ExtractArchiveMetadata(html);
 
+            // Check if archive date is within the configured range
+            if (metadata.archiveDate != DateTime.MinValue)
+            {
+                if (_options.StartDate.HasValue && metadata.archiveDate < _options.StartDate.Value)
+                {
+                    _logger.LogDebug("Skipping file (archive date {Date:yyyy-MM-dd} before StartDate {Start:yyyy-MM-dd}): {File}",
+                        metadata.archiveDate, _options.StartDate.Value, Path.GetFileName(htmlFilePath));
+                    return articles;
+                }
+
+                if (_options.EndDate.HasValue && metadata.archiveDate > _options.EndDate.Value)
+                {
+                    _logger.LogDebug("Skipping file (archive date {Date:yyyy-MM-dd} after EndDate {End:yyyy-MM-dd}): {File}",
+                        metadata.archiveDate, _options.EndDate.Value, Path.GetFileName(htmlFilePath));
+                    return articles;
+                }
+            }
+
             // Check if this is an index/archive page that should be skipped
             var fileName = Path.GetFileName(htmlFilePath);
             if (ShouldSkipUrl(metadata.originalUrl) || ShouldSkipUrl(fileName))

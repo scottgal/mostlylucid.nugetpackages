@@ -210,6 +210,39 @@ public class CdxApiClient : ICdxApiClient
         return records;
     }
 
+    public async Task<List<CdxRecord>> GetCdxRecordsAsync(
+        IEnumerable<string> urls,
+        DateTime? startDate = null,
+        DateTime? endDate = null,
+        CancellationToken cancellationToken = default)
+    {
+        var allRecords = new List<CdxRecord>();
+        var seenDigests = new HashSet<string>();
+
+        foreach (var url in urls)
+        {
+            _logger.LogInformation("Fetching CDX records for: {Url}", url);
+            var records = await GetCdxRecordsAsync(url, startDate, endDate, cancellationToken);
+
+            // Deduplicate by digest (same content = same digest)
+            var newRecords = 0;
+            foreach (var record in records)
+            {
+                if (seenDigests.Add(record.Digest))
+                {
+                    allRecords.Add(record);
+                    newRecords++;
+                }
+            }
+
+            _logger.LogInformation("Added {New} new records from {Url} ({Dupes} duplicates skipped)",
+                newRecords, url, records.Count - newRecords);
+        }
+
+        _logger.LogInformation("Total unique records from all URLs: {Count}", allRecords.Count);
+        return allRecords;
+    }
+
     private bool ShouldIncludeRecord(CdxRecord record)
     {
         // Check include patterns
