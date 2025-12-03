@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Events;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.BotDetection.Policies;
 
 namespace Mostlylucid.BotDetection.Orchestration;
 
@@ -85,6 +86,8 @@ public class BlackboardOrchestrator
     private readonly OrchestratorOptions _options;
     private readonly IEnumerable<IContributingDetector> _detectors;
     private readonly ILearningEventBus? _learningBus;
+    private readonly IPolicyRegistry? _policyRegistry;
+    private readonly IPolicyEvaluator? _policyEvaluator;
 
     // Circuit breaker state per detector
     private readonly ConcurrentDictionary<string, CircuitState> _circuitStates = new();
@@ -93,42 +96,84 @@ public class BlackboardOrchestrator
         ILogger<BlackboardOrchestrator> logger,
         IOptions<BotDetectionOptions> options,
         IEnumerable<IContributingDetector> detectors,
-        ILearningEventBus? learningBus = null)
+        ILearningEventBus? learningBus = null,
+        IPolicyRegistry? policyRegistry = null,
+        IPolicyEvaluator? policyEvaluator = null)
     {
         _logger = logger;
         _options = options.Value.Orchestrator;
         _detectors = detectors;
         _learningBus = learningBus;
+        _policyRegistry = policyRegistry;
+        _policyEvaluator = policyEvaluator;
     }
 
     /// <summary>
     ///     Run the full detection pipeline and aggregate results.
+    ///     Uses the default policy or path-based policy resolution.
     /// </summary>
-    public async Task<AggregatedEvidence> DetectAsync(
+    public Task<AggregatedEvidence> DetectAsync(
         HttpContext httpContext,
+        CancellationToken cancellationToken = default)
+    {
+        // Resolve policy based on request path
+        var policy = _policyRegistry?.GetPolicyForPath(httpContext.Request.Path)
+                     ?? DetectionPolicy.Default;
+        return DetectWithPolicyAsync(httpContext, policy, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Run the detection pipeline with a specific named policy.
+    /// </summary>
+    public Task<AggregatedEvidence> DetectAsync(
+        HttpContext httpContext,
+        string policyName,
+        CancellationToken cancellationToken = default)
+    {
+        var policy = _policyRegistry?.GetPolicy(policyName)
+                     ?? DetectionPolicy.Default;
+        return DetectWithPolicyAsync(httpContext, policy, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Run the full detection pipeline with a specific policy.
+    /// </summary>
+    public async Task<AggregatedEvidence> DetectWithPolicyAsync(
+        HttpContext httpContext,
+        DetectionPolicy policy,
         CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();
         var requestId = httpContext.TraceIdentifier;
 
+        // Use policy timeout if shorter than orchestrator timeout
+        var timeout = policy.Timeout < _options.TotalTimeout ? policy.Timeout : _options.TotalTimeout;
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(_options.TotalTimeout);
+        cts.CancelAfter(timeout);
 
         var aggregator = new EvidenceAggregator();
         var signals = new ConcurrentDictionary<string, object>();
         var completedDetectors = new ConcurrentDictionary<string, bool>();
         var failedDetectors = new ConcurrentDictionary<string, bool>();
         var ranDetectors = new HashSet<string>();
+        PolicyAction? finalAction = null;
 
-        // Get enabled detectors (respecting circuit breakers)
+        // Build detector lists based on policy
+        var allPolicyDetectors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        allPolicyDetectors.UnionWith(policy.FastPathDetectors);
+        allPolicyDetectors.UnionWith(policy.SlowPathDetectors);
+        allPolicyDetectors.UnionWith(policy.AiPathDetectors);
+
+        // Get enabled detectors (respecting circuit breakers and policy)
         var availableDetectors = _detectors
             .Where(d => d.IsEnabled && IsCircuitClosed(d.Name))
+            .Where(d => allPolicyDetectors.Count == 0 || allPolicyDetectors.Contains(d.Name))
             .OrderBy(d => d.Priority)
             .ToList();
 
         _logger.LogDebug(
-            "Starting detection for {RequestId} with {DetectorCount} available detectors",
-            requestId, availableDetectors.Count);
+            "Starting detection for {RequestId} with policy {Policy}, {DetectorCount} available detectors",
+            requestId, policy.Name, availableDetectors.Count);
 
         var waveNumber = 0;
 
@@ -198,6 +243,46 @@ public class BlackboardOrchestrator
                 signals[DetectorCountTrigger.CompletedDetectorsSignal] = completedDetectors.Count;
                 signals[RiskThresholdTrigger.CurrentRiskSignal] = aggregator.Aggregate().BotProbability;
 
+                // Evaluate policy transitions
+                if (_policyEvaluator != null)
+                {
+                    var evalState = BuildState(
+                        httpContext,
+                        signals,
+                        completedDetectors.Keys.ToHashSet(),
+                        failedDetectors.Keys.ToHashSet(),
+                        aggregator,
+                        requestId,
+                        stopwatch.Elapsed);
+
+                    var evalResult = _policyEvaluator.Evaluate(policy, evalState);
+
+                    if (!evalResult.ShouldContinue)
+                    {
+                        if (evalResult.Action.HasValue)
+                        {
+                            finalAction = evalResult.Action.Value;
+                            _logger.LogDebug(
+                                "Policy {Policy} triggered action {Action}: {Reason}",
+                                policy.Name, evalResult.Action, evalResult.Reason);
+                            break;
+                        }
+
+                        if (!string.IsNullOrEmpty(evalResult.NextPolicy) && _policyRegistry != null)
+                        {
+                            var nextPolicy = _policyRegistry.GetPolicy(evalResult.NextPolicy);
+                            if (nextPolicy != null)
+                            {
+                                _logger.LogDebug(
+                                    "Policy transition: {From} -> {To}",
+                                    policy.Name, nextPolicy.Name);
+                                policy = nextPolicy;
+                                // Continue with new policy's detectors
+                            }
+                        }
+                    }
+                }
+
                 waveNumber++;
 
                 // Small delay between waves to allow signals to propagate
@@ -215,6 +300,20 @@ public class BlackboardOrchestrator
         }
 
         var result = aggregator.Aggregate();
+
+        // Apply policy action to result
+        if (finalAction.HasValue)
+        {
+            result = result with
+            {
+                PolicyAction = finalAction.Value,
+                PolicyName = policy.Name
+            };
+        }
+        else
+        {
+            result = result with { PolicyName = policy.Name };
+        }
 
         // Publish learning event
         PublishLearningEvent(result, requestId, stopwatch.Elapsed);

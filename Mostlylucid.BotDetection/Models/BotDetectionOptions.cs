@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Options;
+using Mostlylucid.BotDetection.Actions;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Orchestration;
+using Mostlylucid.BotDetection.Policies;
 
 namespace Mostlylucid.BotDetection.Models;
 
@@ -411,6 +413,158 @@ public class BotDetectionOptions
     ///     Enables JavaScript-based headless browser and automation detection.
     /// </summary>
     public ClientSideOptions ClientSide { get; set; } = new();
+
+    // ==========================================
+    // Global Enable/Disable
+    // ==========================================
+
+    /// <summary>
+    ///     Master switch to enable/disable all bot detection.
+    ///     When false, middleware passes through all requests without detection.
+    ///     Default: true
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    // ==========================================
+    // Response Headers Configuration
+    // ==========================================
+
+    /// <summary>
+    ///     Configuration for adding bot detection results to response headers.
+    ///     Useful for debugging and client-side JavaScript integration.
+    /// </summary>
+    public ResponseHeadersOptions ResponseHeaders { get; set; } = new();
+
+    // ==========================================
+    // Throttling Configuration
+    // ==========================================
+
+    /// <summary>
+    ///     Configuration for throttling detected bots.
+    ///     Includes jitter support to make throttling less detectable.
+    /// </summary>
+    public ThrottlingOptions Throttling { get; set; } = new();
+
+    // ==========================================
+    // Policy Configuration
+    // ==========================================
+
+    /// <summary>
+    ///     Named detection policies for path-based escalation.
+    ///     Each policy defines its own detection pipeline and thresholds.
+    ///     Key = policy name, Value = policy configuration.
+    /// </summary>
+    /// <example>
+    ///     JSON configuration (appsettings.json):
+    ///     <code>
+    ///     "Policies": {
+    ///       "strict": {
+    ///         "Description": "High-security detection",
+    ///         "FastPath": ["UserAgent", "Header", "Ip"],
+    ///         "SlowPath": ["Behavioral", "Inconsistency", "ClientSide"],
+    ///         "ForceSlowPath": true,
+    ///         "ActionPolicyName": "block-hard",
+    ///         "Tags": ["high-security"]
+    ///       }
+    ///     }
+    ///     </code>
+    ///
+    ///     Code configuration:
+    ///     <code>
+    ///     options.Policies["custom"] = new DetectionPolicyConfig
+    ///     {
+    ///         FastPath = new List&lt;string&gt; { "UserAgent", "Header" },
+    ///         ActionPolicyName = "throttle"
+    ///     };
+    ///     </code>
+    /// </example>
+    public Dictionary<string, DetectionPolicyConfig> Policies { get; set; } = new();
+
+    /// <summary>
+    ///     Maps URL path patterns to policy names.
+    ///     Supports glob patterns (e.g., "/api/*", "/login/**").
+    ///     Key = path pattern, Value = policy name.
+    /// </summary>
+    public Dictionary<string, string> PathPolicies { get; set; } = new();
+
+    /// <summary>
+    ///     Default policy name to use when no path matches.
+    ///     If not specified, uses built-in "default" policy.
+    /// </summary>
+    public string? DefaultPolicyName { get; set; }
+
+    /// <summary>
+    ///     Global detector weight overrides.
+    ///     Applied to all policies unless overridden at policy level.
+    ///     Key = detector name, Value = weight multiplier.
+    /// </summary>
+    public Dictionary<string, double> GlobalWeights { get; set; } = new();
+
+    // ==========================================
+    // Action Policy Configuration
+    // ==========================================
+
+    /// <summary>
+    ///     Named action policies for composable response handling.
+    ///     Action policies define HOW to respond (block, throttle, challenge, etc.)
+    ///     and are separate from detection policies (WHAT to detect) for maximum composability.
+    ///     Key = policy name, Value = policy configuration.
+    /// </summary>
+    /// <example>
+    ///     JSON configuration (appsettings.json):
+    ///     <code>
+    ///     "ActionPolicies": {
+    ///       "hardBlock": {
+    ///         "Type": "Block",
+    ///         "StatusCode": 403,
+    ///         "Message": "Access denied",
+    ///         "IncludeRiskScore": false
+    ///       },
+    ///       "softThrottle": {
+    ///         "Type": "Throttle",
+    ///         "BaseDelayMs": 500,
+    ///         "MaxDelayMs": 5000,
+    ///         "JitterPercent": 0.25,
+    ///         "ScaleByRisk": true
+    ///       },
+    ///       "captcha": {
+    ///         "Type": "Challenge",
+    ///         "ChallengeType": "Captcha",
+    ///         "ChallengeUrl": "/challenge",
+    ///         "TokenValidityMinutes": 30
+    ///       }
+    ///     }
+    ///     </code>
+    ///
+    ///     Code configuration:
+    ///     <code>
+    ///     services.AddBotDetection(options =>
+    ///     {
+    ///         options.ActionPolicies["myThrottle"] = new ActionPolicyConfig
+    ///         {
+    ///             Type = "Throttle",
+    ///             BaseDelayMs = 1000,
+    ///             JitterPercent = 0.5,
+    ///             ScaleByRisk = true
+    ///         };
+    ///     });
+    ///     </code>
+    /// </example>
+    /// <remarks>
+    ///     Built-in action policies are available without configuration:
+    ///     - block, block-hard, block-soft, block-debug
+    ///     - throttle, throttle-gentle, throttle-moderate, throttle-aggressive, throttle-stealth
+    ///     - challenge, challenge-captcha, challenge-js, challenge-pow
+    ///     - redirect, redirect-honeypot, redirect-tarpit, redirect-error
+    ///     - logonly, shadow, debug
+    /// </remarks>
+    public Dictionary<string, ActionPolicyConfig> ActionPolicies { get; set; } = new();
+
+    /// <summary>
+    ///     Default action policy name to use when detection triggers blocking.
+    ///     If not specified, uses "block" (built-in 403 block).
+    /// </summary>
+    public string? DefaultActionPolicyName { get; set; }
 }
 
 // ==========================================
@@ -498,22 +652,67 @@ public class ClientSideOptions
 
 /// <summary>
 ///     Configuration for detection paths (fast synchronous vs slow async).
-///
-///     Architecture:
-///     ┌─────────────────────────────────────────────────────────────────┐
-///     │ FAST PATH (synchronous, blocking)                               │
-///     │ Runs on request thread, fastest detectors first                 │
-///     │ If confidence > threshold → early exit → trigger slow path      │
-///     │ Emits minimal event to bus; optionally samples for full analysis│
-///     └─────────────────────────────────────────────────────────────────┘
-///                              ↓ (async, non-blocking)
-///     ┌─────────────────────────────────────────────────────────────────┐
-///     │ SLOW PATH (event-driven, background service)                    │
-///     │ AI/ML inference, pattern learning, model updates                │
-///     │ Compares fast vs full results → detects drift → updates trust   │
-///     │ Results stored for future fast-path improvements                │
-///     └─────────────────────────────────────────────────────────────────┘
+///     Fully configurable via JSON or code with sensible defaults.
 /// </summary>
+/// <remarks>
+///     <para>
+///         Architecture:
+///         <code>
+///         ┌─────────────────────────────────────────────────────────────────┐
+///         │ FAST PATH (synchronous, blocking)                               │
+///         │ Runs on request thread, fastest detectors first                 │
+///         │ If confidence > threshold → early exit → trigger slow path      │
+///         │ Emits minimal event to bus; optionally samples for full analysis│
+///         └─────────────────────────────────────────────────────────────────┘
+///                                      ↓ (async, non-blocking)
+///         ┌─────────────────────────────────────────────────────────────────┐
+///         │ SLOW PATH (event-driven, background service)                    │
+///         │ AI/ML inference, pattern learning, model updates                │
+///         │ Compares fast vs full results → detects drift → updates trust   │
+///         │ Results stored for future fast-path improvements                │
+///         └─────────────────────────────────────────────────────────────────┘
+///         </code>
+///     </para>
+///     <para>
+///         Detectors are organized into waves for parallel execution:
+///         <list type="bullet">
+///             <item><b>Wave 1</b> - Fast pattern matching (&lt;1ms): UserAgent, Header</item>
+///             <item><b>Wave 2</b> - Lookups and state (1-10ms): IP, Behavioral, ClientSide</item>
+///             <item><b>Wave 3</b> - Analysis (10-100ms): Inconsistency, ONNX</item>
+///             <item><b>Wave 4</b> - AI/LLM (&gt;100ms): LLM detector</item>
+///         </list>
+///         Detectors in the same wave run in parallel. Waves execute sequentially.
+///     </para>
+/// </remarks>
+/// <example>
+///     JSON configuration (appsettings.json):
+///     <code>
+///     "FastPath": {
+///       "Enabled": true,
+///       "MaxParallelDetectors": 4,
+///       "FastPathTimeoutMs": 100,
+///       "FastPathDetectors": [
+///         { "Name": "UserAgent", "Signal": "UserAgentAnalyzed", "Wave": 1, "Weight": 1.0 },
+///         { "Name": "Header", "Signal": "HeadersAnalyzed", "Wave": 1, "Weight": 1.0 },
+///         { "Name": "IP", "Signal": "IpAnalyzed", "Wave": 2, "Weight": 1.2 },
+///         { "Name": "Behavioral", "Signal": "BehaviorAnalyzed", "Wave": 2, "Weight": 1.5 }
+///       ],
+///       "SlowPathDetectors": [
+///         { "Name": "ONNX", "Signal": "OnnxCompleted", "Wave": 3, "Weight": 2.0 },
+///         { "Name": "LLM", "Signal": "LlmCompleted", "Wave": 4, "Weight": 2.5 }
+///       ]
+///     }
+///     </code>
+///
+///     Code configuration:
+///     <code>
+///     options.FastPath.FastPathDetectors = new List&lt;DetectorConfig&gt;
+///     {
+///         new() { Name = "MyCustomDetector", Signal = "CustomSignal", Wave = 1, Weight = 2.0 },
+///         new() { Name = "UserAgent", Signal = "UserAgentAnalyzed", Wave = 1 }
+///     };
+///     </code>
+/// </example>
 public class FastPathOptions
 {
     /// <summary>
@@ -522,6 +721,40 @@ public class FastPathOptions
     ///     Default: true
     /// </summary>
     public bool Enabled { get; set; } = true;
+
+    // ==========================================
+    // Parallelism Settings
+    // ==========================================
+
+    /// <summary>
+    ///     Maximum number of detectors to run in parallel within a wave.
+    ///     Higher values use more CPU but complete faster.
+    ///     Set to 1 for sequential execution within waves.
+    ///     Default: 4
+    /// </summary>
+    public int MaxParallelDetectors { get; set; } = 4;
+
+    /// <summary>
+    ///     Enable wave-based parallel execution.
+    ///     When true, detectors in the same wave run in parallel.
+    ///     When false, all detectors run sequentially by priority.
+    ///     Default: true
+    /// </summary>
+    public bool EnableWaveParallelism { get; set; } = true;
+
+    /// <summary>
+    ///     Continue to next wave even if current wave has failures.
+    ///     When false, detection stops on first wave failure.
+    ///     Default: true
+    /// </summary>
+    public bool ContinueOnWaveFailure { get; set; } = true;
+
+    /// <summary>
+    ///     Per-wave timeout in milliseconds.
+    ///     Each wave must complete within this time or remaining detectors are cancelled.
+    ///     Default: 50ms
+    /// </summary>
+    public int WaveTimeoutMs { get; set; } = 50;
 
     // ==========================================
     // Abort / Short-Circuit Settings
@@ -666,37 +899,112 @@ public class FastPathOptions
 
     /// <summary>
     ///     Detectors that run on the FAST PATH (synchronous, in-request).
-    ///     Order matters - detectors run in this order.
+    ///     Detectors are grouped by Wave for parallel execution.
+    ///     Within a wave, detectors run in parallel up to MaxParallelDetectors.
     ///     Early exit happens as soon as cumulative confidence exceeds threshold.
-    ///
-    ///     Each entry specifies: detector name → signal it emits on completion.
-    ///     Default: lightweight pattern-matching and lookup detectors.
     /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Default wave assignments:
+    ///         <list type="bullet">
+    ///             <item>Wave 1: UserAgent, Header (pattern matching, &lt;1ms)</item>
+    ///             <item>Wave 2: IP, Behavioral, ClientSide (lookups, 1-10ms)</item>
+    ///             <item>Wave 3: Inconsistency (cross-signal analysis, 10-50ms)</item>
+    ///         </list>
+    ///     </para>
+    ///     <para>
+    ///         You can fully customize this list in JSON or code.
+    ///         Set Wave to control parallelism grouping.
+    ///         Set Weight to control influence on final score.
+    ///         Set Priority for ordering within a wave.
+    ///     </para>
+    /// </remarks>
+    /// <example>
+    ///     Custom detector configuration:
+    ///     <code>
+    ///     "FastPathDetectors": [
+    ///       { "Name": "MyFastDetector", "Signal": "FastSignal", "Wave": 1, "Weight": 2.0, "Priority": 100 },
+    ///       { "Name": "UserAgent", "Signal": "UserAgentAnalyzed", "Wave": 1, "Weight": 1.0 }
+    ///     ]
+    ///     </code>
+    /// </example>
     public List<DetectorConfig> FastPathDetectors { get; set; } =
     [
-        new() { Name = "User-Agent Detector", Signal = "UserAgentAnalyzed", ExpectedLatencyMs = 0.1 },
-        new() { Name = "Header Detector", Signal = "HeadersAnalyzed", ExpectedLatencyMs = 0.1 },
-        new() { Name = "IP Detector", Signal = "IpAnalyzed", ExpectedLatencyMs = 0.5 },
-        new() { Name = "Behavioral Detector", Signal = "BehaviourSampled", ExpectedLatencyMs = 1 },
-        new() { Name = "Client-Side Detector", Signal = "ClientFingerprintReceived", ExpectedLatencyMs = 1 },
-        new() { Name = "Inconsistency Detector", Signal = "InconsistencyUpdated", ExpectedLatencyMs = 2 }
+        // Wave 1: Fast pattern matching (<1ms)
+        new() { Name = "User-Agent Detector", Signal = "UserAgentAnalyzed", ExpectedLatencyMs = 0.1, Wave = 1, Category = "UserAgent" },
+        new() { Name = "Header Detector", Signal = "HeadersAnalyzed", ExpectedLatencyMs = 0.1, Wave = 1, Category = "Header" },
+
+        // Wave 2: Lookups and state (1-10ms)
+        new() { Name = "IP Detector", Signal = "IpAnalyzed", ExpectedLatencyMs = 0.5, Wave = 2, Category = "Ip" },
+        new() { Name = "Behavioral Detector", Signal = "BehaviourSampled", ExpectedLatencyMs = 1, Wave = 2, Category = "Behavioral" },
+        new() { Name = "Client-Side Detector", Signal = "ClientFingerprintReceived", ExpectedLatencyMs = 1, Wave = 2, Category = "ClientSide" },
+
+        // Wave 3: Cross-signal analysis (10-50ms)
+        new() { Name = "Inconsistency Detector", Signal = "InconsistencyUpdated", ExpectedLatencyMs = 2, Wave = 3, Category = "Inconsistency" }
     ];
 
     /// <summary>
     ///     Detectors that run on the SLOW PATH (async, background service).
     ///     These run via the learning event bus, not on the request thread.
     ///     Results are stored and can improve fast-path accuracy over time.
-    ///
-    ///     Triggered when:
-    ///     - Fast path exits early (high confidence)
-    ///     - Fast path confidence is in the "grey zone"
-    ///
-    ///     Default: AI/ML detectors that require inference.
     /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Triggered when:
+    ///         <list type="bullet">
+    ///             <item>Fast path exits early (high confidence detection)</item>
+    ///             <item>Fast path confidence is in the "grey zone"</item>
+    ///             <item>Configured signals are emitted (see <see cref="SlowPathTriggers"/>)</item>
+    ///         </list>
+    ///     </para>
+    ///     <para>
+    ///         Default: ONNX ML inference detector.
+    ///         Add custom detectors for specialized analysis.
+    ///     </para>
+    /// </remarks>
+    /// <example>
+    ///     <code>
+    ///     "SlowPathDetectors": [
+    ///       { "Name": "ONNX", "Signal": "OnnxCompleted", "Wave": 1, "Weight": 2.0 },
+    ///       { "Name": "CustomMLModel", "Signal": "CustomMLCompleted", "Wave": 1, "Weight": 1.5 }
+    ///     ]
+    ///     </code>
+    /// </example>
     public List<DetectorConfig> SlowPathDetectors { get; set; } =
     [
-        new() { Name = "ONNX Detector", Signal = "AiClassificationCompleted", ExpectedLatencyMs = 5 },
-        new() { Name = "LLM Detector", Signal = "AiClassificationCompleted", ExpectedLatencyMs = 100 }
+        new() { Name = "ONNX Detector", Signal = "AiClassificationCompleted", ExpectedLatencyMs = 5, Wave = 1, Category = "AI", Weight = 2.0 }
+    ];
+
+    /// <summary>
+    ///     Detectors that run on the AI PATH (escalation only).
+    ///     These are expensive detectors that only run when explicitly escalated.
+    ///     Typically used for uncertain cases or high-value endpoints.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         AI path detectors are triggered by:
+    ///         <list type="bullet">
+    ///             <item>Risk score exceeding <see cref="Policies.DetectionPolicyConfig.AiEscalationThreshold"/></item>
+    ///             <item>Detection policy with <see cref="Policies.DetectionPolicyConfig.EscalateToAi"/> = true</item>
+    ///             <item>Policy transition with Action = "EscalateToAi"</item>
+    ///         </list>
+    ///     </para>
+    ///     <para>
+    ///         Default: LLM detector for natural language analysis of request patterns.
+    ///         Add custom AI detectors for specialized inference.
+    ///     </para>
+    /// </remarks>
+    /// <example>
+    ///     <code>
+    ///     "AiPathDetectors": [
+    ///       { "Name": "LLM", "Signal": "LlmCompleted", "Wave": 1, "Weight": 2.5, "TimeoutMs": 5000 },
+    ///       { "Name": "CustomAI", "Signal": "CustomAICompleted", "Wave": 1, "Weight": 2.0 }
+    ///     ]
+    ///     </code>
+    /// </example>
+    public List<DetectorConfig> AiPathDetectors { get; set; } =
+    [
+        new() { Name = "LLM Detector", Signal = "LlmClassificationCompleted", ExpectedLatencyMs = 100, Wave = 1, Category = "AI", Weight = 2.5, TimeoutMs = 5000 }
     ];
 
     /// <summary>
@@ -719,8 +1027,23 @@ public class FastPathOptions
 
 /// <summary>
 ///     Configuration for an individual detector in a path.
+///     Inherits common extensibility properties from BaseComponentConfig.
 /// </summary>
-public class DetectorConfig
+/// <example>
+///     JSON configuration:
+///     <code>
+///     "FastPathDetectors": [
+///       {
+///         "Name": "User-Agent Detector",
+///         "Signal": "UserAgentAnalyzed",
+///         "ExpectedLatencyMs": 0.1,
+///         "Weight": 1.5,
+///         "Tags": ["fast", "required"]
+///       }
+///     ]
+///     </code>
+/// </example>
+public class DetectorConfig : BaseComponentConfig
 {
     /// <summary>
     ///     Detector name (must match IDetector.Name).
@@ -740,13 +1063,6 @@ public class DetectorConfig
     public double ExpectedLatencyMs { get; set; }
 
     /// <summary>
-    ///     Whether this detector is enabled.
-    ///     Disabled detectors are skipped.
-    ///     Default: true
-    /// </summary>
-    public bool Enabled { get; set; } = true;
-
-    /// <summary>
     ///     Weight for this detector's confidence in final score.
     ///     Higher weight = more influence on final decision.
     ///     Default: 1.0
@@ -759,6 +1075,31 @@ public class DetectorConfig
     ///     Range: 0.0-1.0. Default: 0.3
     /// </summary>
     public double MinConfidenceToContribute { get; set; } = 0.3;
+
+    /// <summary>
+    ///     Category of the detector (e.g., "UserAgent", "Header", "Ip", "Behavioral", "AI").
+    ///     Used for grouping and filtering detectors.
+    /// </summary>
+    public string? Category { get; set; }
+
+    /// <summary>
+    ///     Wave number for parallel execution (1 = fast, 2 = slow, 3 = AI).
+    ///     Detectors in the same wave run in parallel.
+    ///     Default: 1
+    /// </summary>
+    public int Wave { get; set; } = 1;
+
+    /// <summary>
+    ///     Whether results from this detector can be cached.
+    ///     Default: true
+    /// </summary>
+    public bool IsCacheable { get; set; } = true;
+
+    /// <summary>
+    ///     Timeout for this detector in milliseconds.
+    ///     If not set, uses the policy timeout.
+    /// </summary>
+    public int? TimeoutMs { get; set; }
 }
 
 // ==========================================
@@ -1327,4 +1668,183 @@ public class BotDetectionOptionsValidator : IValidateOptions<BotDetectionOptions
             options.TokenSecret?.Length < 16)
             warnings.Add("ClientSide.TokenSecret should be a strong, unique secret in production (at least 16 characters)");
     }
+}
+
+// ==========================================
+// Response Headers Configuration
+// ==========================================
+
+/// <summary>
+///     Configuration for adding bot detection results to response headers.
+///     Useful for debugging, client-side JavaScript integration, and third-party services.
+/// </summary>
+/// <remarks>
+///     Example headers when enabled:
+///     <code>
+///     X-Bot-Risk-Score: 0.850
+///     X-Bot-Risk-Band: High
+///     X-Bot-Confidence: 0.920
+///     X-Bot-Detectors: UserAgent,Header,Ip
+///     X-Bot-Policy: strict
+///     X-Bot-Processing-Ms: 12.5
+///     </code>
+/// </remarks>
+public class ResponseHeadersOptions
+{
+    /// <summary>
+    ///     Enable adding bot detection results to response headers.
+    ///     Default: false (off for production, enable for debugging)
+    /// </summary>
+    public bool Enabled { get; set; } = false;
+
+    /// <summary>
+    ///     Prefix for all bot detection headers.
+    ///     Default: "X-Bot-"
+    ///     Example: With prefix "X-Bot-", headers are "X-Bot-Risk-Score", "X-Bot-Policy", etc.
+    /// </summary>
+    public string HeaderPrefix { get; set; } = "X-Bot-";
+
+    /// <summary>
+    ///     Include the policy name used for detection.
+    ///     Header: {Prefix}Policy
+    ///     Default: true
+    /// </summary>
+    public bool IncludePolicyName { get; set; } = true;
+
+    /// <summary>
+    ///     Include confidence score in headers.
+    ///     Header: {Prefix}Confidence
+    ///     Default: true
+    /// </summary>
+    public bool IncludeConfidence { get; set; } = true;
+
+    /// <summary>
+    ///     Include list of contributing detectors.
+    ///     Header: {Prefix}Detectors (comma-separated)
+    ///     Default: true
+    /// </summary>
+    public bool IncludeDetectors { get; set; } = true;
+
+    /// <summary>
+    ///     Include processing time in milliseconds.
+    ///     Header: {Prefix}Processing-Ms
+    ///     Default: true
+    /// </summary>
+    public bool IncludeProcessingTime { get; set; } = true;
+
+    /// <summary>
+    ///     Include detected bot name (if identified).
+    ///     Header: {Prefix}Bot-Name
+    ///     Default: false (may leak detection logic)
+    /// </summary>
+    public bool IncludeBotName { get; set; } = false;
+
+    /// <summary>
+    ///     Include full JSON result as Base64-encoded header.
+    ///     Header: {Prefix}Result-Json (Base64 encoded)
+    ///     Useful for client-side JavaScript to parse detection details.
+    ///     Default: false (large header size)
+    /// </summary>
+    /// <remarks>
+    ///     Decode in JavaScript:
+    ///     <code>
+    ///     const result = JSON.parse(atob(response.headers.get('X-Bot-Result-Json')));
+    ///     </code>
+    /// </remarks>
+    public bool IncludeFullJson { get; set; } = false;
+
+    /// <summary>
+    ///     Paths to skip adding headers (e.g., health checks, metrics).
+    ///     Uses prefix matching.
+    ///     Default: ["/health", "/metrics", "/swagger"]
+    /// </summary>
+    public List<string> SkipPaths { get; set; } = ["/health", "/metrics", "/swagger"];
+}
+
+// ==========================================
+// Throttling Configuration
+// ==========================================
+
+/// <summary>
+///     Configuration for throttling detected bots.
+///     Includes jitter support to make throttling less obvious to sophisticated bots.
+/// </summary>
+/// <remarks>
+///     Jitter makes the throttling response time vary randomly, preventing bots from
+///     easily detecting they're being throttled based on consistent response times.
+///
+///     Example with BaseDelaySeconds=60, JitterPercent=30:
+///     - Min delay: 60 - 18 = 42 seconds
+///     - Max delay: 60 + 18 = 78 seconds
+///     - Each request gets a random value in this range
+/// </remarks>
+public class ThrottlingOptions
+{
+    /// <summary>
+    ///     Base delay in seconds for Retry-After header.
+    ///     Default: 60 seconds
+    /// </summary>
+    public int BaseDelaySeconds { get; set; } = 60;
+
+    /// <summary>
+    ///     Maximum delay in seconds (caps the delay after jitter and scaling).
+    ///     Default: 300 seconds (5 minutes)
+    /// </summary>
+    public int MaxDelaySeconds { get; set; } = 300;
+
+    /// <summary>
+    ///     Enable jitter to randomize the Retry-After value.
+    ///     Makes it harder for bots to detect they're being throttled.
+    ///     Default: true
+    /// </summary>
+    public bool EnableJitter { get; set; } = true;
+
+    /// <summary>
+    ///     Jitter range as a percentage of BaseDelaySeconds.
+    ///     Example: 30 means ±30% of BaseDelaySeconds.
+    ///     Valid range: 0-100. Default: 30
+    /// </summary>
+    public int JitterPercent { get; set; } = 30;
+
+    /// <summary>
+    ///     Scale the delay based on risk score.
+    ///     Higher risk = longer delay.
+    ///     Formula: delay = baseDelay * (1 + riskScore)
+    ///     Default: false
+    /// </summary>
+    public bool ScaleByRisk { get; set; } = false;
+
+    /// <summary>
+    ///     Actually delay the response before sending 429.
+    ///     This slows down the bot's request rate at the TCP level.
+    ///     WARNING: Can consume server threads if many bots are hitting you.
+    ///     Default: false
+    /// </summary>
+    public bool DelayResponse { get; set; } = false;
+
+    /// <summary>
+    ///     Response delay in milliseconds when DelayResponse is true.
+    ///     Capped at 5000ms to prevent thread exhaustion.
+    ///     Default: 1000ms (1 second)
+    /// </summary>
+    public int ResponseDelayMs { get; set; } = 1000;
+
+    /// <summary>
+    ///     Custom message to include in throttle response body.
+    ///     Default: "Please slow down and try again later."
+    /// </summary>
+    public string ThrottleMessage { get; set; } = "Please slow down and try again later.";
+
+    /// <summary>
+    ///     URL to redirect blocked requests to (when using Redirect action).
+    ///     Default: "/blocked"
+    /// </summary>
+    public string? BlockRedirectUrl { get; set; } = "/blocked";
+
+    /// <summary>
+    ///     Type of challenge to present (when using Challenge action).
+    ///     Options: "captcha", "pow" (proof of work), "interstitial"
+    ///     Default: "captcha"
+    /// </summary>
+    public string ChallengeType { get; set; } = "captcha";
 }

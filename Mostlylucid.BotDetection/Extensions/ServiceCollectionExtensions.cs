@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Mostlylucid.BotDetection.Actions;
 using Mostlylucid.BotDetection.ClientSide;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Detectors;
@@ -13,6 +14,7 @@ using Mostlylucid.BotDetection.Metrics;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Orchestration;
 using Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
+using Mostlylucid.BotDetection.Policies;
 using Mostlylucid.BotDetection.Services;
 
 namespace Mostlylucid.BotDetection.Extensions;
@@ -320,5 +322,29 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IContributingDetector, UserAgentContributor>();
         services.AddSingleton<IContributingDetector, InconsistencyContributor>();
         services.AddSingleton<IContributingDetector, AiContributor>();
+
+        // ==========================================
+        // Policy System (path-based detection workflows)
+        // ==========================================
+
+        // Register policy registry (holds named policies)
+        services.TryAddSingleton<IPolicyRegistry, PolicyRegistry>();
+
+        // Register policy evaluator (handles transitions and weight resolution)
+        services.TryAddSingleton<IPolicyEvaluator, PolicyEvaluator>();
+
+        // ==========================================
+        // Action Policy System (composable response handling)
+        // ==========================================
+
+        // Register action policy factories (create policies from configuration)
+        services.AddSingleton<IActionPolicyFactory, BlockActionPolicyFactory>();
+        services.AddSingleton<IActionPolicyFactory, ThrottleActionPolicyFactory>();
+        services.AddSingleton<IActionPolicyFactory, ChallengeActionPolicyFactory>();
+        services.AddSingleton<IActionPolicyFactory, RedirectActionPolicyFactory>();
+        services.AddSingleton<IActionPolicyFactory, LogOnlyActionPolicyFactory>();
+
+        // Register action policy registry (holds named action policies)
+        services.TryAddSingleton<IActionPolicyRegistry, ActionPolicyRegistry>();
     }
 }

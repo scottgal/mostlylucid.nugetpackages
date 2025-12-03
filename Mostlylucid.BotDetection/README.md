@@ -2,48 +2,39 @@
 
 **DESTROY ALL ROBOTS!** (politely, with HTTP 403s)
 
-Bot detection middleware for ASP.NET Core with multi-signal detection (User-Agent, headers, IP, behavior, optional AI), auto-updated blocklists, YARP integration, and full observability.
+Bot detection middleware for ASP.NET Core with multi-signal detection, **AI-powered classification with continuous learning**, auto-updated blocklists, YARP integration, and full observability.
 
 [![NuGet](https://img.shields.io/nuget/v/mostlylucid.botdetection.svg)](https://www.nuget.org/packages/mostlylucid.botdetection)
 
+## Key Features
+
+- **Multi-signal detection**: User-Agent + headers + IP ranges + behavioral analysis + client-side fingerprinting
+- **AI-powered classification**: ONNX ML models (1-10ms) with optional LLM escalation
+- **Continuous learning**: Pattern reputation system that learns and adapts over time
+- **Composable policies**: Separate detection (WHAT) from action (HOW) for maximum flexibility
+- **Stealth responses**: Throttle, challenge, or honeypot bots without revealing detection
+- **Auto-updated threat intel**: Pulls isbot patterns and cloud IP ranges automatically
+- **First-class YARP support**: Bot-aware routing and header injection
+- **Full observability**: OpenTelemetry traces and metrics baked in
+
 ## Why Use This?
 
-**When commercial WAF (Web Application Firewall) isn't an option:**
+**When commercial WAF isn't an option:**
 - Self-hosted apps without Cloudflare/AWS/Azure
-- Internal tools behind corporate firewalls
-- Compliance requirements that prohibit third-party request inspection
+- Compliance requirements prohibiting third-party request inspection
 - Cost-sensitive projects where $3K+/month WAF isn't justified
 
 **When you need more than User-Agent matching:**
 - Bots spoofing browser User-Agents
-- Scripts that forget other signals (Accept-Language, cookies, timing)
+- Scripts missing Accept-Language, cookies, or timing signals
 - API abuse from datacenter IPs
-- Web design scrapers cloning your site's CSS/HTML
 
-**When you want app-level control:**
-- Different policies per endpoint (block scrapers, allow Googlebot)
-- Custom rate limits by API key or authenticated user
-- Integration with your existing auth/routing (YARP, custom middleware)
+**When you want adaptive protection:**
+- Detection that improves over time with learning
+- Different policies per endpoint (strict for checkout, relaxed for static content)
+- Stealth throttling that bots can't detect
 
-**When you're learning or prototyping:**
-- Understand bot detection techniques hands-on
-- Build custom rules before committing to a vendor
-- Augment existing protection with application-specific logic
-
-## Positioning
-
-A self-hosted, app-level bot detection layer for ASP.NET Core, sitting between "regex-only NuGet packages" and full CDN/WAF products like Cloudflare Bot Management.
-
-**Highlights:**
-- Multi-signal detection: User-Agent + headers + IP ranges + behavioral analysis
-- Pattern reputation system: learns and forgets patterns over time
-- Event-driven blackboard architecture for extensible detection
-- Optional AI detection: local ONNX (fast) or Ollama LLM (accurate)
-- Auto-updated threat intel: pulls isbot patterns and cloud IP ranges
-- First-class YARP support: bot-aware routing and headers
-- Observability: OpenTelemetry traces and metrics baked in
-
-> **Note**: For enterprise applications with stringent security requirements, consider commercial services like [Cloudflare Bot Management](https://www.cloudflare.com/products/bot-management/), [AWS WAF Bot Control](https://aws.amazon.com/waf/features/bot-control/), or [DataDome](https://datadome.co/).
+> **Note**: For enterprise applications with stringent security requirements, consider commercial services like [Cloudflare Bot Management](https://www.cloudflare.com/products/bot-management/) or [AWS WAF Bot Control](https://aws.amazon.com/waf/features/bot-control/).
 
 ## Quick Start
 
@@ -68,17 +59,43 @@ app.UseBotDetection();
 app.Run();
 ```
 
-### 3. Configuration (appsettings.json)
+### 3. Recommended Configuration (appsettings.json)
 
 ```json
 {
   "BotDetection": {
-    "BotThreshold": 0.7
+    "BotThreshold": 0.7,
+    "BlockDetectedBots": true,
+    "DefaultActionPolicyName": "throttle-stealth",
+
+    "EnableAiDetection": true,
+    "AiDetection": {
+      "Provider": "Onnx",
+      "Onnx": {
+        "AutoDownloadModel": true,
+        "EnableHeuristicFallback": true
+      }
+    },
+
+    "Learning": {
+      "Enabled": true,
+      "EnableDriftDetection": true
+    },
+
+    "PathPolicies": {
+      "/api/login": "strict",
+      "/api/checkout/*": "strict",
+      "/sitemap.xml": "allowVerifiedBots"
+    }
   }
 }
 ```
 
-That's it. All detection methods are enabled by default with sensible settings.
+This enables:
+- **AI detection** with ONNX (auto-downloads model, falls back to heuristics)
+- **Learning system** that improves detection over time
+- **Stealth throttling** (bots don't know they're being slowed)
+- **Path-based policies** (strict for sensitive endpoints)
 
 ## Basic Usage
 
@@ -111,30 +128,75 @@ public IActionResult Index() => View();
 
 ## Detection Methods
 
-| Method | What it does |
-|--------|--------------|
-| **User-Agent** | Matches against known bot patterns |
-| **Headers** | Inspects for suspicious/missing headers |
-| **IP** | Checks datacenter IP ranges (AWS, GCP, Azure) |
-| **Behavioral** | Rate limiting + pattern analysis |
-| **Inconsistency** | Catches bots that spoof one signal but miss others |
+| Method | Description | Latency |
+|--------|-------------|---------|
+| **User-Agent** | Pattern matching against known bots | <1ms |
+| **Headers** | Suspicious/missing header detection | <1ms |
+| **IP** | Datacenter IP range identification | <1ms |
+| **Behavioral** | Rate limiting + anomaly detection | 1-5ms |
+| **Inconsistency** | Cross-signal mismatch detection | 1-5ms |
+| **ONNX AI** | ML-based classification | 1-10ms |
+| **LLM** | Full reasoning (escalation only) | 50-500ms |
 
-## Advanced Features
+## AI Detection & Learning (Key Differentiator)
 
-For detailed documentation on advanced features:
+The AI detection and learning system is what sets this library apart:
+
+```
+Request → Fast Detectors → ONNX Model → Decision → Learning Bus
+                ↓                           ↓            ↓
+           Quick signals              Risk score    Pattern Reputation
+                                           ↓            ↓
+                                    Action Policy   Model Training
+```
+
+### Enable with:
+
+```json
+{
+  "BotDetection": {
+    "EnableAiDetection": true,
+    "AiDetection": {
+      "Provider": "Onnx",
+      "Onnx": { "AutoDownloadModel": true }
+    },
+    "Learning": { "Enabled": true }
+  }
+}
+```
+
+See [ai-detection.md](docs/ai-detection.md) and [learning-and-reputation.md](docs/learning-and-reputation.md) for details.
+
+## Action Policies
+
+Control HOW to respond to detected bots:
+
+| Policy | Description |
+|--------|-------------|
+| `block` | Return 403 Forbidden |
+| `throttle-stealth` | Delay response (bots don't notice) |
+| `challenge` | Present CAPTCHA or proof-of-work |
+| `redirect-honeypot` | Silent redirect to trap |
+| `logonly` | Shadow mode (log but allow) |
+
+See [action-policies.md](docs/action-policies.md) for full details.
+
+## Documentation
 
 | Feature | Description | Docs |
 |---------|-------------|------|
-| **User-Agent Detection** | Pattern matching with reputation tracking | [user-agent-detection.md](docs/user-agent-detection.md) |
+| **Configuration** | Full options reference | [configuration.md](docs/configuration.md) |
+| **AI Detection** | ONNX models, GPU setup, training | [ai-detection.md](docs/ai-detection.md) |
+| **Learning & Reputation** | Pattern learning, drift detection | [learning-and-reputation.md](docs/learning-and-reputation.md) |
+| **Action Policies** | Block, throttle, challenge, redirect | [action-policies.md](docs/action-policies.md) |
+| **Detection Policies** | Path-based detection configuration | [policies.md](docs/policies.md) |
+| **Extensibility** | Custom detectors and policies | [extensibility.md](docs/extensibility.md) |
+| **User-Agent Detection** | Pattern matching with reputation | [user-agent-detection.md](docs/user-agent-detection.md) |
 | **Header Detection** | HTTP header anomaly analysis | [header-detection.md](docs/header-detection.md) |
 | **IP Detection** | Datacenter and cloud IP identification | [ip-detection.md](docs/ip-detection.md) |
-| **Behavioral Analysis** | Per-IP, per-API-key, per-user rate limiting and anomaly detection | [behavioral-analysis.md](docs/behavioral-analysis.md) |
-| **Client-Side Fingerprinting** | JavaScript-based headless browser detection | [client-side-fingerprinting.md](docs/client-side-fingerprinting.md) |
-| **AI Detection** | ONNX (1-10ms) or Ollama LLM (50-500ms) classification | [ai-detection.md](docs/ai-detection.md) |
-| **Learning & Reputation** | Pattern learning, forgetting, blackboard architecture | [learning-and-reputation.md](docs/learning-and-reputation.md) |
-| **YARP Integration** | Bot-aware reverse proxy with header injection | [yarp-integration.md](docs/yarp-integration.md) |
-| **Blocking & Filters** | Attributes, endpoint filters, risk bands | [blocking-and-filters.md](docs/blocking-and-filters.md) |
-| **Configuration** | Full options reference | [configuration.md](docs/configuration.md) |
+| **Behavioral Analysis** | Rate limiting and anomaly detection | [behavioral-analysis.md](docs/behavioral-analysis.md) |
+| **Client-Side Fingerprinting** | Headless browser detection | [client-side-fingerprinting.md](docs/client-side-fingerprinting.md) |
+| **YARP Integration** | Bot-aware reverse proxy | [yarp-integration.md](docs/yarp-integration.md) |
 | **Telemetry** | OpenTelemetry traces and metrics | [telemetry-and-metrics.md](docs/telemetry-and-metrics.md) |
 
 ## Diagnostic Endpoints
@@ -147,38 +209,23 @@ app.MapBotDetectionEndpoints("/bot-detection");
 // GET /bot-detection/health  - Health check
 ```
 
-## Test Mode
-
-For development only:
-
-```json
-{
-  "BotDetection": {
-    "EnableTestMode": true
-  }
-}
-```
-
-```bash
-curl -H "ml-bot-test-mode: googlebot" https://localhost:5001/
-```
-
 ## Service Registration Options
 
 ```csharp
-// Default: all heuristics, no AI
+// Default: all heuristics + ONNX AI
 builder.Services.AddBotDetection();
 
-// User-agent only (fastest)
+// User-agent only (fastest, minimal)
 builder.Services.AddSimpleBotDetection();
 
-// All heuristics + AI (requires Ollama)
+// All heuristics + LLM escalation (requires Ollama)
 builder.Services.AddAdvancedBotDetection("http://localhost:11434", "gemma3:1b");
 ```
 
 ## Requirements
 
 - .NET 8.0 or .NET 9.0
+- Optional: CUDA for GPU-accelerated ONNX inference
 - Optional: [Ollama](https://ollama.ai/) for LLM-based detection
 
 ## License

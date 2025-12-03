@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.BotDetection.Policies;
 
 namespace Mostlylucid.BotDetection.Orchestration;
 
@@ -263,6 +264,16 @@ public sealed record AggregatedEvidence
     ///     Which detectors failed or timed out
     /// </summary>
     public IReadOnlySet<string> FailedDetectors { get; init; } = new HashSet<string>();
+
+    /// <summary>
+    ///     Policy that was used for this detection
+    /// </summary>
+    public string? PolicyName { get; init; }
+
+    /// <summary>
+    ///     Action determined by policy (if any)
+    /// </summary>
+    public PolicyAction? PolicyAction { get; init; }
 }
 
 /// <summary>
