@@ -289,27 +289,53 @@ public sealed record CategoryScore
 }
 
 /// <summary>
-///     Risk bands for final classification
+///     Risk bands for final classification.
+///     This is the canonical RiskBand enum - use this throughout the codebase.
 /// </summary>
 public enum RiskBand
 {
+    /// <summary>Detection hasn't run or no data available</summary>
+    Unknown = 0,
+
     /// <summary>Very low risk - likely human</summary>
-    VeryLow,
+    VeryLow = 1,
 
     /// <summary>Low risk - probably human</summary>
-    Low,
+    Low = 2,
 
-    /// <summary>Medium risk - uncertain</summary>
-    Medium,
+    /// <summary>Elevated risk - consider throttling or soft challenge</summary>
+    Elevated = 3,
+
+    /// <summary>Medium risk - uncertain, recommend challenge</summary>
+    Medium = 4,
 
     /// <summary>High risk - probably bot</summary>
-    High,
+    High = 5,
 
     /// <summary>Very high risk - almost certainly bot</summary>
-    VeryHigh,
+    VeryHigh = 6,
 
-    /// <summary>Verified - confirmed by external verification</summary>
-    Verified
+    /// <summary>Verified - confirmed by external verification (good or bad bot)</summary>
+    Verified = 7
+}
+
+/// <summary>
+///     Recommended actions based on risk assessment.
+///     This is the canonical RecommendedAction enum - use this throughout the codebase.
+/// </summary>
+public enum RecommendedAction
+{
+    /// <summary>Allow the request normally</summary>
+    Allow,
+
+    /// <summary>Apply rate limiting or throttling</summary>
+    Throttle,
+
+    /// <summary>Present a challenge (CAPTCHA, proof-of-work, JS challenge)</summary>
+    Challenge,
+
+    /// <summary>Block the request</summary>
+    Block
 }
 
 /// <summary>
