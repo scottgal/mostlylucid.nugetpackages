@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Mostlylucid.YarpGateway.Configuration;
+using Xunit;
 
 namespace Mostlylucid.YarpGateway.Tests.Integration;
 

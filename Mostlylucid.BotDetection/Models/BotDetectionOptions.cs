@@ -184,6 +184,12 @@ public class BotDetectionOptions
     /// </summary>
     public BehavioralOptions Behavioral { get; set; } = new();
 
+    /// <summary>
+    ///     Browser and OS version age detection configuration.
+    ///     Detects bots using outdated or impossible browser/OS combinations.
+    /// </summary>
+    public VersionAgeOptions VersionAge { get; set; } = new();
+
     // ==========================================
     // Caching Settings
     // ==========================================
@@ -565,6 +571,51 @@ public class BotDetectionOptions
     ///     If not specified, uses "block" (built-in 403 block).
     /// </summary>
     public string? DefaultActionPolicyName { get; set; }
+
+    // ==========================================
+    // Path Exclusions and Overrides
+    // ==========================================
+
+    /// <summary>
+    ///     Paths to completely exclude from bot detection.
+    ///     Requests to these paths skip detection entirely (no processing, no logging).
+    ///     Supports prefix matching (e.g., "/health" matches "/health" and "/health/live").
+    ///     Use for health checks, internal endpoints, or paths you know don't need protection.
+    /// </summary>
+    /// <example>
+    ///     <code>
+    ///     "ExcludedPaths": ["/health", "/metrics", "/.well-known", "/favicon.ico"]
+    ///     </code>
+    /// </example>
+    public List<string> ExcludedPaths { get; set; } = ["/health", "/metrics"];
+
+    /// <summary>
+    ///     Path overrides that always allow requests through, even if detected as bots.
+    ///     Detection still runs (for logging/analytics), but blocking is bypassed.
+    ///     Useful for fixing false positives without disabling detection entirely.
+    ///     Supports glob patterns (e.g., "/api/public/*", "/webhooks/**").
+    /// </summary>
+    /// <remarks>
+    ///     Use this when:
+    ///     <list type="bullet">
+    ///         <item>An endpoint is incorrectly flagging legitimate traffic</item>
+    ///         <item>You need to allow specific bots/automation for an endpoint</item>
+    ///         <item>Third-party integrations are being blocked</item>
+    ///     </list>
+    ///     Detection results are still logged and available via HttpContext.Items,
+    ///     so you can monitor the traffic and adjust detection rules.
+    /// </remarks>
+    /// <example>
+    ///     <code>
+    ///     "PathOverrides": {
+    ///       "/api/webhooks/*": "allow",
+    ///       "/api/public/feed": "allow",
+    ///       "/callback/oauth": "allow"
+    ///     }
+    ///     </code>
+    /// </example>
+    public Dictionary<string, string> PathOverrides { get; set; } = new();
+
 }
 
 // ==========================================
@@ -1475,6 +1526,217 @@ public class DataSourcesOptions
         Enabled = true,
         Url = "https://www.cloudflare.com/ips-v6",
         Description = "Cloudflare IPv6 ranges - official Cloudflare IPs (text, one CIDR per line)"
+    };
+
+    // ==========================================
+    // Browser Version Sources (Age detection)
+    // ==========================================
+
+    /// <summary>
+    ///     Browser version data from useragents.me API.
+    ///     Provides latest versions of major browsers for age checking.
+    ///     Bots often use outdated browser versions - this helps detect them.
+    /// </summary>
+    public DataSourceConfig BrowserVersions { get; set; } = new()
+    {
+        Enabled = true,
+        Url = "https://www.useragents.me/api",
+        Description = "Browser versions from useragents.me - current browser versions (JSON)"
+    };
+}
+
+/// <summary>
+///     Configuration for browser and OS version age detection.
+///     Detects outdated browser/OS versions commonly used by bots and scrapers.
+/// </summary>
+public class VersionAgeOptions
+{
+    /// <summary>
+    ///     Enable version age detection.
+    ///     When enabled, requests with outdated browser/OS versions are flagged.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    ///     Update interval for version data in hours.
+    ///     Browser versions change frequently, so daily updates are recommended.
+    ///     Default: 24 hours
+    /// </summary>
+    public int UpdateIntervalHours { get; set; } = 24;
+
+    // ==========================================
+    // Browser Version Settings
+    // ==========================================
+
+    /// <summary>
+    ///     Enable browser version checking.
+    ///     Default: true
+    /// </summary>
+    public bool CheckBrowserVersion { get; set; } = true;
+
+    /// <summary>
+    ///     Maximum browser major version age to consider "current".
+    ///     Browsers older than (latest - MaxBrowserVersionAge) are flagged.
+    ///     Default: 10 major versions (e.g., Chrome 130 flags Chrome 119 and older)
+    /// </summary>
+    public int MaxBrowserVersionAge { get; set; } = 10;
+
+    /// <summary>
+    ///     Confidence boost for severely outdated browsers (>20 versions behind).
+    ///     High confidence - very suspicious, likely a bot.
+    ///     Default: 0.4
+    /// </summary>
+    public double BrowserSeverelyOutdatedConfidence { get; set; } = 0.4;
+
+    /// <summary>
+    ///     Confidence boost for moderately outdated browsers (10-20 versions behind).
+    ///     Default: 0.2
+    /// </summary>
+    public double BrowserModeratelyOutdatedConfidence { get; set; } = 0.2;
+
+    /// <summary>
+    ///     Confidence boost for slightly outdated browsers (5-10 versions behind).
+    ///     Default: 0.1
+    /// </summary>
+    public double BrowserSlightlyOutdatedConfidence { get; set; } = 0.1;
+
+    // ==========================================
+    // OS Version Settings (lower weight - legitimate old OS usage exists)
+    // ==========================================
+
+    /// <summary>
+    ///     Enable OS version checking.
+    ///     Lower weight than browser checks since people legitimately use old OS versions.
+    ///     Default: true
+    /// </summary>
+    public bool CheckOsVersion { get; set; } = true;
+
+    /// <summary>
+    ///     Confidence boost for ancient OS (Windows XP, very old Android, etc.).
+    ///     These are extremely rare in legitimate traffic.
+    ///     Default: 0.3
+    /// </summary>
+    public double OsAncientConfidence { get; set; } = 0.3;
+
+    /// <summary>
+    ///     Confidence boost for very old OS (Windows 7, old macOS).
+    ///     Still used by some legitimate users, so lower weight.
+    ///     Default: 0.1
+    /// </summary>
+    public double OsVeryOldConfidence { get; set; } = 0.1;
+
+    /// <summary>
+    ///     Confidence boost for old OS (Windows 8/8.1, older Android).
+    ///     Common enough to be only slightly suspicious.
+    ///     Default: 0.05
+    /// </summary>
+    public double OsOldConfidence { get; set; } = 0.05;
+
+    // ==========================================
+    // Combined Anomaly Detection
+    // ==========================================
+
+    /// <summary>
+    ///     Extra confidence boost when BOTH browser AND OS are outdated.
+    ///     This combination is very suspicious - suggests hardcoded UA.
+    ///     Default: 0.15
+    /// </summary>
+    public double CombinedOutdatedBoost { get; set; } = 0.15;
+
+    /// <summary>
+    ///     Confidence boost for impossible combinations (e.g., Chrome 130 on Windows XP).
+    ///     These indicate a fake/crafted User-Agent.
+    ///     Default: 0.5
+    /// </summary>
+    public double ImpossibleCombinationConfidence { get; set; } = 0.5;
+
+    // ==========================================
+    // Fallback Data (used when API unavailable)
+    // ==========================================
+
+    /// <summary>
+    ///     Fallback browser versions to use if API is unavailable.
+    ///     Updated periodically - these should be roughly current.
+    /// </summary>
+    public Dictionary<string, int> FallbackBrowserVersions { get; set; } = new()
+    {
+        ["Chrome"] = 130,
+        ["Firefox"] = 133,
+        ["Safari"] = 18,
+        ["Edge"] = 130,
+        ["Opera"] = 115,
+        ["Brave"] = 130,
+        ["Vivaldi"] = 7
+    };
+
+    /// <summary>
+    ///     OS version classifications for age detection.
+    ///     Key: OS identifier, Value: age category (current, old, very_old, ancient)
+    /// </summary>
+    public Dictionary<string, string> OsAgeClassification { get; set; } = new()
+    {
+        // Windows
+        ["Windows NT 10.0"] = "current",      // Windows 10/11
+        ["Windows NT 6.3"] = "old",           // Windows 8.1
+        ["Windows NT 6.2"] = "old",           // Windows 8
+        ["Windows NT 6.1"] = "very_old",      // Windows 7
+        ["Windows NT 6.0"] = "ancient",       // Vista
+        ["Windows NT 5.1"] = "ancient",       // XP
+        ["Windows NT 5.0"] = "ancient",       // 2000
+
+        // macOS (by version number)
+        ["Mac OS X 14"] = "current",          // Sonoma
+        ["Mac OS X 13"] = "current",          // Ventura
+        ["Mac OS X 12"] = "old",              // Monterey
+        ["Mac OS X 11"] = "old",              // Big Sur
+        ["Mac OS X 10_15"] = "old",           // Catalina
+        ["Mac OS X 10_14"] = "very_old",      // Mojave
+        ["Mac OS X 10_13"] = "very_old",      // High Sierra
+        ["Mac OS X 10_12"] = "ancient",       // Sierra and older
+
+        // Android (major versions)
+        ["Android 14"] = "current",
+        ["Android 13"] = "current",
+        ["Android 12"] = "old",
+        ["Android 11"] = "old",
+        ["Android 10"] = "very_old",
+        ["Android 9"] = "very_old",
+        ["Android 8"] = "ancient",
+        ["Android 7"] = "ancient",
+        ["Android 6"] = "ancient",
+        ["Android 5"] = "ancient",
+        ["Android 4"] = "ancient",
+
+        // iOS (major versions)
+        ["iOS 18"] = "current",
+        ["iOS 17"] = "current",
+        ["iOS 16"] = "old",
+        ["iOS 15"] = "old",
+        ["iOS 14"] = "very_old",
+        ["iOS 13"] = "very_old",
+        ["iOS 12"] = "ancient",
+
+        // Linux (generally current, hard to determine age)
+        ["Linux"] = "current"
+    };
+
+    /// <summary>
+    ///     Minimum browser version requirements per OS.
+    ///     Used to detect impossible combinations (e.g., Chrome 130 can't run on XP).
+    ///     Key: OS pattern, Value: minimum Chrome-equivalent version that runs on that OS.
+    /// </summary>
+    public Dictionary<string, int> MinBrowserVersionByOs { get; set; } = new()
+    {
+        ["Windows NT 5"] = 49,      // XP: Chrome stopped at 49
+        ["Windows NT 6.0"] = 49,    // Vista: Chrome stopped at 49
+        ["Windows NT 6.1"] = 109,   // Win7: Chrome stopped at 109
+        ["Mac OS X 10_9"] = 65,     // Mavericks: old Chrome limit
+        ["Mac OS X 10_10"] = 87,    // Yosemite
+        ["Mac OS X 10_11"] = 103,   // El Capitan
+        ["Android 4"] = 42,         // Very old Android
+        ["Android 5"] = 81,         // Lollipop
+        ["iOS 10"] = 49,            // Old iOS
+        ["iOS 11"] = 65
     };
 }
 

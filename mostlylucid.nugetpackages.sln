@@ -87,6 +87,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.BotDetection.Te
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.YarpGateway", "Mostlylucid.YarpGateway\Mostlylucid.YarpGateway.csproj", "{4D7D7C8D-3A77-4A98-B6BB-79628D0FC37D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.YarpGateway.Tests", "Mostlylucid.YarpGateway.Tests\Mostlylucid.YarpGateway.Tests.csproj", "{B464ED52-BD79-49DC-A844-53D9589030EC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -565,6 +567,18 @@ Global
 		{4D7D7C8D-3A77-4A98-B6BB-79628D0FC37D}.Release|x64.Build.0 = Release|Any CPU
 		{4D7D7C8D-3A77-4A98-B6BB-79628D0FC37D}.Release|x86.ActiveCfg = Release|Any CPU
 		{4D7D7C8D-3A77-4A98-B6BB-79628D0FC37D}.Release|x86.Build.0 = Release|Any CPU
+		{B464ED52-BD79-49DC-A844-53D9589030EC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B464ED52-BD79-49DC-A844-53D9589030EC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B464ED52-BD79-49DC-A844-53D9589030EC}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B464ED52-BD79-49DC-A844-53D9589030EC}.Debug|x64.Build.0 = Debug|Any CPU
+		{B464ED52-BD79-49DC-A844-53D9589030EC}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B464ED52-BD79-49DC-A844-53D9589030EC}.Debug|x86.Build.0 = Debug|Any CPU
+		{B464ED52-BD79-49DC-A844-53D9589030EC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B464ED52-BD79-49DC-A844-53D9589030EC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B464ED52-BD79-49DC-A844-53D9589030EC}.Release|x64.ActiveCfg = Release|Any CPU
+		{B464ED52-BD79-49DC-A844-53D9589030EC}.Release|x64.Build.0 = Release|Any CPU
+		{B464ED52-BD79-49DC-A844-53D9589030EC}.Release|x86.ActiveCfg = Release|Any CPU
+		{B464ED52-BD79-49DC-A844-53D9589030EC}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

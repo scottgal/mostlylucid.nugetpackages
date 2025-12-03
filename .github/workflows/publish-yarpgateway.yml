@@ -3,13 +3,13 @@ name: Publish Mostlylucid.YarpGateway
 on:
   push:
     tags:
-      - 'yarpgateway-v*.*.*'
+      - 'yarpgateway-v*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to publish (e.g., 0.1.0)'
+        description: 'Version to publish (e.g., 1.0.0-preview1)'
         required: true
-        default: '0.1.0'
+        default: '1.0.0-preview1'
 
 permissions:
   contents: read
@@ -17,7 +17,7 @@ permissions:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: mostlylucid/yarp-gateway
+  IMAGE_NAME: scottgal/mostlylucid.yarpgateway
 
 jobs:
   build-and-push:
@@ -34,7 +34,7 @@ jobs:
       with:
         dotnet-version: '9.0.x'
 
-    - name: Extract version
+    - name: Extract version and date
       id: get_version
       run: |
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -42,8 +42,19 @@ jobs:
         else
           VERSION=${GITHUB_REF#refs/tags/yarpgateway-v}
         fi
+        DATE=$(date +%Y%m%d)
+
+        # Check if this is a preview/prerelease version
+        if [[ "$VERSION" == *"-"* ]]; then
+          IS_PRERELEASE="true"
+        else
+          IS_PRERELEASE="false"
+        fi
+
         echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-        echo "Publishing version: $VERSION"
+        echo "DATE=$DATE" >> $GITHUB_OUTPUT
+        echo "IS_PRERELEASE=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+        echo "Publishing version: $VERSION (date: $DATE, prerelease: $IS_PRERELEASE)"
 
     - name: Build project
       run: dotnet build Mostlylucid.YarpGateway/Mostlylucid.YarpGateway.csproj --configuration Release
@@ -64,7 +75,8 @@ jobs:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         tags: |
           type=raw,value=${{ steps.get_version.outputs.VERSION }}
-          type=raw,value=latest,enable=${{ github.ref == format('refs/tags/yarpgateway-v{0}', steps.get_version.outputs.VERSION) }}
+          type=raw,value=${{ steps.get_version.outputs.DATE }}
+          type=raw,value=latest,enable=${{ steps.get_version.outputs.IS_PRERELEASE == 'false' }}
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v6

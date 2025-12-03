@@ -315,6 +315,20 @@ public static class ServiceCollectionExtensions
         // Register learned pattern store (SQLite-backed)
         services.TryAddSingleton<ILearnedPatternStore, Data.SqliteLearnedPatternStore>();
 
+        // Register weight store for learning feedback loop
+        services.TryAddSingleton<IWeightStore, Data.SqliteWeightStore>();
+
+        // Register signature feedback handler (feeds learned patterns back to detectors)
+        services.AddSingleton<ILearningEventHandler, SignatureFeedbackHandler>();
+
+        // Register browser version service (fetches current browser versions)
+        services.TryAddSingleton<IBrowserVersionService, BrowserVersionService>();
+        services.AddHostedService(sp => (BrowserVersionService)sp.GetRequiredService<IBrowserVersionService>());
+
+        // Register version age detector
+        services.TryAddSingleton<VersionAgeDetector>();
+        services.AddSingleton<IDetector>(sp => sp.GetRequiredService<VersionAgeDetector>());
+
         // Register pattern reputation system (learning + forgetting)
         services.TryAddSingleton<PatternReputationUpdater>();
         services.TryAddSingleton<IPatternReputationCache, InMemoryPatternReputationCache>();

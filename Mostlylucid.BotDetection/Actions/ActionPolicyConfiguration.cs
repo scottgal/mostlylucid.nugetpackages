@@ -417,6 +417,109 @@ public class ActionPolicyConfig : BaseComponentConfig
     /// </summary>
     public string? MetricName { get; set; }
 
+    // ==========================================
+    // Forward Policy Options (LogOnly subtype)
+    // ==========================================
+
+    /// <summary>
+    ///     [Forward] URL to forward detection data to.
+    ///     Supports POST with JSON payload containing full detection evidence.
+    ///     Example: "http://honeypot:8080/trap" or "http://analytics:9000/events"
+    /// </summary>
+    public string? ForwardUrl { get; set; }
+
+    /// <summary>
+    ///     [Forward] HTTP method for forwarding.
+    ///     Default: POST
+    /// </summary>
+    public string? ForwardMethod { get; set; }
+
+    /// <summary>
+    ///     [Forward] Additional headers to include in forwarded request.
+    ///     Example: { "X-Api-Key": "secret", "X-Source": "bot-detection" }
+    /// </summary>
+    public Dictionary<string, string>? ForwardHeaders { get; set; }
+
+    /// <summary>
+    ///     [Forward] Timeout for forward request in milliseconds.
+    ///     Default: 5000
+    /// </summary>
+    public int? ForwardTimeoutMs { get; set; }
+
+    /// <summary>
+    ///     [Forward] Fire and forget (don't wait for response).
+    ///     Default: true
+    /// </summary>
+    public bool? ForwardAsync { get; set; }
+
+    /// <summary>
+    ///     [Forward] Include full request headers in forwarded payload.
+    ///     Default: true
+    /// </summary>
+    public bool? ForwardIncludeHeaders { get; set; }
+
+    /// <summary>
+    ///     [Forward] Include detection reasons/evidence in forwarded payload.
+    ///     Default: true
+    /// </summary>
+    public bool? ForwardIncludeReasons { get; set; }
+
+    // ==========================================
+    // LogToFile Policy Options (LogOnly subtype)
+    // ==========================================
+
+    /// <summary>
+    ///     [LogToFile] Directory for log files.
+    ///     Default: "logs/bot-detection"
+    /// </summary>
+    public string? LogDirectory { get; set; }
+
+    /// <summary>
+    ///     [LogToFile] File name pattern with date placeholders.
+    ///     {date} = yyyy-MM-dd, {hour} = HH
+    ///     Default: "detections-{date}.jsonl"
+    /// </summary>
+    public string? LogFilePattern { get; set; }
+
+    /// <summary>
+    ///     [LogToFile] Only log requests detected as bots.
+    ///     Default: true
+    /// </summary>
+    public bool? LogOnlyBots { get; set; }
+
+    /// <summary>
+    ///     [LogToFile] Minimum confidence to log.
+    ///     Default: 0.0 (log all)
+    /// </summary>
+    public double? LogMinConfidence { get; set; }
+
+    /// <summary>
+    ///     [LogToFile] Maximum files to retain.
+    ///     Default: 30
+    /// </summary>
+    public int? LogRetainFiles { get; set; }
+
+    // ==========================================
+    // Exception/Passthrough Policy Options
+    // ==========================================
+
+    /// <summary>
+    ///     [Passthrough] User-Agent patterns that bypass blocking (regex).
+    ///     Detection still runs for logging, but request is allowed through.
+    /// </summary>
+    public List<string>? PassthroughUserAgents { get; set; }
+
+    /// <summary>
+    ///     [Passthrough] IP addresses/CIDRs that bypass blocking.
+    /// </summary>
+    public List<string>? PassthroughIps { get; set; }
+
+    /// <summary>
+    ///     [Passthrough] Header patterns that indicate passthrough.
+    ///     Format: "Header-Name: regex-pattern"
+    /// </summary>
+    public List<string>? PassthroughHeaders { get; set; }
+
     /// <summary>
     ///     Converts this configuration to a dictionary for factory consumption.
     /// </summary>
@@ -484,6 +587,27 @@ public class ActionPolicyConfig : BaseComponentConfig
         if (AddToContextItems.HasValue) dict["AddToContextItems"] = AddToContextItems.Value;
         if (WouldBlockThreshold.HasValue) dict["WouldBlockThreshold"] = WouldBlockThreshold.Value;
         if (MetricName != null) dict["MetricName"] = MetricName;
+
+        // Forward options
+        if (ForwardUrl != null) dict["ForwardUrl"] = ForwardUrl;
+        if (ForwardMethod != null) dict["ForwardMethod"] = ForwardMethod;
+        if (ForwardHeaders != null) dict["ForwardHeaders"] = ForwardHeaders;
+        if (ForwardTimeoutMs.HasValue) dict["ForwardTimeoutMs"] = ForwardTimeoutMs.Value;
+        if (ForwardAsync.HasValue) dict["ForwardAsync"] = ForwardAsync.Value;
+        if (ForwardIncludeHeaders.HasValue) dict["ForwardIncludeHeaders"] = ForwardIncludeHeaders.Value;
+        if (ForwardIncludeReasons.HasValue) dict["ForwardIncludeReasons"] = ForwardIncludeReasons.Value;
+
+        // LogToFile options
+        if (LogDirectory != null) dict["LogDirectory"] = LogDirectory;
+        if (LogFilePattern != null) dict["LogFilePattern"] = LogFilePattern;
+        if (LogOnlyBots.HasValue) dict["LogOnlyBots"] = LogOnlyBots.Value;
+        if (LogMinConfidence.HasValue) dict["LogMinConfidence"] = LogMinConfidence.Value;
+        if (LogRetainFiles.HasValue) dict["LogRetainFiles"] = LogRetainFiles.Value;
+
+        // Passthrough options
+        if (PassthroughUserAgents != null) dict["PassthroughUserAgents"] = PassthroughUserAgents;
+        if (PassthroughIps != null) dict["PassthroughIps"] = PassthroughIps;
+        if (PassthroughHeaders != null) dict["PassthroughHeaders"] = PassthroughHeaders;
 
         return dict;
     }

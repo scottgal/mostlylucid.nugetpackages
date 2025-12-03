@@ -299,6 +299,29 @@ public class LogOnlyActionOptions
         AddToContextItems = true,
         WouldBlockThreshold = 0.9
     };
+
+    /// <summary>
+    ///     Creates options for full logging mode with maximum visibility.
+    ///     Ideal for demos and development environments.
+    /// </summary>
+    /// <remarks>
+    ///     This preset enables:
+    ///     <list type="bullet">
+    ///         <item>Debug-level logging with full evidence</item>
+    ///         <item>All response headers (X-Bot-Risk-Score, X-Bot-Detectors, X-Bot-Name, etc.)</item>
+    ///         <item>HttpContext.Items populated for downstream access</item>
+    ///         <item>"Would block" indicator at 0.7 threshold</item>
+    ///     </list>
+    /// </remarks>
+    public static LogOnlyActionOptions FullLog => new()
+    {
+        LogLevel = LogLevel.Debug,
+        LogFullEvidence = true,
+        AddResponseHeaders = true,
+        IncludeDetailedHeaders = true,
+        AddToContextItems = true,
+        WouldBlockThreshold = 0.7
+    };
 }
 
 /// <summary>

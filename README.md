@@ -30,6 +30,7 @@ privacy-focused solutions - **no data ever leaves your infrastructure**.
     - [Mostlylucid.LlmSlideTranslator](#mostlylucidllmslidetranslator) - Document translation
     - [Mostlylucid.LlmI18nAssistant](#mostlylucidllmi18nassistant) - Resource localization
     - [Mostlylucid.RagLlmSearch](#mostlylucidragllmsearch) - RAG-enabled chat with web search
+    - [Mostlylucid.YarpGateway](#mostlylucidyarpgateway) - Docker-first YARP reverse proxy
 - [Project Structure](#project-structure)
 - [Contributing](#contributing)
 
@@ -160,6 +161,7 @@ All activities include exception tracking with `exception.type` and `exception.m
 | **Mostlylucid.LlmSlideTranslator**      | RAG-assisted document translation           | [Source](./mostlylucid.llmslidetranslator)      |
 | **Mostlylucid.LlmI18nAssistant**        | Short-string localization helper            | [Source](./mostlylucid.llmi18nassistant)        |
 | **Mostlylucid.RagLlmSearch**            | RAG-enabled chat with multi-provider search | [Source](./Mostlylucid.RagLlmSearch)            |
+| **Mostlylucid.YarpGateway**             | Docker-first YARP reverse proxy             | [Source](./Mostlylucid.YarpGateway)             |
 
 ---
 
@@ -737,6 +739,65 @@ await connection.invoke('SendMessage', { message: "Hello!" });
 
 ---
 
+## Mostlylucid.YarpGateway
+
+A lightweight, Docker-first YARP reverse proxy gateway.
+
+[![Docker Hub](https://img.shields.io/docker/pulls/scottgal/mostlylucid.yarpgateway?label=Docker%20Hub)](https://hub.docker.com/r/scottgal/mostlylucid.yarpgateway)
+
+### Features
+
+- **Zero-Config Mode**: Just set `DEFAULT_UPSTREAM` and go
+- **Hot-Reload Configuration**: YARP routes without restart
+- **Admin API**: Health checks, metrics, config inspection
+- **Database Support**: Optional Postgres/SQL Server persistence
+- **Multi-Architecture**: amd64, arm64, **Raspberry Pi** (arm/v7)
+- **Lightweight**: ~90MB Alpine-based image
+
+### Quick Start
+
+```bash
+# Zero-config mode
+docker run -p 8080:8080 -e DEFAULT_UPSTREAM=http://your-backend:3000 scottgal/mostlylucid.yarpgateway
+
+# With file configuration
+docker run -p 8080:8080 \
+  -v ./config:/app/config:ro \
+  -e ADMIN_SECRET=your-secret \
+  scottgal/mostlylucid.yarpgateway
+```
+
+### Available Tags
+
+- `scottgal/mostlylucid.yarpgateway:latest` - Latest release
+- `scottgal/mostlylucid.yarpgateway:X.Y.Z[-previewN]` - Specific version (e.g., `1.0.0-preview1`)
+- `scottgal/mostlylucid.yarpgateway:YYYYMMDD` - Date-based (e.g., `20231203`)
+
+### Using with BotDetection
+
+Perfect companion for edge deployments with bot protection:
+
+```yaml
+services:
+  gateway:
+    image: scottgal/mostlylucid.yarpgateway:latest
+    ports:
+      - "80:8080"
+    environment:
+      - ADMIN_SECRET=gateway-secret
+    volumes:
+      - ./yarp.json:/app/config/yarp.json:ro
+
+  webapp:
+    build: .
+    environment:
+      - BotDetection__EnableAiDetection=true
+```
+
+[Full documentation](Mostlylucid.YarpGateway/README.md)
+
+---
+
 ## Prerequisites
 
 Most LLM-powered packages require [Ollama](https://ollama.ai/) running locally:
@@ -801,7 +862,10 @@ mostlylucid.nugetpackages/
 ├── mostlylucid.llmi18nassistant.demo/
 │
 ├── Mostlylucid.RagLlmSearch/              # RAG-enabled chat
-└── Mostlylucid.RagLlmSearch.Demo/
+├── Mostlylucid.RagLlmSearch.Demo/
+│
+├── Mostlylucid.YarpGateway/               # YARP reverse proxy (Docker)
+└── Mostlylucid.YarpGateway.Tests/
 ```
 
 ---

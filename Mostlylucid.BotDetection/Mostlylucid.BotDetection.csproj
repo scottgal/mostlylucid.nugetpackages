@@ -60,6 +60,11 @@
         <EmbeddedResource Include="ClientSide\botdetection.js" />
     </ItemGroup>
 
+    <!-- Embed policy definition JSON files -->
+    <ItemGroup>
+        <EmbeddedResource Include="Definitions\Actions\*.json" />
+    </ItemGroup>
+
     <!-- Include icon and README in NuGet package -->
     <ItemGroup>
         <None Include=".\icon.png" Pack="true" PackagePath="">

@@ -17,10 +17,10 @@ Mostlylucid.YarpGateway is a standalone Docker image that provides:
 
 ```bash
 # Zero-config mode
-docker run -p 8080:8080 -e DEFAULT_UPSTREAM=http://your-backend:3000 mostlylucid/yarp-gateway
+docker run -p 8080:8080 -e DEFAULT_UPSTREAM=http://your-backend:3000 scottgal/mostlylucid.yarpgateway
 
 # With file configuration
-docker run -p 8080:8080 -v ./config:/app/config:ro mostlylucid/yarp-gateway
+docker run -p 8080:8080 -v ./config:/app/config:ro scottgal/mostlylucid.yarpgateway
 ```
 
 ## Using with BotDetection
@@ -56,7 +56,7 @@ Internet → YarpGateway → Your App (with BotDetection)
 ```yaml
 services:
   gateway:
-    image: mostlylucid/yarp-gateway:latest
+    image: scottgal/mostlylucid.yarpgateway:latest
     ports:
       - "80:8080"
     environment:
@@ -106,7 +106,7 @@ docker run -d --name gateway \
   -p 80:8080 \
   --restart unless-stopped \
   -e DEFAULT_UPSTREAM=http://192.168.1.100:3000 \
-  mostlylucid/yarp-gateway
+  scottgal/mostlylucid.yarpgateway
 ```
 
 See the [full Pi documentation](../../Mostlylucid.YarpGateway/README.md#raspberry-pi-deployment) for:
@@ -124,8 +124,26 @@ See the [full Pi documentation](../../Mostlylucid.YarpGateway/README.md#raspberr
 | **Multi-arch** | amd64, arm64, arm/v7 |
 | **Lightweight** | ~90MB Alpine-based image |
 
+## Configuration Reference
+
+For complete configuration options including:
+- Environment variables (`GATEWAY_HTTP_PORT`, `DEFAULT_UPSTREAM`, `ADMIN_SECRET`, etc.)
+- Volume mounts (`/app/config`, `/app/data`, `/app/logs`, `/app/plugins`)
+- YARP routing configuration (`yarp.json`)
+- Database setup (Postgres, SQL Server)
+- Admin API endpoints
+
+**See: [Full Configuration Documentation](../../Mostlylucid.YarpGateway/README.md#configuration)**
+
+## Available Tags
+
+The Docker image is published with multiple tags:
+- `scottgal/mostlylucid.yarpgateway:latest` - Latest release
+- `scottgal/mostlylucid.yarpgateway:X.Y.Z[-previewN]` - Specific version (e.g., `1.0.0-preview1`)
+- `scottgal/mostlylucid.yarpgateway:YYYYMMDD` - Date-based (e.g., `20231203`)
+
 ## Links
 
-- [Docker Hub](https://hub.docker.com/r/mostlylucid/yarp-gateway)
+- [Docker Hub](https://hub.docker.com/r/scottgal/mostlylucid.yarpgateway)
 - [Full Documentation](../../Mostlylucid.YarpGateway/README.md)
 - [Source Code](../../Mostlylucid.YarpGateway/)

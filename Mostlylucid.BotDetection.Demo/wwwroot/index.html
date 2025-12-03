@@ -80,23 +80,23 @@
         .card {
             background: white;
             border-radius: 0.75rem;
-            padding: 1.5rem;
+            padding: 1rem;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
             border: 1px solid var(--gray-200);
         }
 
         .card h2 {
             color: var(--green-700);
-            font-size: 1.25rem;
-            margin-bottom: 1rem;
+            font-size: 1rem;
+            margin-bottom: 0.75rem;
             padding-bottom: 0.5rem;
             border-bottom: 2px solid var(--green-200);
         }
 
         .card h3 {
             color: var(--gray-700);
-            font-size: 1rem;
-            margin: 1rem 0 0.5rem;
+            font-size: 0.875rem;
+            margin: 0.75rem 0 0.5rem;
         }
 
         label {
@@ -104,16 +104,16 @@
             font-weight: 500;
             margin-bottom: 0.25rem;
             color: var(--gray-700);
-            font-size: 0.875rem;
+            font-size: 0.8rem;
         }
 
         input, select, textarea {
             width: 100%;
-            padding: 0.5rem 0.75rem;
+            padding: 0.375rem 0.5rem;
             border: 1px solid var(--gray-300);
             border-radius: 0.375rem;
-            font-size: 0.875rem;
-            margin-bottom: 0.75rem;
+            font-size: 0.8rem;
+            margin-bottom: 0.5rem;
             transition: border-color 0.15s, box-shadow 0.15s;
         }
 
@@ -125,7 +125,7 @@
 
         textarea {
             resize: vertical;
-            min-height: 80px;
+            min-height: 50px;
             font-family: monospace;
         }
 
@@ -178,15 +178,15 @@
             background: var(--gray-50);
             border: 1px solid var(--gray-200);
             border-radius: 0.5rem;
-            padding: 1rem;
-            margin-top: 1rem;
-            max-height: 400px;
+            padding: 0.5rem;
+            margin-top: 0.5rem;
+            max-height: 150px;
             overflow-y: auto;
         }
 
         .result-box pre {
             font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             white-space: pre-wrap;
             word-break: break-word;
         }
@@ -219,19 +219,20 @@
         .current-status {
             background: var(--green-50);
             border: 1px solid var(--green-200);
-            border-radius: 0.5rem;
+            border-radius: 0.75rem;
             padding: 1rem;
-            margin-bottom: 1rem;
+            margin-bottom: 1.5rem;
         }
 
         .current-status h3 {
             margin: 0 0 0.75rem;
             color: var(--green-700);
+            font-size: 1.1rem;
         }
 
         .stat-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 0.5rem;
             text-align: center;
         }
@@ -243,25 +244,25 @@
         }
 
         .stat-value {
-            font-size: 1.25rem;
+            font-size: 1.1rem;
             font-weight: 700;
             color: var(--green-600);
         }
 
         .stat-label {
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             color: var(--gray-600);
             text-transform: uppercase;
         }
 
         .ua-preset {
             cursor: pointer;
-            padding: 0.5rem;
+            padding: 0.375rem;
             border-radius: 0.375rem;
             border: 1px solid var(--gray-200);
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.375rem;
             transition: background 0.15s;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
         }
 
         .ua-preset:hover {
@@ -275,22 +276,22 @@
         }
 
         .ua-preset .type {
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             color: var(--gray-600);
         }
 
         .tabs {
             display: flex;
             border-bottom: 2px solid var(--gray-200);
-            margin-bottom: 1rem;
+            margin-bottom: 0.75rem;
         }
 
         .tab {
-            padding: 0.5rem 1rem;
+            padding: 0.375rem 0.75rem;
             cursor: pointer;
             border-bottom: 2px solid transparent;
             margin-bottom: -2px;
-            font-size: 0.875rem;
+            font-size: 0.8rem;
             color: var(--gray-600);
             transition: color 0.15s, border-color 0.15s;
         }
@@ -318,11 +319,12 @@
         }
 
         .endpoint-list li {
-            padding: 0.5rem;
+            padding: 0.25rem 0;
             border-bottom: 1px solid var(--gray-100);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            font-size: 0.75rem;
         }
 
         .endpoint-list li:last-child {
@@ -334,7 +336,7 @@
             color: var(--green-800);
             padding: 0.125rem 0.375rem;
             border-radius: 0.25rem;
-            font-size: 0.8rem;
+            font-size: 0.7rem;
         }
 
         .checkbox-group {
@@ -386,6 +388,15 @@
         footer a:hover {
             text-decoration: underline;
         }
+
+        @media (max-width: 768px) {
+            .stat-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -393,15 +404,19 @@
         <header>
             <h1>Bot Detection Demo</h1>
             <p>Test and explore bot detection capabilities</p>
+            <div id="modeIndicator" style="margin-top: 0.75rem; display: none;">
+                <span id="modeBadge" style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600;"></span>
+            </div>
         </header>
 
         <div class="current-status" id="currentStatus">
             <h3>Your Current Detection Status</h3>
             <div id="statusLoading"><span class="loading"></span> Checking...</div>
             <div id="statusContent" style="display: none;">
-                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
                     <span class="status" id="statusBadge">Loading...</span>
                     <span class="status" id="typeBadge" style="display: none;"></span>
+                    <span class="status" id="searchEngineBadge" style="display: none;"></span>
                 </div>
                 <div class="stat-grid">
                     <div class="stat-item">
@@ -416,6 +431,14 @@
                         <div class="stat-value" id="botName">-</div>
                         <div class="stat-label">Name</div>
                     </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="processingTime">-</div>
+                        <div class="stat-label">Processing (ms)</div>
+                    </div>
+                </div>
+                <div id="reasonsSection" style="display: none; margin-top: 0.75rem;">
+                    <h4 style="font-size: 0.8rem; color: var(--gray-700); margin-bottom: 0.5rem;">Detection Reasons</h4>
+                    <div id="reasonsList" style="font-size: 0.7rem; background: white; border-radius: 0.375rem; padding: 0.5rem; max-height: 100px; overflow-y: auto;"></div>
                 </div>
             </div>
         </div>
@@ -631,8 +654,36 @@
     </div>
 
     <script>
-        // Check current status on load
-        document.addEventListener('DOMContentLoaded', checkCurrentStatus);
+        // Check current status and detection mode on load
+        document.addEventListener('DOMContentLoaded', () => {
+            checkCurrentStatus();
+            checkDetectionMode();
+        });
+
+        async function checkDetectionMode() {
+            try {
+                const response = await fetch('/api/mode');
+                const data = await response.json();
+                const indicator = document.getElementById('modeIndicator');
+                const badge = document.getElementById('modeBadge');
+
+                indicator.style.display = 'block';
+
+                if (data.fullLogEnabled) {
+                    badge.style.background = 'rgba(250, 204, 21, 0.9)';
+                    badge.style.color = '#713f12';
+                    badge.textContent = 'Full-Log Policy Active';
+                    badge.title = `${data.description}\nPolicies: ${data.configuredPolicies.join(', ')}`;
+                } else {
+                    badge.style.background = 'rgba(255, 255, 255, 0.2)';
+                    badge.style.color = 'rgba(255, 255, 255, 0.9)';
+                    badge.textContent = `${data.configuredPolicies.length} Policies`;
+                    badge.title = `${data.description}\nPolicies: ${data.configuredPolicies.join(', ')}`;
+                }
+            } catch (error) {
+                console.log('Could not fetch detection mode');
+            }
+        }
 
         async function checkCurrentStatus() {
             try {
@@ -666,10 +717,38 @@
                     typeBadge.textContent = data.botType;
                 }
 
-                document.getElementById('confidence').textContent =
-                    (data.confidenceScore * 100).toFixed(1) + '%';
+                // Show search engine badge if applicable
+                const searchEngineBadge = document.getElementById('searchEngineBadge');
+                if (data.isSearchEngineBot) {
+                    searchEngineBadge.style.display = 'inline-flex';
+                    searchEngineBadge.className = 'status';
+                    searchEngineBadge.style.background = 'var(--yellow-100)';
+                    searchEngineBadge.style.color = 'var(--yellow-500)';
+                    searchEngineBadge.textContent = 'Search Engine';
+                }
+
+                // Handle null/undefined confidence score to avoid NaN
+                const confidence = data.confidenceScore != null ? data.confidenceScore : 0;
+                document.getElementById('confidence').textContent = (confidence * 100).toFixed(1) + '%';
                 document.getElementById('botType').textContent = data.botType || 'N/A';
                 document.getElementById('botName').textContent = data.botName || 'N/A';
+                document.getElementById('processingTime').textContent =
+                    data.processingTimeMs != null ? data.processingTimeMs.toFixed(1) : 'N/A';
+
+                // Show detection reasons if available
+                if (data.reasons && data.reasons.length > 0) {
+                    document.getElementById('reasonsSection').style.display = 'block';
+                    const reasonsList = document.getElementById('reasonsList');
+                    reasonsList.innerHTML = data.reasons.map(r =>
+                        `<div style="padding: 0.2rem 0; border-bottom: 1px solid var(--gray-100);">
+                            <strong style="color: var(--green-700);">${r.category}</strong>: ${r.detail || 'No details'}
+                            <span style="color: var(--gray-500); font-size: 0.6rem;">(${r.impact > 0 ? '+' : ''}${(r.impact * 100).toFixed(0)}%)</span>
+                        </div>`
+                    ).join('');
+                }
+
+                // Also show the full response in the result box
+                document.getElementById('result').innerHTML = `<pre><span style="color: var(--green-600)">Initial Detection Result:</span>\n\n${JSON.stringify(data, null, 2)}</pre>`;
 
             } catch (error) {
                 document.getElementById('statusLoading').innerHTML =

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
 using Mostlylucid.YarpGateway.Tests.Fixtures;
+using Xunit;
 
 namespace Mostlylucid.YarpGateway.Tests.Integration;
 
@@ -10,6 +11,7 @@ namespace Mostlylucid.YarpGateway.Tests.Integration;
 /// </summary>
 public class AdminEndpointsTests : IClassFixture<GatewayTestFixture>
 {
+    private const string ValidSecret = "test-secret";
     private readonly GatewayTestFixture _fixture;
 
     public AdminEndpointsTests(GatewayTestFixture fixture)
@@ -17,29 +19,25 @@ public class AdminEndpointsTests : IClassFixture<GatewayTestFixture>
         _fixture = fixture;
     }
 
+    private Task<HttpResponseMessage> GetAdminAsync(string path, string? secret = null)
+    {
+        var request = TestRequestExtensions.CreateGet(path, secret);
+        return _fixture.GatewayClient.SendAsync(request);
+    }
+
     [Fact]
     public async Task Health_WithoutSecret_ReturnsUnauthorized()
     {
-        // Act
-        var response = await _fixture.GatewayClient.GetAsync("/admin/health");
-
-        // Assert
+        var response = await GetAdminAsync("/admin/health");
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
     public async Task Health_WithValidSecret_ReturnsOk()
     {
-        // Arrange
-        var request = new HttpRequestMessage(HttpMethod.Get, "/admin/health");
-        request.Headers.Add("X-Admin-Secret", "test-secret");
+        var response = await GetAdminAsync("/admin/health", ValidSecret);
 
-        // Act
-        var response = await _fixture.GatewayClient.SendAsync(request);
-
-        // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-
         var content = await response.Content.ReadFromJsonAsync<HealthResponse>();
         content.Should().NotBeNull();
         content!.Status.Should().Be("ok");
@@ -50,30 +48,16 @@ public class AdminEndpointsTests : IClassFixture<GatewayTestFixture>
     [Fact]
     public async Task Health_WithInvalidSecret_ReturnsUnauthorized()
     {
-        // Arrange
-        var request = new HttpRequestMessage(HttpMethod.Get, "/admin/health");
-        request.Headers.Add("X-Admin-Secret", "wrong-secret");
-
-        // Act
-        var response = await _fixture.GatewayClient.SendAsync(request);
-
-        // Assert
+        var response = await GetAdminAsync("/admin/health", "wrong-secret");
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
     public async Task EffectiveConfig_WithValidSecret_ReturnsConfiguration()
     {
-        // Arrange
-        var request = new HttpRequestMessage(HttpMethod.Get, "/admin/config/effective");
-        request.Headers.Add("X-Admin-Secret", "test-secret");
+        var response = await GetAdminAsync("/admin/config/effective", ValidSecret);
 
-        // Act
-        var response = await _fixture.GatewayClient.SendAsync(request);
-
-        // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-
         var content = await response.Content.ReadFromJsonAsync<EffectiveConfigResponse>();
         content.Should().NotBeNull();
         content!.Gateway.Should().NotBeNull();
@@ -84,16 +68,9 @@ public class AdminEndpointsTests : IClassFixture<GatewayTestFixture>
     [Fact]
     public async Task ConfigSources_WithValidSecret_ReturnsSources()
     {
-        // Arrange
-        var request = new HttpRequestMessage(HttpMethod.Get, "/admin/config/sources");
-        request.Headers.Add("X-Admin-Secret", "test-secret");
+        var response = await GetAdminAsync("/admin/config/sources", ValidSecret);
 
-        // Act
-        var response = await _fixture.GatewayClient.SendAsync(request);
-
-        // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-
         var json = await response.Content.ReadAsStringAsync();
         json.Should().Contain("sources");
         json.Should().Contain("built-in");
@@ -102,16 +79,9 @@ public class AdminEndpointsTests : IClassFixture<GatewayTestFixture>
     [Fact]
     public async Task Routes_WithValidSecret_ReturnsRoutes()
     {
-        // Arrange
-        var request = new HttpRequestMessage(HttpMethod.Get, "/admin/routes");
-        request.Headers.Add("X-Admin-Secret", "test-secret");
+        var response = await GetAdminAsync("/admin/routes", ValidSecret);
 
-        // Act
-        var response = await _fixture.GatewayClient.SendAsync(request);
-
-        // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-
         var content = await response.Content.ReadFromJsonAsync<RoutesResponse>();
         content.Should().NotBeNull();
         content!.Count.Should().BeGreaterOrEqualTo(0);
@@ -120,16 +90,9 @@ public class AdminEndpointsTests : IClassFixture<GatewayTestFixture>
     [Fact]
     public async Task Clusters_WithValidSecret_ReturnsClusters()
     {
-        // Arrange
-        var request = new HttpRequestMessage(HttpMethod.Get, "/admin/clusters");
-        request.Headers.Add("X-Admin-Secret", "test-secret");
+        var response = await GetAdminAsync("/admin/clusters", ValidSecret);
 
-        // Act
-        var response = await _fixture.GatewayClient.SendAsync(request);
-
-        // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-
         var content = await response.Content.ReadFromJsonAsync<ClustersResponse>();
         content.Should().NotBeNull();
         content!.Count.Should().BeGreaterOrEqualTo(0);
@@ -138,16 +101,9 @@ public class AdminEndpointsTests : IClassFixture<GatewayTestFixture>
     [Fact]
     public async Task Metrics_WithValidSecret_ReturnsMetrics()
     {
-        // Arrange
-        var request = new HttpRequestMessage(HttpMethod.Get, "/admin/metrics");
-        request.Headers.Add("X-Admin-Secret", "test-secret");
+        var response = await GetAdminAsync("/admin/metrics", ValidSecret);
 
-        // Act
-        var response = await _fixture.GatewayClient.SendAsync(request);
-
-        // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-
         var content = await response.Content.ReadFromJsonAsync<MetricsResponse>();
         content.Should().NotBeNull();
         content!.UptimeSeconds.Should().BeGreaterOrEqualTo(0);
@@ -157,16 +113,9 @@ public class AdminEndpointsTests : IClassFixture<GatewayTestFixture>
     [Fact]
     public async Task FileSystems_WithValidSecret_ReturnsDirectories()
     {
-        // Arrange
-        var request = new HttpRequestMessage(HttpMethod.Get, "/admin/fs");
-        request.Headers.Add("X-Admin-Secret", "test-secret");
+        var response = await GetAdminAsync("/admin/fs", ValidSecret);
 
-        // Act
-        var response = await _fixture.GatewayClient.SendAsync(request);
-
-        // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-
         var json = await response.Content.ReadAsStringAsync();
         json.Should().Contain("directories");
     }

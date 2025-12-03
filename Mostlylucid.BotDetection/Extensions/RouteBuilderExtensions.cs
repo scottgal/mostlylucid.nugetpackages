@@ -67,14 +67,24 @@ public static class RouteBuilderExtensions
                 return Results.Ok(new
                 {
                     status = "unknown",
-                    message = "Bot detection middleware has not run for this request"
+                    message = "Bot detection middleware has not run for this request",
+                    isBot = false,
+                    isHuman = true,
+                    isVerifiedBot = false,
+                    isSearchEngineBot = false,
+                    confidenceScore = 0.0,
+                    botType = (string?)null,
+                    botName = (string?)null
                 });
             }
 
             return Results.Ok(new
             {
                 isBot = result.IsBot,
-                confidence = result.ConfidenceScore,
+                isHuman = !result.IsBot,
+                isVerifiedBot = context.IsVerifiedBot(),
+                isSearchEngineBot = context.IsSearchEngineBot(),
+                confidenceScore = result.ConfidenceScore,
                 botType = result.BotType?.ToString(),
                 botName = result.BotName,
                 processingTimeMs = result.ProcessingTimeMs,

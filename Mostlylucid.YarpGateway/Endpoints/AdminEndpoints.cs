@@ -16,11 +16,25 @@ public static class AdminEndpoints
     /// </summary>
     public static WebApplication MapAdminEndpoints(this WebApplication app)
     {
+        MapAdminEndpointsInternal(app);
+        return app;
+    }
+
+    /// <summary>
+    /// Map all admin endpoints (for testing with IEndpointRouteBuilder).
+    /// </summary>
+    public static IEndpointRouteBuilder MapAdminEndpoints(this IEndpointRouteBuilder endpoints)
+    {
+        MapAdminEndpointsInternal(endpoints);
+        return endpoints;
+    }
+
+    private static void MapAdminEndpointsInternal(IEndpointRouteBuilder app)
+    {
         var adminPath = Environment.GetEnvironmentVariable("ADMIN_BASE_PATH") ?? "/admin";
 
         var group = app.MapGroup(adminPath)
-            .WithTags("Admin")
-            .WithOpenApi();
+            .WithTags("Admin");
 
         // Health check
         group.MapGet("/health", GetHealth)
@@ -58,8 +72,6 @@ public static class AdminEndpoints
         group.MapGet("/metrics", GetMetrics)
             .WithName("GetMetrics")
             .WithSummary("Gateway metrics");
-
-        return app;
     }
 
     private static async Task<IResult> GetHealth(

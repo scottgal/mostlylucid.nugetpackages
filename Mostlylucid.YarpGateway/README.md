@@ -2,6 +2,8 @@
 
 A lightweight, Docker-first YARP reverse proxy gateway.
 
+[![Docker Hub](https://img.shields.io/docker/pulls/scottgal/mostlylucid.yarpgateway?label=Docker%20Hub)](https://hub.docker.com/r/scottgal/mostlylucid.yarpgateway)
+
 ## Quick Start
 
 ### Zero-Config Mode
@@ -9,7 +11,7 @@ A lightweight, Docker-first YARP reverse proxy gateway.
 Just point to an upstream:
 
 ```bash
-docker run -p 8080:8080 -e DEFAULT_UPSTREAM=http://your-backend:3000 mostlylucid/yarp-gateway
+docker run -p 8080:8080 -e DEFAULT_UPSTREAM=http://your-backend:3000 scottgal/mostlylucid.yarpgateway
 ```
 
 ### File-Based Configuration
@@ -20,7 +22,7 @@ Mount your YARP config:
 docker run -p 8080:8080 \
   -v ./config:/app/config:ro \
   -e ADMIN_SECRET=your-secret \
-  mostlylucid/yarp-gateway
+  scottgal/mostlylucid.yarpgateway
 ```
 
 ## Configuration
@@ -148,20 +150,28 @@ Create `config/yarp.json`:
 
 ```bash
 # Build image
-docker build -t mostlylucid/yarp-gateway .
+docker build -t scottgal/mostlylucid.yarpgateway .
 
 # Or use .NET SDK
 dotnet publish -c Release
 ```
 
-## Image Size
+## Docker Image
+
+### Available Tags
+
+- `scottgal/mostlylucid.yarpgateway:latest` - Latest release
+- `scottgal/mostlylucid.yarpgateway:X.Y.Z[-previewN]` - Specific version (e.g., `1.0.0-preview1`)
+- `scottgal/mostlylucid.yarpgateway:YYYYMMDD` - Date-based (e.g., `20231203`)
+
+### Image Size
 
 The Alpine-based image is optimized for size:
 - Base: ~80MB (ASP.NET 9.0 Alpine runtime)
 - App: ~10MB
 - Total: ~90MB
 
-## Supported Architectures
+### Supported Architectures
 
 Multi-architecture images are built automatically:
 
@@ -188,7 +198,7 @@ Create a `docker-compose.pi.yml` for resource-constrained deployments:
 ```yaml
 services:
   gateway:
-    image: mostlylucid/yarp-gateway:latest
+    image: scottgal/mostlylucid.yarpgateway:latest
     ports:
       - "80:8080"
     environment:
@@ -233,7 +243,7 @@ docker run -d --name gateway \
   -p 80:8080 \
   --restart unless-stopped \
   -e DEFAULT_UPSTREAM=http://192.168.1.100:3000 \
-  mostlylucid/yarp-gateway
+  scottgal/mostlylucid.yarpgateway
 ```
 
 ### Pi Network Gateway Example
@@ -244,7 +254,7 @@ Use the Pi as a home network reverse proxy:
 # docker-compose.yml
 services:
   gateway:
-    image: mostlylucid/yarp-gateway:latest
+    image: scottgal/mostlylucid.yarpgateway:latest
     ports:
       - "80:8080"
       - "443:8443"
@@ -290,14 +300,17 @@ Docker images are automatically built and pushed to Docker Hub via GitHub Action
 
 1. Create and push a tag:
    ```bash
-   git tag yarpgateway-v0.1.0
-   git push origin yarpgateway-v0.1.0
+   git tag yarpgateway-v1.0.0-preview1
+   git push origin yarpgateway-v1.0.0-preview1
    ```
 
 2. The workflow will:
    - Build the .NET project
    - Build multi-arch Docker images (amd64, arm64, arm/v7)
-   - Push to Docker Hub as `mostlylucid/yarp-gateway:0.1.0` and `:latest`
+   - Push to Docker Hub with multiple tags:
+     - `scottgal/mostlylucid.yarpgateway:1.0.0-preview1` (version)
+     - `scottgal/mostlylucid.yarpgateway:YYYYMMDD` (date)
+     - `scottgal/mostlylucid.yarpgateway:latest`
    - Update Docker Hub description from README
 
 ### Manual Trigger

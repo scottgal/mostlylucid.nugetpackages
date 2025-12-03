@@ -174,10 +174,31 @@ public class ActionPolicyRegistry : IActionPolicyRegistry
             ChallengeType = ChallengeType.ProofOfWork
         }));
 
-        // Log-only policies
+        // Log-only policies - basic
         RegisterPolicy(new LogOnlyActionPolicy("logonly", LogOnlyActionOptions.Minimal));
         RegisterPolicy(new LogOnlyActionPolicy("shadow", LogOnlyActionOptions.ShadowWithHeaders));
         RegisterPolicy(new LogOnlyActionPolicy("debug", LogOnlyActionOptions.Debug));
+        RegisterPolicy(new LogOnlyActionPolicy("full-log", LogOnlyActionOptions.FullLog));
+
+        // Log-only policies - specialized (these are templates/examples - override in config)
+        // Note: Forward/File logging options require configuration to be useful
+        RegisterPolicy(new LogOnlyActionPolicy("shadow-production", new LogOnlyActionOptions
+        {
+            LogLevel = Microsoft.Extensions.Logging.LogLevel.Information,
+            LogFullEvidence = false,
+            AddResponseHeaders = false,
+            AddToContextItems = true,
+            WouldBlockThreshold = 0.7
+        }));
+
+        RegisterPolicy(new LogOnlyActionPolicy("strict-block-log", new LogOnlyActionOptions
+        {
+            LogLevel = Microsoft.Extensions.Logging.LogLevel.Warning,
+            LogFullEvidence = true,
+            AddResponseHeaders = false,
+            AddToContextItems = true,
+            WouldBlockThreshold = 0.85
+        }));
 
         _logger?.LogDebug("Registered {Count} built-in action policies", _policies.Count);
     }

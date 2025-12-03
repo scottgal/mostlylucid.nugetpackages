@@ -204,9 +204,11 @@ See [action-policies.md](docs/action-policies.md) for full details.
 
 For edge deployments, use **[Mostlylucid.YarpGateway](../Mostlylucid.YarpGateway/)** - a lightweight Docker-first reverse proxy:
 
+[![Docker Hub](https://img.shields.io/docker/pulls/scottgal/mostlylucid.yarpgateway?label=Docker%20Hub)](https://hub.docker.com/r/scottgal/mostlylucid.yarpgateway)
+
 ```bash
 # Zero-config reverse proxy in seconds
-docker run -p 80:8080 -e DEFAULT_UPSTREAM=http://your-app:3000 mostlylucid/yarp-gateway
+docker run -p 80:8080 -e DEFAULT_UPSTREAM=http://your-app:3000 scottgal/mostlylucid.yarpgateway
 ```
 
 **Why use it with BotDetection?**

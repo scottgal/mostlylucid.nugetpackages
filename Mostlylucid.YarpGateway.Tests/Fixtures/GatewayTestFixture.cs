@@ -1,5 +1,6 @@
 using System.Net;
 using Microsoft.AspNetCore.Builder;
+using Xunit;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
@@ -66,7 +67,7 @@ public class GatewayTestFixture : IAsyncLifetime
         _upstreamHost?.Dispose();
     }
 
-    private async Task<IHost> CreateUpstreamHost()
+    private Task<IHost> CreateUpstreamHost()
     {
         var builder = Host.CreateDefaultBuilder()
             .ConfigureWebHostDefaults(webBuilder =>
@@ -134,10 +135,10 @@ public class GatewayTestFixture : IAsyncLifetime
                 });
             });
 
-        return builder.Build();
+        return Task.FromResult(builder.Build());
     }
 
-    private async Task<IHost> CreateGatewayHost()
+    private Task<IHost> CreateGatewayHost()
     {
         var builder = Host.CreateDefaultBuilder()
             .ConfigureWebHostDefaults(webBuilder =>
@@ -180,17 +181,10 @@ public class GatewayTestFixture : IAsyncLifetime
                 });
             });
 
-        return builder.Build();
+        return Task.FromResult(builder.Build());
     }
 
-    private static int GetAvailablePort()
-    {
-        using var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        return port;
-    }
+    private static int GetAvailablePort() => PortUtility.GetAvailablePort();
 
     /// <summary>
     /// Clear recorded requests between tests.

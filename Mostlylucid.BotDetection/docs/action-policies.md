@@ -564,11 +564,197 @@ flowchart LR
         "AddResponseHeaders": true,
         "IncludeDetailedHeaders": true,
         "Description": "Full debug logging with headers"
+      },
+      "full-log": {
+        "Type": "LogOnly",
+        "LogLevel": "Debug",
+        "LogFullEvidence": true,
+        "AddResponseHeaders": true,
+        "IncludeDetailedHeaders": true,
+        "AddToContextItems": true,
+        "WouldBlockThreshold": 0.7,
+        "Description": "Full debug logging with all response headers - great for demos and development"
       }
     }
   }
 }
 ```
+
+**Full-Log Demo Policy:**
+
+The `full-log` policy is a ready-to-use configuration for demos and development that exposes maximum visibility into the detection process:
+
+- **Debug-level logging** with full evidence details
+- **Response headers** showing all detection metadata (X-Bot-Risk-Score, X-Bot-Detectors, X-Bot-Name, etc.)
+- **HttpContext.Items** populated for downstream middleware access
+- **"Would block" indicator** at 0.7 threshold for shadow mode comparison
+
+This is used in the `Mostlylucid.BotDetection.Demo` project. Check the `/api/mode` endpoint to see if the policy is active and inspect response headers in browser dev tools.
+
+**Code Configuration (using preset):**
+
+```csharp
+// Use the built-in FullLog preset
+var fullLogPolicy = new LogOnlyActionPolicy("full-log", LogOnlyActionOptions.FullLog);
+actionRegistry.RegisterPolicy(fullLogPolicy);
+
+// Or via options callback
+services.AddBotDetection(options =>
+{
+    // The ActionPolicies dictionary is populated from config
+    // You can also add programmatically
+});
+```
+
+**Available Presets:**
+
+| Preset | LogLevel | FullEvidence | Headers | Use Case |
+|--------|----------|--------------|---------|----------|
+| `LogOnlyActionOptions.Minimal` | Info | No | No | Basic shadow mode |
+| `LogOnlyActionOptions.Debug` | Debug | Yes | Yes | Development |
+| `LogOnlyActionOptions.ShadowWithHeaders` | Info | No | Yes | Production shadow with visibility |
+| `LogOnlyActionOptions.HighRiskOnly` | Warning | No | No | Quiet, high-risk alerts only |
+| `LogOnlyActionOptions.FullLog` | Debug | Yes | Yes (detailed) | Demos, full visibility |
+
+### Extended LogOnly Policy Types
+
+The LogOnly policy type supports several specialized configurations for different use cases:
+
+#### Log-to-File Policy
+
+Writes detection events to JSON Lines files for playback and forensic analysis:
+
+```json
+{
+  "ActionPolicies": {
+    "log-to-file": {
+      "Type": "LogOnly",
+      "Enabled": true,
+      "Description": "Writes detection events to JSON Lines files for playback and analysis",
+      "Tags": ["production", "audit", "forensics"],
+      "LogLevel": "Information",
+      "LogFullEvidence": true,
+      "LogDirectory": "logs/bot-detection",
+      "LogFilePattern": "detections-{date}.jsonl",
+      "LogOnlyBots": true,
+      "LogMinConfidence": 0.5,
+      "LogRetainFiles": 30
+    }
+  }
+}
+```
+
+Use this to:
+- Debug false positives by replaying exact request characteristics
+- Analyze bot patterns over time
+- Generate exception rules from logged data
+- Feed into external analytics systems
+
+#### Forward-to-Backend Policy
+
+Forwards full detection data to a backend service (honeypot, analytics, SIEM):
+
+```json
+{
+  "ActionPolicies": {
+    "forward-to-honeypot": {
+      "Type": "LogOnly",
+      "Enabled": true,
+      "Description": "Forwards detection data to honeypot for characterization",
+      "Tags": ["honeypot", "security", "research"],
+      "LogLevel": "Debug",
+      "LogFullEvidence": true,
+      "ForwardUrl": "http://honeypot:8080/trap",
+      "ForwardMethod": "POST",
+      "ForwardHeaders": {
+        "X-Source": "bot-detection",
+        "X-Api-Key": "honeypot-secret"
+      },
+      "ForwardTimeoutMs": 5000,
+      "ForwardAsync": true,
+      "ForwardIncludeHeaders": true,
+      "ForwardIncludeReasons": true
+    },
+    "forward-to-analytics": {
+      "Type": "LogOnly",
+      "Description": "Fire-and-forget to SIEM/analytics endpoint",
+      "Tags": ["analytics", "siem", "monitoring"],
+      "ForwardUrl": "http://analytics:9000/events/bot-detection",
+      "ForwardAsync": true,
+      "ForwardIncludeHeaders": false,
+      "ForwardIncludeReasons": true
+    }
+  }
+}
+```
+
+Use this to:
+- Feed honeypots with real bot traffic for characterization
+- Aggregate detection events in a central analytics platform
+- Send to SIEM systems for correlation with other security events
+
+#### Passthrough Policy (Exception Handling)
+
+Allows known-good traffic through while still logging for monitoring:
+
+```json
+{
+  "ActionPolicies": {
+    "passthrough-internal": {
+      "Type": "LogOnly",
+      "Enabled": true,
+      "Description": "Allows internal monitoring through while still logging",
+      "Tags": ["internal", "exceptions", "false-positives"],
+      "LogLevel": "Information",
+      "LogFullEvidence": true,
+      "PassthroughUserAgents": [
+        "InternalMonitor/.*",
+        "HealthCheck/.*",
+        "MyLegitimateApp/1\\.0"
+      ],
+      "PassthroughIps": [
+        "10.0.0.0/8",
+        "192.168.0.0/16",
+        "172.16.0.0/12"
+      ],
+      "PassthroughHeaders": [
+        "X-Internal-Request: true",
+        "X-Service-Auth: internal-.*"
+      ]
+    }
+  }
+}
+```
+
+Use this to:
+- Fix false positives without code changes
+- Allow known automation/monitoring services
+- Exempt internal services while still tracking them
+
+#### Shadow Production Policy
+
+Test detection rules before enforcement:
+
+```json
+{
+  "ActionPolicies": {
+    "shadow-production": {
+      "Type": "LogOnly",
+      "Description": "Shadow mode - logs what WOULD be blocked without blocking",
+      "Tags": ["production", "shadow", "testing"],
+      "LogLevel": "Information",
+      "AddResponseHeaders": false,
+      "WouldBlockThreshold": 0.7,
+      "MetricName": "bot_detection_shadow"
+    }
+  }
+}
+```
+
+Use this to:
+- Safely test detection rules in production
+- Compare "would block" vs actual traffic
+- Tune thresholds before enforcement
 
 ---
 

@@ -1,0 +1,270 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Action Policy Definition",
+  "description": "Schema for defining bot detection action policies",
+  "type": "object",
+  "additionalProperties": {
+    "$ref": "#/definitions/actionPolicy"
+  },
+  "definitions": {
+    "actionPolicy": {
+      "type": "object",
+      "required": ["Type"],
+      "properties": {
+        "Type": {
+          "type": "string",
+          "enum": ["Block", "Throttle", "Challenge", "Redirect", "LogOnly"],
+          "description": "The type of action policy"
+        },
+        "Extends": {
+          "type": "string",
+          "description": "Name of another policy to inherit properties from"
+        },
+        "Enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether this policy is enabled"
+        },
+        "Description": {
+          "type": "string",
+          "description": "Human-readable description of this policy"
+        },
+        "Tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Tags for categorization"
+        },
+        "Priority": {
+          "type": "integer",
+          "default": 0,
+          "description": "Priority order (higher = earlier)"
+        },
+        "StatusCode": {
+          "type": "integer",
+          "description": "HTTP status code to return"
+        },
+        "Message": {
+          "type": "string",
+          "description": "Response message/body"
+        },
+        "ContentType": {
+          "type": "string",
+          "description": "Response content type"
+        },
+        "Headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Additional response headers"
+        },
+        "IncludeHeaders": {
+          "type": "boolean",
+          "description": "Include X-Bot-* headers in response"
+        },
+        "IncludeRiskScore": {
+          "type": "boolean",
+          "description": "[Block] Include risk score in response"
+        },
+        "BaseDelayMs": {
+          "type": "integer",
+          "description": "[Throttle] Base delay in milliseconds"
+        },
+        "MinDelayMs": {
+          "type": "integer",
+          "description": "[Throttle] Minimum delay"
+        },
+        "MaxDelayMs": {
+          "type": "integer",
+          "description": "[Throttle] Maximum delay"
+        },
+        "JitterPercent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "[Throttle] Jitter percentage (0.0-1.0)"
+        },
+        "ScaleByRisk": {
+          "type": "boolean",
+          "description": "[Throttle] Scale delay by risk score"
+        },
+        "ExponentialBackoff": {
+          "type": "boolean",
+          "description": "[Throttle] Use exponential backoff"
+        },
+        "BackoffFactor": {
+          "type": "number",
+          "description": "[Throttle] Backoff multiplier"
+        },
+        "ReturnStatus": {
+          "type": "boolean",
+          "description": "[Throttle] Return status code after delay"
+        },
+        "IncludeRetryAfter": {
+          "type": "boolean",
+          "description": "[Throttle] Include Retry-After header"
+        },
+        "ChallengeType": {
+          "type": "string",
+          "enum": ["Redirect", "Inline", "JavaScript", "Captcha", "ProofOfWork"],
+          "description": "[Challenge] Type of challenge"
+        },
+        "ChallengeUrl": {
+          "type": "string",
+          "description": "[Challenge] URL for challenge page"
+        },
+        "ChallengeStatusCode": {
+          "type": "integer",
+          "description": "[Challenge] HTTP status for inline challenges"
+        },
+        "ReturnUrlParam": {
+          "type": "string",
+          "description": "[Challenge/Redirect] Query param for return URL"
+        },
+        "UseTokens": {
+          "type": "boolean",
+          "description": "[Challenge] Track completed challenges with cookies"
+        },
+        "TokenCookieName": {
+          "type": "string",
+          "description": "[Challenge] Cookie name for token"
+        },
+        "TokenValidityMinutes": {
+          "type": "integer",
+          "description": "[Challenge] Token validity in minutes"
+        },
+        "ChallengeScript": {
+          "type": "string",
+          "description": "[Challenge] JavaScript file URL"
+        },
+        "CaptchaSiteKey": {
+          "type": "string",
+          "description": "[Challenge] CAPTCHA site key"
+        },
+        "CaptchaSecretKey": {
+          "type": "string",
+          "description": "[Challenge] CAPTCHA secret key"
+        },
+        "ChallengeTitle": {
+          "type": "string",
+          "description": "[Challenge] Challenge page title"
+        },
+        "ChallengeMessage": {
+          "type": "string",
+          "description": "[Challenge] Challenge page message"
+        },
+        "TargetUrl": {
+          "type": "string",
+          "description": "[Redirect] Target URL"
+        },
+        "Permanent": {
+          "type": "boolean",
+          "description": "[Redirect] Use permanent (301) redirect"
+        },
+        "PreserveQueryString": {
+          "type": "boolean",
+          "description": "[Redirect] Preserve query string in redirect"
+        },
+        "IncludeReturnUrl": {
+          "type": "boolean",
+          "description": "[Redirect] Include return URL parameter"
+        },
+        "AddMetadata": {
+          "type": "boolean",
+          "description": "[Redirect] Add X-Bot-* metadata headers"
+        },
+        "LogLevel": {
+          "type": "string",
+          "enum": ["Trace", "Debug", "Information", "Warning", "Error"],
+          "description": "[LogOnly] Log level"
+        },
+        "LogFullEvidence": {
+          "type": "boolean",
+          "description": "[LogOnly] Include full evidence in logs"
+        },
+        "AddResponseHeaders": {
+          "type": "boolean",
+          "description": "[LogOnly] Add response headers"
+        },
+        "IncludeDetailedHeaders": {
+          "type": "boolean",
+          "description": "[LogOnly] Include detailed headers"
+        },
+        "AddToContextItems": {
+          "type": "boolean",
+          "description": "[LogOnly] Add to HttpContext.Items"
+        },
+        "WouldBlockThreshold": {
+          "type": "number",
+          "description": "[LogOnly] Threshold for 'would block' logging"
+        },
+        "MetricName": {
+          "type": "string",
+          "description": "[LogOnly] Custom metric name"
+        },
+        "ForwardUrl": {
+          "type": "string",
+          "description": "[Forward] URL to forward detection data to"
+        },
+        "ForwardMethod": {
+          "type": "string",
+          "description": "[Forward] HTTP method for forwarding"
+        },
+        "ForwardHeaders": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "[Forward] Headers to include in forward request"
+        },
+        "ForwardTimeoutMs": {
+          "type": "integer",
+          "description": "[Forward] Timeout for forward request"
+        },
+        "ForwardAsync": {
+          "type": "boolean",
+          "description": "[Forward] Fire and forget (don't wait)"
+        },
+        "ForwardIncludeHeaders": {
+          "type": "boolean",
+          "description": "[Forward] Include request headers in payload"
+        },
+        "ForwardIncludeReasons": {
+          "type": "boolean",
+          "description": "[Forward] Include detection reasons in payload"
+        },
+        "LogDirectory": {
+          "type": "string",
+          "description": "[LogToFile] Directory for log files"
+        },
+        "LogFilePattern": {
+          "type": "string",
+          "description": "[LogToFile] File name pattern"
+        },
+        "LogOnlyBots": {
+          "type": "boolean",
+          "description": "[LogToFile] Only log bots"
+        },
+        "LogMinConfidence": {
+          "type": "number",
+          "description": "[LogToFile] Minimum confidence to log"
+        },
+        "LogRetainFiles": {
+          "type": "integer",
+          "description": "[LogToFile] Files to retain"
+        },
+        "PassthroughUserAgents": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "[Passthrough] UA patterns to allow"
+        },
+        "PassthroughIps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "[Passthrough] IPs/CIDRs to allow"
+        },
+        "PassthroughHeaders": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "[Passthrough] Header patterns to allow"
+        }
+      }
+    }
+  }
+}

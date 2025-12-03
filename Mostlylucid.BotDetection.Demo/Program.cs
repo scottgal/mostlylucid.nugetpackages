@@ -1,3 +1,4 @@
+using Mostlylucid.BotDetection.Actions;
 using Mostlylucid.BotDetection.ClientSide;
 using Mostlylucid.BotDetection.Extensions;
 using Mostlylucid.BotDetection.Filters;
@@ -5,32 +6,9 @@ using Mostlylucid.BotDetection.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add bot detection with configuration
-builder.Services.AddBotDetection(options =>
-{
-    options.BotThreshold = 0.7;
-    options.EnableUserAgentDetection = true;
-    options.EnableHeaderAnalysis = true;
-    options.EnableIpDetection = true;
-    options.EnableBehavioralAnalysis = true;
-    options.EnableTestMode = true; // Enable test mode for demo
-
-    // Enable AI detection (ONNX by default, can switch to Ollama)
-    options.EnableLlmDetection = false;
-    options.AiDetection.Provider = Mostlylucid.BotDetection.Models.AiProvider.Onnx;
-    options.AiDetection.TimeoutMs = 2000;
-    options.AiDetection.Ollama.Endpoint = "http://localhost:11434";
-    options.AiDetection.Ollama.Model = "qwen2.5:1.5b";
-
-    options.MaxRequestsPerMinute = 60;
-    options.CacheDurationSeconds = 300;
-
-    // Enable client-side browser fingerprinting
-    options.ClientSide.Enabled = true;
-    options.ClientSide.CollectWebGL = true;
-    options.ClientSide.CollectCanvas = true;
-    options.ClientSide.TokenSecret = "demo-secret-change-in-production";
-});
+// Add bot detection - configuration from appsettings.json
+// Full detection mode is enabled via the "full-log" ActionPolicy in config
+builder.Services.AddBotDetection();
 
 builder.Services.AddControllers();
 builder.Services.AddRazorPages(); // For TagHelper support
@@ -43,14 +21,15 @@ var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI();
 
+// HTTPS redirection first
+app.UseHttpsRedirection();
+
 // Serve static files (test webpage)
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
 // Add bot detection middleware
 app.UseBotDetection();
-
-app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 app.MapRazorPages();
@@ -67,6 +46,28 @@ app.MapBotDetectionFingerprintEndpoint();
 // ==========================================
 // Demo endpoints using extension methods
 // ==========================================
+
+// Detection mode endpoint - shows configured action policies
+app.MapGet("/api/mode", (IActionPolicyRegistry actionRegistry) =>
+{
+    var policies = actionRegistry.GetAllPolicies();
+    var hasFullLog = policies.ContainsKey("full-log");
+
+    return Results.Ok(new
+    {
+        fullLogEnabled = hasFullLog,
+        description = hasFullLog
+            ? "Full-log policy active: Debug logging, full evidence, detailed response headers"
+            : "Standard mode: Core detection without enhanced logging",
+        configuredPolicies = policies.Keys.ToArray(),
+        policySummary = policies.ToDictionary(
+            p => p.Key,
+            p => new { type = p.Value.ActionType.ToString() }
+        )
+    });
+})
+.WithName("ApiMode")
+.WithSummary("Shows configured action policies");
 
 // Simple check using HttpContext extensions
 app.MapGet("/api", (HttpContext context) =>

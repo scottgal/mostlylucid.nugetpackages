@@ -208,10 +208,80 @@ public class BotDetectionMiddleware(
 
     private bool ShouldSkipPath(PathString path)
     {
+        // Check ExcludedPaths first (complete bypass)
+        foreach (var excludedPath in _options.ExcludedPaths)
+        {
+            if (path.StartsWithSegments(excludedPath, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogDebug("Skipping bot detection for {Path} (ExcludedPaths)", path);
+                return true;
+            }
+        }
+
+        // Also check ResponseHeaders.SkipPaths for backward compatibility
         foreach (var skipPath in _options.ResponseHeaders.SkipPaths)
         {
             if (path.StartsWithSegments(skipPath, StringComparison.OrdinalIgnoreCase))
                 return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Checks if the path has an override that allows it through regardless of detection.
+    /// </summary>
+    private bool HasPathOverride(PathString path, out string? overrideAction)
+    {
+        overrideAction = null;
+
+        foreach (var (pattern, action) in _options.PathOverrides)
+        {
+            if (MatchesPathPattern(path, pattern))
+            {
+                overrideAction = action;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Matches a path against a pattern with glob support.
+    ///     Supports: exact match, prefix with *, and ** for recursive matching.
+    /// </summary>
+    private static bool MatchesPathPattern(PathString path, string pattern)
+    {
+        var pathValue = path.Value ?? "";
+
+        // Exact match
+        if (pattern.Equals(pathValue, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Prefix match with single * (e.g., "/api/public/*" matches "/api/public/foo" but not "/api/public/foo/bar")
+        if (pattern.EndsWith("/*"))
+        {
+            var prefix = pattern[..^2];
+            if (pathValue.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var remainder = pathValue[prefix.Length..];
+                // Must have exactly one more segment (starts with / and no more /)
+                return remainder.StartsWith('/') && !remainder[1..].Contains('/');
+            }
+        }
+
+        // Recursive match with ** (e.g., "/api/public/**" matches any depth)
+        if (pattern.EndsWith("/**"))
+        {
+            var prefix = pattern[..^3];
+            return pathValue.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Simple prefix match (e.g., "/api/public" matches "/api/public" and "/api/public/anything")
+        if (!pattern.Contains('*'))
+        {
+            return pathValue.StartsWith(pattern, StringComparison.OrdinalIgnoreCase);
         }
 
         return false;
