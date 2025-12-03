@@ -11,6 +11,8 @@ using Mostlylucid.BotDetection.Events;
 using Mostlylucid.BotDetection.Events.Listeners;
 using Mostlylucid.BotDetection.Metrics;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.BotDetection.Orchestration;
+using Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 using Mostlylucid.BotDetection.Services;
 
 namespace Mostlylucid.BotDetection.Extensions;
@@ -305,5 +307,18 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IPatternReputationCache, InMemoryPatternReputationCache>();
         services.AddSingleton<ILearningEventHandler, ReputationMaintenanceService>();
         services.AddHostedService<ReputationMaintenanceService>();
+
+        // ==========================================
+        // Blackboard Orchestrator (event-driven, parallel detection)
+        // ==========================================
+
+        // Register the blackboard orchestrator
+        services.TryAddSingleton<BlackboardOrchestrator>();
+
+        // Register contributing detectors (new architecture)
+        // These emit evidence, not verdicts - the orchestrator aggregates
+        services.AddSingleton<IContributingDetector, UserAgentContributor>();
+        services.AddSingleton<IContributingDetector, InconsistencyContributor>();
+        services.AddSingleton<IContributingDetector, AiContributor>();
     }
 }

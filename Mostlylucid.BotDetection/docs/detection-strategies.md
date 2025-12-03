@@ -453,3 +453,172 @@ The fast path uses reputation state to determine behavior:
 2. **Asymmetric thresholds** - Promoting to bad needs 50 samples, demoting needs 100 (harder to forgive)
 3. **Time decay prevents permanent bans** - Old patterns drift back to neutral
 4. **GC only touches neutral patterns** - Active patterns are never auto-deleted
+
+---
+
+## Extensibility
+
+Mostlylucid.BotDetection is designed for extensibility at multiple levels.
+
+### Custom Detectors
+
+Implement `IDetector` to add your own detection logic:
+
+```csharp
+public class MyCustomDetector : IDetector
+{
+    public string Name => "My Custom Detector";
+    public DetectorStage Stage => DetectorStage.RawSignals; // or DerivedSignals, Aggregation
+
+    public Task<DetectorResult> DetectAsync(HttpContext context, CancellationToken ct)
+    {
+        var result = new DetectorResult();
+
+        // Your detection logic
+        if (IsMyBotPattern(context))
+        {
+            result.Confidence = 0.8;
+            result.Reasons.Add(new DetectionReason
+            {
+                Category = "Custom",
+                Detail = "My custom bot pattern detected"
+            });
+        }
+
+        return Task.FromResult(result);
+    }
+}
+
+// Register in DI
+services.AddTransient<IDetector, MyCustomDetector>();
+```
+
+### Custom Learning Event Handlers
+
+Process learning events for custom analytics or integrations:
+
+```csharp
+public class MyAnalyticsHandler : ILearningEventHandler
+{
+    public IReadOnlySet<LearningEventType> HandledEventTypes => new HashSet<LearningEventType>
+    {
+        LearningEventType.HighConfidenceDetection,
+        LearningEventType.DriftDetected
+    };
+
+    public async Task HandleAsync(LearningEvent evt, CancellationToken ct)
+    {
+        // Send to your analytics system
+        await _analytics.TrackAsync("bot_detection", new
+        {
+            type = evt.Type.ToString(),
+            confidence = evt.Confidence,
+            timestamp = evt.Timestamp
+        });
+    }
+}
+```
+
+### Custom Signal Listeners
+
+React to detection signals in real-time:
+
+```csharp
+public class MySignalListener : IBotSignalListener, ISignalSubscriber
+{
+    public IEnumerable<BotSignalType> SubscribedSignals => new[]
+    {
+        BotSignalType.InconsistencyUpdated,
+        BotSignalType.AiClassificationCompleted
+    };
+
+    public ValueTask OnSignalAsync(BotSignalType signal, DetectionContext context, CancellationToken ct)
+    {
+        // React to signals as they happen
+        return ValueTask.CompletedTask;
+    }
+}
+```
+
+### Blackboard Architecture (0.5.0-preview1)
+
+For complex detection scenarios, use the new blackboard architecture where detectors emit evidence and can trigger other detectors:
+
+```csharp
+public class MyContributor : ContributingDetectorBase
+{
+    public override string Name => "My Contributor";
+    public override string Category => "Custom";
+
+    // Only run when UserAgent signal exists and risk is elevated
+    public override IReadOnlyList<TriggerCondition> TriggerConditions =>
+    [
+        Triggers.AllOf(
+            Triggers.WhenSignalExists(SignalKeys.UserAgent),
+            Triggers.WhenRiskExceeds(0.3)
+        )
+    ];
+
+    public override async Task<IReadOnlyList<DetectionContribution>> ContributeAsync(
+        BlackboardState state, CancellationToken ct)
+    {
+        var contributions = new List<DetectionContribution>();
+
+        // Analyze and emit evidence
+        if (DetectedBadPattern(state))
+        {
+            contributions.Add(DetectionContribution.Bot(
+                Name, Category,
+                confidenceDelta: 0.4,
+                reason: "Bad pattern detected"));
+        }
+
+        return contributions;
+    }
+}
+```
+
+See [learning-and-reputation.md](learning-and-reputation.md) for full blackboard architecture documentation.
+
+### Configuration Providers
+
+Override configuration from any source:
+
+```csharp
+// From environment variables
+services.Configure<BotDetectionOptions>(config =>
+{
+    config.BotThreshold = double.Parse(Environment.GetEnvironmentVariable("BOT_THRESHOLD") ?? "0.7");
+});
+
+// From a database
+services.AddSingleton<IConfigureOptions<BotDetectionOptions>, DatabaseConfigProvider>();
+```
+
+### Pattern Store Implementations
+
+Replace the default SQLite pattern store with your own:
+
+```csharp
+public class RedisLearnedPatternStore : ILearnedPatternStore
+{
+    // Implement using Redis for distributed pattern storage
+}
+
+services.AddSingleton<ILearnedPatternStore, RedisLearnedPatternStore>();
+```
+
+---
+
+## Additional Documentation
+
+- [User-Agent Detection](user-agent-detection.md) - Detailed UA pattern matching
+- [Header Detection](header-detection.md) - HTTP header anomaly analysis
+- [IP Detection](ip-detection.md) - Datacenter and cloud IP detection
+- [Behavioral Analysis](behavioral-analysis.md) - Request pattern monitoring
+- [Client-Side Fingerprinting](client-side-fingerprinting.md) - Browser integrity checks
+- [AI Detection](ai-detection.md) - ONNX and Ollama AI classification
+- [Learning and Reputation](learning-and-reputation.md) - Pattern learning, forgetting, and blackboard architecture
+- [YARP Integration](yarp-integration.md) - Reverse proxy integration
+- [Configuration](configuration.md) - Full configuration reference
+- [Telemetry and Metrics](telemetry-and-metrics.md) - Observability

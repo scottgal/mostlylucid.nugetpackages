@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Data;
+using Mostlylucid.BotDetection.Orchestration;
 
 namespace Mostlylucid.BotDetection.Models;
 
@@ -269,6 +270,16 @@ public class BotDetectionOptions
     ///     Implements principled forgetting via time decay and evidence-based updates.
     /// </summary>
     public ReputationOptions Reputation { get; set; } = new();
+
+    // ==========================================
+    // Blackboard Orchestrator Settings
+    // ==========================================
+
+    /// <summary>
+    ///     Configuration for the blackboard orchestrator.
+    ///     Controls wave-based parallel execution, circuit breakers, and resilience.
+    /// </summary>
+    public OrchestratorOptions Orchestrator { get; set; } = new();
 
     // ==========================================
     // Pattern Learning Settings (Legacy - use Reputation instead)

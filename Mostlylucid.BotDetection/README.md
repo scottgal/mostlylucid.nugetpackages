@@ -36,6 +36,8 @@ A self-hosted, app-level bot detection layer for ASP.NET Core, sitting between "
 
 **Highlights:**
 - Multi-signal detection: User-Agent + headers + IP ranges + behavioral analysis
+- Pattern reputation system: learns and forgets patterns over time
+- Event-driven blackboard architecture for extensible detection
 - Optional AI detection: local ONNX (fast) or Ollama LLM (accurate)
 - Auto-updated threat intel: pulls isbot patterns and cloud IP ranges
 - First-class YARP support: bot-aware routing and headers
@@ -123,13 +125,16 @@ For detailed documentation on advanced features:
 
 | Feature | Description | Docs |
 |---------|-------------|------|
+| **User-Agent Detection** | Pattern matching with reputation tracking | [user-agent-detection.md](docs/user-agent-detection.md) |
+| **Header Detection** | HTTP header anomaly analysis | [header-detection.md](docs/header-detection.md) |
+| **IP Detection** | Datacenter and cloud IP identification | [ip-detection.md](docs/ip-detection.md) |
 | **Behavioral Analysis** | Per-IP, per-API-key, per-user rate limiting and anomaly detection | [behavioral-analysis.md](docs/behavioral-analysis.md) |
 | **Client-Side Fingerprinting** | JavaScript-based headless browser detection | [client-side-fingerprinting.md](docs/client-side-fingerprinting.md) |
 | **AI Detection** | ONNX (1-10ms) or Ollama LLM (50-500ms) classification | [ai-detection.md](docs/ai-detection.md) |
+| **Learning & Reputation** | Pattern learning, forgetting, blackboard architecture | [learning-and-reputation.md](docs/learning-and-reputation.md) |
 | **YARP Integration** | Bot-aware reverse proxy with header injection | [yarp-integration.md](docs/yarp-integration.md) |
 | **Blocking & Filters** | Attributes, endpoint filters, risk bands | [blocking-and-filters.md](docs/blocking-and-filters.md) |
 | **Configuration** | Full options reference | [configuration.md](docs/configuration.md) |
-| **Data Sources** | Auto-updating bot lists and IP ranges | [data-sources.md](docs/data-sources.md) |
 | **Telemetry** | OpenTelemetry traces and metrics | [telemetry-and-metrics.md](docs/telemetry-and-metrics.md) |
 
 ## Diagnostic Endpoints
