@@ -1,530 +1,187 @@
 # Mostlylucid.BotDetection
 
-> **Note**: This package is provided as-is under the [Unlicense](https://unlicense.org/) license.
-> Feel free to use, modify, and distribute without restriction.
+**DESTROY ALL ROBOTS!** (politely, with HTTP 403s)
 
-Bot detection middleware for ASP.NET Core applications with behavioral analysis, header inspection, IP-based detection, and optional LLM-based classification.
+Bot detection middleware for ASP.NET Core with multi-signal detection (User-Agent, headers, IP, behavior, optional AI), auto-updated blocklists, YARP integration, and full observability.
 
 [![NuGet](https://img.shields.io/nuget/v/mostlylucid.botdetection.svg)](https://www.nuget.org/packages/mostlylucid.botdetection)
 
-## Features
+## Why Use This?
 
-- **Multi-Strategy Detection**: Combines multiple detection methods for accuracy
-- **User-Agent Detection**: Matches against known bot signatures and patterns
-- **Header Analysis**: Inspects HTTP headers for suspicious patterns
-- **IP Detection**: Checks against known bot IP ranges and datacenter blocklists
-- **Behavioral Analysis**: Monitors request patterns for bot-like behavior
-- **LLM Detection** (Optional): Uses Ollama for advanced AI-based classification
-- **Auto-Updating Blocklists**: Background service updates bot signatures from authoritative sources
-- **Configurable Responses**: Block, rate-limit, or just detect and log
-- **Caching**: Results cached for performance
-- **OpenTelemetry**: Built-in observability and tracing support
+**When commercial WAF (Web Application Firewall) isn't an option:**
+- Self-hosted apps without Cloudflare/AWS/Azure
+- Internal tools behind corporate firewalls
+- Compliance requirements that prohibit third-party request inspection
+- Cost-sensitive projects where $3K+/month WAF isn't justified
 
-## Installation
+**When you need more than User-Agent matching:**
+- Bots spoofing browser User-Agents
+- Scripts that forget other signals (Accept-Language, cookies, timing)
+- API abuse from datacenter IPs
+- Web design scrapers cloning your site's CSS/HTML
+
+**When you want app-level control:**
+- Different policies per endpoint (block scrapers, allow Googlebot)
+- Custom rate limits by API key or authenticated user
+- Integration with your existing auth/routing (YARP, custom middleware)
+
+**When you're learning or prototyping:**
+- Understand bot detection techniques hands-on
+- Build custom rules before committing to a vendor
+- Augment existing protection with application-specific logic
+
+## Positioning
+
+A self-hosted, app-level bot detection layer for ASP.NET Core, sitting between "regex-only NuGet packages" and full CDN/WAF products like Cloudflare Bot Management.
+
+**Highlights:**
+- Multi-signal detection: User-Agent + headers + IP ranges + behavioral analysis
+- Optional AI detection: local ONNX (fast) or Ollama LLM (accurate)
+- Auto-updated threat intel: pulls isbot patterns and cloud IP ranges
+- First-class YARP support: bot-aware routing and headers
+- Observability: OpenTelemetry traces and metrics baked in
+
+> **Note**: For enterprise applications with stringent security requirements, consider commercial services like [Cloudflare Bot Management](https://www.cloudflare.com/products/bot-management/), [AWS WAF Bot Control](https://aws.amazon.com/waf/features/bot-control/), or [DataDome](https://datadome.co/).
+
+## Quick Start
+
+### 1. Install
 
 ```bash
 dotnet add package Mostlylucid.BotDetection
 ```
 
-## Quick Start
-
-### 1. Configure Services
+### 2. Configure Services
 
 ```csharp
 using Mostlylucid.BotDetection.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add bot detection services (all detection methods enabled by default)
 builder.Services.AddBotDetection();
 
 var app = builder.Build();
 
-// Use bot detection middleware
 app.UseBotDetection();
-
 app.Run();
 ```
 
-### 2. Configuration via appsettings.json
+### 3. Configuration (appsettings.json)
 
 ```json
 {
   "BotDetection": {
-    "EnableUserAgentDetection": true,
-    "EnableHeaderAnalysis": true,
-    "EnableIpDetection": true,
-    "EnableBehavioralAnalysis": true,
-    "EnableLlmDetection": false,
-    "EnableTestMode": false,
-    "BotThreshold": 0.7,
-    "CacheDurationSeconds": 300,
-    "MaxRequestsPerMinute": 60,
-    "OllamaEndpoint": "http://localhost:11434",
-    "OllamaModel": "qwen2.5:1.5b",
-    "LlmTimeoutMs": 2000
+    "BotThreshold": 0.7
   }
 }
 ```
 
-## Detection Strategies
+That's it. All detection methods are enabled by default with sensible settings.
 
-### 1. User-Agent Detection
+## Basic Usage
 
-Matches User-Agent strings against known bot patterns from multiple sources:
-
-- Search engine bots (Googlebot, Bingbot, DuckDuckBot, etc.)
-- Social media crawlers (FacebookBot, Twitterbot, LinkedInBot)
-- SEO tools (AhrefsBot, SEMrushBot, MajesticBot)
-- Scrapers and automation tools
-- Known malicious bots
-
-### 2. Header Detection
-
-Analyzes HTTP headers for suspicious patterns:
-
-- Missing standard browser headers
-- Inconsistent Accept headers
-- Missing or invalid Accept-Language
-- Suspicious Connection headers
-- Known bot header signatures
-
-### 3. IP Detection
-
-Checks client IP against:
-
-- Known datacenter IP ranges (AWS, Azure, GCP, Oracle Cloud)
-- Cloud provider ranges (auto-updated)
-- Cloudflare IP ranges
-
-### 4. Behavioral Analysis
-
-Monitors request patterns:
-
-- Request frequency (requests per minute per IP)
-- Threshold-based detection (configurable via `MaxRequestsPerMinute`)
-
-### 5. LLM Detection (Optional)
-
-Uses Ollama with a small LLM to analyze request patterns for advanced classification:
+### HttpContext Extensions
 
 ```csharp
-builder.Services.AddAdvancedBotDetection(
-    ollamaEndpoint: "http://localhost:11434",
-    model: "qwen2.5:1.5b"
-);
+if (context.IsBot())
+    return Results.StatusCode(403);
+
+var confidence = context.GetBotConfidence();
+var botType = context.GetBotType();
 ```
 
-## Service Registration Methods
-
-The package provides several convenience methods for different use cases:
+### Endpoint Filters
 
 ```csharp
-// Full detection (default) - all heuristics, no LLM
-builder.Services.AddBotDetection();
-
-// Simple detection - user-agent only (fastest)
-builder.Services.AddSimpleBotDetection();
-
-// Comprehensive detection - all heuristics, no LLM
-builder.Services.AddComprehensiveBotDetection();
-
-// Advanced detection - all heuristics + LLM (requires Ollama)
-builder.Services.AddAdvancedBotDetection("http://localhost:11434", "qwen2.5:1.5b");
-```
-
-## Configuration Options
-
-| Option                     | Type       | Default                    | Valid Range     | Description                                     |
-|----------------------------|------------|----------------------------|-----------------|------------------------------------------------|
-| `EnableUserAgentDetection` | bool       | `true`                     | -               | Enable user-agent pattern matching              |
-| `EnableHeaderAnalysis`     | bool       | `true`                     | -               | Enable HTTP header inspection                   |
-| `EnableIpDetection`        | bool       | `true`                     | -               | Enable IP-based detection                       |
-| `EnableBehavioralAnalysis` | bool       | `true`                     | -               | Enable behavioral rate analysis                 |
-| `EnableLlmDetection`       | bool       | `false`                    | -               | Enable LLM-based classification (needs Ollama)  |
-| `EnableTestMode`           | bool       | `false`                    | -               | Enable test mode header processing              |
-| `BotThreshold`             | double     | `0.7`                      | 0.0 - 1.0       | Minimum confidence to classify as bot           |
-| `CacheDurationSeconds`     | int        | `300`                      | 0 - 86400       | Cache duration for detection results            |
-| `MaxRequestsPerMinute`     | int        | `60`                       | 1 - 10000       | Threshold for behavioral analysis               |
-| `OllamaEndpoint`           | string     | `"http://localhost:11434"` | -               | Ollama API endpoint                             |
-| `OllamaModel`              | string     | `"qwen2.5:1.5b"`           | -               | Ollama model for LLM detection                  |
-| `LlmTimeoutMs`             | int        | `2000`                     | 100 - 30000     | LLM request timeout in milliseconds             |
-| `WhitelistedBotPatterns`   | List       | Common good bots           | -               | Bot patterns to allow (Googlebot, etc.)         |
-| `DatacenterIpPrefixes`     | List       | AWS/Azure/GCP/Oracle       | -               | Known datacenter IP CIDR ranges                 |
-
-### Default Whitelisted Bots
-
-```csharp
-"Googlebot", "Bingbot", "Slackbot", "DuckDuckBot", "Baiduspider",
-"YandexBot", "Sogou", "Exabot", "facebot", "ia_archiver"
-```
-
-### Default Datacenter IP Prefixes
-
-```csharp
-"3.0.0.0/8", "13.0.0.0/8", "18.0.0.0/8", "52.0.0.0/8",   // AWS
-"20.0.0.0/8", "40.0.0.0/8", "104.0.0.0/8",               // Azure
-"34.0.0.0/8", "35.0.0.0/8",                               // GCP
-"138.0.0.0/8", "139.0.0.0/8", "140.0.0.0/8"              // Oracle Cloud
-```
-
-## Usage
-
-### Getting Detection Results in Controllers
-
-```csharp
-using Mostlylucid.BotDetection.Extensions;
-
-public class MyController : Controller
-{
-    public IActionResult Index()
-    {
-        var result = HttpContext.GetBotDetectionResult();
-
-        if (result?.IsBot == true)
-        {
-            _logger.LogWarning("Bot detected: {BotType}, Confidence: {Confidence:F2}",
-                result.BotType, result.ConfidenceScore);
-        }
-
-        return View();
-    }
-}
-```
-
-### Using the Service Directly
-
-```csharp
-public class MyService
-{
-    private readonly IBotDetectionService _botDetection;
-
-    public MyService(IBotDetectionService botDetection)
-    {
-        _botDetection = botDetection;
-    }
-
-    public async Task<bool> IsBotAsync(HttpContext context)
-    {
-        var result = await _botDetection.DetectAsync(context);
-        return result.IsBot;
-    }
-}
-```
-
-### Access Detection Result from Middleware
-
-```csharp
-using Mostlylucid.BotDetection.Middleware;
-
-public class MyMiddleware
-{
-    private readonly RequestDelegate _next;
-
-    public async Task InvokeAsync(HttpContext context)
-    {
-        // Detection result is stored in HttpContext.Items after middleware runs
-        var result = context.Items[BotDetectionMiddleware.BotDetectionResultKey]
-            as BotDetectionResult;
-
-        if (result?.IsBot == true)
-        {
-            context.Response.Headers.Append("X-Custom-Bot-Header", "true");
-        }
-
-        await _next(context);
-    }
-}
-```
-
-## Blocking Bots
-
-### Using Attributes (MVC Controllers)
-
-```csharp
-// Block all bots
-[BlockBots]
-public IActionResult SensitiveData() { ... }
-
-// Block bots except verified ones (Googlebot, etc.)
-[BlockBots(AllowVerifiedBots = true)]
-public IActionResult PublicData() { ... }
-
-// Block bots except search engines
-[BlockBots(AllowSearchEngines = true)]
-public IActionResult Indexable() { ... }
-
-// Only block high-confidence detections
-[BlockBots(MinConfidence = 0.9)]
-public IActionResult ModerateProtection() { ... }
-
-// Custom status code and message
-[BlockBots(StatusCode = 429, Message = "Too many requests")]
-public IActionResult RateLimited() { ... }
-```
-
-### Using Attributes (Allow Bots)
-
-```csharp
-// Explicitly allow all bots on this endpoint
-[AllowBots]
-public IActionResult RobotsFile() { ... }
-
-// Only allow verified bots
-[AllowBots(OnlyVerified = true)]
-public IActionResult Sitemap() { ... }
-```
-
-### Requiring Human Visitors
-
-```csharp
-// Blocks ALL bots including verified ones
-[RequireHuman]
-public IActionResult SubmitForm() { ... }
-
-[RequireHuman(StatusCode = 403, Message = "Human verification required")]
-public IActionResult SecureAction() { ... }
-```
-
-### Minimal API Endpoint Filters
-
-```csharp
-// Block all bots
-app.MapGet("/api/data", () => "sensitive data")
+app.MapGet("/api/data", () => "sensitive")
    .BlockBots();
 
-// Block bots with options
-app.MapGet("/api/protected", () => "protected")
-   .BlockBots(allowVerifiedBots: true, allowSearchEngines: false, minConfidence: 0.8);
-
-// Require human visitors
-app.MapPost("/api/submit", () => "submitted")
+app.MapPost("/api/submit", () => "ok")
    .RequireHuman();
 ```
 
-## Diagnostic Endpoints
+### MVC Attributes
 
-Map built-in diagnostic endpoints for monitoring:
+```csharp
+[BlockBots(AllowVerifiedBots = true)]
+public IActionResult Index() => View();
+```
+
+## Detection Methods
+
+| Method | What it does |
+|--------|--------------|
+| **User-Agent** | Matches against known bot patterns |
+| **Headers** | Inspects for suspicious/missing headers |
+| **IP** | Checks datacenter IP ranges (AWS, GCP, Azure) |
+| **Behavioral** | Rate limiting + pattern analysis |
+| **Inconsistency** | Catches bots that spoof one signal but miss others |
+
+## Advanced Features
+
+For detailed documentation on advanced features:
+
+| Feature | Description | Docs |
+|---------|-------------|------|
+| **Behavioral Analysis** | Per-IP, per-API-key, per-user rate limiting and anomaly detection | [behavioral-analysis.md](docs/behavioral-analysis.md) |
+| **Client-Side Fingerprinting** | JavaScript-based headless browser detection | [client-side-fingerprinting.md](docs/client-side-fingerprinting.md) |
+| **AI Detection** | ONNX (1-10ms) or Ollama LLM (50-500ms) classification | [ai-detection.md](docs/ai-detection.md) |
+| **YARP Integration** | Bot-aware reverse proxy with header injection | [yarp-integration.md](docs/yarp-integration.md) |
+| **Blocking & Filters** | Attributes, endpoint filters, risk bands | [blocking-and-filters.md](docs/blocking-and-filters.md) |
+| **Configuration** | Full options reference | [configuration.md](docs/configuration.md) |
+| **Data Sources** | Auto-updating bot lists and IP ranges | [data-sources.md](docs/data-sources.md) |
+| **Telemetry** | OpenTelemetry traces and metrics | [telemetry-and-metrics.md](docs/telemetry-and-metrics.md) |
+
+## Diagnostic Endpoints
 
 ```csharp
 app.MapBotDetectionEndpoints("/bot-detection");
 
-// Creates:
-//   GET /bot-detection/check   - Check current request
-//   GET /bot-detection/stats   - Get detection statistics
-//   GET /bot-detection/health  - Health check
-```
-
-### Statistics Response Example
-
-```json
-{
-  "totalRequests": 1000,
-  "botsDetected": 150,
-  "botPercentage": 15.0,
-  "verifiedBots": 50,
-  "maliciousBots": 10,
-  "averageProcessingTimeMs": 2.5,
-  "botTypeBreakdown": {
-    "SearchEngine": 50,
-    "SocialMediaBot": 30,
-    "Scraper": 60,
-    "MaliciousBot": 10
-  }
-}
-```
-
-## Detection Result Model
-
-```csharp
-public class BotDetectionResult
-{
-    // Whether classified as a bot (confidence > threshold)
-    public bool IsBot { get; set; }
-
-    // Confidence score (0.0 to 1.0)
-    public double ConfidenceScore { get; set; }
-
-    // Type of bot detected
-    public BotType? BotType { get; set; }
-
-    // Identified bot name (e.g., "Googlebot", "AhrefsBot")
-    public string? BotName { get; set; }
-
-    // Detailed reasons for detection
-    public List<DetectionReason> Reasons { get; set; }
-
-    // Processing time in milliseconds
-    public long ProcessingTimeMs { get; set; }
-}
-
-public enum BotType
-{
-    Unknown,
-    SearchEngine,      // Google, Bing, DuckDuckGo, etc.
-    SocialMediaBot,    // Facebook, Twitter, LinkedIn, etc.
-    MonitoringBot,     // Uptime monitors, health checks
-    Scraper,           // Web scrapers and crawlers
-    MaliciousBot,      // Known bad actors
-    GoodBot,           // Generally beneficial bots
-    VerifiedBot        // Verified legitimate bots
-}
+// GET /bot-detection/check   - Current request analysis
+// GET /bot-detection/stats   - Detection statistics
+// GET /bot-detection/health  - Health check
 ```
 
 ## Test Mode
 
-For development and testing, enable test mode to simulate bot detection:
+For development only:
 
-```csharp
-builder.Services.AddBotDetection(options =>
+```json
 {
-    options.EnableTestMode = true; // WARNING: Only enable in development!
-});
+  "BotDetection": {
+    "EnableTestMode": true
+  }
+}
 ```
-
-Use the `ml-bot-test-mode` header to simulate detection results:
-
-| Header Value  | Result                                    |
-|---------------|-------------------------------------------|
-| `disable`     | Bypasses all detection (returns human)    |
-| `human`       | Simulates human traffic                   |
-| `bot`         | Simulates generic bot detection           |
-| `googlebot`   | Simulates Googlebot (SearchEngine type)   |
-| `bingbot`     | Simulates Bingbot (SearchEngine type)     |
-| `scraper`     | Simulates scraper bot                     |
-| `malicious`   | Simulates malicious bot                   |
-| `social`      | Simulates social media bot                |
-| `monitor`     | Simulates monitoring bot                  |
-| `<any-other>` | Creates generic bot with given name       |
 
 ```bash
-# Test with curl
-curl -H "ml-bot-test-mode: googlebot" https://localhost:5001/api/data
+curl -H "ml-bot-test-mode: googlebot" https://localhost:5001/
 ```
 
-> **Security Note**: Test mode headers are only processed when `EnableTestMode` is `true`.
-> In production, the header is completely ignored to prevent information leakage.
-
-## Auto-Updating Bot Lists
-
-The package includes a background service that automatically updates bot signatures every 24 hours from authoritative sources.
-
-### External Data Sources
-
-The package fetches bot detection data from these sources:
-
-| Source | URL | Description |
-|--------|-----|-------------|
-| Matomo Device Detector | [bots.yml](https://raw.githubusercontent.com/matomo-org/device-detector/master/regexes/bots.yml) | 1000+ bot patterns with categories |
-| Crawler User Agents | [crawler-user-agents](https://raw.githubusercontent.com/monperrus/crawler-user-agents/master/crawler-user-agents.json) | Community-maintained crawler list |
-| AWS IP Ranges | [ip-ranges.json](https://ip-ranges.amazonaws.com/ip-ranges.json) | Official AWS IP ranges |
-| Google Cloud IP Ranges | [cloud.json](https://www.gstatic.com/ipranges/cloud.json) | Official GCP IP ranges |
-| Cloudflare IP Ranges | [ips-v4](https://www.cloudflare.com/ips-v4) / [ips-v6](https://www.cloudflare.com/ips-v6) | Cloudflare CDN ranges |
-| ISBot Patterns | [list.json](https://unpkg.com/isbot@latest/src/list.json) | From the popular isbot npm package |
-
-If external sources are unavailable, the package falls back to embedded static lists.
-
-## OpenTelemetry Integration
-
-The middleware automatically emits telemetry for monitoring:
+## Service Registration Options
 
 ```csharp
-builder.Services.AddOpenTelemetry()
-    .WithTracing(tracing =>
-    {
-        tracing.AddSource("Mostlylucid.BotDetection");
-    });
+// Default: all heuristics, no AI
+builder.Services.AddBotDetection();
+
+// User-agent only (fastest)
+builder.Services.AddSimpleBotDetection();
+
+// All heuristics + AI (requires Ollama)
+builder.Services.AddAdvancedBotDetection("http://localhost:11434", "gemma3:1b");
 ```
-
-### Activity Tags
-
-| Tag | Description |
-|-----|-------------|
-| `http.client_ip` | Client IP address |
-| `http.user_agent` | User-Agent header |
-| `mostlylucid.botdetection.is_bot` | Whether detected as bot |
-| `mostlylucid.botdetection.confidence` | Confidence score |
-| `mostlylucid.botdetection.bot_type` | Type of bot |
-| `mostlylucid.botdetection.bot_name` | Identified bot name |
-| `mostlylucid.botdetection.processing_time_ms` | Processing time |
-| `mostlylucid.botdetection.reason_count` | Number of detection reasons |
-
-## Troubleshooting
-
-### Bot Detection Not Running
-
-Ensure the middleware is added to the pipeline:
-
-```csharp
-app.UseBotDetection();  // Must be called before UseRouting()
-```
-
-### LLM Detection Not Working
-
-1. Ensure Ollama is running: `ollama serve`
-2. Check the model is available: `ollama list`
-3. Verify endpoint and model settings:
-
-```csharp
-builder.Services.AddBotDetection(options =>
-{
-    options.EnableLlmDetection = true;
-    options.OllamaEndpoint = "http://localhost:11434";
-    options.OllamaModel = "qwen2.5:1.5b";
-    options.LlmTimeoutMs = 5000;  // Increase if timing out
-});
-```
-
-### False Positives
-
-Adjust the threshold or whitelist patterns:
-
-```csharp
-builder.Services.AddBotDetection(options =>
-{
-    options.BotThreshold = 0.9;  // Higher threshold = fewer false positives
-    options.WhitelistedBotPatterns.Add("MyTrustedBot");
-});
-```
-
-### Options Validation Errors
-
-The package validates configuration on startup. Common errors:
-
-- `BotThreshold must be between 0.0 and 1.0`
-- `LlmTimeoutMs must be between 100 and 30000`
-- `MaxRequestsPerMinute must be between 1 and 10000`
-- `CacheDurationSeconds must be between 0 and 86400`
-- `Invalid CIDR notation in DatacenterIpPrefixes`
-- `OllamaEndpoint must be specified when LLM detection is enabled`
-
-### Performance Issues
-
-- Use caching (default 5 minutes)
-- Disable LLM detection for high-traffic endpoints
-- Use `AddSimpleBotDetection()` for fastest detection
 
 ## Requirements
 
-- **.NET 8.0** or **.NET 9.0**
-- **Optional**: [Ollama](https://ollama.ai/) for LLM-based detection
+- .NET 8.0 or .NET 9.0
+- Optional: [Ollama](https://ollama.ai/) for LLM-based detection
 
 ## License
 
-[The Unlicense](https://unlicense.org/) - Public Domain. Free and unencumbered software released into the public domain.
+[The Unlicense](https://unlicense.org/) - Public Domain
 
 ## Links
 
-- [GitHub Repository](https://github.com/scottgal/mostlylucid.nugetpackages/tree/main/Mostlylucid.BotDetection)
-- [NuGet Package](https://www.nuget.org/packages/mostlylucid.botdetection/)
-- [Ollama](https://ollama.ai/) - Local LLM runtime
-
-## Related Packages
-
-- [Mostlylucid.SentimentAnalysis](https://www.nuget.org/packages/mostlylucid.sentimentanalysis) - ONNX-based sentiment analysis
-
-## External Resources
-
-- [Matomo Device Detector](https://github.com/matomo-org/device-detector) - Bot pattern source
-- [crawler-user-agents](https://github.com/monperrus/crawler-user-agents) - Crawler patterns
-- [isbot](https://github.com/omrilotan/isbot) - JavaScript bot detection library
+- [GitHub](https://github.com/scottgal/mostlylucid.nugetpackages/tree/main/Mostlylucid.BotDetection)
+- [NuGet](https://www.nuget.org/packages/mostlylucid.botdetection/)
+- [Full Documentation](docs/)

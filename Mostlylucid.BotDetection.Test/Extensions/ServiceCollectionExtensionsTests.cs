@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Detectors;
@@ -12,6 +13,27 @@ namespace Mostlylucid.BotDetection.Test.Extensions;
 /// </summary>
 public class ServiceCollectionExtensionsTests
 {
+    /// <summary>
+    ///     Creates an empty IConfiguration for tests.
+    ///     Required because AddBotDetection() uses BindConfiguration which needs IConfiguration.
+    /// </summary>
+    private static IConfiguration CreateEmptyConfiguration()
+    {
+        return new ConfigurationBuilder()
+            .AddInMemoryCollection()
+            .Build();
+    }
+
+    /// <summary>
+    ///     Adds standard test dependencies (logging, cache, configuration)
+    /// </summary>
+    private static void AddTestDependencies(IServiceCollection services)
+    {
+        services.AddLogging();
+        services.AddMemoryCache();
+        services.AddSingleton<IConfiguration>(CreateEmptyConfiguration());
+    }
+
     #region Multiple Registration Tests
 
     [Fact]
@@ -19,6 +41,7 @@ public class ServiceCollectionExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
+        AddTestDependencies(services);
 
         // Act - Should not throw
         services.AddBotDetection();
@@ -37,6 +60,7 @@ public class ServiceCollectionExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
+        AddTestDependencies(services);
 
         // Act
         services.AddBotDetection();
@@ -51,6 +75,7 @@ public class ServiceCollectionExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
+        AddTestDependencies(services);
 
         // Act
         services.AddBotDetection(options =>
@@ -72,8 +97,7 @@ public class ServiceCollectionExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddMemoryCache();
+        AddTestDependencies(services);
 
         // Act
         services.AddBotDetection();
@@ -89,8 +113,7 @@ public class ServiceCollectionExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddMemoryCache();
+        AddTestDependencies(services);
 
         // Act
         services.AddBotDetection();
@@ -106,8 +129,7 @@ public class ServiceCollectionExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddMemoryCache();
+        AddTestDependencies(services);
 
         // Act
         services.AddBotDetection();
@@ -123,8 +145,7 @@ public class ServiceCollectionExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddMemoryCache();
+        AddTestDependencies(services);
 
         // Act
         services.AddBotDetection();
@@ -140,8 +161,7 @@ public class ServiceCollectionExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddMemoryCache();
+        AddTestDependencies(services);
 
         // Act
         services.AddBotDetection();
@@ -157,8 +177,7 @@ public class ServiceCollectionExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddMemoryCache();
+        AddTestDependencies(services);
 
         // Act
         services.AddBotDetection();
@@ -178,6 +197,7 @@ public class ServiceCollectionExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
+        AddTestDependencies(services);
 
         // Act
         services.AddBotDetection();
@@ -194,6 +214,7 @@ public class ServiceCollectionExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
+        AddTestDependencies(services);
         var customPatterns = new List<string> { "CustomBot1", "CustomBot2" };
 
         // Act
@@ -221,6 +242,7 @@ public class ServiceCollectionExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
+        AddTestDependencies(services);
 
         // Act
         var result = services.AddBotDetection();
@@ -234,6 +256,7 @@ public class ServiceCollectionExtensionsTests
     {
         // Arrange
         var services = new ServiceCollection();
+        AddTestDependencies(services);
 
         // Act
         var result = services.AddBotDetection(options => { });

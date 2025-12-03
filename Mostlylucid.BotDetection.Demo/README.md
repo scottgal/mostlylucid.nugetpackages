@@ -1,6 +1,6 @@
 # Bot Detection Demo
 
-This is a demo application showcasing the Mostlylucid.BotDetection library.
+This is a demo application showcasing the mostlylucid.botdetection library.
 
 ## Features
 
@@ -75,14 +75,55 @@ Edit `appsettings.json` to customize bot detection:
     "EnableIpDetection": true,              // Enable IP-based detection
     "EnableBehavioralAnalysis": true,       // Enable behavioral patterns
     "EnableLlmDetection": false,            // Enable AI-powered detection
-    "OllamaEndpoint": "http://localhost:11434",
-    "OllamaModel": "qwen2.5:1.5b",         // Small 1.5B parameter model
-    "LlmTimeoutMs": 2000,
     "MaxRequestsPerMinute": 60,
-    "CacheDurationSeconds": 300
+    "CacheDurationSeconds": 300,
+
+    // Session/identity-level behavioral analysis
+    "Behavioral": {
+      "ApiKeyHeader": "X-Api-Key",          // Track by API key
+      "ApiKeyRateLimit": 120,               // Rate limit per API key
+      "UserIdHeader": "X-User-Id",          // Track by user ID header
+      "UserIdClaim": "sub",                 // Track by JWT claim
+      "UserRateLimit": 180,                 // Rate limit per user
+      "EnableAnomalyDetection": true,       // Detect behavior changes
+      "SpikeThresholdMultiplier": 5.0,      // 5x normal = spike
+      "NewPathAnomalyThreshold": 0.8        // 80% new paths = anomaly
+    },
+
+    // Client-side browser fingerprinting
+    "ClientSide": {
+      "Enabled": true,
+      "TokenSecret": "your-secret-key",
+      "TokenLifetimeSeconds": 300,
+      "CollectWebGL": true,
+      "CollectCanvas": true,
+      "MinIntegrityScore": 70,
+      "HeadlessThreshold": 0.5
+    }
   }
 }
 ```
+
+### Testing Behavioral Analysis
+
+```bash
+# Test API key rate limiting
+for i in {1..150}; do curl -s http://localhost:5000/api/bot-check -H "X-Api-Key: test-key" > /dev/null; done
+
+# Test user-based rate limiting
+for i in {1..200}; do curl -s http://localhost:5000/api/bot-check -H "X-User-Id: user-123" > /dev/null; done
+
+# Check detection results
+curl http://localhost:5000/api/bot-check -H "X-Api-Key: test-key"
+```
+
+### Client-Side Fingerprinting
+
+The demo includes a test page at `/bot-test` that demonstrates client-side detection:
+- Shows server-side detection results
+- Shows client-side fingerprint data
+- Detects headless browsers (Puppeteer, Selenium, etc.)
+- Visit http://localhost:5000/bot-test to test
 
 ## LLM Learning Feature
 

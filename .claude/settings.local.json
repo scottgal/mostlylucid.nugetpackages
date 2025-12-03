@@ -31,7 +31,11 @@
       "Bash(dotnet run:*)",
       "Bash(powershell:*)",
       "Bash(dotnet:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(del \"D:\\Source\\mostlylucid.nugetpackages\\Mostlylucid.BotDetection.Demo\\Examples\\GeoRoutingExamples.cs\")",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(del \"D:\\Source\\mostlylucid.nugetpackages\\Mostlylucid.BotDetection\\ClientSide\\FingerprintEndpoints.cs\")"
     ],
     "deny": [],
     "ask": []

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Detectors;
+using Mostlylucid.BotDetection.Metrics;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Telemetry;
 
@@ -14,15 +15,29 @@ namespace Mostlylucid.BotDetection.Services;
 /// <summary>
 ///     Main bot detection service that orchestrates multiple detection strategies
 /// </summary>
-public class BotDetectionService(
-    ILogger<BotDetectionService> logger,
-    IOptions<BotDetectionOptions> options,
-    IMemoryCache cache,
-    IEnumerable<IDetector> detectors)
-    : IBotDetectionService
+public class BotDetectionService : IBotDetectionService
 {
+    private readonly ILogger<BotDetectionService> _logger;
+    private readonly BotDetectionOptions _options;
+    private readonly IMemoryCache _cache;
+    private readonly IEnumerable<IDetector> _detectors;
+    private readonly BotDetectionMetrics? _metrics;
     private readonly BotDetectionStatistics _statistics = new();
     private readonly object _statsLock = new();
+
+    public BotDetectionService(
+        ILogger<BotDetectionService> logger,
+        IOptions<BotDetectionOptions> options,
+        IMemoryCache cache,
+        IEnumerable<IDetector> detectors,
+        BotDetectionMetrics? metrics = null)
+    {
+        _logger = logger;
+        _options = options.Value;
+        _cache = cache;
+        _detectors = detectors;
+        _metrics = metrics;
+    }
 
     public async Task<BotDetectionResult> DetectAsync(HttpContext context,
         CancellationToken cancellationToken = default)
@@ -37,9 +52,9 @@ public class BotDetectionService(
         {
             // Check cache first
             var cacheKey = BuildCacheKey(context);
-            if (cache.TryGetValue<BotDetectionResult>(cacheKey, out var cachedResult) && cachedResult != null)
+            if (_cache.TryGetValue<BotDetectionResult>(cacheKey, out var cachedResult) && cachedResult != null)
             {
-                logger.LogDebug("Returning cached bot detection result");
+                _logger.LogDebug("Returning cached bot detection result");
                 activity?.SetTag("mostlylucid.botdetection.cache_hit", true);
                 BotDetectionTelemetry.RecordResult(activity, cachedResult);
                 return cachedResult;
@@ -51,18 +66,19 @@ public class BotDetectionService(
             var detectorResults = new List<DetectorResult>();
 
             // Run all enabled detectors
-            foreach (var detector in detectors)
+            foreach (var detector in _detectors)
                 try
                 {
                     var detectorResult = await detector.DetectAsync(context, cancellationToken);
                     detectorResults.Add(detectorResult);
 
-                    logger.LogDebug("{Detector} confidence: {Confidence:F2}",
+                    _logger.LogDebug("{Detector} confidence: {Confidence:F2}",
                         detector.Name, detectorResult.Confidence);
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError(ex, "Detector {Detector} failed", detector.Name);
+                    _logger.LogError(ex, "Detector {Detector} failed", detector.Name);
+                    _metrics?.RecordError(detector.Name, ex.GetType().Name);
                 }
 
             // Combine results using weighted scoring
@@ -71,24 +87,28 @@ public class BotDetectionService(
             result.ProcessingTimeMs = sw.ElapsedMilliseconds;
 
             // Cache result
-            cache.Set(cacheKey, result, TimeSpan.FromSeconds(options.Value.CacheDurationSeconds));
+            _cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheDurationSeconds));
 
             // Update statistics
             UpdateStatistics(result);
 
-            logger.LogInformation(
+            // Record metrics
+            _metrics?.RecordDetection(result.ConfidenceScore, result.IsBot, sw.Elapsed, "Combined");
+
+            _logger.LogInformation(
                 "Bot detection complete: IsBot={IsBot}, Confidence={Confidence:F2}, Time={Time}ms",
                 result.IsBot, result.ConfidenceScore, result.ProcessingTimeMs);
 
-            activity?.SetTag("mostlylucid.botdetection.detector_count", detectors.Count());
+            activity?.SetTag("mostlylucid.botdetection.detector_count", _detectors.Count());
             BotDetectionTelemetry.RecordResult(activity, result);
 
             return result;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Bot detection failed");
+            _logger.LogError(ex, "Bot detection failed");
             sw.Stop();
+            _metrics?.RecordError("BotDetectionService", ex.GetType().Name);
             BotDetectionTelemetry.RecordException(activity, ex);
             return new BotDetectionResult
             {
@@ -133,7 +153,7 @@ public class BotDetectionService(
         var agreementBoost = suspiciousDetectors > 1 ? (suspiciousDetectors - 1) * 0.1 : 0.0;
 
         result.ConfidenceScore = Math.Min(maxConfidence + agreementBoost, 1.0);
-        result.IsBot = result.ConfidenceScore >= options.Value.BotThreshold;
+        result.IsBot = result.ConfidenceScore >= _options.BotThreshold;
 
         // Determine bot type (prefer specific types over unknown)
         var botTypes = detectorResults

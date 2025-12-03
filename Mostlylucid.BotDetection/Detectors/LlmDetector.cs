@@ -1,16 +1,19 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Mostlylucid.BotDetection.Metrics;
 using Mostlylucid.BotDetection.Models;
 using OllamaSharp;
 
 namespace Mostlylucid.BotDetection.Detectors;
 
 /// <summary>
-///     Advanced LLM-based bot detection with learning capabilities
-///     Uses a small language model (like qwen2.5:1.5b) to analyze request patterns
+///     Advanced LLM-based bot detection with learning capabilities.
+///     Uses a small language model (default: gemma3:1b) to analyze request patterns.
+///     Prompt is optimized for minimal context usage (~500 tokens).
 /// </summary>
 public class LlmDetector : IDetector, IDisposable
 {
@@ -18,14 +21,17 @@ public class LlmDetector : IDetector, IDisposable
     private readonly string _learnedPatternsPath;
     private readonly ILogger<LlmDetector> _logger;
     private readonly BotDetectionOptions _options;
+    private readonly BotDetectionMetrics? _metrics;
     private bool _disposed;
 
     public LlmDetector(
         ILogger<LlmDetector> logger,
-        IOptions<BotDetectionOptions> options)
+        IOptions<BotDetectionOptions> options,
+        BotDetectionMetrics? metrics = null)
     {
         _logger = logger;
         _options = options.Value;
+        _metrics = metrics;
         _learnedPatternsPath = Path.Combine(AppContext.BaseDirectory, "learned_bot_patterns.json");
     }
 
@@ -33,10 +39,15 @@ public class LlmDetector : IDetector, IDisposable
 
     public async Task<DetectorResult> DetectAsync(HttpContext context, CancellationToken cancellationToken = default)
     {
+        var stopwatch = Stopwatch.StartNew();
         var result = new DetectorResult();
 
-        if (!_options.EnableLlmDetection || string.IsNullOrEmpty(_options.OllamaEndpoint))
+        // Skip if not configured for Ollama LLM detection
+        if (!_options.EnableLlmDetection || _options.AiDetection.Provider != AiProvider.Ollama)
+        {
+            stopwatch.Stop();
             return result;
+        }
 
         try
         {
@@ -58,9 +69,14 @@ public class LlmDetector : IDetector, IDisposable
                 if (analysis.Confidence > 0.8)
                     await LearnPattern(requestInfo, analysis, cancellationToken);
             }
+
+            stopwatch.Stop();
+            _metrics?.RecordDetection(result.Confidence, result.Confidence > _options.BotThreshold, stopwatch.Elapsed, Name);
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
+            _metrics?.RecordError(Name, ex.GetType().Name);
             _logger.LogWarning(ex, "LLM detection failed, continuing without it");
         }
 
@@ -85,60 +101,57 @@ public class LlmDetector : IDetector, IDisposable
         _disposed = true;
     }
 
+    /// <summary>
+    ///     Builds a compact request info string for LLM analysis.
+    ///     Uses abbreviated format to minimize token count.
+    /// </summary>
     private string BuildRequestInfo(HttpContext context)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"User-Agent: {context.Request.Headers.UserAgent}");
-        sb.AppendLine($"Path: {context.Request.Path}");
-        sb.AppendLine($"Method: {context.Request.Method}");
 
-        var headers = new[] { "Accept", "Accept-Language", "Accept-Encoding", "Referer", "Connection" };
-        foreach (var header in headers)
-            if (context.Request.Headers.ContainsKey(header))
-                sb.AppendLine($"{header}: {context.Request.Headers[header]}");
-            else
-                sb.AppendLine($"{header}: (missing)");
+        // Compact format: key=value, one per line, abbreviated keys
+        var ua = context.Request.Headers.UserAgent.ToString();
+        sb.AppendLine($"ua={ua}");
+        sb.AppendLine($"path={context.Request.Path}");
+        sb.AppendLine($"method={context.Request.Method}");
 
-        sb.AppendLine($"Has-Cookies: {context.Request.Cookies.Any()}");
-        sb.AppendLine($"Client-IP: {context.Connection.RemoteIpAddress}");
+        // Only include headers that exist, use short notation
+        var accept = context.Request.Headers.Accept.ToString();
+        var lang = context.Request.Headers.AcceptLanguage.ToString();
+        var referer = context.Request.Headers.Referer.ToString();
+
+        sb.AppendLine($"accept={(!string.IsNullOrEmpty(accept) ? accept : "-")}");
+        sb.AppendLine($"lang={(!string.IsNullOrEmpty(lang) ? lang : "-")}");
+        sb.AppendLine($"ref={(!string.IsNullOrEmpty(referer) ? referer : "-")}");
+        sb.AppendLine($"cookies={context.Request.Cookies.Any()}");
 
         return sb.ToString();
     }
 
     private async Task<LlmAnalysis> AnalyzeWithLlm(string requestInfo, CancellationToken cancellationToken)
     {
+        // Use new AiDetection settings (legacy properties are deprecated)
+        var timeout = _options.AiDetection.TimeoutMs;
+        var endpoint = _options.AiDetection.Ollama.Endpoint;
+        var model = _options.AiDetection.Ollama.Model;
+
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(_options.LlmTimeoutMs);
+        cts.CancelAfter(timeout);
 
         try
         {
-            var ollama = new OllamaApiClient(_options.OllamaEndpoint!)
+            var ollama = new OllamaApiClient(endpoint!)
             {
-                SelectedModel = _options.OllamaModel ?? "qwen2.5:1.5b"
+                SelectedModel = model
             };
 
-            var prompt =
-                $@"You are an expert at detecting bot traffic from HTTP requests. Analyze this request and determine if it's likely from a bot or legitimate user.
+            // Use custom prompt if configured, otherwise use default compact prompt
+            var promptTemplate = !string.IsNullOrEmpty(_options.AiDetection.Ollama.CustomPrompt)
+                ? _options.AiDetection.Ollama.CustomPrompt
+                : OllamaOptions.DefaultPrompt;
 
-Request Information:
-{requestInfo}
-
-Respond ONLY with a valid JSON object in this exact format:
-{{
-  ""isBot"": true/false,
-  ""confidence"": 0.0-1.0,
-  ""reasoning"": ""brief explanation"",
-  ""botType"": ""scraper/searchengine/monitor/malicious/unknown"",
-  ""pattern"": ""key identifying pattern if bot""
-}}
-
-Important:
-- Look for missing browser headers (Accept-Language, Referer)
-- Simple User-Agents without version details are suspicious
-- Generic Accept headers (*/*) without language preferences
-- Known bot frameworks (Selenium, curl, wget, python-requests)
-- Be conservative: when in doubt, prefer false negatives over false positives
-";
+            // Replace placeholder with actual request info
+            var prompt = promptTemplate.Replace("{REQUEST_INFO}", requestInfo);
 
             var chat = new Chat(ollama);
             var responseBuilder = new StringBuilder();
@@ -176,7 +189,7 @@ Important:
         }
         catch (OperationCanceledException)
         {
-            _logger.LogWarning("LLM analysis timed out after {Timeout}ms", _options.LlmTimeoutMs);
+            _logger.LogWarning("LLM analysis timed out after {Timeout}ms", timeout);
         }
         catch (Exception ex)
         {

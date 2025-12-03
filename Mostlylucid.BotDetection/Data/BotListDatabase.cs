@@ -16,6 +16,16 @@ public interface IBotListDatabase
     Task<bool> IsDatacenterIp(string ipAddress, CancellationToken cancellationToken = default);
     Task UpdateListsAsync(CancellationToken cancellationToken = default);
     Task<DateTime?> GetLastUpdateTimeAsync(string listType, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Gets all bot patterns from the database for caching.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetBotPatternsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Gets all datacenter IP ranges from the database for caching.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetDatacenterIpRangesAsync(CancellationToken cancellationToken = default);
 }
 
 public class BotInfo
@@ -218,8 +228,8 @@ public class BotListDatabase : IBotListDatabase, IDisposable
 
         try
         {
-            var patterns = await _fetcher.GetMatomoBotPatternsAsync(cancellationToken);
-            var crawlerPatterns = await _fetcher.GetCrawlerUserAgentsAsync(cancellationToken);
+            var matomoPatterns = await _fetcher.GetMatomoBotPatternsAsync(cancellationToken);
+            var botPatterns = await _fetcher.GetBotPatternsAsync(cancellationToken);
 
             await using var connection = new SqliteConnection($"Data Source={_dbPath}");
             await connection.OpenAsync(cancellationToken);
@@ -234,7 +244,8 @@ public class BotListDatabase : IBotListDatabase, IDisposable
                     await cmd.ExecuteNonQueryAsync(cancellationToken);
                 }
 
-                foreach (var pattern in patterns)
+                // Insert Matomo patterns with metadata (if enabled)
+                foreach (var pattern in matomoPatterns)
                 {
                     await using var cmd = connection.CreateCommand();
                     cmd.CommandText = @"
@@ -251,16 +262,17 @@ public class BotListDatabase : IBotListDatabase, IDisposable
                     await cmd.ExecuteNonQueryAsync(cancellationToken);
                 }
 
-                foreach (var crawlerPattern in crawlerPatterns)
+                // Insert bot patterns from all enabled sources (IsBot, crawler-user-agents, etc.)
+                foreach (var botPattern in botPatterns)
                 {
                     await using var cmd = connection.CreateCommand();
                     cmd.CommandText = @"
                         INSERT OR IGNORE INTO bot_patterns (name, pattern, category, url, is_verified, created_at)
                         VALUES (@name, @pattern, @category, @url, @verified, @created)";
 
-                    cmd.Parameters.AddWithValue("@name", "Crawler");
-                    cmd.Parameters.AddWithValue("@pattern", crawlerPattern);
-                    cmd.Parameters.AddWithValue("@category", "Crawler");
+                    cmd.Parameters.AddWithValue("@name", "Bot");
+                    cmd.Parameters.AddWithValue("@pattern", botPattern);
+                    cmd.Parameters.AddWithValue("@category", "Bot");
                     cmd.Parameters.AddWithValue("@url", DBNull.Value);
                     cmd.Parameters.AddWithValue("@verified", 0);
                     cmd.Parameters.AddWithValue("@created", DateTime.UtcNow.ToString("O"));
@@ -275,14 +287,15 @@ public class BotListDatabase : IBotListDatabase, IDisposable
                         VALUES ('bot_patterns', @update, @count)";
 
                     cmd.Parameters.AddWithValue("@update", DateTime.UtcNow.ToString("O"));
-                    cmd.Parameters.AddWithValue("@count", patterns.Count + crawlerPatterns.Count);
+                    cmd.Parameters.AddWithValue("@count", matomoPatterns.Count + botPatterns.Count);
 
                     await cmd.ExecuteNonQueryAsync(cancellationToken);
                 }
 
                 await transaction.CommitAsync(cancellationToken);
 
-                _logger.LogInformation("Updated {Count} bot patterns", patterns.Count + crawlerPatterns.Count);
+                _logger.LogInformation("Updated {Count} bot patterns ({MatomoCount} Matomo, {BotCount} general)",
+                    matomoPatterns.Count + botPatterns.Count, matomoPatterns.Count, botPatterns.Count);
             }
             catch
             {
@@ -369,6 +382,94 @@ public class BotListDatabase : IBotListDatabase, IDisposable
             return null;
 
         return DateTime.Parse((string)result);
+    }
+
+    public async Task<IReadOnlyList<string>> GetBotPatternsAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_initialized)
+        {
+            try
+            {
+                await InitializeAsync(cancellationToken);
+            }
+            catch
+            {
+                return Array.Empty<string>();
+            }
+        }
+
+        var patterns = new List<string>();
+
+        try
+        {
+            await using var connection = new SqliteConnection($"Data Source={_dbPath}");
+            await connection.OpenAsync(cancellationToken);
+
+            await using var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT DISTINCT pattern FROM bot_patterns WHERE pattern IS NOT NULL AND pattern != ''";
+
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var pattern = reader.GetString(0);
+                if (!string.IsNullOrWhiteSpace(pattern))
+                {
+                    patterns.Add(pattern);
+                }
+            }
+
+            _logger.LogDebug("Retrieved {Count} bot patterns from database", patterns.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to retrieve bot patterns from database");
+        }
+
+        return patterns;
+    }
+
+    public async Task<IReadOnlyList<string>> GetDatacenterIpRangesAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_initialized)
+        {
+            try
+            {
+                await InitializeAsync(cancellationToken);
+            }
+            catch
+            {
+                return Array.Empty<string>();
+            }
+        }
+
+        var ranges = new List<string>();
+
+        try
+        {
+            await using var connection = new SqliteConnection($"Data Source={_dbPath}");
+            await connection.OpenAsync(cancellationToken);
+
+            await using var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT DISTINCT ip_range FROM datacenter_ips WHERE ip_range IS NOT NULL AND ip_range != ''";
+
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var range = reader.GetString(0);
+                if (!string.IsNullOrWhiteSpace(range))
+                {
+                    ranges.Add(range);
+                }
+            }
+
+            _logger.LogDebug("Retrieved {Count} IP ranges from database", ranges.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to retrieve IP ranges from database");
+        }
+
+        return ranges;
     }
 
     public void Dispose()

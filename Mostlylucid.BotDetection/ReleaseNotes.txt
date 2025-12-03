@@ -1,4 +1,161 @@
-1.0.0
+0.0.5-preview1
+
+Client-Side Browser Fingerprinting:
+- New BotDetectionTagHelper (<bot-detection-script />) for injecting fingerprint collection JS
+- Signed token system (like XSRF) prevents fingerprint spoofing
+- BrowserFingerprintAnalyzer detects headless browsers and automation:
+  - navigator.webdriver flag
+  - PhantomJS, Nightmare, Selenium markers
+  - Chrome DevTools Protocol (CDP/Puppeteer) markers
+  - Missing plugins in Chrome, zero outer dimensions
+  - Prototype pollution (non-native Function.bind)
+  - Modified eval.toString() length
+- ClientSideDetector integrates fingerprint results into detection pipeline
+- New endpoint: MapBotDetectionFingerprintEndpoint()
+
+Inconsistency Detection:
+- New InconsistencyDetector catches bots that spoof one signal but miss others:
+  - UA claims Chrome but missing modern headers (Sec-Fetch-Mode, sec-ch-ua)
+  - Desktop UA without Accept-Language
+  - Generic */* Accept with browser UA
+  - Baidu/Yandex bot with wrong Accept-Language
+  - Referer from internal/localhost addresses
+- GetInconsistencyScore() extension method
+
+Risk Assessment & Challenge Escalation:
+- New RiskBand enum: Unknown, Low, Elevated, Medium, High
+- New RecommendedAction enum: Allow, Throttle, Challenge, Block
+- GetRiskBand() - Categorize request risk
+- ShouldChallengeRequest() - Returns true for Elevated/Medium risk (CAPTCHA trigger)
+- ShouldThrottleRequest() - Returns true for Elevated+ risk
+- GetRecommendedAction() - Returns recommended handling
+- GetBrowserIntegrityScore() - Client-side integrity score
+- GetHeadlessLikelihood() - Automation detection probability
+
+Performance:
+- XxHash64 for non-cryptographic hashing (fingerprint hash, IP hash)
+  - System.IO.Hashing package for fast, high-quality hashing
+  - SHA256/HMAC-SHA256 retained for cryptographic operations (token signing)
+
+Configuration Improvements:
+- Legacy properties marked [Obsolete]: OllamaEndpoint, OllamaModel, LlmTimeoutMs, MaxConcurrentLlmRequests
+- Use AiDetection.Ollama.* and AiDetection.TimeoutMs instead
+- New ClientSideOptions for fingerprinting configuration
+- Updated options validator to use new config structure
+
+Session/Identity-Level Behavioral Analysis:
+- Enhanced BehavioralDetector tracks at multiple identity levels:
+  - IP address (default)
+  - Browser fingerprint hash (when client-side enabled)
+  - API key (via configurable header)
+  - User ID (via claim or header)
+- New BehavioralOptions configuration class:
+  - ApiKeyHeader - Header name for API key extraction
+  - ApiKeyRateLimit - Rate limit per API key
+  - UserIdClaim - Claim name for user ID
+  - UserIdHeader - Fallback header for user ID
+  - UserRateLimit - Rate limit per authenticated user
+  - EnableAnomalyDetection - Toggle behavior anomaly detection
+  - SpikeThresholdMultiplier - Threshold for detecting request spikes
+  - NewPathAnomalyThreshold - Threshold for new endpoint access anomalies
+- Behavior anomaly detection:
+  - Sudden request rate spikes (configurable multiplier)
+  - Accessing many new paths suddenly
+  - Per-identity behavior profiles with 24-hour sliding window
+- Request timing analysis:
+  - Detects suspiciously regular intervals (bot-like timing)
+  - Flags extremely fast sequential requests (<100ms)
+- Session consistency checks:
+  - Missing referrer on non-initial requests
+  - No cookies maintained across multiple requests
+
+Demo & Testing:
+- New /bot-test Razor page for PuppeteerSharp testing
+- Displays both server-side and client-side detection results
+- Shows fingerprint data and detection API response
+
+---
+
+0.0.4-preview1
+
+New Features:
+- ONNX-based bot detection as a lightweight alternative to Ollama LLM
+  - OnnxDetector with 12-feature extraction from HTTP requests
+  - Heuristic fallback using learned feature weights when no model available
+  - Configurable via AiDetection.Provider = "Onnx"
+  - 1-10ms latency vs 50-500ms for Ollama
+  - No external dependencies - runs entirely in-process
+  - Optional GPU acceleration via CUDA
+
+Performance Improvements:
+- Source-generated regex for static bot patterns using [GeneratedRegex] attribute
+- Compiled pattern cache (ICompiledPatternCache) for runtime-downloaded patterns
+- Pre-parsed CIDR ranges (ParsedCidrRange) for fast IP matching
+- Thread-safe pattern caching with ConcurrentDictionary
+
+Metrics & Observability:
+- OpenTelemetry-compatible metrics (BotDetectionMetrics) via System.Diagnostics.Metrics
+  - Counters: requests, bots detected, humans detected, errors
+  - Histograms: detection duration, pattern match duration, CIDR match duration
+  - Gauges: cached pattern count, CIDR count, average confidence
+- Metrics fully integrated into all detectors (HeaderDetector, BehavioralDetector, LlmDetector, OnnxDetector)
+
+YARP Integration:
+- YARP (Yet Another Reverse Proxy) integration extensions
+  - AddBotDetectionHeaders() for proxying bot info to backends
+  - GetBotAwareCluster() for bot-based cluster routing
+  - ShouldBlockBot() for proxy-level blocking
+
+HttpContext Extensions:
+- Enhanced HttpContext extension methods
+  - GetBotCategory() - Primary detection category
+  - GetDetectionReasons() - All detection reasons
+  - IsSocialMediaBot() - Social media bot check
+  - IsBotWithConfidence(threshold) - Threshold-based bot check
+- Bot details stored in HttpContext.Items for advanced middleware use
+  - BotDetection.IsBot, BotDetection.Confidence, BotDetection.BotType
+  - BotDetection.BotName, BotDetection.Category, BotDetection.Reasons
+
+Bug Fixes:
+- Fixed BotListDatabase.GetDatacenterIpRangesAsync table name (ip_ranges -> datacenter_ips)
+- Fixed options validator to only require Ollama settings when using Ollama provider
+
+---
+
+0.0.3-preview2
+
+Bug Fixes:
+- Fixed AWS/GCP JSON deserialization with proper JsonPropertyName attributes
+- Fixed UserAgentDetector whitelist handling for verified bots
+- Added IConfiguration to DI for integration tests
+
+Security:
+- Added regex pattern validation to prevent ReDoS attacks
+- Added CIDR notation validation for IP ranges
+- Added explicit JsonException handling for external data sources
+
+---
+
+0.0.3-preview1
+
+Features:
+- Enhanced documentation with usage examples
+- Improved default configuration
+- Added appsettings example files
+
+---
+
+0.0.2-preview1
+
+Features:
+- Background service for automatic bot list updates
+- SQLite-based storage for bot signatures
+- Configurable data sources
+
+---
+
+0.0.1-preview1
+
 Initial release of Mostlylucid.BotDetection.
 
 Features:
@@ -8,8 +165,6 @@ Features:
 - IP-based detection with blocklist support
 - Behavioral analysis for request patterns
 - Optional LLM-based classification using Ollama
-- SQLite-based storage for bot signatures and blocklists
-- Background service for automatic bot list updates
 - ASP.NET Core middleware integration
 - Dependency injection support via IServiceCollection
 - Configurable options via BotDetectionOptions

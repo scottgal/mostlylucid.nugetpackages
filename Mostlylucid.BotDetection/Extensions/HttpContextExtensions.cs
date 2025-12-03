@@ -113,4 +113,242 @@ public static class HttpContextExtensions
 
         return result.IsBot && result.BotType != BotType.VerifiedBot;
     }
+
+    /// <summary>
+    ///     Gets the primary detection category (e.g., "UserAgent", "IP", "Header").
+    /// </summary>
+    /// <returns>The category string from the highest-confidence reason, or null if not available.</returns>
+    public static string? GetBotCategory(this HttpContext context)
+    {
+        if (context.Items.TryGetValue(BotDetectionMiddleware.BotCategoryKey, out var category))
+            return category as string;
+
+        // Fallback to computing from result if not set
+        var result = context.GetBotDetectionResult();
+        if (result?.Reasons.Count > 0)
+            return result.Reasons.OrderByDescending(r => r.ConfidenceImpact).First().Category;
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Gets all detection reasons.
+    /// </summary>
+    /// <returns>List of DetectionReason objects, or an empty list if not available.</returns>
+    public static IReadOnlyList<DetectionReason> GetDetectionReasons(this HttpContext context)
+    {
+        if (context.Items.TryGetValue(BotDetectionMiddleware.DetectionReasonsKey, out var reasons)
+            && reasons is IReadOnlyList<DetectionReason> list)
+            return list;
+
+        // Fallback to computing from result
+        var result = context.GetBotDetectionResult();
+        return result?.Reasons ?? (IReadOnlyList<DetectionReason>)Array.Empty<DetectionReason>();
+    }
+
+    /// <summary>
+    ///     Checks if the bot is a social media crawler (e.g., Facebook, Twitter).
+    /// </summary>
+    public static bool IsSocialMediaBot(this HttpContext context)
+    {
+        return context.GetBotType() == BotType.SocialMediaBot;
+    }
+
+    /// <summary>
+    ///     Checks if the confidence score meets a minimum threshold.
+    /// </summary>
+    /// <param name="context">The HttpContext</param>
+    /// <param name="threshold">Minimum confidence threshold (0.0-1.0)</param>
+    /// <returns>True if detected as a bot with confidence at or above the threshold.</returns>
+    public static bool IsBotWithConfidence(this HttpContext context, double threshold)
+    {
+        return context.IsBot() && context.GetBotConfidence() >= threshold;
+    }
+
+    // ==========================================
+    // Risk Assessment Methods
+    // ==========================================
+
+    /// <summary>
+    ///     Gets the risk band for the current request based on detection results.
+    ///     Use this to determine how to handle the request (allow, challenge, throttle, block).
+    /// </summary>
+    /// <returns>A RiskBand indicating the risk level of the request.</returns>
+    public static RiskBand GetRiskBand(this HttpContext context)
+    {
+        var result = context.GetBotDetectionResult();
+        if (result == null)
+            return RiskBand.Unknown;
+
+        // Verified bots are low risk
+        if (result.BotType == BotType.VerifiedBot || result.BotType == BotType.SearchEngine)
+            return RiskBand.Low;
+
+        // Social media bots are generally low risk
+        if (result.BotType == BotType.SocialMediaBot)
+            return RiskBand.Low;
+
+        // Not a bot = low risk
+        if (!result.IsBot)
+            return RiskBand.Low;
+
+        // Malicious bots are high risk
+        if (result.BotType == BotType.MaliciousBot)
+            return RiskBand.High;
+
+        // Score-based risk assessment
+        return result.ConfidenceScore switch
+        {
+            >= 0.9 => RiskBand.High,     // Very confident bot
+            >= 0.7 => RiskBand.Medium,   // Likely bot
+            >= 0.5 => RiskBand.Elevated, // Possibly bot, challenge recommended
+            _ => RiskBand.Low            // Probably human
+        };
+    }
+
+    /// <summary>
+    ///     Returns true if the request should be challenged (e.g., with CAPTCHA, proof-of-work).
+    ///     Returns true for Medium and Elevated risk bands.
+    ///     For High risk, you may want to block instead of challenge.
+    /// </summary>
+    /// <returns>True if the request should be challenged rather than immediately allowed/blocked.</returns>
+    public static bool ShouldChallengeRequest(this HttpContext context)
+    {
+        var riskBand = context.GetRiskBand();
+        return riskBand == RiskBand.Elevated || riskBand == RiskBand.Medium;
+    }
+
+    /// <summary>
+    ///     Returns true if the request should be rate-limited or throttled.
+    ///     Returns true for Elevated risk and above.
+    /// </summary>
+    public static bool ShouldThrottleRequest(this HttpContext context)
+    {
+        var riskBand = context.GetRiskBand();
+        return riskBand >= RiskBand.Elevated;
+    }
+
+    /// <summary>
+    ///     Gets the recommended action for handling the current request.
+    /// </summary>
+    public static RecommendedAction GetRecommendedAction(this HttpContext context)
+    {
+        var result = context.GetBotDetectionResult();
+        if (result == null)
+            return RecommendedAction.Allow;
+
+        var riskBand = context.GetRiskBand();
+
+        return riskBand switch
+        {
+            RiskBand.High => RecommendedAction.Block,
+            RiskBand.Medium => RecommendedAction.Challenge,
+            RiskBand.Elevated => RecommendedAction.Throttle,
+            RiskBand.Low => RecommendedAction.Allow,
+            _ => RecommendedAction.Allow
+        };
+    }
+
+    /// <summary>
+    ///     Gets an inconsistency score based on detection reasons.
+    ///     Higher scores indicate more signal inconsistencies (UA vs headers, etc.).
+    /// </summary>
+    /// <returns>Inconsistency score from 0 (consistent) to 100 (highly inconsistent).</returns>
+    public static int GetInconsistencyScore(this HttpContext context)
+    {
+        var reasons = context.GetDetectionReasons();
+        var inconsistencyReasons = reasons.Where(r => r.Category == "Inconsistency").ToList();
+
+        if (inconsistencyReasons.Count == 0)
+            return 0;
+
+        // Sum up confidence impacts from inconsistency reasons, scale to 0-100
+        var totalImpact = inconsistencyReasons.Sum(r => r.ConfidenceImpact);
+        return Math.Min(100, (int)(totalImpact * 100));
+    }
+
+    /// <summary>
+    ///     Gets the browser integrity score from client-side fingerprinting.
+    ///     Returns null if client-side detection hasn't been performed.
+    /// </summary>
+    public static int? GetBrowserIntegrityScore(this HttpContext context)
+    {
+        var reasons = context.GetDetectionReasons();
+        var clientSideReason = reasons.FirstOrDefault(r =>
+            r.Category == "ClientSide" && r.Detail.Contains("integrity score"));
+
+        if (clientSideReason == null)
+            return null;
+
+        // Parse score from detail string like "Low browser integrity score: 45/100"
+        var match = System.Text.RegularExpressions.Regex.Match(
+            clientSideReason.Detail, @"(\d+)/100");
+
+        if (match.Success && int.TryParse(match.Groups[1].Value, out var score))
+            return score;
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Gets the headless browser likelihood from client-side fingerprinting.
+    ///     Returns null if client-side detection hasn't been performed.
+    /// </summary>
+    public static double? GetHeadlessLikelihood(this HttpContext context)
+    {
+        var reasons = context.GetDetectionReasons();
+        var headlessReason = reasons.FirstOrDefault(r =>
+            r.Category == "ClientSide" && r.Detail.Contains("Headless"));
+
+        if (headlessReason == null)
+            return null;
+
+        // Parse likelihood from detail string like "Headless browser detected (likelihood: 0.85)"
+        var match = System.Text.RegularExpressions.Regex.Match(
+            headlessReason.Detail, @"likelihood:\s*([\d.]+)");
+
+        if (match.Success && double.TryParse(match.Groups[1].Value, out var likelihood))
+            return likelihood;
+
+        return headlessReason.ConfidenceImpact;
+    }
+}
+
+/// <summary>
+///     Risk bands for categorizing request risk level.
+/// </summary>
+public enum RiskBand
+{
+    /// <summary>Detection hasn't run or no data available.</summary>
+    Unknown = 0,
+
+    /// <summary>Low risk - allow normally.</summary>
+    Low = 1,
+
+    /// <summary>Elevated risk - consider throttling or soft challenge.</summary>
+    Elevated = 2,
+
+    /// <summary>Medium risk - recommend challenge (CAPTCHA, proof-of-work).</summary>
+    Medium = 3,
+
+    /// <summary>High risk - recommend blocking.</summary>
+    High = 4
+}
+
+/// <summary>
+///     Recommended actions based on risk assessment.
+/// </summary>
+public enum RecommendedAction
+{
+    /// <summary>Allow the request normally.</summary>
+    Allow,
+
+    /// <summary>Apply rate limiting or throttling.</summary>
+    Throttle,
+
+    /// <summary>Present a challenge (CAPTCHA, proof-of-work, JS challenge).</summary>
+    Challenge,
+
+    /// <summary>Block the request.</summary>
+    Block
 }

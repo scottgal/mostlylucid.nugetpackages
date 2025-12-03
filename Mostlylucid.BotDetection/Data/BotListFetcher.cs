@@ -1,19 +1,42 @@
+using System.Net;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Mostlylucid.BotDetection.Models;
 
 namespace Mostlylucid.BotDetection.Data;
 
 /// <summary>
-///     Service for fetching and caching bot detection lists from authoritative sources
+///     Service for fetching and caching bot detection lists from authoritative sources.
+///     All data source URLs are configurable via BotDetectionOptions.DataSources.
 /// </summary>
 public interface IBotListFetcher
 {
-    Task<List<string>> GetCrawlerUserAgentsAsync(CancellationToken cancellationToken = default);
+    /// <summary>
+    ///     Fetches bot patterns from all enabled sources (IsBot, Matomo, crawler-user-agents).
+    ///     Returns regex patterns for user-agent matching.
+    /// </summary>
+    Task<List<string>> GetBotPatternsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Fetches datacenter IP ranges from all enabled sources (AWS, GCP, Azure, Cloudflare).
+    ///     Returns CIDR notation IP ranges.
+    /// </summary>
     Task<List<string>> GetDatacenterIpRangesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Fetches Matomo bot patterns with metadata (name, category, url).
+    ///     Only fetches if Matomo source is enabled in configuration.
+    /// </summary>
     Task<List<BotPattern>> GetMatomoBotPatternsAsync(CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+///     Represents a bot pattern with metadata from Matomo Device Detector.
+/// </summary>
 public class BotPattern
 {
     public string? Name { get; set; }
@@ -23,149 +46,430 @@ public class BotPattern
 }
 
 /// <summary>
-///     Fetches bot lists from authoritative sources with caching
+///     Fetches bot lists from configurable authoritative sources with caching.
+///     Fail-safe design: failures are logged but never crash the app.
 /// </summary>
 public class BotListFetcher : IBotListFetcher
 {
-    private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(24);
     private readonly IMemoryCache _cache;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<BotListFetcher> _logger;
+    private readonly BotDetectionOptions _options;
 
     public BotListFetcher(
         IHttpClientFactory httpClientFactory,
         IMemoryCache cache,
-        ILogger<BotListFetcher> logger)
+        ILogger<BotListFetcher> logger,
+        IOptions<BotDetectionOptions> options)
     {
         _httpClientFactory = httpClientFactory;
         _cache = cache;
         _logger = logger;
+        _options = options.Value;
     }
 
-    public async Task<List<string>> GetCrawlerUserAgentsAsync(CancellationToken cancellationToken = default)
+    private TimeSpan CacheDuration => TimeSpan.FromHours(_options.UpdateIntervalHours);
+
+    /// <summary>
+    ///     Fetches bot patterns from all enabled sources.
+    ///     Sources are fetched based on configuration in BotDetectionOptions.DataSources.
+    /// </summary>
+    public async Task<List<string>> GetBotPatternsAsync(CancellationToken cancellationToken = default)
     {
-        const string cacheKey = "bot_list_crawler_uas";
+        const string cacheKey = "bot_list_all_patterns";
 
         if (_cache.TryGetValue<List<string>>(cacheKey, out var cached) && cached != null) return cached;
 
-        try
+        var allPatterns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var sources = _options.DataSources;
+        var client = _httpClientFactory.CreateClient();
+        client.Timeout = TimeSpan.FromSeconds(_options.ListDownloadTimeoutSeconds);
+
+        // Fetch IsBot patterns (primary source - most comprehensive)
+        if (sources.IsBot.Enabled && !string.IsNullOrEmpty(sources.IsBot.Url))
         {
-            var client = _httpClientFactory.CreateClient();
-            client.Timeout = TimeSpan.FromSeconds(30);
-
-            // Fetch from crawler-user-agents repository
-            var json = await client.GetStringAsync(BotListSources.CrawlerUserAgents, cancellationToken);
-            var crawlers = JsonSerializer.Deserialize<List<CrawlerEntry>>(json);
-
-            var patterns = crawlers?
-                .Where(c => !string.IsNullOrEmpty(c.Pattern))
-                .Select(c => c.Pattern!)
-                .ToList() ?? new List<string>();
-
-            _logger.LogInformation("Fetched {Count} crawler patterns from remote source", patterns.Count);
-
-            _cache.Set(cacheKey, patterns, CacheDuration);
-            return patterns;
+            try
+            {
+                var json = await client.GetStringAsync(sources.IsBot.Url, cancellationToken);
+                var patterns = JsonSerializer.Deserialize<List<string>>(json, JsonOptions);
+                if (patterns != null)
+                {
+                    var validCount = 0;
+                    var invalidCount = 0;
+                    foreach (var p in patterns.Where(p => !string.IsNullOrEmpty(p)))
+                    {
+                        if (IsValidPattern(p))
+                        {
+                            allPatterns.Add(p);
+                            validCount++;
+                        }
+                        else
+                        {
+                            invalidCount++;
+                        }
+                    }
+                    _logger.LogInformation("Fetched {ValidCount} valid IsBot patterns from {Url} ({InvalidCount} rejected)",
+                        validCount, sources.IsBot.Url, invalidCount);
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Invalid JSON in IsBot patterns from {Url}", sources.IsBot.Url);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch IsBot patterns from {Url}", sources.IsBot.Url);
+            }
         }
-        catch (Exception ex)
+
+        // Fetch crawler-user-agents patterns (if enabled - overlaps with isbot)
+        if (sources.CrawlerUserAgents.Enabled && !string.IsNullOrEmpty(sources.CrawlerUserAgents.Url))
         {
-            _logger.LogWarning(ex, "Failed to fetch crawler user agents, using fallback");
-            return GetFallbackCrawlerPatterns();
+            try
+            {
+                var json = await client.GetStringAsync(sources.CrawlerUserAgents.Url, cancellationToken);
+                var crawlers = JsonSerializer.Deserialize<List<CrawlerEntry>>(json, JsonOptions);
+                if (crawlers != null)
+                {
+                    var validCount = 0;
+                    var invalidCount = 0;
+                    foreach (var c in crawlers.Where(c => !string.IsNullOrEmpty(c.Pattern)))
+                    {
+                        if (IsValidPattern(c.Pattern!))
+                        {
+                            allPatterns.Add(c.Pattern!);
+                            validCount++;
+                        }
+                        else
+                        {
+                            invalidCount++;
+                        }
+                    }
+                    _logger.LogInformation("Fetched {ValidCount} valid crawler-user-agents patterns from {Url} ({InvalidCount} rejected)",
+                        validCount, sources.CrawlerUserAgents.Url, invalidCount);
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Invalid JSON in crawler-user-agents from {Url}", sources.CrawlerUserAgents.Url);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch crawler-user-agents from {Url}", sources.CrawlerUserAgents.Url);
+            }
         }
+
+        // Fetch Matomo patterns as strings (if enabled - overlaps with isbot)
+        if (sources.Matomo.Enabled && !string.IsNullOrEmpty(sources.Matomo.Url))
+        {
+            try
+            {
+                var yaml = await client.GetStringAsync(sources.Matomo.Url, cancellationToken);
+                var matomoPatterns = ParseMatomoYaml(yaml);
+                var validCount = 0;
+                var invalidCount = 0;
+                foreach (var p in matomoPatterns.Where(p => !string.IsNullOrEmpty(p.Pattern)))
+                {
+                    if (IsValidPattern(p.Pattern!))
+                    {
+                        allPatterns.Add(p.Pattern!);
+                        validCount++;
+                    }
+                    else
+                    {
+                        invalidCount++;
+                    }
+                }
+                _logger.LogInformation("Fetched {ValidCount} valid Matomo patterns from {Url} ({InvalidCount} rejected)",
+                    validCount, sources.Matomo.Url, invalidCount);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch Matomo patterns from {Url}", sources.Matomo.Url);
+            }
+        }
+
+        var result = allPatterns.ToList();
+
+        if (result.Count == 0)
+        {
+            _logger.LogWarning("No patterns fetched from any source, using fallback patterns");
+            result = GetFallbackCrawlerPatterns();
+        }
+        else
+        {
+            _logger.LogInformation("Total unique bot patterns: {Count}", result.Count);
+        }
+
+        _cache.Set(cacheKey, result, CacheDuration);
+        return result;
     }
 
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
+    /// <summary>
+    ///     Fetches datacenter IP ranges from all enabled sources.
+    ///     Sources are fetched based on configuration in BotDetectionOptions.DataSources.
+    /// </summary>
     public async Task<List<string>> GetDatacenterIpRangesAsync(CancellationToken cancellationToken = default)
     {
         const string cacheKey = "bot_list_datacenter_ips";
 
         if (_cache.TryGetValue<List<string>>(cacheKey, out var cached) && cached != null) return cached;
 
-        var ranges = new List<string>();
+        var ranges = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var sources = _options.DataSources;
+        var client = _httpClientFactory.CreateClient();
+        client.Timeout = TimeSpan.FromSeconds(_options.ListDownloadTimeoutSeconds);
 
-        try
+        // Fetch AWS IP ranges
+        if (sources.AwsIpRanges.Enabled && !string.IsNullOrEmpty(sources.AwsIpRanges.Url))
         {
-            var client = _httpClientFactory.CreateClient();
-            client.Timeout = TimeSpan.FromSeconds(30);
-
-            // Fetch AWS IP ranges
             try
             {
-                var awsJson = await client.GetStringAsync(BotListSources.AwsIpRanges, cancellationToken);
-                var awsData = JsonSerializer.Deserialize<AwsIpRanges>(awsJson);
+                var awsJson = await client.GetStringAsync(sources.AwsIpRanges.Url, cancellationToken);
+                var awsData = JsonSerializer.Deserialize<AwsIpRangesResponse>(awsJson, JsonOptions);
                 if (awsData?.Prefixes != null)
                 {
-                    ranges.AddRange(awsData.Prefixes.Select(p => p.IpPrefix));
-                    _logger.LogInformation("Fetched {Count} AWS IP ranges", awsData.Prefixes.Count);
+                    var validCount = 0;
+                    var invalidCount = 0;
+                    foreach (var p in awsData.Prefixes.Where(p => !string.IsNullOrEmpty(p.IpPrefix)))
+                    {
+                        if (IsValidCidr(p.IpPrefix!))
+                        {
+                            ranges.Add(p.IpPrefix!);
+                            validCount++;
+                        }
+                        else
+                        {
+                            invalidCount++;
+                        }
+                    }
+                    _logger.LogInformation("Fetched {ValidCount} valid AWS IP ranges from {Url} ({InvalidCount} rejected)",
+                        validCount, sources.AwsIpRanges.Url, invalidCount);
                 }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Invalid JSON in AWS IP ranges from {Url}", sources.AwsIpRanges.Url);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to fetch AWS IP ranges");
+                _logger.LogWarning(ex, "Failed to fetch AWS IP ranges from {Url}", sources.AwsIpRanges.Url);
             }
+        }
 
-            // Fetch GCP IP ranges
+        // Fetch GCP IP ranges
+        if (sources.GcpIpRanges.Enabled && !string.IsNullOrEmpty(sources.GcpIpRanges.Url))
+        {
             try
             {
-                var gcpJson = await client.GetStringAsync(BotListSources.GcpIpRanges, cancellationToken);
-                var gcpData = JsonSerializer.Deserialize<GcpIpRanges>(gcpJson);
+                var gcpJson = await client.GetStringAsync(sources.GcpIpRanges.Url, cancellationToken);
+                var gcpData = JsonSerializer.Deserialize<GcpIpRangesResponse>(gcpJson, JsonOptions);
                 if (gcpData?.Prefixes != null)
                 {
-                    ranges.AddRange(gcpData.Prefixes
-                        .Where(p => !string.IsNullOrEmpty(p.Ipv4Prefix))
-                        .Select(p => p.Ipv4Prefix!));
-                    _logger.LogInformation("Fetched {Count} GCP IP ranges", gcpData.Prefixes.Count);
+                    var validCount = 0;
+                    var invalidCount = 0;
+                    foreach (var p in gcpData.Prefixes)
+                    {
+                        if (!string.IsNullOrEmpty(p.Ipv4Prefix))
+                        {
+                            if (IsValidCidr(p.Ipv4Prefix))
+                            {
+                                ranges.Add(p.Ipv4Prefix);
+                                validCount++;
+                            }
+                            else
+                            {
+                                invalidCount++;
+                            }
+                        }
+                        if (!string.IsNullOrEmpty(p.Ipv6Prefix))
+                        {
+                            if (IsValidCidr(p.Ipv6Prefix))
+                            {
+                                ranges.Add(p.Ipv6Prefix);
+                                validCount++;
+                            }
+                            else
+                            {
+                                invalidCount++;
+                            }
+                        }
+                    }
+                    _logger.LogInformation("Fetched {ValidCount} valid GCP IP ranges from {Url} ({InvalidCount} rejected)",
+                        validCount, sources.GcpIpRanges.Url, invalidCount);
                 }
             }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Invalid JSON in GCP IP ranges from {Url}", sources.GcpIpRanges.Url);
+            }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to fetch GCP IP ranges");
+                _logger.LogWarning(ex, "Failed to fetch GCP IP ranges from {Url}", sources.GcpIpRanges.Url);
             }
+        }
 
-            // Fetch Cloudflare IP ranges
+        // Fetch Azure IP ranges (if configured - URL changes weekly)
+        if (sources.AzureIpRanges.Enabled && !string.IsNullOrEmpty(sources.AzureIpRanges.Url))
+        {
             try
             {
-                var cfIpv4 = await client.GetStringAsync(BotListSources.CloudflareIpv4, cancellationToken);
-                ranges.AddRange(cfIpv4.Split('\n', StringSplitOptions.RemoveEmptyEntries));
-                _logger.LogInformation("Fetched Cloudflare IPv4 ranges");
+                var azureJson = await client.GetStringAsync(sources.AzureIpRanges.Url, cancellationToken);
+                var azureData = JsonSerializer.Deserialize<AzureIpRangesResponse>(azureJson, JsonOptions);
+                if (azureData?.Values != null)
+                {
+                    var validCount = 0;
+                    var invalidCount = 0;
+                    foreach (var value in azureData.Values)
+                    {
+                        if (value.Properties?.AddressPrefixes != null)
+                        {
+                            foreach (var prefix in value.Properties.AddressPrefixes)
+                            {
+                                if (IsValidCidr(prefix))
+                                {
+                                    ranges.Add(prefix);
+                                    validCount++;
+                                }
+                                else
+                                {
+                                    invalidCount++;
+                                }
+                            }
+                        }
+                    }
+                    _logger.LogInformation("Fetched {ValidCount} valid Azure IP ranges from {Url} ({InvalidCount} rejected)",
+                        validCount, sources.AzureIpRanges.Url, invalidCount);
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Invalid JSON in Azure IP ranges from {Url}", sources.AzureIpRanges.Url);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to fetch Cloudflare IP ranges");
+                _logger.LogWarning(ex, "Failed to fetch Azure IP ranges from {Url}", sources.AzureIpRanges.Url);
             }
+        }
 
-            _cache.Set(cacheKey, ranges, CacheDuration);
-            _logger.LogInformation("Total datacenter IP ranges: {Count}", ranges.Count);
-            return ranges;
-        }
-        catch (Exception ex)
+        // Fetch Cloudflare IPv4 ranges
+        if (sources.CloudflareIpv4.Enabled && !string.IsNullOrEmpty(sources.CloudflareIpv4.Url))
         {
-            _logger.LogError(ex, "Failed to fetch datacenter IP ranges, using fallback");
-            return GetFallbackDatacenterRanges();
+            try
+            {
+                var cfIpv4 = await client.GetStringAsync(sources.CloudflareIpv4.Url, cancellationToken);
+                var lines = cfIpv4.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                var validCount = 0;
+                var invalidCount = 0;
+                foreach (var line in lines.Where(l => !string.IsNullOrWhiteSpace(l)))
+                {
+                    var trimmed = line.Trim();
+                    if (IsValidCidr(trimmed))
+                    {
+                        ranges.Add(trimmed);
+                        validCount++;
+                    }
+                    else
+                    {
+                        invalidCount++;
+                    }
+                }
+                _logger.LogInformation("Fetched {ValidCount} valid Cloudflare IPv4 ranges from {Url} ({InvalidCount} rejected)",
+                    validCount, sources.CloudflareIpv4.Url, invalidCount);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch Cloudflare IPv4 ranges from {Url}", sources.CloudflareIpv4.Url);
+            }
         }
+
+        // Fetch Cloudflare IPv6 ranges
+        if (sources.CloudflareIpv6.Enabled && !string.IsNullOrEmpty(sources.CloudflareIpv6.Url))
+        {
+            try
+            {
+                var cfIpv6 = await client.GetStringAsync(sources.CloudflareIpv6.Url, cancellationToken);
+                var lines = cfIpv6.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                var validCount = 0;
+                var invalidCount = 0;
+                foreach (var line in lines.Where(l => !string.IsNullOrWhiteSpace(l)))
+                {
+                    var trimmed = line.Trim();
+                    if (IsValidCidr(trimmed))
+                    {
+                        ranges.Add(trimmed);
+                        validCount++;
+                    }
+                    else
+                    {
+                        invalidCount++;
+                    }
+                }
+                _logger.LogInformation("Fetched {ValidCount} valid Cloudflare IPv6 ranges from {Url} ({InvalidCount} rejected)",
+                    validCount, sources.CloudflareIpv6.Url, invalidCount);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch Cloudflare IPv6 ranges from {Url}", sources.CloudflareIpv6.Url);
+            }
+        }
+
+        var result = ranges.ToList();
+
+        if (result.Count == 0)
+        {
+            _logger.LogWarning("No IP ranges fetched from any source, using fallback ranges");
+            result = GetFallbackDatacenterRanges();
+        }
+        else
+        {
+            _logger.LogInformation("Total unique datacenter IP ranges: {Count}", result.Count);
+        }
+
+        _cache.Set(cacheKey, result, CacheDuration);
+        return result;
     }
 
+    /// <summary>
+    ///     Fetches Matomo bot patterns with metadata (name, category, url).
+    ///     Only fetches if Matomo source is enabled in configuration.
+    /// </summary>
     public async Task<List<BotPattern>> GetMatomoBotPatternsAsync(CancellationToken cancellationToken = default)
     {
         const string cacheKey = "bot_list_matomo_patterns";
 
         if (_cache.TryGetValue<List<BotPattern>>(cacheKey, out var cached) && cached != null) return cached;
 
+        var sources = _options.DataSources;
+
+        if (!sources.Matomo.Enabled || string.IsNullOrEmpty(sources.Matomo.Url))
+        {
+            _logger.LogDebug("Matomo data source is disabled");
+            return GetFallbackMatomoPatterns();
+        }
+
         try
         {
             var client = _httpClientFactory.CreateClient();
-            client.Timeout = TimeSpan.FromSeconds(30);
+            client.Timeout = TimeSpan.FromSeconds(_options.ListDownloadTimeoutSeconds);
 
-            var yaml = await client.GetStringAsync(BotListSources.MatomoBotList, cancellationToken);
+            var yaml = await client.GetStringAsync(sources.Matomo.Url, cancellationToken);
             var patterns = ParseMatomoYaml(yaml);
 
-            _logger.LogInformation("Fetched {Count} Matomo bot patterns", patterns.Count);
+            _logger.LogInformation("Fetched {Count} Matomo bot patterns from {Url}", patterns.Count, sources.Matomo.Url);
 
             _cache.Set(cacheKey, patterns, CacheDuration);
             return patterns;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to fetch Matomo patterns, using fallback");
+            _logger.LogWarning(ex, "Failed to fetch Matomo patterns from {Url}, using fallback", sources.Matomo.Url);
             return GetFallbackMatomoPatterns();
         }
     }
@@ -247,33 +551,199 @@ public class BotListFetcher : IBotListFetcher
         }).ToList();
     }
 
-    // JSON models for parsing responses
+    /// <summary>
+    ///     Validates a regex pattern for safety (prevents ReDoS attacks).
+    ///     Rejects patterns that are too long, have excessive quantifiers, or fail to compile.
+    /// </summary>
+    private bool IsValidPattern(string pattern)
+    {
+        if (string.IsNullOrWhiteSpace(pattern))
+            return false;
+
+        // Limit pattern length to prevent memory exhaustion
+        if (pattern.Length > 500)
+        {
+            _logger.LogDebug("Rejected pattern exceeding max length: {Length} chars", pattern.Length);
+            return false;
+        }
+
+        // Check for potentially dangerous patterns (excessive nested quantifiers)
+        // These can cause catastrophic backtracking (ReDoS)
+        if (Regex.IsMatch(pattern, @"\(\??\+\+|\*\+|\{\d+,\}\+"))
+        {
+            _logger.LogDebug("Rejected pattern with nested possessive quantifiers: {Pattern}", pattern);
+            return false;
+        }
+
+        try
+        {
+            // Try to compile the regex with a timeout to catch problematic patterns
+            _ = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromMilliseconds(100));
+            return true;
+        }
+        catch (RegexParseException ex)
+        {
+            _logger.LogDebug("Rejected invalid regex pattern: {Pattern} - {Error}", pattern, ex.Message);
+            return false;
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogDebug("Rejected invalid regex pattern: {Pattern} - {Error}", pattern, ex.Message);
+            return false;
+        }
+    }
+
+    /// <summary>
+    ///     Validates a CIDR notation IP range for safety.
+    ///     Ensures the format is valid IPv4 or IPv6 CIDR.
+    /// </summary>
+    private bool IsValidCidr(string cidr)
+    {
+        if (string.IsNullOrWhiteSpace(cidr))
+            return false;
+
+        var trimmed = cidr.Trim();
+
+        // Must contain exactly one /
+        var parts = trimmed.Split('/');
+        if (parts.Length != 2)
+            return false;
+
+        // Validate IP address part
+        if (!IPAddress.TryParse(parts[0], out var ip))
+            return false;
+
+        // Validate prefix length
+        if (!int.TryParse(parts[1], out var prefix))
+            return false;
+
+        // IPv4 prefix: 0-32, IPv6 prefix: 0-128
+        var maxPrefix = ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? 32 : 128;
+        return prefix >= 0 && prefix <= maxPrefix;
+    }
+
+    // ==========================================
+    // JSON models for parsing API responses
+    // ==========================================
+
     private class CrawlerEntry
     {
         public string? Pattern { get; set; }
         public string? Url { get; set; }
+        public string? Instances { get; set; }
     }
 
-    private class AwsIpRanges
+    // AWS IP ranges format: https://docs.aws.amazon.com/general/latest/gr/aws-ip-ranges.html
+    private class AwsIpRangesResponse
     {
+        [JsonPropertyName("syncToken")]
+        public string? SyncToken { get; set; }
+
+        [JsonPropertyName("createDate")]
+        public string? CreateDate { get; set; }
+
+        [JsonPropertyName("prefixes")]
         public List<AwsPrefix>? Prefixes { get; set; }
+
+        [JsonPropertyName("ipv6_prefixes")]
+        public List<AwsIpv6Prefix>? Ipv6Prefixes { get; set; }
     }
 
     private class AwsPrefix
     {
-        public string IpPrefix { get; } = "";
-        public string Region { get; set; } = "";
-        public string Service { get; set; } = "";
+        [JsonPropertyName("ip_prefix")]
+        public string? IpPrefix { get; set; }
+
+        [JsonPropertyName("region")]
+        public string? Region { get; set; }
+
+        [JsonPropertyName("service")]
+        public string? Service { get; set; }
+
+        [JsonPropertyName("network_border_group")]
+        public string? NetworkBorderGroup { get; set; }
     }
 
-    private class GcpIpRanges
+    private class AwsIpv6Prefix
     {
+        [JsonPropertyName("ipv6_prefix")]
+        public string? Ipv6Prefix { get; set; }
+
+        [JsonPropertyName("region")]
+        public string? Region { get; set; }
+
+        [JsonPropertyName("service")]
+        public string? Service { get; set; }
+    }
+
+    // GCP IP ranges format: https://cloud.google.com/compute/docs/faq#find_ip_range
+    private class GcpIpRangesResponse
+    {
+        [JsonPropertyName("syncToken")]
+        public string? SyncToken { get; set; }
+
+        [JsonPropertyName("creationTime")]
+        public string? CreationTime { get; set; }
+
+        [JsonPropertyName("prefixes")]
         public List<GcpPrefix>? Prefixes { get; set; }
     }
 
     private class GcpPrefix
     {
+        [JsonPropertyName("ipv4Prefix")]
         public string? Ipv4Prefix { get; set; }
+
+        [JsonPropertyName("ipv6Prefix")]
         public string? Ipv6Prefix { get; set; }
+
+        [JsonPropertyName("service")]
+        public string? Service { get; set; }
+
+        [JsonPropertyName("scope")]
+        public string? Scope { get; set; }
+    }
+
+    // Azure IP ranges format (simplified - actual format is more complex)
+    private class AzureIpRangesResponse
+    {
+        [JsonPropertyName("changeNumber")]
+        public int? ChangeNumber { get; set; }
+
+        [JsonPropertyName("cloud")]
+        public string? Cloud { get; set; }
+
+        [JsonPropertyName("values")]
+        public List<AzureServiceTag>? Values { get; set; }
+    }
+
+    private class AzureServiceTag
+    {
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
+
+        [JsonPropertyName("id")]
+        public string? Id { get; set; }
+
+        [JsonPropertyName("properties")]
+        public AzureServiceTagProperties? Properties { get; set; }
+    }
+
+    private class AzureServiceTagProperties
+    {
+        [JsonPropertyName("changeNumber")]
+        public int? ChangeNumber { get; set; }
+
+        [JsonPropertyName("region")]
+        public string? Region { get; set; }
+
+        [JsonPropertyName("platform")]
+        public string? Platform { get; set; }
+
+        [JsonPropertyName("systemService")]
+        public string? SystemService { get; set; }
+
+        [JsonPropertyName("addressPrefixes")]
+        public List<string>? AddressPrefixes { get; set; }
     }
 }

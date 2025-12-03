@@ -1,10 +1,12 @@
+using System.Text.RegularExpressions;
+
 namespace Mostlylucid.BotDetection.Data;
 
 /// <summary>
 ///     Known bot signatures and patterns
 ///     Based on lists from matomo.org, Cloudflare, and other sources
 /// </summary>
-public static class BotSignatures
+public static partial class BotSignatures
 {
     /// <summary>
     ///     Known good bots (search engines, monitoring tools, etc.)
@@ -105,13 +107,92 @@ public static class BotSignatures
     };
 
     /// <summary>
-    ///     Regex patterns for bot detection in User-Agent
+    ///     Regex patterns for bot detection in User-Agent (string form for backwards compatibility)
     /// </summary>
-    public static readonly string[] BotPatterns = new[]
-    {
+    public static readonly string[] BotPatterns =
+    [
         @"\bbot\b", @"\bcrawl", @"\bspider\b", @"\bslurp\b", @"\barchive\b",
         @"\bindex", @"\bscrape", @"\bfetch\b", @"http:\/\/", @"https:\/\/",
         @"\+http", @"@", @"\.com", @"\.org", @"\.net",
         @"^\w+\/[\d\.]+$" // Simple version patterns like "curl/7.68.0"
-    };
+    ];
+
+    // ==========================================
+    // Source-Generated Regex Patterns (fastest)
+    // ==========================================
+    // These are compiled at build time for maximum performance.
+    // Use CompiledBotPatterns for hot paths instead of BotPatterns.
+
+    /// <summary>
+    ///     Pre-compiled regex patterns for bot detection.
+    ///     Use these instead of BotPatterns for best performance.
+    /// </summary>
+    public static readonly Regex[] CompiledBotPatterns =
+    [
+        BotRegex(),
+        CrawlRegex(),
+        SpiderRegex(),
+        SlurpRegex(),
+        ArchiveRegex(),
+        IndexRegex(),
+        ScrapeRegex(),
+        FetchRegex(),
+        HttpRegex(),
+        HttpsRegex(),
+        PlusHttpRegex(),
+        AtSymbolRegex(),
+        DotComRegex(),
+        DotOrgRegex(),
+        DotNetRegex(),
+        SimpleVersionRegex()
+    ];
+
+    // Source-generated regex methods - compiled at build time
+    [GeneratedRegex(@"\bbot\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
+    private static partial Regex BotRegex();
+
+    [GeneratedRegex(@"\bcrawl", RegexOptions.IgnoreCase | RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
+    private static partial Regex CrawlRegex();
+
+    [GeneratedRegex(@"\bspider\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
+    private static partial Regex SpiderRegex();
+
+    [GeneratedRegex(@"\bslurp\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
+    private static partial Regex SlurpRegex();
+
+    [GeneratedRegex(@"\barchive\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
+    private static partial Regex ArchiveRegex();
+
+    [GeneratedRegex(@"\bindex", RegexOptions.IgnoreCase | RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
+    private static partial Regex IndexRegex();
+
+    [GeneratedRegex(@"\bscrape", RegexOptions.IgnoreCase | RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
+    private static partial Regex ScrapeRegex();
+
+    [GeneratedRegex(@"\bfetch\b", RegexOptions.IgnoreCase | RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
+    private static partial Regex FetchRegex();
+
+    [GeneratedRegex(@"http://", RegexOptions.IgnoreCase | RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
+    private static partial Regex HttpRegex();
+
+    [GeneratedRegex(@"https://", RegexOptions.IgnoreCase | RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
+    private static partial Regex HttpsRegex();
+
+    [GeneratedRegex(@"\+http", RegexOptions.IgnoreCase | RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
+    private static partial Regex PlusHttpRegex();
+
+    [GeneratedRegex(@"@", RegexOptions.IgnoreCase | RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
+    private static partial Regex AtSymbolRegex();
+
+    [GeneratedRegex(@"\.com", RegexOptions.IgnoreCase | RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
+    private static partial Regex DotComRegex();
+
+    [GeneratedRegex(@"\.org", RegexOptions.IgnoreCase | RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
+    private static partial Regex DotOrgRegex();
+
+    [GeneratedRegex(@"\.net", RegexOptions.IgnoreCase | RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
+    private static partial Regex DotNetRegex();
+
+    [GeneratedRegex(@"^\w+\/[\d\.]+$", RegexOptions.IgnoreCase | RegexOptions.Compiled, matchTimeoutMilliseconds: 100)]
+    private static partial Regex SimpleVersionRegex();
 }

@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Detectors;
+using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Test.Helpers;
 
 namespace Mostlylucid.BotDetection.Test.Detectors;
@@ -14,7 +16,8 @@ public class HeaderDetectorTests
     public HeaderDetectorTests()
     {
         var logger = new Mock<ILogger<HeaderDetector>>().Object;
-        _detector = new HeaderDetector(logger);
+        var options = Options.Create(new BotDetectionOptions());
+        _detector = new HeaderDetector(logger, options);
     }
 
     #region Header Ordering Tests

@@ -8,14 +8,46 @@ using Mostlylucid.BotDetection.Services;
 namespace Mostlylucid.BotDetection.Middleware;
 
 /// <summary>
-///     Middleware that detects bots and adds detection result to HttpContext
+///     Middleware that detects bots and adds detection result to HttpContext.
+///     Results are stored in HttpContext.Items for access by downstream middleware, controllers, and views.
 /// </summary>
+/// <remarks>
+///     The following keys are available in HttpContext.Items:
+///     <list type="bullet">
+///         <item><see cref="BotDetectionResultKey"/> - Full BotDetectionResult object</item>
+///         <item><see cref="IsBotKey"/> - Boolean indicating if request is from a bot</item>
+///         <item><see cref="BotConfidenceKey"/> - Double confidence score (0.0-1.0)</item>
+///         <item><see cref="BotTypeKey"/> - BotType enum value (nullable)</item>
+///         <item><see cref="BotNameKey"/> - String bot name (nullable)</item>
+///         <item><see cref="BotCategoryKey"/> - String category from detection reasons (nullable)</item>
+///         <item><see cref="DetectionReasonsKey"/> - List of DetectionReason objects</item>
+///     </list>
+/// </remarks>
 public class BotDetectionMiddleware(
     RequestDelegate next,
     ILogger<BotDetectionMiddleware> logger,
     IOptions<BotDetectionOptions> options)
 {
+    /// <summary>Full BotDetectionResult object</summary>
     public const string BotDetectionResultKey = "BotDetectionResult";
+
+    /// <summary>Boolean: true if request is from a bot</summary>
+    public const string IsBotKey = "BotDetection.IsBot";
+
+    /// <summary>Double: confidence score (0.0-1.0)</summary>
+    public const string BotConfidenceKey = "BotDetection.Confidence";
+
+    /// <summary>BotType?: the detected bot type</summary>
+    public const string BotTypeKey = "BotDetection.BotType";
+
+    /// <summary>String?: the detected bot name</summary>
+    public const string BotNameKey = "BotDetection.BotName";
+
+    /// <summary>String?: primary detection category (e.g., "UserAgent", "IP", "Header")</summary>
+    public const string BotCategoryKey = "BotDetection.Category";
+
+    /// <summary>List&lt;DetectionReason&gt;: all detection reasons</summary>
+    public const string DetectionReasonsKey = "BotDetection.Reasons";
 
     private static readonly Dictionary<string, TestModeConfig> TestModeConfigs = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -48,7 +80,7 @@ public class BotDetectionMiddleware(
                 _logger.LogInformation("Test mode: Simulating bot detection as '{Mode}'", testMode);
 
                 var testResult = CreateTestResult(testMode);
-                context.Items[BotDetectionResultKey] = testResult;
+                PopulateContextItems(context, testResult);
 
                 // Add test mode headers
                 context.Response.Headers.TryAdd("X-Test-Mode", testMode.Equals("disable", StringComparison.OrdinalIgnoreCase) ? "disabled" : "true");
@@ -71,8 +103,8 @@ public class BotDetectionMiddleware(
         // Run normal bot detection
         var result = await botDetectionService.DetectAsync(context, context.RequestAborted);
 
-        // Store result in HttpContext for access by controllers/views
-        context.Items[BotDetectionResultKey] = result;
+        // Store result and individual properties in HttpContext for access by controllers/views
+        PopulateContextItems(context, result);
 
         // Add custom header with bot detection result (for debugging)
         if (result.IsBot)
@@ -131,6 +163,29 @@ public class BotDetectionMiddleware(
     }
 
     private record TestModeConfig(bool IsBot, double Confidence, BotType? BotType, string? BotName, string Detail);
+
+    /// <summary>
+    ///     Populates HttpContext.Items with bot detection result and individual properties.
+    /// </summary>
+    private static void PopulateContextItems(HttpContext context, BotDetectionResult result)
+    {
+        // Full result object (for complete access)
+        context.Items[BotDetectionResultKey] = result;
+
+        // Individual properties (for quick access without casting)
+        context.Items[IsBotKey] = result.IsBot;
+        context.Items[BotConfidenceKey] = result.ConfidenceScore;
+        context.Items[BotTypeKey] = result.BotType;
+        context.Items[BotNameKey] = result.BotName;
+        context.Items[DetectionReasonsKey] = result.Reasons;
+
+        // Primary category (from highest-confidence reason)
+        if (result.Reasons.Count > 0)
+        {
+            var primaryReason = result.Reasons.OrderByDescending(r => r.ConfidenceImpact).First();
+            context.Items[BotCategoryKey] = primaryReason.Category;
+        }
+    }
 }
 
 /// <summary>

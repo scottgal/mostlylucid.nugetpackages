@@ -81,7 +81,8 @@ public static class RouteBuilderExtensions
                 reasons = result.Reasons.Select(r => new
                 {
                     category = r.Category,
-                    detail = r.Detail,
+                    // Clean up any newlines/carriage returns in detail text
+                    detail = r.Detail?.Replace("\r\n", " ").Replace("\r", " ").Replace("\n", " ").Trim(),
                     impact = r.ConfidenceImpact
                 })
             });

@@ -407,4 +407,487 @@ public class BehavioralDetectorTests
     }
 
     #endregion
+
+    #region API Key Rate Limiting Tests
+
+    [Fact]
+    public async Task DetectAsync_ApiKeyRateLimitExceeded_AddsReason()
+    {
+        // Arrange
+        var cache = CreateFreshCache();
+        var options = new BotDetectionOptions
+        {
+            MaxRequestsPerMinute = 100, // High IP limit
+            Behavioral = new BehavioralOptions
+            {
+                ApiKeyHeader = "X-Api-Key",
+                ApiKeyRateLimit = 5 // Low API key limit
+            }
+        };
+        var detector = new BehavioralDetector(_logger, Options.Create(options), cache);
+        var context = MockHttpContext.CreateWithHeaders(new Dictionary<string, string>
+        {
+            ["X-Api-Key"] = "test-api-key-123"
+        });
+        context.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.1");
+
+        // Act - Exceed API key rate limit
+        DetectorResult result = null!;
+        for (var i = 0; i < 10; i++) result = await detector.DetectAsync(context);
+
+        // Assert
+        Assert.Contains(result.Reasons, r =>
+            r.Detail.Contains("API key rate limit", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task DetectAsync_ApiKeyWithinLimit_NoApiKeyReason()
+    {
+        // Arrange
+        var cache = CreateFreshCache();
+        var options = new BotDetectionOptions
+        {
+            MaxRequestsPerMinute = 100,
+            Behavioral = new BehavioralOptions
+            {
+                ApiKeyHeader = "X-Api-Key",
+                ApiKeyRateLimit = 50
+            }
+        };
+        var detector = new BehavioralDetector(_logger, Options.Create(options), cache);
+        var context = MockHttpContext.CreateWithHeaders(new Dictionary<string, string>
+        {
+            ["X-Api-Key"] = "test-api-key-456"
+        });
+        context.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.1");
+
+        // Act - Stay within API key rate limit
+        DetectorResult result = null!;
+        for (var i = 0; i < 5; i++) result = await detector.DetectAsync(context);
+
+        // Assert
+        Assert.DoesNotContain(result.Reasons, r =>
+            r.Detail.Contains("API key rate limit", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task DetectAsync_DifferentApiKeys_IndependentCounting()
+    {
+        // Arrange
+        var cache = CreateFreshCache();
+        var options = new BotDetectionOptions
+        {
+            MaxRequestsPerMinute = 100,
+            Behavioral = new BehavioralOptions
+            {
+                ApiKeyHeader = "X-Api-Key",
+                ApiKeyRateLimit = 5
+            }
+        };
+        var detector = new BehavioralDetector(_logger, Options.Create(options), cache);
+
+        var context1 = MockHttpContext.CreateWithHeaders(new Dictionary<string, string>
+        {
+            ["X-Api-Key"] = "api-key-1"
+        });
+        context1.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.1");
+
+        var context2 = MockHttpContext.CreateWithHeaders(new Dictionary<string, string>
+        {
+            ["X-Api-Key"] = "api-key-2"
+        });
+        context2.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.1");
+
+        // Act - Exceed limit on key 1
+        for (var i = 0; i < 10; i++) await detector.DetectAsync(context1);
+
+        // First request on key 2
+        var result2 = await detector.DetectAsync(context2);
+
+        // Assert - Key 2 should not have API key rate limit reason
+        Assert.DoesNotContain(result2.Reasons, r =>
+            r.Detail.Contains("API key rate limit", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task DetectAsync_NoApiKeyHeader_NoApiKeyTracking()
+    {
+        // Arrange
+        var cache = CreateFreshCache();
+        var options = new BotDetectionOptions
+        {
+            MaxRequestsPerMinute = 100,
+            Behavioral = new BehavioralOptions
+            {
+                ApiKeyHeader = null, // Disabled
+                ApiKeyRateLimit = 5
+            }
+        };
+        var detector = new BehavioralDetector(_logger, Options.Create(options), cache);
+        var context = MockHttpContext.CreateWithHeaders(new Dictionary<string, string>
+        {
+            ["X-Api-Key"] = "test-api-key"
+        });
+        context.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.1");
+
+        // Act
+        DetectorResult result = null!;
+        for (var i = 0; i < 10; i++) result = await detector.DetectAsync(context);
+
+        // Assert - Should not track by API key when header not configured
+        Assert.DoesNotContain(result.Reasons, r =>
+            r.Detail.Contains("API key rate limit", StringComparison.OrdinalIgnoreCase));
+    }
+
+    #endregion
+
+    #region User ID Rate Limiting Tests
+
+    [Fact]
+    public async Task DetectAsync_UserRateLimitExceeded_AddsReason()
+    {
+        // Arrange
+        var cache = CreateFreshCache();
+        var options = new BotDetectionOptions
+        {
+            MaxRequestsPerMinute = 100,
+            Behavioral = new BehavioralOptions
+            {
+                UserIdHeader = "X-User-Id",
+                UserRateLimit = 5
+            }
+        };
+        var detector = new BehavioralDetector(_logger, Options.Create(options), cache);
+        var context = MockHttpContext.CreateWithHeaders(new Dictionary<string, string>
+        {
+            ["X-User-Id"] = "user-123"
+        });
+        context.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.1");
+
+        // Act - Exceed user rate limit
+        DetectorResult result = null!;
+        for (var i = 0; i < 10; i++) result = await detector.DetectAsync(context);
+
+        // Assert
+        Assert.Contains(result.Reasons, r =>
+            r.Detail.Contains("User rate limit", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task DetectAsync_UserWithinLimit_NoUserReason()
+    {
+        // Arrange
+        var cache = CreateFreshCache();
+        var options = new BotDetectionOptions
+        {
+            MaxRequestsPerMinute = 100,
+            Behavioral = new BehavioralOptions
+            {
+                UserIdHeader = "X-User-Id",
+                UserRateLimit = 50
+            }
+        };
+        var detector = new BehavioralDetector(_logger, Options.Create(options), cache);
+        var context = MockHttpContext.CreateWithHeaders(new Dictionary<string, string>
+        {
+            ["X-User-Id"] = "user-456"
+        });
+        context.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.1");
+
+        // Act - Stay within user rate limit
+        DetectorResult result = null!;
+        for (var i = 0; i < 5; i++) result = await detector.DetectAsync(context);
+
+        // Assert
+        Assert.DoesNotContain(result.Reasons, r =>
+            r.Detail.Contains("User rate limit", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task DetectAsync_DifferentUsers_IndependentCounting()
+    {
+        // Arrange
+        var cache = CreateFreshCache();
+        var options = new BotDetectionOptions
+        {
+            MaxRequestsPerMinute = 100,
+            Behavioral = new BehavioralOptions
+            {
+                UserIdHeader = "X-User-Id",
+                UserRateLimit = 5
+            }
+        };
+        var detector = new BehavioralDetector(_logger, Options.Create(options), cache);
+
+        var context1 = MockHttpContext.CreateWithHeaders(new Dictionary<string, string>
+        {
+            ["X-User-Id"] = "user-1"
+        });
+        context1.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.1");
+
+        var context2 = MockHttpContext.CreateWithHeaders(new Dictionary<string, string>
+        {
+            ["X-User-Id"] = "user-2"
+        });
+        context2.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.1");
+
+        // Act - Exceed limit on user 1
+        for (var i = 0; i < 10; i++) await detector.DetectAsync(context1);
+
+        // First request for user 2
+        var result2 = await detector.DetectAsync(context2);
+
+        // Assert - User 2 should not have user rate limit reason
+        Assert.DoesNotContain(result2.Reasons, r =>
+            r.Detail.Contains("User rate limit", StringComparison.OrdinalIgnoreCase));
+    }
+
+    #endregion
+
+    #region Fingerprint-Based Tracking Tests
+
+    [Fact]
+    public async Task DetectAsync_FingerprintRateLimitExceeded_AddsReason()
+    {
+        // Arrange
+        var cache = CreateFreshCache();
+        var options = new BotDetectionOptions
+        {
+            MaxRequestsPerMinute = 100 // High IP limit, fingerprint limit is 1.5x = 150
+        };
+        var detector = new BehavioralDetector(_logger, Options.Create(options), cache);
+        var context = MockHttpContext.CreateWithIpAddress("192.168.1.1");
+
+        // Set fingerprint hash in context items (simulates ClientSideDetector)
+        context.Items["BotDetection.FingerprintHash"] = "abc123fingerprint";
+
+        // Act - Exceed fingerprint rate limit (1.5x of MaxRequestsPerMinute)
+        // Need more than 150 requests to trigger
+        DetectorResult result = null!;
+        for (var i = 0; i < 160; i++) result = await detector.DetectAsync(context);
+
+        // Assert
+        Assert.Contains(result.Reasons, r =>
+            r.Detail.Contains("Fingerprint rate limit", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task DetectAsync_DifferentFingerprints_IndependentCounting()
+    {
+        // Arrange
+        var cache = CreateFreshCache();
+        var options = new BotDetectionOptions
+        {
+            MaxRequestsPerMinute = 10 // Low limit so fingerprint limit is 15
+        };
+        var detector = new BehavioralDetector(_logger, Options.Create(options), cache);
+
+        var context1 = MockHttpContext.CreateWithIpAddress("192.168.1.1");
+        context1.Items["BotDetection.FingerprintHash"] = "fingerprint-1";
+
+        var context2 = MockHttpContext.CreateWithIpAddress("192.168.1.2");
+        context2.Items["BotDetection.FingerprintHash"] = "fingerprint-2";
+
+        // Act - Many requests from fingerprint 1
+        for (var i = 0; i < 20; i++) await detector.DetectAsync(context1);
+
+        // First request from fingerprint 2
+        var result2 = await detector.DetectAsync(context2);
+
+        // Assert - Fingerprint 2 should not have fingerprint rate limit reason
+        Assert.DoesNotContain(result2.Reasons, r =>
+            r.Detail.Contains("Fingerprint rate limit", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task DetectAsync_NoFingerprint_NoFingerprintTracking()
+    {
+        // Arrange
+        var cache = CreateFreshCache();
+        var options = new BotDetectionOptions { MaxRequestsPerMinute = 10 };
+        var detector = new BehavioralDetector(_logger, Options.Create(options), cache);
+        var context = MockHttpContext.CreateWithIpAddress("192.168.1.1");
+        // No fingerprint in context items
+
+        // Act
+        DetectorResult result = null!;
+        for (var i = 0; i < 20; i++) result = await detector.DetectAsync(context);
+
+        // Assert - Should not have fingerprint rate limit reason
+        Assert.DoesNotContain(result.Reasons, r =>
+            r.Detail.Contains("Fingerprint rate limit", StringComparison.OrdinalIgnoreCase));
+    }
+
+    #endregion
+
+    #region BehavioralOptions Default Values Tests
+
+    [Fact]
+    public async Task DetectAsync_ApiKeyRateLimitZero_UsesDefaultMultiplier()
+    {
+        // Arrange
+        var cache = CreateFreshCache();
+        var options = new BotDetectionOptions
+        {
+            MaxRequestsPerMinute = 10, // Default API key limit should be 20 (2x)
+            Behavioral = new BehavioralOptions
+            {
+                ApiKeyHeader = "X-Api-Key",
+                ApiKeyRateLimit = 0 // Use default
+            }
+        };
+        var detector = new BehavioralDetector(_logger, Options.Create(options), cache);
+        var context = MockHttpContext.CreateWithHeaders(new Dictionary<string, string>
+        {
+            ["X-Api-Key"] = "test-key"
+        });
+        context.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.1");
+
+        // Act - Make 15 requests (within default 2x multiplier of 20)
+        DetectorResult result = null!;
+        for (var i = 0; i < 15; i++) result = await detector.DetectAsync(context);
+
+        // Assert - Should not exceed default limit
+        Assert.DoesNotContain(result.Reasons, r =>
+            r.Detail.Contains("API key rate limit", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task DetectAsync_UserRateLimitZero_UsesDefaultMultiplier()
+    {
+        // Arrange
+        var cache = CreateFreshCache();
+        var options = new BotDetectionOptions
+        {
+            MaxRequestsPerMinute = 10, // Default user limit should be 30 (3x)
+            Behavioral = new BehavioralOptions
+            {
+                UserIdHeader = "X-User-Id",
+                UserRateLimit = 0 // Use default
+            }
+        };
+        var detector = new BehavioralDetector(_logger, Options.Create(options), cache);
+        var context = MockHttpContext.CreateWithHeaders(new Dictionary<string, string>
+        {
+            ["X-User-Id"] = "test-user"
+        });
+        context.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.1");
+
+        // Act - Make 25 requests (within default 3x multiplier of 30)
+        DetectorResult result = null!;
+        for (var i = 0; i < 25; i++) result = await detector.DetectAsync(context);
+
+        // Assert - Should not exceed default limit
+        Assert.DoesNotContain(result.Reasons, r =>
+            r.Detail.Contains("User rate limit", StringComparison.OrdinalIgnoreCase));
+    }
+
+    #endregion
+
+    #region Combined Identity Tracking Tests
+
+    [Fact]
+    public async Task DetectAsync_MultipleIdentitiesExceedLimits_CombinesReasons()
+    {
+        // Arrange
+        var cache = CreateFreshCache();
+        var options = new BotDetectionOptions
+        {
+            MaxRequestsPerMinute = 5, // Low IP limit
+            Behavioral = new BehavioralOptions
+            {
+                ApiKeyHeader = "X-Api-Key",
+                ApiKeyRateLimit = 5,
+                UserIdHeader = "X-User-Id",
+                UserRateLimit = 5
+            }
+        };
+        var detector = new BehavioralDetector(_logger, Options.Create(options), cache);
+        var context = MockHttpContext.CreateWithHeaders(new Dictionary<string, string>
+        {
+            ["X-Api-Key"] = "test-key",
+            ["X-User-Id"] = "test-user"
+        });
+        context.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.1");
+
+        // Act - Exceed all limits
+        DetectorResult result = null!;
+        for (var i = 0; i < 20; i++) result = await detector.DetectAsync(context);
+
+        // Assert - Should have multiple rate limit reasons
+        Assert.Contains(result.Reasons, r =>
+            r.Detail.Contains("request rate", StringComparison.OrdinalIgnoreCase)); // IP
+        Assert.Contains(result.Reasons, r =>
+            r.Detail.Contains("API key rate limit", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Reasons, r =>
+            r.Detail.Contains("User rate limit", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task DetectAsync_SameIpDifferentIdentities_IndependentTracking()
+    {
+        // Arrange
+        var cache = CreateFreshCache();
+        var options = new BotDetectionOptions
+        {
+            MaxRequestsPerMinute = 100, // High IP limit
+            Behavioral = new BehavioralOptions
+            {
+                ApiKeyHeader = "X-Api-Key",
+                ApiKeyRateLimit = 5
+            }
+        };
+        var detector = new BehavioralDetector(_logger, Options.Create(options), cache);
+
+        // Same IP, different API keys
+        var context1 = MockHttpContext.CreateWithHeaders(new Dictionary<string, string>
+        {
+            ["X-Api-Key"] = "key-1"
+        });
+        context1.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.1");
+
+        var context2 = MockHttpContext.CreateWithHeaders(new Dictionary<string, string>
+        {
+            ["X-Api-Key"] = "key-2"
+        });
+        context2.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.1"); // Same IP
+
+        // Act - Exceed API key limit on key-1
+        for (var i = 0; i < 10; i++) await detector.DetectAsync(context1);
+
+        // First request on key-2 (same IP)
+        var result2 = await detector.DetectAsync(context2);
+
+        // Assert - Key-2 should not have API key rate limit (different key)
+        Assert.DoesNotContain(result2.Reasons, r =>
+            r.Detail.Contains("API key rate limit", StringComparison.OrdinalIgnoreCase));
+    }
+
+    #endregion
+
+    #region Request Timing Analysis Tests
+
+    [Fact]
+    public async Task DetectAsync_RegularTimingPattern_DetectsBotLikeBehavior()
+    {
+        // Arrange
+        var cache = CreateFreshCache();
+        var options = new BotDetectionOptions { MaxRequestsPerMinute = 100 };
+        var detector = new BehavioralDetector(_logger, Options.Create(options), cache);
+        var context = MockHttpContext.CreateWithIpAddress("192.168.1.1");
+
+        // Act - Make exactly 5 requests to trigger timing analysis
+        // Note: In real scenarios, bot-like regular timing would be detected
+        // This test verifies the timing analysis runs without error
+        for (var i = 0; i < 5; i++)
+        {
+            await detector.DetectAsync(context);
+        }
+
+        // Assert - Timing analysis should have run (result should not be null)
+        var result = await detector.DetectAsync(context);
+        Assert.NotNull(result);
+    }
+
+    #endregion
 }

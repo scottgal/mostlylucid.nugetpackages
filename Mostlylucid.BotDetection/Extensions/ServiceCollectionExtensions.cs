@@ -1,67 +1,110 @@
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Mostlylucid.BotDetection.ClientSide;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Detectors;
+using Mostlylucid.BotDetection.Metrics;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Services;
 
 namespace Mostlylucid.BotDetection.Extensions;
 
 /// <summary>
-///     Extension methods for configuring bot detection services
+///     Extension methods for configuring bot detection services.
+///     All methods are designed to be fail-safe with sensible defaults.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
     ///     Add bot detection services to the service collection.
-    ///     Supports multiple detection strategies from simple (static patterns) to advanced (LLM).
+    ///     This is the primary registration method supporting multiple detection strategies.
     /// </summary>
+    /// <remarks>
+    ///     Default configuration enables all heuristic detection (UA, headers, IP, behavioral)
+    ///     but disables LLM detection (requires Ollama). All settings can be customized via
+    ///     the configure action or appsettings.json.
+    /// </remarks>
     /// <param name="services">The service collection</param>
-    /// <param name="configure">Optional configuration action</param>
+    /// <param name="configure">Optional configuration action (applied after appsettings)</param>
     /// <returns>The service collection for chaining</returns>
+    /// <example>
+    ///     // Minimal registration (uses defaults + appsettings.json)
+    ///     builder.Services.AddBotDetection();
+    ///
+    ///     // With custom configuration
+    ///     builder.Services.AddBotDetection(options =>
+    ///     {
+    ///         options.BotThreshold = 0.8;
+    ///         options.EnableLlmDetection = true;
+    ///     });
+    /// </example>
     public static IServiceCollection AddBotDetection(
         this IServiceCollection services,
         Action<BotDetectionOptions>? configure = null)
     {
-        // Configure options
-        if (configure != null)
-            services.Configure(configure);
-        else
-            services.Configure<BotDetectionOptions>(_ => { });
+        // Configure options from appsettings.json "BotDetection" section
+        services.AddOptions<BotDetectionOptions>()
+            .BindConfiguration("BotDetection")
+            .Configure(options =>
+            {
+                // Apply any code-based configuration on top of appsettings
+                configure?.Invoke(options);
+            })
+            .ValidateOnStart();
 
-        // Register options validator
+        // Register options validator for fail-fast on invalid config
         services.AddSingleton<IValidateOptions<BotDetectionOptions>, BotDetectionOptionsValidator>();
 
-        // Add HttpClient factory for bot list fetching
-        services.AddHttpClient();
-
-        // Add memory cache if not already registered
-        services.AddMemoryCache();
-
-        // Register bot list fetcher and database
-        services.AddSingleton<IBotListFetcher, BotListFetcher>();
-        services.AddSingleton<IBotListDatabase, BotListDatabase>();
-
-        // Register core bot detection service
-        services.AddSingleton<IBotDetectionService, BotDetectionService>();
-
-        // Register bot list update service as hosted service
-        services.AddHostedService<BotListUpdateService>();
-
-        // Register individual detectors
-        services.AddSingleton<IDetector, UserAgentDetector>();
-        services.AddSingleton<IDetector, HeaderDetector>();
-        services.AddSingleton<IDetector, BehavioralDetector>();
-        services.AddSingleton<IDetector, IpDetector>();
-        services.AddSingleton<IDetector, LlmDetector>();
+        // Register core services
+        RegisterCoreServices(services);
 
         return services;
     }
 
     /// <summary>
-    ///     Add simple bot detection (user-agent only, no database, no LLM).
-    ///     Fastest and simplest option for basic protection.
+    ///     Add bot detection with explicit IConfiguration binding.
+    ///     Use this when you need to bind from a non-standard configuration section.
     /// </summary>
+    /// <param name="services">The service collection</param>
+    /// <param name="configuration">Configuration section to bind from</param>
+    /// <param name="configure">Optional configuration action (applied after binding)</param>
+    /// <returns>The service collection for chaining</returns>
+    /// <example>
+    ///     // Bind from custom section
+    ///     builder.Services.AddBotDetection(
+    ///         builder.Configuration.GetSection("MyApp:Security:BotDetection"));
+    /// </example>
+    public static IServiceCollection AddBotDetection(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        Action<BotDetectionOptions>? configure = null)
+    {
+        services.AddOptions<BotDetectionOptions>()
+            .Bind(configuration)
+            .Configure(options => configure?.Invoke(options))
+            .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<BotDetectionOptions>, BotDetectionOptionsValidator>();
+
+        RegisterCoreServices(services);
+
+        return services;
+    }
+
+    /// <summary>
+    ///     Add simple bot detection (user-agent only).
+    ///     Fastest option with minimal resource usage.
+    /// </summary>
+    /// <remarks>
+    ///     This configuration:
+    ///     - Only enables User-Agent pattern matching
+    ///     - Disables header analysis, IP detection, behavioral analysis, and LLM
+    ///     - Suitable for low-traffic apps or when speed is critical
+    /// </remarks>
     /// <param name="services">The service collection</param>
     /// <param name="configure">Optional configuration action</param>
     /// <returns>The service collection for chaining</returns>
@@ -83,8 +126,17 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     ///     Add comprehensive bot detection (all heuristics, no LLM).
-    ///     Good balance of accuracy and performance.
+    ///     Recommended for most production applications.
     /// </summary>
+    /// <remarks>
+    ///     This configuration:
+    ///     - Enables User-Agent pattern matching
+    ///     - Enables header analysis (Accept, Accept-Language, etc.)
+    ///     - Enables IP-based detection (datacenter ranges)
+    ///     - Enables behavioral analysis (request rate limiting)
+    ///     - Disables LLM detection
+    ///     - Good balance of accuracy and performance
+    /// </remarks>
     /// <param name="services">The service collection</param>
     /// <param name="configure">Optional configuration action</param>
     /// <returns>The service collection for chaining</returns>
@@ -106,13 +158,32 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     ///     Add advanced bot detection with LLM (requires Ollama).
-    ///     Most accurate but requires more resources.
+    ///     Most accurate but requires Ollama to be running.
     /// </summary>
+    /// <remarks>
+    ///     This configuration:
+    ///     - Enables all heuristic detection methods
+    ///     - Enables LLM-based semantic analysis
+    ///     - Requires Ollama to be running at the specified endpoint
+    ///     - Recommended models: qwen2.5:1.5b, phi3:mini, tinyllama
+    ///
+    ///     LLM detection is fail-safe: if Ollama is unavailable,
+    ///     detection continues with heuristics only.
+    /// </remarks>
     /// <param name="services">The service collection</param>
-    /// <param name="ollamaEndpoint">Ollama endpoint URL</param>
-    /// <param name="model">Ollama model name</param>
+    /// <param name="ollamaEndpoint">Ollama endpoint URL (default: http://localhost:11434)</param>
+    /// <param name="model">Ollama model name (default: qwen2.5:1.5b)</param>
     /// <param name="configure">Optional configuration action</param>
     /// <returns>The service collection for chaining</returns>
+    /// <example>
+    ///     // With default Ollama settings
+    ///     builder.Services.AddAdvancedBotDetection();
+    ///
+    ///     // With custom endpoint and model
+    ///     builder.Services.AddAdvancedBotDetection(
+    ///         ollamaEndpoint: "http://ollama-server:11434",
+    ///         model: "phi3:mini");
+    /// </example>
     public static IServiceCollection AddAdvancedBotDetection(
         this IServiceCollection services,
         string ollamaEndpoint = "http://localhost:11434",
@@ -126,21 +197,77 @@ public static class ServiceCollectionExtensions
             options.EnableIpDetection = true;
             options.EnableBehavioralAnalysis = true;
             options.EnableLlmDetection = true;
-            options.OllamaEndpoint = ollamaEndpoint;
-            options.OllamaModel = model;
+
+            // Use the new AiDetection configuration
+            options.AiDetection.Provider = AiProvider.Ollama;
+            options.AiDetection.Ollama.Endpoint = ollamaEndpoint;
+            options.AiDetection.Ollama.Model = model;
 
             configure?.Invoke(options);
         });
     }
 
     /// <summary>
-    ///     Configure bot detection with custom options
+    ///     Configure bot detection options (for post-registration customization).
     /// </summary>
+    /// <param name="services">The service collection</param>
+    /// <param name="configure">Configuration action</param>
+    /// <returns>The service collection for chaining</returns>
     public static IServiceCollection ConfigureBotDetection(
         this IServiceCollection services,
         Action<BotDetectionOptions> configure)
     {
         services.Configure(configure);
         return services;
+    }
+
+    /// <summary>
+    ///     Registers core bot detection services.
+    ///     Called by all Add*BotDetection methods.
+    /// </summary>
+    private static void RegisterCoreServices(IServiceCollection services)
+    {
+        // Add HttpClient factory for bot list fetching
+        services.AddHttpClient();
+
+        // Add memory cache if not already registered
+        services.AddMemoryCache();
+
+        // Register performance infrastructure
+        services.TryAddSingleton<BotDetectionMetrics>();
+        services.TryAddSingleton<ICompiledPatternCache, CompiledPatternCache>();
+
+        // Register bot list fetcher and database
+        services.TryAddSingleton<IBotListFetcher, BotListFetcher>();
+        services.TryAddSingleton<IBotListDatabase>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<BotDetectionOptions>>().Value;
+            var fetcher = sp.GetRequiredService<IBotListFetcher>();
+            var logger = sp.GetRequiredService<ILogger<BotListDatabase>>();
+            return new BotListDatabase(fetcher, logger, options.DatabasePath);
+        });
+
+        // Register core bot detection service
+        services.TryAddSingleton<IBotDetectionService, BotDetectionService>();
+
+        // Register bot list update background service
+        services.AddHostedService<BotListUpdateService>();
+
+        // Register individual detectors
+        // Each detector is responsible for one detection strategy
+        services.AddSingleton<IDetector, UserAgentDetector>();
+        services.AddSingleton<IDetector, HeaderDetector>();
+        services.AddSingleton<IDetector, BehavioralDetector>();
+        services.AddSingleton<IDetector, IpDetector>();
+        services.AddSingleton<IDetector, LlmDetector>();
+        services.AddSingleton<IDetector, OnnxDetector>();
+        services.AddSingleton<IDetector, ClientSideDetector>();
+        services.AddSingleton<IDetector, InconsistencyDetector>();
+
+        // Register client-side fingerprinting services
+        services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+        services.TryAddSingleton<IBrowserTokenService, BrowserTokenService>();
+        services.TryAddSingleton<IBrowserFingerprintAnalyzer, BrowserFingerprintAnalyzer>();
+        services.TryAddSingleton<IBrowserFingerprintStore, BrowserFingerprintStore>();
     }
 }

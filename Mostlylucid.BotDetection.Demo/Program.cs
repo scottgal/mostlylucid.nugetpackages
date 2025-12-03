@@ -1,3 +1,4 @@
+using Mostlylucid.BotDetection.ClientSide;
 using Mostlylucid.BotDetection.Extensions;
 using Mostlylucid.BotDetection.Filters;
 using Mostlylucid.BotDetection.Middleware;
@@ -14,17 +15,25 @@ builder.Services.AddBotDetection(options =>
     options.EnableBehavioralAnalysis = true;
     options.EnableTestMode = true; // Enable test mode for demo
 
-    // Enable LLM detection (requires Ollama running)
+    // Enable AI detection (ONNX by default, can switch to Ollama)
     options.EnableLlmDetection = false;
-    options.OllamaEndpoint = "http://localhost:11434";
-    options.OllamaModel = "qwen2.5:1.5b";
-    options.LlmTimeoutMs = 2000;
+    options.AiDetection.Provider = Mostlylucid.BotDetection.Models.AiProvider.Onnx;
+    options.AiDetection.TimeoutMs = 2000;
+    options.AiDetection.Ollama.Endpoint = "http://localhost:11434";
+    options.AiDetection.Ollama.Model = "qwen2.5:1.5b";
 
     options.MaxRequestsPerMinute = 60;
     options.CacheDurationSeconds = 300;
+
+    // Enable client-side browser fingerprinting
+    options.ClientSide.Enabled = true;
+    options.ClientSide.CollectWebGL = true;
+    options.ClientSide.CollectCanvas = true;
+    options.ClientSide.TokenSecret = "demo-secret-change-in-production";
 });
 
 builder.Services.AddControllers();
+builder.Services.AddRazorPages(); // For TagHelper support
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -44,12 +53,16 @@ app.UseBotDetection();
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
+app.MapRazorPages();
 
 // ==========================================
 // Built-in diagnostic endpoints
 // ==========================================
 // Maps: /bot-detection/check, /bot-detection/stats, /bot-detection/health
 app.MapBotDetectionEndpoints();
+
+// Map the fingerprint endpoint for client-side JS to POST data to
+app.MapBotDetectionFingerprintEndpoint();
 
 // ==========================================
 // Demo endpoints using extension methods

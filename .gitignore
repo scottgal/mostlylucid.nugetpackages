@@ -270,3 +270,12 @@ __pycache__/
 
 Mostlylucid.AltText.Demo/models/
 mlmodels/
+
+# ONNX/ML models (auto-downloaded at runtime)
+**/models/*.onnx
+**/models/bot_classifier.onnx
+
+# Bot detection database
+*.db
+botdetection.db
+learned_bot_patterns.json

@@ -1,0 +1,221 @@
+@page "/bot-test"
+@model Mostlylucid.BotDetection.Demo.Pages.BotTestModel
+@{
+    ViewData["Title"] = "Bot Detection Test";
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Mostlylucid.BotDetection</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+            color: #333;
+        }
+        h1 { color: #2c3e50; margin-bottom: 10px; }
+        .subtitle { color: #7f8c8d; margin-bottom: 30px; }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .card h2 { margin-top: 0; color: #34495e; font-size: 1.2em; }
+        .status { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+        .indicator {
+            width: 12px; height: 12px;
+            border-radius: 50%;
+            background: #95a5a6;
+        }
+        .indicator.success { background: #27ae60; }
+        .indicator.warning { background: #f39c12; }
+        .indicator.danger { background: #e74c3c; }
+        .indicator.unknown { background: #95a5a6; }
+        .score {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .score.high { color: #27ae60; }
+        .score.medium { color: #f39c12; }
+        .score.low { color: #e74c3c; }
+        .details { font-size: 0.9em; color: #7f8c8d; }
+        .fingerprint-data {
+            font-family: monospace;
+            font-size: 0.85em;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+        .badge-bot { background: #e74c3c; color: white; }
+        .badge-human { background: #27ae60; color: white; }
+        .badge-unknown { background: #95a5a6; color: white; }
+        #serverResult, #clientResult { min-height: 100px; }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        button:hover { background: #2980b9; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @@media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <h1>Bot Detection Test Page</h1>
+    <p class="subtitle">Test browser fingerprinting and headless detection with PuppeteerSharp</p>
+
+    <div class="grid">
+        <div class="card">
+            <h2>Server-Side Detection</h2>
+            <p class="details">Based on User-Agent, headers, IP, and behavior</p>
+            <div id="serverResult">
+                <div class="status">
+                    <span class="indicator @(Model.IsBot ? "danger" : "success")"></span>
+                    <span class="badge @(Model.IsBot ? "badge-bot" : "badge-human")">
+                        @(Model.IsBot ? "Bot Detected" : "Human")
+                    </span>
+                </div>
+                <div class="score @(Model.Confidence < 0.3 ? "high" : Model.Confidence < 0.7 ? "medium" : "low")">
+                    @Model.Confidence.ToString("P0")
+                </div>
+                <p class="details">Confidence Score</p>
+                @if (!string.IsNullOrEmpty(Model.BotType))
+                {
+                    <p><strong>Bot Type:</strong> @Model.BotType</p>
+                }
+                @if (!string.IsNullOrEmpty(Model.BotName))
+                {
+                    <p><strong>Bot Name:</strong> @Model.BotName</p>
+                }
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Client-Side Detection</h2>
+            <p class="details">JavaScript fingerprint + headless detection</p>
+            <div id="clientResult">
+                <div class="status">
+                    <span class="indicator unknown" id="clientIndicator"></span>
+                    <span class="badge badge-unknown" id="clientBadge">Collecting...</span>
+                </div>
+                <div class="score" id="clientScore">--</div>
+                <p class="details">Browser Integrity Score</p>
+                <p id="clientDetails"></p>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Browser Fingerprint Data</h2>
+        <p class="details">Data collected by the client-side script</p>
+        <div class="fingerprint-data" id="fingerprintData">Waiting for fingerprint collection...</div>
+    </div>
+
+    <div class="card">
+        <h2>Detection API Response</h2>
+        <button onclick="fetchDetectionCheck()">Refresh Detection</button>
+        <div class="fingerprint-data" id="apiResponse" style="margin-top: 15px;">Click button to fetch...</div>
+    </div>
+
+    <!-- Bot Detection Script - TagHelper injects fingerprinting JS -->
+    <bot-detection-script endpoint="/bot-detection/fingerprint" />
+
+    <script>
+        // Intercept the fingerprint data before it's sent
+        (function() {
+            var originalXHR = XMLHttpRequest.prototype.send;
+            XMLHttpRequest.prototype.send = function(data) {
+                if (this._url && this._url.includes('fingerprint')) {
+                    try {
+                        var parsed = JSON.parse(data);
+                        document.getElementById('fingerprintData').textContent = JSON.stringify(parsed, null, 2);
+                        updateClientUI(parsed);
+                    } catch(e) {}
+                }
+                originalXHR.apply(this, arguments);
+            };
+
+            var originalOpen = XMLHttpRequest.prototype.open;
+            XMLHttpRequest.prototype.open = function(method, url) {
+                this._url = url;
+                originalOpen.apply(this, arguments);
+            };
+        })();
+
+        function updateClientUI(data) {
+            var score = data.score || 0;
+            var indicator = document.getElementById('clientIndicator');
+            var badge = document.getElementById('clientBadge');
+            var scoreEl = document.getElementById('clientScore');
+            var details = document.getElementById('clientDetails');
+
+            scoreEl.textContent = score + '/100';
+
+            if (score >= 70) {
+                indicator.className = 'indicator success';
+                badge.className = 'badge badge-human';
+                badge.textContent = 'Likely Human';
+                scoreEl.className = 'score high';
+            } else if (score >= 40) {
+                indicator.className = 'indicator warning';
+                badge.className = 'badge badge-unknown';
+                badge.textContent = 'Suspicious';
+                scoreEl.className = 'score medium';
+            } else {
+                indicator.className = 'indicator danger';
+                badge.className = 'badge badge-bot';
+                badge.textContent = 'Likely Bot';
+                scoreEl.className = 'score low';
+            }
+
+            var detailsHtml = '';
+            if (data.webdriver) detailsHtml += '<strong>WebDriver detected!</strong><br>';
+            if (data.phantom) detailsHtml += 'PhantomJS detected<br>';
+            if (data.selenium) detailsHtml += 'Selenium detected<br>';
+            if (data.cdc) detailsHtml += 'CDP markers detected<br>';
+            if (data.plugins === 0 && data.chrome) detailsHtml += 'Chrome with no plugins<br>';
+            if (data.outerW === 0) detailsHtml += 'Zero outer dimensions<br>';
+
+            details.innerHTML = detailsHtml || 'No suspicious signals detected';
+        }
+
+        function fetchDetectionCheck() {
+            fetch('/bot-detection/check')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('apiResponse').textContent = JSON.stringify(data, null, 2);
+                })
+                .catch(e => {
+                    document.getElementById('apiResponse').textContent = 'Error: ' + e.message;
+                });
+        }
+
+        // Auto-fetch on load
+        setTimeout(fetchDetectionCheck, 500);
+    </script>
+</body>
+</html>

@@ -95,8 +95,8 @@ public class BotDetectionOptionsTests
         // Act
         var options = new BotDetectionOptions();
 
-        // Assert
-        Assert.Equal("qwen2.5:1.5b", options.OllamaModel);
+        // Assert - Default model was changed to gemma3:1b (small, fast, 8K context)
+        Assert.Equal("gemma3:1b", options.OllamaModel);
     }
 
     [Fact]
@@ -419,6 +419,382 @@ public class BotDetectionOptionsTests
         Assert.True(options.EnableIpDetection);
         Assert.True(options.EnableBehavioralAnalysis);
         Assert.True(options.EnableLlmDetection);
+    }
+
+    #endregion
+
+    #region BehavioralOptions Tests
+
+    [Fact]
+    public void Constructor_InitializesBehavioralOptions()
+    {
+        // Act
+        var options = new BotDetectionOptions();
+
+        // Assert
+        Assert.NotNull(options.Behavioral);
+    }
+
+    [Fact]
+    public void BehavioralOptions_DefaultApiKeyHeaderIsNull()
+    {
+        // Act
+        var options = new BehavioralOptions();
+
+        // Assert
+        Assert.Null(options.ApiKeyHeader);
+    }
+
+    [Fact]
+    public void BehavioralOptions_DefaultApiKeyRateLimitIsZero()
+    {
+        // Act
+        var options = new BehavioralOptions();
+
+        // Assert
+        Assert.Equal(0, options.ApiKeyRateLimit);
+    }
+
+    [Fact]
+    public void BehavioralOptions_DefaultUserIdClaimIsNull()
+    {
+        // Act
+        var options = new BehavioralOptions();
+
+        // Assert
+        Assert.Null(options.UserIdClaim);
+    }
+
+    [Fact]
+    public void BehavioralOptions_DefaultUserIdHeaderIsNull()
+    {
+        // Act
+        var options = new BehavioralOptions();
+
+        // Assert
+        Assert.Null(options.UserIdHeader);
+    }
+
+    [Fact]
+    public void BehavioralOptions_DefaultUserRateLimitIsZero()
+    {
+        // Act
+        var options = new BehavioralOptions();
+
+        // Assert
+        Assert.Equal(0, options.UserRateLimit);
+    }
+
+    [Fact]
+    public void BehavioralOptions_DefaultEnableAnomalyDetectionIsTrue()
+    {
+        // Act
+        var options = new BehavioralOptions();
+
+        // Assert
+        Assert.True(options.EnableAnomalyDetection);
+    }
+
+    [Fact]
+    public void BehavioralOptions_DefaultSpikeThresholdMultiplierIsFive()
+    {
+        // Act
+        var options = new BehavioralOptions();
+
+        // Assert
+        Assert.Equal(5.0, options.SpikeThresholdMultiplier);
+    }
+
+    [Fact]
+    public void BehavioralOptions_DefaultNewPathAnomalyThresholdIsPointEight()
+    {
+        // Act
+        var options = new BehavioralOptions();
+
+        // Assert
+        Assert.Equal(0.8, options.NewPathAnomalyThreshold);
+    }
+
+    [Fact]
+    public void BehavioralOptions_ApiKeyHeader_CanBeSet()
+    {
+        // Arrange
+        var options = new BehavioralOptions();
+
+        // Act
+        options.ApiKeyHeader = "X-Api-Key";
+
+        // Assert
+        Assert.Equal("X-Api-Key", options.ApiKeyHeader);
+    }
+
+    [Fact]
+    public void BehavioralOptions_ApiKeyRateLimit_CanBeSet()
+    {
+        // Arrange
+        var options = new BehavioralOptions();
+
+        // Act
+        options.ApiKeyRateLimit = 100;
+
+        // Assert
+        Assert.Equal(100, options.ApiKeyRateLimit);
+    }
+
+    [Fact]
+    public void BehavioralOptions_UserIdClaim_CanBeSet()
+    {
+        // Arrange
+        var options = new BehavioralOptions();
+
+        // Act
+        options.UserIdClaim = "sub";
+
+        // Assert
+        Assert.Equal("sub", options.UserIdClaim);
+    }
+
+    [Fact]
+    public void BehavioralOptions_UserIdHeader_CanBeSet()
+    {
+        // Arrange
+        var options = new BehavioralOptions();
+
+        // Act
+        options.UserIdHeader = "X-User-Id";
+
+        // Assert
+        Assert.Equal("X-User-Id", options.UserIdHeader);
+    }
+
+    [Fact]
+    public void BehavioralOptions_UserRateLimit_CanBeSet()
+    {
+        // Arrange
+        var options = new BehavioralOptions();
+
+        // Act
+        options.UserRateLimit = 200;
+
+        // Assert
+        Assert.Equal(200, options.UserRateLimit);
+    }
+
+    [Fact]
+    public void BehavioralOptions_EnableAnomalyDetection_CanBeDisabled()
+    {
+        // Arrange
+        var options = new BehavioralOptions();
+
+        // Act
+        options.EnableAnomalyDetection = false;
+
+        // Assert
+        Assert.False(options.EnableAnomalyDetection);
+    }
+
+    [Fact]
+    public void BehavioralOptions_SpikeThresholdMultiplier_CanBeSet()
+    {
+        // Arrange
+        var options = new BehavioralOptions();
+
+        // Act
+        options.SpikeThresholdMultiplier = 10.0;
+
+        // Assert
+        Assert.Equal(10.0, options.SpikeThresholdMultiplier);
+    }
+
+    [Fact]
+    public void BehavioralOptions_NewPathAnomalyThreshold_CanBeSet()
+    {
+        // Arrange
+        var options = new BehavioralOptions();
+
+        // Act
+        options.NewPathAnomalyThreshold = 0.5;
+
+        // Assert
+        Assert.Equal(0.5, options.NewPathAnomalyThreshold);
+    }
+
+    [Fact]
+    public void BotDetectionOptions_BehavioralOptions_CanBeConfigured()
+    {
+        // Arrange & Act
+        var options = new BotDetectionOptions
+        {
+            Behavioral = new BehavioralOptions
+            {
+                ApiKeyHeader = "Authorization",
+                ApiKeyRateLimit = 120,
+                UserIdClaim = "sub",
+                UserIdHeader = "X-User-Id",
+                UserRateLimit = 180,
+                EnableAnomalyDetection = true,
+                SpikeThresholdMultiplier = 3.0,
+                NewPathAnomalyThreshold = 0.7
+            }
+        };
+
+        // Assert
+        Assert.Equal("Authorization", options.Behavioral.ApiKeyHeader);
+        Assert.Equal(120, options.Behavioral.ApiKeyRateLimit);
+        Assert.Equal("sub", options.Behavioral.UserIdClaim);
+        Assert.Equal("X-User-Id", options.Behavioral.UserIdHeader);
+        Assert.Equal(180, options.Behavioral.UserRateLimit);
+        Assert.True(options.Behavioral.EnableAnomalyDetection);
+        Assert.Equal(3.0, options.Behavioral.SpikeThresholdMultiplier);
+        Assert.Equal(0.7, options.Behavioral.NewPathAnomalyThreshold);
+    }
+
+    #endregion
+
+    #region ClientSideOptions Tests
+
+    [Fact]
+    public void Constructor_InitializesClientSideOptions()
+    {
+        // Act
+        var options = new BotDetectionOptions();
+
+        // Assert
+        Assert.NotNull(options.ClientSide);
+    }
+
+    [Fact]
+    public void ClientSideOptions_DefaultEnabledIsFalse()
+    {
+        // Act
+        var options = new ClientSideOptions();
+
+        // Assert
+        Assert.False(options.Enabled);
+    }
+
+    [Fact]
+    public void ClientSideOptions_DefaultTokenSecretIsNull()
+    {
+        // Act
+        var options = new ClientSideOptions();
+
+        // Assert
+        Assert.Null(options.TokenSecret);
+    }
+
+    [Fact]
+    public void ClientSideOptions_DefaultTokenLifetimeIs300()
+    {
+        // Act
+        var options = new ClientSideOptions();
+
+        // Assert
+        Assert.Equal(300, options.TokenLifetimeSeconds);
+    }
+
+    [Fact]
+    public void ClientSideOptions_DefaultFingerprintCacheDurationIs1800()
+    {
+        // Act
+        var options = new ClientSideOptions();
+
+        // Assert
+        Assert.Equal(1800, options.FingerprintCacheDurationSeconds);
+    }
+
+    [Fact]
+    public void ClientSideOptions_DefaultCollectionTimeoutIs5000()
+    {
+        // Act
+        var options = new ClientSideOptions();
+
+        // Assert
+        Assert.Equal(5000, options.CollectionTimeoutMs);
+    }
+
+    [Fact]
+    public void ClientSideOptions_DefaultCollectWebGLIsTrue()
+    {
+        // Act
+        var options = new ClientSideOptions();
+
+        // Assert
+        Assert.True(options.CollectWebGL);
+    }
+
+    [Fact]
+    public void ClientSideOptions_DefaultCollectCanvasIsTrue()
+    {
+        // Act
+        var options = new ClientSideOptions();
+
+        // Assert
+        Assert.True(options.CollectCanvas);
+    }
+
+    [Fact]
+    public void ClientSideOptions_DefaultCollectAudioIsFalse()
+    {
+        // Act
+        var options = new ClientSideOptions();
+
+        // Assert
+        Assert.False(options.CollectAudio);
+    }
+
+    [Fact]
+    public void ClientSideOptions_DefaultMinIntegrityScoreIs70()
+    {
+        // Act
+        var options = new ClientSideOptions();
+
+        // Assert
+        Assert.Equal(70, options.MinIntegrityScore);
+    }
+
+    [Fact]
+    public void ClientSideOptions_DefaultHeadlessThresholdIsPointFive()
+    {
+        // Act
+        var options = new ClientSideOptions();
+
+        // Assert
+        Assert.Equal(0.5, options.HeadlessThreshold);
+    }
+
+    [Fact]
+    public void BotDetectionOptions_ClientSideOptions_CanBeConfigured()
+    {
+        // Arrange & Act
+        var options = new BotDetectionOptions
+        {
+            ClientSide = new ClientSideOptions
+            {
+                Enabled = true,
+                TokenSecret = "my-secret-key",
+                TokenLifetimeSeconds = 600,
+                FingerprintCacheDurationSeconds = 3600,
+                CollectionTimeoutMs = 10000,
+                CollectWebGL = false,
+                CollectCanvas = false,
+                CollectAudio = true,
+                MinIntegrityScore = 80,
+                HeadlessThreshold = 0.7
+            }
+        };
+
+        // Assert
+        Assert.True(options.ClientSide.Enabled);
+        Assert.Equal("my-secret-key", options.ClientSide.TokenSecret);
+        Assert.Equal(600, options.ClientSide.TokenLifetimeSeconds);
+        Assert.Equal(3600, options.ClientSide.FingerprintCacheDurationSeconds);
+        Assert.Equal(10000, options.ClientSide.CollectionTimeoutMs);
+        Assert.False(options.ClientSide.CollectWebGL);
+        Assert.False(options.ClientSide.CollectCanvas);
+        Assert.True(options.ClientSide.CollectAudio);
+        Assert.Equal(80, options.ClientSide.MinIntegrityScore);
+        Assert.Equal(0.7, options.ClientSide.HeadlessThreshold);
     }
 
     #endregion

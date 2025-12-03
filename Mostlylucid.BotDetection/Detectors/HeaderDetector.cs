@@ -1,5 +1,8 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Mostlylucid.BotDetection.Metrics;
 using Mostlylucid.BotDetection.Models;
 
 namespace Mostlylucid.BotDetection.Detectors;
@@ -7,21 +10,34 @@ namespace Mostlylucid.BotDetection.Detectors;
 /// <summary>
 ///     Detects bots based on HTTP header analysis
 /// </summary>
-public class HeaderDetector(ILogger<HeaderDetector> logger) : IDetector
+public class HeaderDetector : IDetector
 {
     // Common headers sent by real browsers
-    private static readonly string[] CommonBrowserHeaders = new[]
-    {
+    private static readonly string[] CommonBrowserHeaders =
+    [
         "Accept", "Accept-Encoding", "Accept-Language", "Cache-Control",
         "Connection", "Upgrade-Insecure-Requests"
-    };
+    ];
 
-    private readonly ILogger<HeaderDetector> _logger = logger;
+    private readonly ILogger<HeaderDetector> _logger;
+    private readonly BotDetectionOptions _options;
+    private readonly BotDetectionMetrics? _metrics;
+
+    public HeaderDetector(
+        ILogger<HeaderDetector> logger,
+        IOptions<BotDetectionOptions> options,
+        BotDetectionMetrics? metrics = null)
+    {
+        _logger = logger;
+        _options = options.Value;
+        _metrics = metrics;
+    }
 
     public string Name => "Header Detector";
 
     public Task<DetectorResult> DetectAsync(HttpContext context, CancellationToken cancellationToken = default)
     {
+        var stopwatch = Stopwatch.StartNew();
         var result = new DetectorResult();
         var headers = context.Request.Headers;
         var confidence = 0.0;
@@ -156,6 +172,9 @@ public class HeaderDetector(ILogger<HeaderDetector> logger) : IDetector
 
         result.Confidence = Math.Min(confidence, 1.0);
         result.Reasons = reasons;
+
+        stopwatch.Stop();
+        _metrics?.RecordDetection(result.Confidence, result.Confidence > _options.BotThreshold, stopwatch.Elapsed, Name);
 
         return Task.FromResult(result);
     }
