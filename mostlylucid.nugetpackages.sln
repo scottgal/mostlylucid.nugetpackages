@@ -6,6 +6,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionFolder", "SolutionF
 		README.md = README.md
 		.github\workflows\publish-llmalttext.yml = .github\workflows\publish-llmalttext.yml
 		.github\workflows\publish-botdetection.yml = .github\workflows\publish-botdetection.yml
+		.github\workflows\publish-yarpgateway.yml = .github\workflows\publish-yarpgateway.yml
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.BotDetection.Demo", "Mostlylucid.BotDetection.Demo\Mostlylucid.BotDetection.Demo.csproj", "{98CBEEC8-A949-4C42-B826-EEB4774095D6}"
@@ -83,6 +84,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.SentimentAnalysis.Tests", "Mostlylucid.SentimentAnalysis.Tests\Mostlylucid.SentimentAnalysis.Tests.csproj", "{3C4D5E6F-7890-ABCD-EF12-345678901234}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.BotDetection.Tests", "Mostlylucid.BotDetection.Tests\Mostlylucid.BotDetection.Tests.csproj", "{C646B4D9-5CFC-4FC6-BD12-94826A4DBB9E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.YarpGateway", "Mostlylucid.YarpGateway\Mostlylucid.YarpGateway.csproj", "{4D7D7C8D-3A77-4A98-B6BB-79628D0FC37D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -550,6 +553,18 @@ Global
 		{C646B4D9-5CFC-4FC6-BD12-94826A4DBB9E}.Release|x64.Build.0 = Release|Any CPU
 		{C646B4D9-5CFC-4FC6-BD12-94826A4DBB9E}.Release|x86.ActiveCfg = Release|Any CPU
 		{C646B4D9-5CFC-4FC6-BD12-94826A4DBB9E}.Release|x86.Build.0 = Release|Any CPU
+		{4D7D7C8D-3A77-4A98-B6BB-79628D0FC37D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4D7D7C8D-3A77-4A98-B6BB-79628D0FC37D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4D7D7C8D-3A77-4A98-B6BB-79628D0FC37D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{4D7D7C8D-3A77-4A98-B6BB-79628D0FC37D}.Debug|x64.Build.0 = Debug|Any CPU
+		{4D7D7C8D-3A77-4A98-B6BB-79628D0FC37D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{4D7D7C8D-3A77-4A98-B6BB-79628D0FC37D}.Debug|x86.Build.0 = Debug|Any CPU
+		{4D7D7C8D-3A77-4A98-B6BB-79628D0FC37D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4D7D7C8D-3A77-4A98-B6BB-79628D0FC37D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4D7D7C8D-3A77-4A98-B6BB-79628D0FC37D}.Release|x64.ActiveCfg = Release|Any CPU
+		{4D7D7C8D-3A77-4A98-B6BB-79628D0FC37D}.Release|x64.Build.0 = Release|Any CPU
+		{4D7D7C8D-3A77-4A98-B6BB-79628D0FC37D}.Release|x86.ActiveCfg = Release|Any CPU
+		{4D7D7C8D-3A77-4A98-B6BB-79628D0FC37D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

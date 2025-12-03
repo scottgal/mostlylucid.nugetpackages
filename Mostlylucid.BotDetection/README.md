@@ -198,6 +198,25 @@ See [action-policies.md](docs/action-policies.md) for full details.
 | **Client-Side Fingerprinting** | Headless browser detection | [client-side-fingerprinting.md](docs/client-side-fingerprinting.md) |
 | **YARP Integration** | Bot-aware reverse proxy | [yarp-integration.md](docs/yarp-integration.md) |
 | **Telemetry** | OpenTelemetry traces and metrics | [telemetry-and-metrics.md](docs/telemetry-and-metrics.md) |
+| **YARP Gateway** | Companion Docker gateway | [yarp-gateway.md](docs/yarp-gateway.md) |
+
+## Companion Project: YARP Gateway
+
+For edge deployments, use **[Mostlylucid.YarpGateway](../Mostlylucid.YarpGateway/)** - a lightweight Docker-first reverse proxy:
+
+```bash
+# Zero-config reverse proxy in seconds
+docker run -p 80:8080 -e DEFAULT_UPSTREAM=http://your-app:3000 mostlylucid/yarp-gateway
+```
+
+**Why use it with BotDetection?**
+- Edge routing and load balancing
+- Hot-reload YARP configuration
+- Admin API for health/metrics
+- Multi-arch: amd64, arm64, **Raspberry Pi** (arm/v7)
+- ~90MB Alpine image
+
+See [yarp-gateway.md](docs/yarp-gateway.md) for integration patterns.
 
 ## Diagnostic Endpoints
 

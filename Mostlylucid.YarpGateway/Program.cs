@@ -1,0 +1,95 @@
+using Mostlylucid.YarpGateway.Configuration;
+using Mostlylucid.YarpGateway.Data;
+using Mostlylucid.YarpGateway.Endpoints;
+using Mostlylucid.YarpGateway.Middleware;
+using Mostlylucid.YarpGateway.Services;
+using Serilog;
+
+// Configure Serilog early for startup logging
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .WriteTo.Console(
+        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .CreateBootstrapLogger();
+
+try
+{
+    Log.Information("Starting Mostlylucid.YarpGateway v0.1");
+
+    var builder = WebApplication.CreateBuilder(args);
+
+    // Configure Serilog from configuration
+    builder.Host.UseSerilog((context, services, configuration) =>
+    {
+        configuration
+            .ReadFrom.Configuration(context.Configuration)
+            .ReadFrom.Services(services)
+            .Enrich.FromLogContext()
+            .WriteTo.Console(
+                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}");
+
+        // Write to file if logs directory is writable
+        var logsPath = GatewayPaths.Logs;
+        if (Directory.Exists(logsPath))
+        {
+            configuration.WriteTo.File(
+                Path.Combine(logsPath, "gateway-.log"),
+                rollingInterval: RollingInterval.Day,
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}");
+        }
+    });
+
+    // Add gateway configuration
+    builder.Services.AddGatewayConfiguration(builder.Configuration);
+
+    // Add database if configured
+    builder.Services.AddGatewayDatabase(builder.Configuration);
+
+    // Add YARP reverse proxy
+    builder.Services.AddYarpServices(builder.Configuration);
+
+    // Add metrics and health
+    builder.Services.AddGatewayServices();
+
+    // Add health checks
+    builder.Services.AddGatewayHealthChecks(builder.Configuration);
+
+    var app = builder.Build();
+
+    // Apply database migrations if enabled
+    await app.ApplyMigrationsAsync();
+
+    // Admin secret middleware (if configured)
+    app.UseAdminSecretMiddleware();
+
+    // Admin API endpoints
+    app.MapAdminEndpoints();
+
+    // YARP reverse proxy
+    app.MapReverseProxy();
+
+    // Fallback for no-routes scenario
+    app.MapFallback(context =>
+    {
+        context.Response.ContentType = "application/json";
+        context.Response.StatusCode = 503;
+        return context.Response.WriteAsJsonAsync(new
+        {
+            status = "no-routes",
+            message = "No YARP routes configured. See /admin/config for details."
+        });
+    });
+
+    Log.Information("Gateway started on port {Port}", builder.Configuration.GetValue("GATEWAY_HTTP_PORT", 8080));
+
+    await app.RunAsync();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Gateway terminated unexpectedly");
+    throw;
+}
+finally
+{
+    Log.CloseAndFlush();
+}

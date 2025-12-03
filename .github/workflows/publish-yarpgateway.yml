@@ -1,0 +1,91 @@
+name: Publish Mostlylucid.YarpGateway
+
+on:
+  push:
+    tags:
+      - 'yarpgateway-v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 0.1.0)'
+        required: true
+        default: '0.1.0'
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: mostlylucid/yarp-gateway
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Extract version
+      id: get_version
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          VERSION="${{ github.event.inputs.version }}"
+        else
+          VERSION=${GITHUB_REF#refs/tags/yarpgateway-v}
+        fi
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "Publishing version: $VERSION"
+
+    - name: Build project
+      run: dotnet build Mostlylucid.YarpGateway/Mostlylucid.YarpGateway.csproj --configuration Release
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Extract metadata for Docker
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=raw,value=${{ steps.get_version.outputs.VERSION }}
+          type=raw,value=latest,enable=${{ github.ref == format('refs/tags/yarpgateway-v{0}', steps.get_version.outputs.VERSION) }}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v6
+      with:
+        context: ./Mostlylucid.YarpGateway
+        file: ./Mostlylucid.YarpGateway/Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        platforms: linux/amd64,linux/arm64,linux/arm/v7
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Update Docker Hub description
+      uses: peter-evans/dockerhub-description@v4
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+        repository: ${{ env.IMAGE_NAME }}
+        readme-filepath: ./Mostlylucid.YarpGateway/README.md
+        short-description: "Lightweight YARP reverse proxy gateway for Docker"
+
+    - name: Image digest
+      run: echo "Image pushed with digest ${{ steps.meta.outputs.digest }}"

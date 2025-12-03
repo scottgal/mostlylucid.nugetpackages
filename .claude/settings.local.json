@@ -6,7 +6,8 @@
       "Bash(powershell -c:*)",
       "Bash(timeout:*)",
       "Bash(curl:*)",
-      "Bash(dotnet run:*)"
+      "Bash(dotnet run:*)",
+      "Bash(dotnet sln:*)"
     ],
     "deny": [],
     "ask": []

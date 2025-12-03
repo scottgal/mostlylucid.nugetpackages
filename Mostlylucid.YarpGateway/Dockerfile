@@ -1,0 +1,51 @@
+# Stage 1: Build
+FROM mcr.microsoft.com/dotnet/sdk:9.0-alpine AS build
+WORKDIR /src
+
+# Copy project file and restore
+COPY Mostlylucid.YarpGateway.csproj .
+RUN dotnet restore
+
+# Copy source and build
+COPY . .
+RUN dotnet publish -c Release -o /app --no-restore
+
+# Stage 2: Runtime (ultra-lightweight Alpine-based image)
+FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine AS runtime
+
+# Install curl for health checks
+RUN apk add --no-cache curl
+
+# Create non-root user for security
+RUN addgroup -g 1000 gateway && \
+    adduser -u 1000 -G gateway -s /bin/sh -D gateway
+
+WORKDIR /app
+
+# Copy published app
+COPY --from=build /app .
+
+# Create standard directories with correct permissions
+RUN mkdir -p /app/config /app/data /app/logs /app/plugins && \
+    chown -R gateway:gateway /app
+
+# Switch to non-root user
+USER gateway
+
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8080/admin/health || exit 1
+
+# Environment defaults
+ENV ASPNETCORE_URLS=http://+:8080 \
+    GATEWAY_HTTP_PORT=8080 \
+    GATEWAY_CONFIG_PATH=/app/config \
+    GATEWAY_DATA_PATH=/app/data \
+    GATEWAY_LOGS_PATH=/app/logs \
+    GATEWAY_PLUGINS_PATH=/app/plugins \
+    DOTNET_RUNNING_IN_CONTAINER=true
+
+ENTRYPOINT ["dotnet", "Mostlylucid.YarpGateway.dll"]
