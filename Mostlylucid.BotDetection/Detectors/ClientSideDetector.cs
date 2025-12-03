@@ -36,6 +36,9 @@ public class ClientSideDetector : IDetector
 
     public string Name => "Client-Side Detector";
 
+    /// <summary>Stage 0: Raw signal extraction - no dependencies</summary>
+    public DetectorStage Stage => DetectorStage.RawSignals;
+
     public Task<DetectorResult> DetectAsync(HttpContext context, CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();

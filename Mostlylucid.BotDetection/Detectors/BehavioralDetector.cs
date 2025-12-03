@@ -37,6 +37,9 @@ public class BehavioralDetector : IDetector
 
     public string Name => "Behavioral Detector";
 
+    /// <summary>Stage 1: Behavioral analysis - reads raw signals from stage 0</summary>
+    public DetectorStage Stage => DetectorStage.Behavioral;
+
     public Task<DetectorResult> DetectAsync(HttpContext context, CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();

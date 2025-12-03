@@ -4,6 +4,37 @@ using Mostlylucid.BotDetection.Models;
 namespace Mostlylucid.BotDetection.Detectors;
 
 /// <summary>
+///     Execution stage for detectors. Detectors in the same stage run in parallel.
+///     Higher stages wait for lower stages to complete.
+/// </summary>
+public enum DetectorStage
+{
+    /// <summary>
+    ///     Raw signal extraction (UA, headers, IP, client-side).
+    ///     No dependencies on other detectors.
+    /// </summary>
+    RawSignals = 0,
+
+    /// <summary>
+    ///     Behavioral analysis that may depend on raw signals.
+    ///     Runs after Stage 0 completes.
+    /// </summary>
+    Behavioral = 1,
+
+    /// <summary>
+    ///     Meta-analysis layers (inconsistency detection, risk assessment).
+    ///     Reads signals from stages 0 and 1.
+    /// </summary>
+    MetaAnalysis = 2,
+
+    /// <summary>
+    ///     AI/ML-based detection that can use all prior signals.
+    ///     Runs last, can learn from all other signals.
+    /// </summary>
+    Intelligence = 3
+}
+
+/// <summary>
 ///     Interface for bot detection strategies
 /// </summary>
 public interface IDetector
@@ -14,12 +45,32 @@ public interface IDetector
     string Name { get; }
 
     /// <summary>
-    ///     Analyze an HTTP request for bot characteristics
+    ///     Execution stage for this detector.
+    ///     Detectors in the same stage run in parallel.
+    ///     Higher stages wait for lower stages to complete.
+    /// </summary>
+    DetectorStage Stage => DetectorStage.RawSignals;
+
+    /// <summary>
+    ///     Analyze an HTTP request for bot characteristics.
+    ///     Legacy method - prefer DetectAsync with DetectionContext.
     /// </summary>
     /// <param name="context">HTTP context</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Detection result with confidence score and reasons</returns>
     Task<DetectorResult> DetectAsync(HttpContext context, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Analyze an HTTP request for bot characteristics using shared context.
+    ///     Detectors should read signals from prior stages and write their own signals.
+    /// </summary>
+    /// <param name="detectionContext">Shared detection context with signal bus</param>
+    /// <returns>Detection result with confidence score and reasons</returns>
+    Task<DetectorResult> DetectAsync(DetectionContext detectionContext)
+    {
+        // Default implementation for backward compatibility
+        return DetectAsync(detectionContext.HttpContext, detectionContext.CancellationToken);
+    }
 }
 
 /// <summary>

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using Mostlylucid.BotDetection.Data;
 
 namespace Mostlylucid.BotDetection.Models;
 
@@ -250,7 +251,27 @@ public class BotDetectionOptions
     public DataSourcesOptions DataSources { get; set; } = new();
 
     // ==========================================
-    // Pattern Learning Settings (Future)
+    // Fast Path / Signal-Driven Detection Settings
+    // ==========================================
+
+    /// <summary>
+    ///     Configuration for fast-path detection with signal-driven architecture.
+    /// </summary>
+    public FastPathOptions FastPath { get; set; } = new();
+
+    // ==========================================
+    // Pattern Reputation Settings (Learning + Forgetting)
+    // ==========================================
+
+    /// <summary>
+    ///     Configuration for pattern reputation tracking.
+    ///     Controls how patterns are learned, forgotten, and used in detection.
+    ///     Implements principled forgetting via time decay and evidence-based updates.
+    /// </summary>
+    public ReputationOptions Reputation { get; set; } = new();
+
+    // ==========================================
+    // Pattern Learning Settings (Legacy - use Reputation instead)
     // ==========================================
 
     /// <summary>
@@ -458,6 +479,275 @@ public class ClientSideOptions
     ///     Range: 0.0-1.0. Default: 0.5
     /// </summary>
     public double HeadlessThreshold { get; set; } = 0.5;
+}
+
+// ==========================================
+// Detection Path Configuration
+// ==========================================
+
+/// <summary>
+///     Configuration for detection paths (fast synchronous vs slow async).
+///
+///     Architecture:
+///     ┌─────────────────────────────────────────────────────────────────┐
+///     │ FAST PATH (synchronous, blocking)                               │
+///     │ Runs on request thread, fastest detectors first                 │
+///     │ If confidence > threshold → early exit → trigger slow path      │
+///     │ Emits minimal event to bus; optionally samples for full analysis│
+///     └─────────────────────────────────────────────────────────────────┘
+///                              ↓ (async, non-blocking)
+///     ┌─────────────────────────────────────────────────────────────────┐
+///     │ SLOW PATH (event-driven, background service)                    │
+///     │ AI/ML inference, pattern learning, model updates                │
+///     │ Compares fast vs full results → detects drift → updates trust   │
+///     │ Results stored for future fast-path improvements                │
+///     └─────────────────────────────────────────────────────────────────┘
+/// </summary>
+public class FastPathOptions
+{
+    /// <summary>
+    ///     Enable the dual-path architecture.
+    ///     When disabled, all detectors run synchronously on the request thread.
+    ///     Default: true
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    // ==========================================
+    // Abort / Short-Circuit Settings
+    // ==========================================
+
+    /// <summary>
+    ///     Confidence threshold for aborting fast path (UA-only short-circuit).
+    ///     If the first detector (typically UA) returns confidence >= this value,
+    ///     skip remaining detectors and classify immediately.
+    ///     Range: 0.0-1.0. Default: 0.95 (very high confidence only)
+    /// </summary>
+    public double AbortThreshold { get; set; } = 0.95;
+
+    /// <summary>
+    ///     Sample rate for full-path analysis on aborted requests.
+    ///     Even when aborting early, this fraction of requests will be
+    ///     queued for full 8-layer analysis in the slow path.
+    ///     Used to detect when fast-path classification drifts from full analysis.
+    ///     Range: 0.0-1.0. Default: 0.01 (1% of aborted requests)
+    /// </summary>
+    public double SampleRate { get; set; } = 0.01;
+
+    /// <summary>
+    ///     Confidence threshold for early exit from fast path.
+    ///     If fast-path confidence exceeds this, skip remaining fast-path detectors
+    ///     and immediately trigger slow path for async processing.
+    ///     Range: 0.0-1.0. Default: 0.85
+    /// </summary>
+    public double EarlyExitThreshold { get; set; } = 0.85;
+
+    /// <summary>
+    ///     Confidence threshold below which to skip slow path entirely.
+    ///     If fast-path confidence is below this (clearly human), no need for
+    ///     AI confirmation or learning - save resources.
+    ///     Range: 0.0-1.0. Default: 0.2
+    /// </summary>
+    public double SkipSlowPathThreshold { get; set; } = 0.2;
+
+    /// <summary>
+    ///     Confidence threshold to trigger slow-path processing.
+    ///     Detections in the "grey zone" (above skip, below early-exit) are
+    ///     sent to slow path for additional analysis.
+    ///     Range: 0.0-1.0. Default: 0.5
+    /// </summary>
+    public double SlowPathTriggerThreshold { get; set; } = 0.5;
+
+    /// <summary>
+    ///     Timeout for fast-path consensus in milliseconds.
+    ///     If all fast-path detectors don't report within this time, finalise anyway.
+    ///     Default: 100ms (fast path should be very quick)
+    /// </summary>
+    public int FastPathTimeoutMs { get; set; } = 100;
+
+    /// <summary>
+    ///     Maximum events to queue for slow-path before dropping oldest.
+    ///     Prevents memory issues if slow-path processing falls behind.
+    ///     Default: 10000
+    /// </summary>
+    public int SlowPathQueueCapacity { get; set; } = 10_000;
+
+    // ==========================================
+    // Always-Full-Path Routes
+    // ==========================================
+
+    /// <summary>
+    ///     Paths that always run full 8-layer detection, even if UA screams "bot".
+    ///     Use for high-value endpoints where you want deep intelligence:
+    ///     - Authentication endpoints (/login, /signup)
+    ///     - Payment flows (/checkout, /api/payments)
+    ///     - Admin endpoints (/admin/*)
+    ///     - Data exports
+    ///
+    ///     Matched using StartsWith (case-insensitive).
+    ///     Default: empty (no forced full-path routes)
+    /// </summary>
+    public List<string> AlwaysRunFullOnPaths { get; set; } = [];
+
+    // ==========================================
+    // Drift Detection Settings
+    // ==========================================
+
+    /// <summary>
+    ///     Enable drift detection to catch when fast-path (UA-only) diverges from full analysis.
+    ///     When enabled, the slow path compares sampled fast-path results against full 8-layer
+    ///     results and emits UaPatternDriftDetected events when disagreement exceeds threshold.
+    ///     Default: true
+    /// </summary>
+    public bool EnableDriftDetection { get; set; } = true;
+
+    /// <summary>
+    ///     Disagreement rate threshold for drift detection.
+    ///     If fast-path and full-path disagree on more than this fraction of sampled requests,
+    ///     a drift event is emitted suggesting reduced trust in that UA pattern.
+    ///     Range: 0.0-1.0. Default: 0.005 (0.5% disagreement triggers alert)
+    /// </summary>
+    public double DriftThreshold { get; set; } = 0.005;
+
+    /// <summary>
+    ///     Minimum sample count before evaluating drift.
+    ///     Drift detection waits until this many samples are collected for a UA pattern
+    ///     before comparing fast vs full results. Prevents noisy alerts from small samples.
+    ///     Default: 100
+    /// </summary>
+    public int MinSamplesForDrift { get; set; } = 100;
+
+    /// <summary>
+    ///     Time window for drift detection in hours.
+    ///     Samples older than this are excluded from drift calculations.
+    ///     Default: 24 hours
+    /// </summary>
+    public int DriftWindowHours { get; set; } = 24;
+
+    // ==========================================
+    // Feedback Loop Settings
+    // ==========================================
+
+    /// <summary>
+    ///     Enable automatic feedback from slow path to fast path.
+    ///     When enabled, newly discovered bot signatures (UA, IP, characteristics)
+    ///     are fed back to faster layers so they can use that information.
+    ///     Default: true
+    /// </summary>
+    public bool EnableFeedbackLoop { get; set; } = true;
+
+    /// <summary>
+    ///     Minimum confidence from slow-path analysis to trigger feedback.
+    ///     Only patterns detected with confidence >= this value are fed back.
+    ///     Range: 0.0-1.0. Default: 0.9
+    /// </summary>
+    public double FeedbackMinConfidence { get; set; } = 0.9;
+
+    /// <summary>
+    ///     Minimum occurrences of a pattern before feeding back to fast path.
+    ///     Prevents one-off detections from polluting the fast-path rules.
+    ///     Default: 5
+    /// </summary>
+    public int FeedbackMinOccurrences { get; set; } = 5;
+
+    // ==========================================
+    // Detector Configuration
+    // ==========================================
+
+    /// <summary>
+    ///     Detectors that run on the FAST PATH (synchronous, in-request).
+    ///     Order matters - detectors run in this order.
+    ///     Early exit happens as soon as cumulative confidence exceeds threshold.
+    ///
+    ///     Each entry specifies: detector name → signal it emits on completion.
+    ///     Default: lightweight pattern-matching and lookup detectors.
+    /// </summary>
+    public List<DetectorConfig> FastPathDetectors { get; set; } =
+    [
+        new() { Name = "User-Agent Detector", Signal = "UserAgentAnalyzed", ExpectedLatencyMs = 0.1 },
+        new() { Name = "Header Detector", Signal = "HeadersAnalyzed", ExpectedLatencyMs = 0.1 },
+        new() { Name = "IP Detector", Signal = "IpAnalyzed", ExpectedLatencyMs = 0.5 },
+        new() { Name = "Behavioral Detector", Signal = "BehaviourSampled", ExpectedLatencyMs = 1 },
+        new() { Name = "Client-Side Detector", Signal = "ClientFingerprintReceived", ExpectedLatencyMs = 1 },
+        new() { Name = "Inconsistency Detector", Signal = "InconsistencyUpdated", ExpectedLatencyMs = 2 }
+    ];
+
+    /// <summary>
+    ///     Detectors that run on the SLOW PATH (async, background service).
+    ///     These run via the learning event bus, not on the request thread.
+    ///     Results are stored and can improve fast-path accuracy over time.
+    ///
+    ///     Triggered when:
+    ///     - Fast path exits early (high confidence)
+    ///     - Fast path confidence is in the "grey zone"
+    ///
+    ///     Default: AI/ML detectors that require inference.
+    /// </summary>
+    public List<DetectorConfig> SlowPathDetectors { get; set; } =
+    [
+        new() { Name = "ONNX Detector", Signal = "AiClassificationCompleted", ExpectedLatencyMs = 5 },
+        new() { Name = "LLM Detector", Signal = "AiClassificationCompleted", ExpectedLatencyMs = 100 }
+    ];
+
+    /// <summary>
+    ///     Signals that trigger slow-path processing.
+    ///     When these signals are emitted, the slow path is activated.
+    ///
+    ///     Default triggers:
+    ///     - HighConfidenceDetection: fast path found a likely bot
+    ///     - GreyZoneDetection: uncertain result, need AI confirmation
+    ///     - PatternDiscovered: potential new bot pattern to learn
+    /// </summary>
+    public List<string> SlowPathTriggers { get; set; } =
+    [
+        "HighConfidenceDetection",
+        "GreyZoneDetection",
+        "PatternDiscovered",
+        "InconsistencyDetected"
+    ];
+}
+
+/// <summary>
+///     Configuration for an individual detector in a path.
+/// </summary>
+public class DetectorConfig
+{
+    /// <summary>
+    ///     Detector name (must match IDetector.Name).
+    /// </summary>
+    public required string Name { get; set; }
+
+    /// <summary>
+    ///     Signal emitted when this detector completes.
+    ///     Used for event-driven coordination.
+    /// </summary>
+    public required string Signal { get; set; }
+
+    /// <summary>
+    ///     Expected latency in milliseconds.
+    ///     Used for timeout calculation and ordering decisions.
+    /// </summary>
+    public double ExpectedLatencyMs { get; set; }
+
+    /// <summary>
+    ///     Whether this detector is enabled.
+    ///     Disabled detectors are skipped.
+    ///     Default: true
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    ///     Weight for this detector's confidence in final score.
+    ///     Higher weight = more influence on final decision.
+    ///     Default: 1.0
+    /// </summary>
+    public double Weight { get; set; } = 1.0;
+
+    /// <summary>
+    ///     Minimum confidence from this detector to contribute to early exit.
+    ///     Prevents a single noisy detector from triggering early exit.
+    ///     Range: 0.0-1.0. Default: 0.3
+    /// </summary>
+    public double MinConfidenceToContribute { get; set; } = 0.3;
 }
 
 // ==========================================

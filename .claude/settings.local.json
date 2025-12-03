@@ -35,7 +35,8 @@
       "Bash(del \"D:\\Source\\mostlylucid.nugetpackages\\Mostlylucid.BotDetection.Demo\\Examples\\GeoRoutingExamples.cs\")",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:api.github.com)",
-      "Bash(del \"D:\\Source\\mostlylucid.nugetpackages\\Mostlylucid.BotDetection\\ClientSide\\FingerprintEndpoints.cs\")"
+      "Bash(del \"D:\\Source\\mostlylucid.nugetpackages\\Mostlylucid.BotDetection\\ClientSide\\FingerprintEndpoints.cs\")",
+      "Bash(del *.received.txt 2)"
     ],
     "deny": [],
     "ask": []

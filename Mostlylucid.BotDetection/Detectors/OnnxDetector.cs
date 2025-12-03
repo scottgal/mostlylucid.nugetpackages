@@ -39,6 +39,9 @@ public class OnnxDetector : IDetector, IDisposable
 
     public string Name => "ONNX Detector";
 
+    /// <summary>Stage 3: AI/ML - can use all prior signals for learning</summary>
+    public DetectorStage Stage => DetectorStage.Intelligence;
+
     public async Task<DetectorResult> DetectAsync(HttpContext context, CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();

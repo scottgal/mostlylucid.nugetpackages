@@ -31,6 +31,9 @@ public partial class InconsistencyDetector : IDetector
 
     public string Name => "Inconsistency Detector";
 
+    /// <summary>Stage 2: Meta-analysis - reads all signals from stages 0 and 1</summary>
+    public DetectorStage Stage => DetectorStage.MetaAnalysis;
+
     public Task<DetectorResult> DetectAsync(HttpContext context, CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();

@@ -63,26 +63,19 @@ public class BotDetectionService : IBotDetectionService
             activity?.SetTag("mostlylucid.botdetection.cache_hit", false);
 
             var result = new BotDetectionResult();
-            var detectorResults = new List<DetectorResult>();
 
-            // Run all enabled detectors
-            foreach (var detector in _detectors)
-                try
-                {
-                    var detectorResult = await detector.DetectAsync(context, cancellationToken);
-                    detectorResults.Add(detectorResult);
+            // Create shared detection context for cross-detector communication
+            var detectionContext = new DetectionContext
+            {
+                HttpContext = context,
+                CancellationToken = cancellationToken
+            };
 
-                    _logger.LogDebug("{Detector} confidence: {Confidence:F2}",
-                        detector.Name, detectorResult.Confidence);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Detector {Detector} failed", detector.Name);
-                    _metrics?.RecordError(detector.Name, ex.GetType().Name);
-                }
+            // Run detectors in staged order - each stage completes before the next begins
+            await RunDetectorsInStagesAsync(detectionContext);
 
             // Combine results using weighted scoring
-            result = CombineResults(detectorResults);
+            result = CombineResults(detectionContext);
             sw.Stop();
             result.ProcessingTimeMs = sw.ElapsedMilliseconds;
 
@@ -135,18 +128,75 @@ public class BotDetectionService : IBotDetectionService
         }
     }
 
-    private BotDetectionResult CombineResults(List<DetectorResult> detectorResults)
+    /// <summary>
+    ///     Run detectors in staged order. Each stage completes before the next begins.
+    ///     Detectors within the same stage run in parallel.
+    /// </summary>
+    private async Task RunDetectorsInStagesAsync(DetectionContext detectionContext)
+    {
+        // Group detectors by stage
+        var detectorsByStage = _detectors
+            .GroupBy(d => d.Stage)
+            .OrderBy(g => (int)g.Key)
+            .ToList();
+
+        foreach (var stageGroup in detectorsByStage)
+        {
+            var stage = stageGroup.Key;
+            var detectorsInStage = stageGroup.ToList();
+
+            _logger.LogDebug("Running {Count} detectors in stage {Stage}",
+                detectorsInStage.Count, stage);
+
+            // Run all detectors in this stage in parallel
+            var tasks = detectorsInStage.Select(async detector =>
+            {
+                try
+                {
+                    var detectorResult = await detector.DetectAsync(detectionContext);
+
+                    // Store result in context for other detectors to read
+                    detectionContext.SetDetectorResult(detector.Name, detectorResult);
+                    detectionContext.SetScore(detector.Name, detectorResult.Confidence);
+                    detectionContext.AddReasons(detectorResult.Reasons);
+
+                    _logger.LogDebug("{Detector} (stage {Stage}) confidence: {Confidence:F2}",
+                        detector.Name, stage, detectorResult.Confidence);
+
+                    return (detector.Name, Result: detectorResult, Error: (Exception?)null);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Detector {Detector} failed in stage {Stage}",
+                        detector.Name, stage);
+                    _metrics?.RecordError(detector.Name, ex.GetType().Name);
+                    return (detector.Name, Result: (DetectorResult?)null, Error: ex);
+                }
+            });
+
+            // Wait for all detectors in this stage to complete before moving to next stage
+            var results = await Task.WhenAll(tasks);
+
+            // Log stage completion
+            var successful = results.Count(r => r.Result != null);
+            var failed = results.Count(r => r.Error != null);
+            _logger.LogDebug("Stage {Stage} complete: {Successful} succeeded, {Failed} failed",
+                stage, successful, failed);
+        }
+    }
+
+    private BotDetectionResult CombineResults(DetectionContext detectionContext)
     {
         var result = new BotDetectionResult();
+        var detectorResults = detectionContext.DetectorResults.Values.ToList();
 
-        // Combine all reasons
-        foreach (var detectorResult in detectorResults) result.Reasons.AddRange(detectorResult.Reasons);
+        // Use accumulated reasons from context
+        result.Reasons.AddRange(detectionContext.Reasons);
 
         // Calculate weighted confidence score
         // Strategy: Take maximum confidence, but boost if multiple detectors agree
         var confidences = detectorResults.Select(r => r.Confidence).ToList();
         var maxConfidence = confidences.Any() ? confidences.Max() : 0.0;
-        var avgConfidence = confidences.Any() ? confidences.Average() : 0.0;
 
         // If multiple detectors show suspicion, boost the score
         var suspiciousDetectors = confidences.Count(c => c > 0.3);
@@ -183,6 +233,12 @@ public class BotDetectionService : IBotDetectionService
         // Extract bot name if identified
         var botName = detectorResults.FirstOrDefault(r => !string.IsNullOrEmpty(r.BotName))?.BotName;
         if (!string.IsNullOrEmpty(botName)) result.BotName = botName;
+
+        // Store learnings in HttpContext for later persistence
+        if (detectionContext.Learnings.Any())
+        {
+            detectionContext.HttpContext.Items["BotDetection.Learnings"] = detectionContext.Learnings;
+        }
 
         return result;
     }

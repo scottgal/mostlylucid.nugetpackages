@@ -34,6 +34,9 @@ public class UserAgentDetector : IDetector
 
     public string Name => "User-Agent Detector";
 
+    /// <summary>Stage 0: Raw signal extraction - no dependencies</summary>
+    public DetectorStage Stage => DetectorStage.RawSignals;
+
     public Task<DetectorResult> DetectAsync(HttpContext context, CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();

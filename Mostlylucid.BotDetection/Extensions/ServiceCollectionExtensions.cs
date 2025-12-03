@@ -7,6 +7,8 @@ using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.ClientSide;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Detectors;
+using Mostlylucid.BotDetection.Events;
+using Mostlylucid.BotDetection.Events.Listeners;
 using Mostlylucid.BotDetection.Metrics;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Services;
@@ -269,5 +271,39 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IBrowserTokenService, BrowserTokenService>();
         services.TryAddSingleton<IBrowserFingerprintAnalyzer, BrowserFingerprintAnalyzer>();
         services.TryAddSingleton<IBrowserFingerprintStore, BrowserFingerprintStore>();
+
+        // Register signal bus infrastructure (intra-request, event-driven detection)
+        services.TryAddTransient<IBotSignalBusFactory, BotSignalBusFactory>();
+
+        // Register signal listeners (react to detection signals)
+        services.AddTransient<IBotSignalListener, RiskAssessmentListener>();
+        services.AddTransient<IBotSignalListener, LearningListener>();
+
+        // Register signal-driven detection service
+        services.TryAddSingleton<SignalDrivenDetectionService>();
+
+        // Register inter-request learning infrastructure
+        services.TryAddSingleton<ILearningEventBus, LearningEventBus>();
+
+        // Register learning event handlers
+        services.AddSingleton<ILearningEventHandler, InferenceHandler>();
+        services.AddSingleton<ILearningEventHandler, PatternAccumulatorHandler>();
+        services.AddSingleton<ILearningEventHandler, FeedbackHandler>();
+        services.AddSingleton<ILearningEventHandler, DriftDetectionHandler>();
+
+        // Register learning background service (processes learning events asynchronously)
+        services.AddHostedService<LearningBackgroundService>();
+
+        // Register fast-path decider for UA short-circuit with sampling
+        services.TryAddSingleton<FastPathDecider>();
+
+        // Register learned pattern store (SQLite-backed)
+        services.TryAddSingleton<ILearnedPatternStore, Data.SqliteLearnedPatternStore>();
+
+        // Register pattern reputation system (learning + forgetting)
+        services.TryAddSingleton<PatternReputationUpdater>();
+        services.TryAddSingleton<IPatternReputationCache, InMemoryPatternReputationCache>();
+        services.AddSingleton<ILearningEventHandler, ReputationMaintenanceService>();
+        services.AddHostedService<ReputationMaintenanceService>();
     }
 }
