@@ -344,9 +344,18 @@ public static class ServiceCollectionExtensions
 
         // Register contributing detectors (new architecture)
         // These emit evidence, not verdicts - the orchestrator aggregates
+        // Wave 0 detectors (no dependencies - run first)
         services.AddSingleton<IContributingDetector, UserAgentContributor>();
+        services.AddSingleton<IContributingDetector, HeaderContributor>();
+        services.AddSingleton<IContributingDetector, IpContributor>();
+        services.AddSingleton<IContributingDetector, BehavioralContributor>();
+        services.AddSingleton<IContributingDetector, ClientSideContributor>();
+        // Wave 1+ detectors (triggered by signals from Wave 0)
+        services.AddSingleton<IContributingDetector, VersionAgeContributor>();
         services.AddSingleton<IContributingDetector, InconsistencyContributor>();
-        services.AddSingleton<IContributingDetector, AiContributor>();
+        // AI detectors (run when escalation triggered or in demo mode)
+        services.AddSingleton<IContributingDetector, OnnxContributor>();
+        services.AddSingleton<IContributingDetector, LlmContributor>();
 
         // ==========================================
         // Policy System (path-based detection workflows)

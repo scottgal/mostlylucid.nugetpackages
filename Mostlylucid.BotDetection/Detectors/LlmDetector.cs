@@ -47,8 +47,8 @@ public class LlmDetector : IDetector, IDisposable
         var stopwatch = Stopwatch.StartNew();
         var result = new DetectorResult();
 
-        // Skip if not configured for Ollama LLM detection
-        if (!_options.EnableLlmDetection || _options.AiDetection.Provider != AiProvider.Ollama)
+        // Skip if LLM detection is disabled (either globally or per-provider)
+        if (!_options.EnableLlmDetection || !_options.AiDetection.Ollama.Enabled)
         {
             stopwatch.Stop();
             return result;

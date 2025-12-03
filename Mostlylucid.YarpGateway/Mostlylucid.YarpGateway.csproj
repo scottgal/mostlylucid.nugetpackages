@@ -11,10 +11,13 @@
         <ContainerImageTag>0.1</ContainerImageTag>
 
         <!-- Make container as small as possible -->
-        <PublishSingleFile>true</PublishSingleFile>
+        <!-- PublishSingleFile requires framework-dependent or self-contained -->
+        <!-- EnableCompressionInSingleFile only works with self-contained -->
         <SelfContained>false</SelfContained>
-        <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
         <InvariantGlobalization>true</InvariantGlobalization>
+
+        <!-- Runtime identifiers for multi-arch Docker builds -->
+        <RuntimeIdentifiers>linux-x64;linux-musl-x64;linux-arm64;linux-musl-arm64;linux-arm</RuntimeIdentifiers>
     </PropertyGroup>
 
     <ItemGroup>

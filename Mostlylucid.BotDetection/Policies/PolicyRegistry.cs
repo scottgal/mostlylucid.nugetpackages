@@ -50,6 +50,7 @@ public class PolicyRegistry : IPolicyRegistry
 
         // Register built-in policies
         RegisterPolicy(DetectionPolicy.Default);
+        RegisterPolicy(DetectionPolicy.Demo);
         RegisterPolicy(DetectionPolicy.Strict);
         RegisterPolicy(DetectionPolicy.Relaxed);
         RegisterPolicy(DetectionPolicy.AllowVerifiedBots);

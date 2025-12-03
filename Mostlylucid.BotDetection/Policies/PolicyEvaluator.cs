@@ -150,9 +150,15 @@ public class PolicyEvaluator : IPolicyEvaluator
         }
 
         // Check if we should escalate to AI
+        // Skip if BypassTriggerConditions is true (all detectors including AI already ran)
+        // Also skip if AiPathDetectors is empty and BypassTriggerConditions is true
+        var aiAlreadyRan = policy.BypassTriggerConditions ||
+                           (policy.AiPathDetectors.Count > 0 &&
+                            state.CompletedDetectors.Any(d => policy.AiPathDetectors.Contains(d, StringComparer.OrdinalIgnoreCase)));
+
         if (policy.EscalateToAi &&
             state.CurrentRiskScore >= policy.AiEscalationThreshold &&
-            !state.CompletedDetectors.Any(d => policy.AiPathDetectors.Contains(d, StringComparer.OrdinalIgnoreCase)))
+            !aiAlreadyRan)
         {
             _logger.LogDebug(
                 "Policy {PolicyName} escalating to AI at score {Score}",

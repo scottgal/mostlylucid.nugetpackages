@@ -1317,6 +1317,12 @@ public class AiDetectionOptions
 public class OllamaOptions
 {
     /// <summary>
+    ///     Whether Ollama LLM detection is enabled.
+    ///     Default: true (but requires Ollama to be running)
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
     ///     Ollama API endpoint URL.
     ///     Default: "http://localhost:11434"
     /// </summary>
@@ -1391,6 +1397,12 @@ JSON:";
 /// </summary>
 public class OnnxOptions
 {
+    /// <summary>
+    ///     Whether ONNX detection is enabled.
+    ///     Default: true (but requires model to be available or EnableHeuristicFallback = true)
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
     /// <summary>
     ///     Path to the ONNX model file.
     ///     If not specified, looks for {AppContext.BaseDirectory}/models/bot_classifier.onnx

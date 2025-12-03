@@ -211,6 +211,152 @@ GET {{baseUrl}}/bot-detection/check
 User-Agent: Java/11.0.11
 
 ### ==========================================
+### AI Crawler Bots
+### ==========================================
+
+### AI - GPTBot (OpenAI)
+GET {{baseUrl}}/bot-detection/check
+User-Agent: Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.0; +https://openai.com/gptbot)
+
+### AI - ChatGPT User
+GET {{baseUrl}}/bot-detection/check
+User-Agent: Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ChatGPT-User/1.0; +https://openai.com/bot)
+
+### AI - ClaudeBot (Anthropic)
+GET {{baseUrl}}/bot-detection/check
+User-Agent: Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +https://www.anthropic.com)
+
+### AI - Google Extended
+GET {{baseUrl}}/bot-detection/check
+User-Agent: Mozilla/5.0 (compatible; Google-Extended)
+
+### AI - Cohere AI
+GET {{baseUrl}}/bot-detection/check
+User-Agent: cohere-ai
+
+### AI - PerplexityBot
+GET {{baseUrl}}/bot-detection/check
+User-Agent: Mozilla/5.0 (compatible; PerplexityBot/1.0)
+
+### AI - CCBot (Common Crawl for AI)
+GET {{baseUrl}}/bot-detection/check
+User-Agent: CCBot/2.0 (https://commoncrawl.org/faq/)
+
+### ==========================================
+### Showroom Page - Full Pipeline Tests
+### ==========================================
+
+### Bot Test Page - Human (full slow path)
+GET {{baseUrl}}/bot-test
+ml-bot-test-mode: human
+
+### Bot Test Page - Googlebot (verified search engine)
+GET {{baseUrl}}/bot-test
+ml-bot-test-mode: googlebot
+
+### Bot Test Page - Scraper
+GET {{baseUrl}}/bot-test
+ml-bot-test-mode: scrapy
+
+### Bot Test Page - Malicious bot
+GET {{baseUrl}}/bot-test
+ml-bot-test-mode: malicious
+
+### Bot Test Page - AI Crawler
+GET {{baseUrl}}/bot-test
+ml-bot-test-mode: gptbot
+
+### Bot Test Page - Puppeteer/Headless
+GET {{baseUrl}}/bot-test
+ml-bot-test-mode: puppeteer
+
+### ==========================================
+### Malicious Bot Patterns
+### ==========================================
+
+### Malicious - SQL Injection Attempt (via Path)
+GET {{baseUrl}}/bot-detection/check?id=1%27%20OR%20%271%27=%271
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)
+
+### Malicious - Known Bad Bot
+GET {{baseUrl}}/bot-detection/check
+User-Agent: Netcraft
+
+### Malicious - Vulnerability Scanner
+GET {{baseUrl}}/bot-detection/check
+User-Agent: Nmap Scripting Engine
+
+### Malicious - Credential Harvester
+GET {{baseUrl}}/bot-detection/check
+User-Agent: masscan/1.3
+
+### Malicious - SEO Spam
+GET {{baseUrl}}/bot-detection/check
+User-Agent: SemrushBot/7~bl
+
+### ==========================================
+### Edge Cases & Anomalies
+### ==========================================
+
+### Missing Accept Header
+GET {{baseUrl}}/bot-detection/check
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0
+
+### Outdated Browser (Version Age Detection)
+GET {{baseUrl}}/bot-detection/check
+User-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 Chrome/45.0.2454.101 Safari/537.36
+
+### Very Old Browser
+GET {{baseUrl}}/bot-detection/check
+User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)
+
+### Inconsistent Headers (Claims Chrome but wrong Accept)
+GET {{baseUrl}}/bot-detection/check
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0
+Accept: */*
+Accept-Language:
+
+### Mobile Browser - iPhone
+GET {{baseUrl}}/bot-detection/check
+User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1
+
+### Mobile Browser - Android
+GET {{baseUrl}}/bot-detection/check
+User-Agent: Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36
+
+### ==========================================
+### HTTP Libraries & Clients
+### ==========================================
+
+### HTTP Client - Axios
+GET {{baseUrl}}/bot-detection/check
+User-Agent: axios/1.6.0
+
+### HTTP Client - Got
+GET {{baseUrl}}/bot-detection/check
+User-Agent: got (https://github.com/sindresorhus/got)
+
+### HTTP Client - httpx Python
+GET {{baseUrl}}/bot-detection/check
+User-Agent: python-httpx/0.25.0
+
+### HTTP Client - Ruby
+GET {{baseUrl}}/bot-detection/check
+User-Agent: Ruby
+
+### HTTP Client - Perl LWP
+GET {{baseUrl}}/bot-detection/check
+User-Agent: libwww-perl/6.67
+
+### HTTP Client - Apache HttpClient
+GET {{baseUrl}}/bot-detection/check
+User-Agent: Apache-HttpClient/4.5.14 (Java/11.0.11)
+
+### HTTP Client - OkHttp
+GET {{baseUrl}}/bot-detection/check
+User-Agent: okhttp/4.11.0
+
+### ==========================================
 ### Test Helpers
 ### ==========================================
 

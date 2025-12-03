@@ -10,142 +10,469 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - Mostlylucid.BotDetection</title>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <style>
         * { box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            max-width: 900px;
+            max-width: 1100px;
             margin: 0 auto;
             padding: 20px;
-            background: #f5f5f5;
-            color: #333;
+            background: #0d1117;
+            color: #c9d1d9;
         }
-        h1 { color: #2c3e50; margin-bottom: 10px; }
-        .subtitle { color: #7f8c8d; margin-bottom: 30px; }
+        h1 { color: #58a6ff; margin-bottom: 5px; }
+        .subtitle { color: #8b949e; margin-bottom: 25px; }
         .card {
-            background: white;
+            background: #161b22;
+            border: 1px solid #30363d;
             border-radius: 8px;
             padding: 20px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .card h2 { margin-top: 0; color: #34495e; font-size: 1.2em; }
-        .status { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
-        .indicator {
-            width: 12px; height: 12px;
-            border-radius: 50%;
-            background: #95a5a6;
-        }
-        .indicator.success { background: #27ae60; }
-        .indicator.warning { background: #f39c12; }
-        .indicator.danger { background: #e74c3c; }
-        .indicator.unknown { background: #95a5a6; }
-        .score {
-            font-size: 2.5em;
-            font-weight: bold;
-            color: #2c3e50;
-        }
-        .score.high { color: #27ae60; }
-        .score.medium { color: #f39c12; }
-        .score.low { color: #e74c3c; }
-        .details { font-size: 0.9em; color: #7f8c8d; }
-        .fingerprint-data {
-            font-family: monospace;
+        .card h2 { margin-top: 0; color: #c9d1d9; font-size: 1.1em; border-bottom: 1px solid #30363d; padding-bottom: 10px; }
+
+        /* Test Buttons */
+        .test-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+        .test-btn {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
             font-size: 0.85em;
-            background: #f8f9fa;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .test-btn:hover { transform: translateY(-1px); }
+        .test-btn.human { background: #238636; color: white; }
+        .test-btn.search { background: #1f6feb; color: white; }
+        .test-btn.scraper { background: #f0883e; color: white; }
+        .test-btn.malicious { background: #da3633; color: white; }
+        .test-btn.ai { background: #8957e5; color: white; }
+        .test-btn.social { background: #3fb950; color: white; }
+        .test-btn.monitor { background: #388bfd; color: white; }
+        .test-btn.active { box-shadow: 0 0 0 2px #58a6ff; }
+
+        /* Path Toggle */
+        .path-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 12px;
+            background: #21262d;
+            border-radius: 6px;
+        }
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+        }
+        .toggle-switch input { display: none; }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background: #30363d;
+            border-radius: 13px;
+            transition: 0.3s;
+        }
+        .toggle-slider:before {
+            content: "";
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+        .toggle-switch input:checked + .toggle-slider { background: #238636; }
+        .toggle-switch input:checked + .toggle-slider:before { transform: translateX(24px); }
+        .path-label { font-size: 0.9em; }
+        .path-label.active { color: #58a6ff; font-weight: 600; }
+
+        /* Stats Grid */
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+        .stat-box {
+            background: #21262d;
             padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .stat-value { font-size: 1.8em; font-weight: bold; color: #58a6ff; }
+        .stat-label { font-size: 0.8em; color: #8b949e; margin-top: 5px; }
+
+        /* Detection Result */
+        .result-header { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+        .result-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+        .result-badge.human { background: #238636; color: white; }
+        .result-badge.bot { background: #da3633; color: white; }
+        .result-badge.suspicious { background: #f0883e; color: white; }
+        .confidence-score {
+            font-size: 2em;
+            font-weight: bold;
+        }
+        .confidence-score.low { color: #3fb950; }
+        .confidence-score.medium { color: #f0883e; }
+        .confidence-score.high { color: #da3633; }
+
+        /* Risk Band & Action */
+        .risk-action { display: flex; gap: 20px; margin: 15px 0; }
+        .risk-item { flex: 1; }
+        .risk-label { font-size: 0.8em; color: #8b949e; margin-bottom: 5px; }
+        .risk-value { font-weight: 600; padding: 4px 10px; border-radius: 4px; display: inline-block; }
+        .risk-value.low { background: #238636; color: white; }
+        .risk-value.medium { background: #f0883e; color: white; }
+        .risk-value.high { background: #da3633; color: white; }
+        .risk-value.critical { background: #8957e5; color: white; }
+        .action-value { font-weight: 600; color: #c9d1d9; }
+
+        /* Detectors */
+        .detector-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 15px 0; }
+        .detector-tag {
+            padding: 4px 10px;
+            background: #30363d;
+            border-radius: 12px;
+            font-size: 0.8em;
+            color: #8b949e;
+        }
+        .detector-tag.active { background: #1f6feb; color: white; }
+
+        /* Signals List */
+        .signals-list { margin-top: 15px; }
+        .signal-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: #21262d;
             border-radius: 4px;
+            margin-bottom: 6px;
+            font-size: 0.9em;
+        }
+        .signal-category {
+            font-weight: 600;
+            color: #58a6ff;
+            min-width: 120px;
+        }
+        .signal-detail { flex: 1; color: #c9d1d9; margin: 0 15px; }
+        .signal-impact {
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
+        .signal-impact.high { background: #da3633; color: white; }
+        .signal-impact.medium { background: #f0883e; color: white; }
+        .signal-impact.low { background: #f0883e33; color: #f0883e; }
+        .signal-impact.human { background: #238636; color: white; }
+        .signal-impact.neutral { background: #30363d; color: #8b949e; }
+
+        /* Category Scores */
+        .category-scores { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 15px; }
+        .category-item {
+            background: #21262d;
+            padding: 10px;
+            border-radius: 6px;
+        }
+        .category-name { font-size: 0.8em; color: #8b949e; }
+        .category-bar {
+            height: 6px;
+            background: #30363d;
+            border-radius: 3px;
+            margin-top: 6px;
+            overflow: hidden;
+        }
+        .category-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+        .category-fill.low { background: #3fb950; }
+        .category-fill.medium { background: #f0883e; }
+        .category-fill.high { background: #da3633; }
+
+        /* Client Detection */
+        .client-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .fingerprint-data {
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.8em;
+            background: #0d1117;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #30363d;
             overflow-x: auto;
             white-space: pre-wrap;
             word-break: break-all;
+            max-height: 400px;
         }
-        .badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.8em;
-            font-weight: 600;
+
+        /* Loading indicator */
+        .htmx-request .htmx-indicator { display: inline-block; }
+        .htmx-indicator { display: none; margin-left: 8px; }
+
+        @@media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .client-grid { grid-template-columns: 1fr; }
+            .category-scores { grid-template-columns: repeat(2, 1fr); }
         }
-        .badge-bot { background: #e74c3c; color: white; }
-        .badge-human { background: #27ae60; color: white; }
-        .badge-unknown { background: #95a5a6; color: white; }
-        #serverResult, #clientResult { min-height: 100px; }
-        button {
-            background: #3498db;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 1em;
-        }
-        button:hover { background: #2980b9; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        @@media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
-    <h1>Bot Detection Test Page</h1>
-    <p class="subtitle">Test browser fingerprinting and headless detection with PuppeteerSharp</p>
+    <h1>Bot Detection Showroom</h1>
+    <p class="subtitle">Full detection pipeline demonstration - all slow path detectors enabled</p>
 
-    <div class="grid">
-        <div class="card">
-            <h2>Server-Side Detection</h2>
-            <p class="details">Based on User-Agent, headers, IP, and behavior</p>
-            <div id="serverResult">
-                <div class="status">
-                    <span class="indicator @(Model.IsBot ? "danger" : "success")"></span>
-                    <span class="badge @(Model.IsBot ? "badge-bot" : "badge-human")">
-                        @(Model.IsBot ? "Bot Detected" : "Human")
-                    </span>
-                </div>
-                <div class="score @(Model.Confidence < 0.3 ? "high" : Model.Confidence < 0.7 ? "medium" : "low")">
-                    @Model.Confidence.ToString("P0")
-                </div>
-                <p class="details">Confidence Score</p>
-                @if (!string.IsNullOrEmpty(Model.BotType))
-                {
-                    <p><strong>Bot Type:</strong> @Model.BotType</p>
-                }
-                @if (!string.IsNullOrEmpty(Model.BotName))
-                {
-                    <p><strong>Bot Name:</strong> @Model.BotName</p>
-                }
+    <!-- Test Buttons -->
+    <div class="card">
+        <h2>Simulate Bot Types</h2>
+        <p style="font-size: 0.85em; color: #8b949e; margin-bottom: 15px;">Click to test detection with different bot signatures</p>
+        <div class="test-buttons">
+            <button class="test-btn human"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "human"}'
+                    hx-target="body"
+                    hx-swap="outerHTML">Real Browser</button>
+            <button class="test-btn search"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "googlebot"}'
+                    hx-target="body"
+                    hx-swap="outerHTML">Googlebot</button>
+            <button class="test-btn search"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "bingbot"}'
+                    hx-target="body"
+                    hx-swap="outerHTML">Bingbot</button>
+            <button class="test-btn scraper"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "scrapy"}'
+                    hx-target="body"
+                    hx-swap="outerHTML">Scrapy</button>
+            <button class="test-btn scraper"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "curl"}'
+                    hx-target="body"
+                    hx-swap="outerHTML">cURL</button>
+            <button class="test-btn scraper"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "puppeteer"}'
+                    hx-target="body"
+                    hx-swap="outerHTML">Puppeteer</button>
+            <button class="test-btn malicious"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "malicious"}'
+                    hx-target="body"
+                    hx-swap="outerHTML">Malicious Bot</button>
+            <button class="test-btn ai"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "gptbot"}'
+                    hx-target="body"
+                    hx-swap="outerHTML">GPTBot</button>
+            <button class="test-btn ai"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "claudebot"}'
+                    hx-target="body"
+                    hx-swap="outerHTML">ClaudeBot</button>
+            <button class="test-btn social"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "twitterbot"}'
+                    hx-target="body"
+                    hx-swap="outerHTML">TwitterBot</button>
+            <button class="test-btn social"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "facebookbot"}'
+                    hx-target="body"
+                    hx-swap="outerHTML">FacebookBot</button>
+            <button class="test-btn monitor"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "uptimerobot"}'
+                    hx-target="body"
+                    hx-swap="outerHTML">UptimeRobot</button>
+        </div>
+
+        <!-- Path Toggle -->
+        <div class="path-toggle">
+            <span class="path-label" id="fastLabel">Fast Path</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="pathToggle" checked onchange="togglePath()">
+                <span class="toggle-slider"></span>
+            </label>
+            <span class="path-label active" id="slowLabel">Slow Path (Full Pipeline)</span>
+            <span style="margin-left: auto; font-size: 0.8em; color: #8b949e;">
+                Processing: <strong id="timingDisplay">@Model.ProcessingTimeMs.ToString("F2")ms</strong>
+            </span>
+        </div>
+    </div>
+
+    <!-- Pipeline Stats -->
+    <div class="stats-grid">
+        <div class="stat-box">
+            <div class="stat-value">@Model.DetectorCount</div>
+            <div class="stat-label">Detectors Ran</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value">@Model.Reasons.Count</div>
+            <div class="stat-label">Signals Found</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value">@Model.CategoryScores.Count</div>
+            <div class="stat-label">Categories</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value">@Model.ProcessingTimeMs.ToString("F1")ms</div>
+            <div class="stat-label">Processing Time</div>
+        </div>
+    </div>
+
+    <!-- Detection Result -->
+    <div class="card">
+        <h2>Detection Result</h2>
+        <div class="result-header">
+            <span class="result-badge @(Model.IsBot ? (Model.Confidence > 0.7 ? "bot" : "suspicious") : "human")">
+                @(Model.IsBot ? (Model.Confidence > 0.7 ? "Bot Detected" : "Suspicious") : "Human")
+            </span>
+            <span class="confidence-score @(Model.Confidence < 0.3 ? "low" : Model.Confidence < 0.7 ? "medium" : "high")">
+                @Model.Confidence.ToString("P0")
+            </span>
+            <span style="color: #8b949e; font-size: 0.9em;">confidence</span>
+        </div>
+
+        <div class="risk-action">
+            <div class="risk-item">
+                <div class="risk-label">Risk Band</div>
+                <span class="risk-value @Model.RiskBand.ToLower()">@Model.RiskBand</span>
+            </div>
+            <div class="risk-item">
+                <div class="risk-label">Recommended Action</div>
+                <span class="action-value">@Model.RecommendedAction</span>
+            </div>
+            <div class="risk-item">
+                <div class="risk-label">Bot Type</div>
+                <span class="action-value">@Model.BotType</span>
+            </div>
+            <div class="risk-item">
+                <div class="risk-label">Bot Name</div>
+                <span class="action-value">@Model.BotName</span>
             </div>
         </div>
 
-        <div class="card">
-            <h2>Client-Side Detection</h2>
-            <p class="details">JavaScript fingerprint + headless detection</p>
-            <div id="clientResult">
-                <div class="status">
-                    <span class="indicator unknown" id="clientIndicator"></span>
-                    <span class="badge badge-unknown" id="clientBadge">Collecting...</span>
-                </div>
-                <div class="score" id="clientScore">--</div>
-                <p class="details">Browser Integrity Score</p>
-                <p id="clientDetails"></p>
+        <!-- Active Detectors -->
+        <div style="margin-top: 20px;">
+            <div style="font-size: 0.85em; color: #8b949e; margin-bottom: 8px;">Active Detectors</div>
+            <div class="detector-tags">
+                @foreach (var detector in Model.DetectorsRan)
+                {
+                    <span class="detector-tag active">@detector</span>
+                }
+                @if (!Model.DetectorsRan.Any())
+                {
+                    <span class="detector-tag">No detectors reported</span>
+                }
             </div>
         </div>
     </div>
 
+    <!-- Detection Signals -->
+    @if (Model.Reasons.Any())
+    {
+        <div class="card">
+            <h2>Detection Signals (@Model.Reasons.Count)</h2>
+            <div class="signals-list">
+                @foreach (var reason in Model.Reasons.OrderByDescending(r => Math.Abs(r.Impact)))
+                {
+                    <div class="signal-item">
+                        <span class="signal-category">@reason.Category</span>
+                        <span class="signal-detail">@reason.Detail</span>
+                        <span class="signal-impact @reason.ImpactClass">@reason.ImpactDisplay</span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- Category Scores -->
+    @if (Model.CategoryScores.Any())
+    {
+        <div class="card">
+            <h2>Category Breakdown</h2>
+            <div class="category-scores">
+                @foreach (var cat in Model.CategoryScores.OrderByDescending(c => c.Value))
+                {
+                    var pct = cat.Value * 100;
+                    var level = pct < 30 ? "low" : pct < 60 ? "medium" : "high";
+                    <div class="category-item">
+                        <div class="category-name">@cat.Key: @cat.Value.ToString("P0")</div>
+                        <div class="category-bar">
+                            <div class="category-fill @level" style="width: @pct%"></div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- Client-Side Detection -->
     <div class="card">
-        <h2>Browser Fingerprint Data</h2>
-        <p class="details">Data collected by the client-side script</p>
-        <div class="fingerprint-data" id="fingerprintData">Waiting for fingerprint collection...</div>
+        <h2>Client-Side Detection</h2>
+        <div class="client-grid">
+            <div>
+                <div style="margin-bottom: 15px;">
+                    <div class="result-header">
+                        <span class="result-badge human" id="clientBadge">Collecting...</span>
+                        <span class="confidence-score" id="clientScore">--</span>
+                        <span style="color: #8b949e; font-size: 0.9em;">integrity</span>
+                    </div>
+                </div>
+                <div id="clientDetails" style="font-size: 0.9em; color: #8b949e;"></div>
+            </div>
+            <div>
+                <div style="font-size: 0.85em; color: #8b949e; margin-bottom: 8px;">Fingerprint Data</div>
+                <div class="fingerprint-data" id="fingerprintData">Waiting for fingerprint collection...</div>
+            </div>
+        </div>
     </div>
 
+    <!-- API Response -->
     <div class="card">
-        <h2>Detection API Response</h2>
-        <button onclick="fetchDetectionCheck()">Refresh Detection</button>
+        <h2>Raw API Response</h2>
+        <button class="test-btn search" onclick="fetchDetectionCheck()">Refresh Detection</button>
         <div class="fingerprint-data" id="apiResponse" style="margin-top: 15px;">Click button to fetch...</div>
     </div>
 
-    <!-- Bot Detection Script - TagHelper injects fingerprinting JS -->
+    <!-- Bot Detection Script -->
     <bot-detection-script endpoint="/bot-detection/fingerprint" />
 
     <script>
-        // Intercept the fingerprint data before it's sent
+        // Path toggle functionality
+        function togglePath() {
+            var isSlowPath = document.getElementById('pathToggle').checked;
+            document.getElementById('fastLabel').classList.toggle('active', !isSlowPath);
+            document.getElementById('slowLabel').classList.toggle('active', isSlowPath);
+
+            // Update all HTMX buttons to include path header
+            document.querySelectorAll('.test-btn[hx-get]').forEach(function(btn) {
+                var headers = JSON.parse(btn.getAttribute('hx-headers') || '{}');
+                if (isSlowPath) {
+                    headers['X-Force-Slow-Path'] = 'true';
+                    delete headers['X-Force-Fast-Path'];
+                } else {
+                    headers['X-Force-Fast-Path'] = 'true';
+                    delete headers['X-Force-Slow-Path'];
+                }
+                btn.setAttribute('hx-headers', JSON.stringify(headers));
+            });
+        }
+
+        // Initialize path toggle
+        togglePath();
+
+        // Intercept fingerprint data
         (function() {
             var originalXHR = XMLHttpRequest.prototype.send;
             XMLHttpRequest.prototype.send = function(data) {
@@ -168,7 +495,6 @@
 
         function updateClientUI(data) {
             var score = data.score || 0;
-            var indicator = document.getElementById('clientIndicator');
             var badge = document.getElementById('clientBadge');
             var scoreEl = document.getElementById('clientScore');
             var details = document.getElementById('clientDetails');
@@ -176,31 +502,28 @@
             scoreEl.textContent = score + '/100';
 
             if (score >= 70) {
-                indicator.className = 'indicator success';
-                badge.className = 'badge badge-human';
+                badge.className = 'result-badge human';
                 badge.textContent = 'Likely Human';
-                scoreEl.className = 'score high';
+                scoreEl.className = 'confidence-score low';
             } else if (score >= 40) {
-                indicator.className = 'indicator warning';
-                badge.className = 'badge badge-unknown';
+                badge.className = 'result-badge suspicious';
                 badge.textContent = 'Suspicious';
-                scoreEl.className = 'score medium';
+                scoreEl.className = 'confidence-score medium';
             } else {
-                indicator.className = 'indicator danger';
-                badge.className = 'badge badge-bot';
+                badge.className = 'result-badge bot';
                 badge.textContent = 'Likely Bot';
-                scoreEl.className = 'score low';
+                scoreEl.className = 'confidence-score high';
             }
 
-            var detailsHtml = '';
-            if (data.webdriver) detailsHtml += '<strong>WebDriver detected!</strong><br>';
-            if (data.phantom) detailsHtml += 'PhantomJS detected<br>';
-            if (data.selenium) detailsHtml += 'Selenium detected<br>';
-            if (data.cdc) detailsHtml += 'CDP markers detected<br>';
-            if (data.plugins === 0 && data.chrome) detailsHtml += 'Chrome with no plugins<br>';
-            if (data.outerW === 0) detailsHtml += 'Zero outer dimensions<br>';
+            var signals = [];
+            if (data.webdriver) signals.push('WebDriver detected');
+            if (data.phantom) signals.push('PhantomJS detected');
+            if (data.selenium) signals.push('Selenium detected');
+            if (data.cdc) signals.push('CDP markers detected');
+            if (data.plugins === 0 && data.chrome) signals.push('Chrome with no plugins');
+            if (data.outerW === 0) signals.push('Zero outer dimensions');
 
-            details.innerHTML = detailsHtml || 'No suspicious signals detected';
+            details.innerHTML = signals.length ? signals.join(' | ') : 'No suspicious signals detected';
         }
 
         function fetchDetectionCheck() {

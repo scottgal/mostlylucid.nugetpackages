@@ -210,6 +210,14 @@ public class DetectionPolicyConfig : BaseComponentConfig
     public int TimeoutMs { get; set; } = 5000;
 
     /// <summary>
+    ///     When true, all detectors run in Wave 0 regardless of their TriggerConditions.
+    ///     Primary use case: learning/slow path where full characterization is required.
+    ///     Also useful for demo/testing to ensure the full detection pipeline runs.
+    ///     Default: false (respect trigger conditions for optimal performance).
+    /// </summary>
+    public bool BypassTriggerConditions { get; set; }
+
+    /// <summary>
     ///     Converts this configuration to a DetectionPolicy record.
     /// </summary>
     public DetectionPolicy ToPolicy(string name)
@@ -230,7 +238,8 @@ public class DetectionPolicyConfig : BaseComponentConfig
             WeightOverrides = Weights.ToImmutableDictionary(),
             Transitions = Transitions.Select(t => t.ToTransition()).ToImmutableList(),
             Timeout = TimeSpan.FromMilliseconds(TimeoutMs),
-            Enabled = Enabled
+            Enabled = Enabled,
+            BypassTriggerConditions = BypassTriggerConditions
         };
     }
 }

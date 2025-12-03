@@ -47,8 +47,8 @@ public class OnnxDetector : IDetector, IDisposable
         var stopwatch = Stopwatch.StartNew();
         var result = new DetectorResult();
 
-        // Skip if not configured for ONNX
-        if (!_options.EnableLlmDetection || _options.AiDetection.Provider != AiProvider.Onnx)
+        // Skip if ONNX detection is disabled
+        if (!_options.AiDetection.Onnx.Enabled)
         {
             stopwatch.Stop();
             return result;
@@ -335,6 +335,17 @@ public class OnnxDetector : IDetector, IDisposable
                 Category = "ONNX-Heuristic",
                 Detail = $"Heuristic classification as bot (probability: {probability:F2})",
                 ConfidenceImpact = result.Confidence
+            });
+        }
+        else
+        {
+            // Human-like - return negative impact (helps with demo visibility)
+            result.Confidence = (0.5 - probability) * 2; // Scale 0-0.5 to 0-1 (inverted)
+            result.Reasons.Add(new DetectionReason
+            {
+                Category = "ONNX-Heuristic",
+                Detail = $"Heuristic classification as human (probability: {probability:F2})",
+                ConfidenceImpact = -result.Confidence // Negative = human indicator
             });
         }
 

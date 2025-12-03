@@ -88,6 +88,14 @@ public sealed record DetectionPolicy
     public bool Enabled { get; init; } = true;
 
     /// <summary>
+    ///     When true, all detectors run in Wave 0 regardless of their TriggerConditions.
+    ///     Primary use case: learning/slow path where full characterization is required.
+    ///     Also useful for demo/testing to ensure the full detection pipeline runs.
+    ///     Default: false (respect trigger conditions for optimal performance).
+    /// </summary>
+    public bool BypassTriggerConditions { get; init; }
+
+    /// <summary>
     ///     Creates a default balanced policy suitable for most endpoints.
     /// </summary>
     public static DetectionPolicy Default => new()
@@ -95,10 +103,30 @@ public sealed record DetectionPolicy
         Name = "default",
         Description = "Balanced detection for general use",
         FastPathDetectors = ["UserAgent", "Header", "Ip"],
-        SlowPathDetectors = ["Behavioral", "Inconsistency"],
-        AiPathDetectors = ["Onnx", "Llm"],
+        SlowPathDetectors = ["Inconsistency"],
+        AiPathDetectors = ["AI"],
         UseFastPath = true,
         EscalateToAi = false
+    };
+
+    /// <summary>
+    ///     Creates a demo policy that runs ALL registered detectors for full visibility.
+    ///     Use this for testing and demonstration purposes to see the full pipeline.
+    /// </summary>
+    public static DetectionPolicy Demo => new()
+    {
+        Name = "demo",
+        Description = "Full detection pipeline for demonstration - runs all detectors",
+        FastPathDetectors = [], // Empty = run all registered detectors
+        SlowPathDetectors = [],
+        AiPathDetectors = [],
+        UseFastPath = false, // Force full analysis
+        ForceSlowPath = true,
+        EscalateToAi = true,
+        AiEscalationThreshold = 0.0, // Always escalate to AI for demo
+        EarlyExitThreshold = 0.0, // Never early exit
+        ImmediateBlockThreshold = 1.0, // Never block immediately
+        BypassTriggerConditions = true // Run ALL detectors in Wave 0, ignore triggers
     };
 
     /// <summary>

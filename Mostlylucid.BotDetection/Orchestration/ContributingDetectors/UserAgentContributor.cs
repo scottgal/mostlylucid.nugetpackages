@@ -286,7 +286,15 @@ public class InconsistencyContributor : ContributingDetectorBase
 
         if (contributions.Count == 0)
         {
-            return Task.FromResult(None());
+            // No inconsistencies found - add negative signal (human indicator)
+            contributions.Add(new DetectionContribution
+            {
+                DetectorName = Name,
+                Category = "Inconsistency",
+                ConfidenceDelta = -0.05,
+                Weight = 0.8,
+                Reason = "No header/UA inconsistencies detected"
+            });
         }
 
         return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);

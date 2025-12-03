@@ -7,7 +7,6 @@ using Mostlylucid.BotDetection.Attributes;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Orchestration;
 using Mostlylucid.BotDetection.Policies;
-using Mostlylucid.BotDetection.Services;
 
 namespace Mostlylucid.BotDetection.Middleware;
 
@@ -94,12 +93,12 @@ public class BotDetectionMiddleware(
 
     /// <summary>
     ///     Main middleware entry point. Runs bot detection and handles blocking/throttling.
+    ///     Uses the BlackboardOrchestrator for full pipeline detection with policy support.
     /// </summary>
     public async Task InvokeAsync(
         HttpContext context,
-        IBotDetectionService botDetectionService,
-        BlackboardOrchestrator? orchestrator = null,
-        IPolicyRegistry? policyRegistry = null)
+        BlackboardOrchestrator orchestrator,
+        IPolicyRegistry policyRegistry)
     {
         // Check if bot detection is globally enabled
         if (!_options.Enabled)
@@ -140,35 +139,22 @@ public class BotDetectionMiddleware(
         var policy = ResolvePolicy(context, endpoint, policyRegistry);
         var policyAttr = endpoint?.Metadata.GetMetadata<BotPolicyAttribute>();
 
-        // Run detection - prefer orchestrator if available
-        AggregatedEvidence? aggregatedResult = null;
-        BotDetectionResult? legacyResult = null;
-
-        if (orchestrator != null && policyRegistry != null)
-        {
-            aggregatedResult = await orchestrator.DetectWithPolicyAsync(context, policy, context.RequestAborted);
-            PopulateContextFromAggregated(context, aggregatedResult, policy.Name);
-        }
-        else
-        {
-            // Fall back to legacy detection service
-            legacyResult = await botDetectionService.DetectAsync(context, context.RequestAborted);
-            PopulateContextItems(context, legacyResult);
-            context.Items[PolicyNameKey] = policy.Name;
-        }
+        // Run full pipeline with orchestrator - always use full detection
+        var aggregatedResult = await orchestrator.DetectWithPolicyAsync(context, policy, context.RequestAborted);
+        PopulateContextFromAggregated(context, aggregatedResult, policy.Name);
 
         // Add response headers if enabled
         if (_options.ResponseHeaders.Enabled)
         {
-            AddResponseHeaders(context, aggregatedResult, legacyResult, policy.Name);
+            AddResponseHeaders(context, aggregatedResult, policy.Name);
         }
 
         // Determine if we should block/throttle
-        var shouldBlock = ShouldBlockRequest(aggregatedResult, legacyResult, policy, policyAttr);
+        var shouldBlock = ShouldBlockRequest(aggregatedResult, policy, policyAttr);
 
         if (shouldBlock.Block)
         {
-            await HandleBlockedRequest(context, aggregatedResult, legacyResult, policy, policyAttr, shouldBlock.Action);
+            await HandleBlockedRequest(context, aggregatedResult, policy, policyAttr, shouldBlock.Action);
             return;
         }
 
@@ -181,10 +167,19 @@ public class BotDetectionMiddleware(
     private DetectionPolicy ResolvePolicy(
         HttpContext context,
         Endpoint? endpoint,
-        IPolicyRegistry? policyRegistry)
+        IPolicyRegistry policyRegistry)
     {
-        if (policyRegistry == null)
-            return DetectionPolicy.Default;
+        // 0. Check for policy query parameter (for demo/testing - only when test mode enabled)
+        if (_options.EnableTestMode && context.Request.Query.TryGetValue("policy", out var policyParam))
+        {
+            var queryPolicy = policyRegistry.GetPolicy(policyParam.ToString());
+            if (queryPolicy != null)
+            {
+                _logger.LogDebug("Using policy '{Policy}' from query parameter for {Path}",
+                    queryPolicy.Name, context.Request.Path);
+                return queryPolicy;
+            }
+        }
 
         // 1. Check for [BotPolicy] attribute on action/controller
         var policyAttr = endpoint?.Metadata.GetMetadata<BotPolicyAttribute>();
@@ -293,8 +288,7 @@ public class BotDetectionMiddleware(
 
     private void AddResponseHeaders(
         HttpContext context,
-        AggregatedEvidence? aggregated,
-        BotDetectionResult? legacy,
+        AggregatedEvidence aggregated,
         string policyName)
     {
         var headerConfig = _options.ResponseHeaders;
@@ -306,83 +300,64 @@ public class BotDetectionMiddleware(
             context.Response.Headers.TryAdd($"{prefix}Policy", policyName);
         }
 
-        if (aggregated != null)
+        // Risk score (always included)
+        context.Response.Headers.TryAdd($"{prefix}Risk-Score", aggregated.BotProbability.ToString("F3"));
+        context.Response.Headers.TryAdd($"{prefix}Risk-Band", aggregated.RiskBand.ToString());
+
+        if (headerConfig.IncludeConfidence)
         {
-            // Risk score (always included)
-            context.Response.Headers.TryAdd($"{prefix}Risk-Score", aggregated.BotProbability.ToString("F3"));
-            context.Response.Headers.TryAdd($"{prefix}Risk-Band", aggregated.RiskBand.ToString());
+            context.Response.Headers.TryAdd($"{prefix}Confidence", aggregated.Confidence.ToString("F3"));
+        }
 
-            if (headerConfig.IncludeConfidence)
-            {
-                context.Response.Headers.TryAdd($"{prefix}Confidence", aggregated.Confidence.ToString("F3"));
-            }
+        if (headerConfig.IncludeDetectors && aggregated.ContributingDetectors.Count > 0)
+        {
+            context.Response.Headers.TryAdd($"{prefix}Detectors",
+                string.Join(",", aggregated.ContributingDetectors));
+        }
 
-            if (headerConfig.IncludeDetectors && aggregated.ContributingDetectors.Count > 0)
-            {
-                context.Response.Headers.TryAdd($"{prefix}Detectors",
-                    string.Join(",", aggregated.ContributingDetectors));
-            }
+        if (headerConfig.IncludeProcessingTime)
+        {
+            context.Response.Headers.TryAdd($"{prefix}Processing-Ms",
+                aggregated.TotalProcessingTimeMs.ToString("F1"));
+        }
 
-            if (headerConfig.IncludeProcessingTime)
-            {
-                context.Response.Headers.TryAdd($"{prefix}Processing-Ms",
-                    aggregated.TotalProcessingTimeMs.ToString("F1"));
-            }
+        if (aggregated.PolicyAction.HasValue)
+        {
+            context.Response.Headers.TryAdd($"{prefix}Action", aggregated.PolicyAction.Value.ToString());
+        }
 
-            if (aggregated.PolicyAction.HasValue)
-            {
-                context.Response.Headers.TryAdd($"{prefix}Action", aggregated.PolicyAction.Value.ToString());
-            }
+        if (aggregated.PrimaryBotName != null && headerConfig.IncludeBotName)
+        {
+            context.Response.Headers.TryAdd($"{prefix}Bot-Name", aggregated.PrimaryBotName);
+        }
 
-            if (aggregated.PrimaryBotName != null && headerConfig.IncludeBotName)
+        if (aggregated.EarlyExit)
+        {
+            context.Response.Headers.TryAdd($"{prefix}Early-Exit", "true");
+            if (aggregated.EarlyExitVerdict.HasValue)
             {
-                context.Response.Headers.TryAdd($"{prefix}Bot-Name", aggregated.PrimaryBotName);
-            }
-
-            if (aggregated.EarlyExit)
-            {
-                context.Response.Headers.TryAdd($"{prefix}Early-Exit", "true");
-                if (aggregated.EarlyExitVerdict.HasValue)
-                {
-                    context.Response.Headers.TryAdd($"{prefix}Verdict", aggregated.EarlyExitVerdict.Value.ToString());
-                }
-            }
-
-            // Full JSON result if enabled (useful for debugging)
-            if (headerConfig.IncludeFullJson)
-            {
-                var jsonResult = new
-                {
-                    risk = aggregated.BotProbability,
-                    confidence = aggregated.Confidence,
-                    riskBand = aggregated.RiskBand.ToString(),
-                    policy = policyName,
-                    detectors = aggregated.ContributingDetectors,
-                    categories = aggregated.CategoryBreakdown.ToDictionary(
-                        kv => kv.Key,
-                        kv => kv.Value.Score)
-                };
-                var json = JsonSerializer.Serialize(jsonResult);
-                // Base64 encode to avoid header encoding issues
-                var base64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
-                context.Response.Headers.TryAdd($"{prefix}Result-Json", base64);
+                context.Response.Headers.TryAdd($"{prefix}Verdict", aggregated.EarlyExitVerdict.Value.ToString());
             }
         }
-        else if (legacy != null)
+
+        // Full JSON result if enabled (useful for debugging)
+        if (headerConfig.IncludeFullJson)
         {
-            // Legacy result headers
-            context.Response.Headers.TryAdd($"{prefix}Is-Bot", legacy.IsBot.ToString().ToLower());
-            context.Response.Headers.TryAdd($"{prefix}Confidence", legacy.ConfidenceScore.ToString("F3"));
-
-            if (legacy.BotType.HasValue)
+            var jsonResult = new
             {
-                context.Response.Headers.TryAdd($"{prefix}Bot-Type", legacy.BotType.Value.ToString());
-            }
-
-            if (legacy.BotName != null && headerConfig.IncludeBotName)
-            {
-                context.Response.Headers.TryAdd($"{prefix}Bot-Name", legacy.BotName);
-            }
+                risk = aggregated.BotProbability,
+                confidence = aggregated.Confidence,
+                riskBand = aggregated.RiskBand.ToString(),
+                policy = policyName,
+                detectors = aggregated.ContributingDetectors,
+                categories = aggregated.CategoryBreakdown.ToDictionary(
+                    kv => kv.Key,
+                    kv => kv.Value.Score)
+            };
+            var json = JsonSerializer.Serialize(jsonResult);
+            // Base64 encode to avoid header encoding issues
+            var base64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+            context.Response.Headers.TryAdd($"{prefix}Result-Json", base64);
         }
     }
 
@@ -391,8 +366,7 @@ public class BotDetectionMiddleware(
     #region Blocking Logic
 
     private (bool Block, BotBlockAction Action) ShouldBlockRequest(
-        AggregatedEvidence? aggregated,
-        BotDetectionResult? legacy,
+        AggregatedEvidence aggregated,
         DetectionPolicy policy,
         BotPolicyAttribute? policyAttr)
     {
@@ -403,47 +377,37 @@ public class BotDetectionMiddleware(
         // Determine action from attribute or default
         var defaultAction = policyAttr?.BlockAction ?? BotBlockAction.Default;
 
-        if (aggregated != null)
-        {
-            // Check if policy action says to block
-            if (aggregated.PolicyAction == PolicyAction.Block)
-                return (true, defaultAction == BotBlockAction.Default ? BotBlockAction.StatusCode : defaultAction);
+        // Check if policy action says to block
+        if (aggregated.PolicyAction == PolicyAction.Block)
+            return (true, defaultAction == BotBlockAction.Default ? BotBlockAction.StatusCode : defaultAction);
 
-            // Check if policy action says to throttle
-            if (aggregated.PolicyAction == PolicyAction.Throttle)
-                return (true, BotBlockAction.Throttle);
+        // Check if policy action says to throttle
+        if (aggregated.PolicyAction == PolicyAction.Throttle)
+            return (true, BotBlockAction.Throttle);
 
-            // Check if policy action says to challenge
-            if (aggregated.PolicyAction == PolicyAction.Challenge)
-                return (true, BotBlockAction.Challenge);
+        // Check if policy action says to challenge
+        if (aggregated.PolicyAction == PolicyAction.Challenge)
+            return (true, BotBlockAction.Challenge);
 
-            // Check if risk exceeds immediate block threshold
-            if (aggregated.BotProbability >= policy.ImmediateBlockThreshold)
-                return (true, defaultAction == BotBlockAction.Default ? BotBlockAction.StatusCode : defaultAction);
+        // Check if risk exceeds immediate block threshold
+        if (aggregated.BotProbability >= policy.ImmediateBlockThreshold)
+            return (true, defaultAction == BotBlockAction.Default ? BotBlockAction.StatusCode : defaultAction);
 
-            // Check for verified bad bot
-            if (aggregated.EarlyExit && aggregated.EarlyExitVerdict == EarlyExitVerdict.VerifiedBadBot)
-                return (true, defaultAction == BotBlockAction.Default ? BotBlockAction.StatusCode : defaultAction);
-        }
-        else if (legacy != null)
-        {
-            // Legacy blocking based on threshold
-            if (legacy.IsBot && legacy.ConfidenceScore >= _options.BotThreshold)
-                return (true, defaultAction == BotBlockAction.Default ? BotBlockAction.StatusCode : defaultAction);
-        }
+        // Check for verified bad bot
+        if (aggregated.EarlyExit && aggregated.EarlyExitVerdict == EarlyExitVerdict.VerifiedBadBot)
+            return (true, defaultAction == BotBlockAction.Default ? BotBlockAction.StatusCode : defaultAction);
 
         return (false, BotBlockAction.Default);
     }
 
     private async Task HandleBlockedRequest(
         HttpContext context,
-        AggregatedEvidence? aggregated,
-        BotDetectionResult? legacy,
+        AggregatedEvidence aggregated,
         DetectionPolicy policy,
         BotPolicyAttribute? policyAttr,
         BotBlockAction action)
     {
-        var riskScore = aggregated?.BotProbability ?? legacy?.ConfidenceScore ?? 1.0;
+        var riskScore = aggregated.BotProbability;
 
         _logger.LogInformation(
             "Blocking request to {Path}: policy={Policy}, risk={Risk:F2}, action={Action}",

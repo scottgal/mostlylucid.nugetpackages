@@ -138,7 +138,7 @@ public class BlackboardOrchestrator
     /// <summary>
     ///     Run the full detection pipeline with a specific policy.
     /// </summary>
-    public async Task<AggregatedEvidence> DetectWithPolicyAsync(
+    public virtual async Task<AggregatedEvidence> DetectWithPolicyAsync(
         HttpContext httpContext,
         DetectionPolicy policy,
         CancellationToken cancellationToken = default)
@@ -192,9 +192,10 @@ public class BlackboardOrchestrator
                     stopwatch.Elapsed);
 
                 // Find detectors that can run in this wave
+                // When BypassTriggerConditions is true, all detectors run in Wave 0
                 var readyDetectors = availableDetectors
                     .Where(d => !ranDetectors.Contains(d.Name))
-                    .Where(d => CanRun(d, state.Signals))
+                    .Where(d => policy.BypassTriggerConditions || CanRun(d, state.Signals))
                     .ToList();
 
                 if (readyDetectors.Count == 0)

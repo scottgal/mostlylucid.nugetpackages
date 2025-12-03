@@ -7,7 +7,14 @@
       "Bash(timeout:*)",
       "Bash(curl:*)",
       "Bash(dotnet run:*)",
-      "Bash(dotnet sln:*)"
+      "Bash(dotnet sln:*)",
+      "Bash(dotnet package search:*)",
+      "Bash(dotnet restore:*)",
+      "Bash(git checkout:*)",
+      "Bash(taskkill:*)",
+      "Bash(nul)",
+      "Bash(cat:*)",
+      "Bash(docker build:*)"
     ],
     "deny": [],
     "ask": []

@@ -2,6 +2,10 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Mostlylucid.BotDetection.Filters;
+using Mostlylucid.BotDetection.Middleware;
+using Mostlylucid.BotDetection.Models;
+using Mostlylucid.BotDetection.Orchestration;
+using Mostlylucid.BotDetection.Policies;
 using Mostlylucid.BotDetection.Services;
 
 namespace Mostlylucid.BotDetection.Extensions;
@@ -57,7 +61,7 @@ public static class RouteBuilderExtensions
         var group = endpoints.MapGroup(prefix)
             .WithTags("Bot Detection");
 
-        // Check current request
+        // Check current request - returns full pipeline evidence when available
         group.MapGet("/check", (HttpContext context) =>
         {
             var result = context.GetBotDetectionResult();
@@ -78,6 +82,47 @@ public static class RouteBuilderExtensions
                 });
             }
 
+            // Get policy info
+            var policyName = context.Items.TryGetValue(BotDetectionMiddleware.PolicyNameKey, out var pn)
+                ? pn?.ToString() : "default";
+
+            // Try to get full aggregated evidence for detailed results
+            if (context.Items.TryGetValue(BotDetectionMiddleware.AggregatedEvidenceKey, out var evidenceObj)
+                && evidenceObj is AggregatedEvidence evidence)
+            {
+                // Return full pipeline evidence
+                return Results.Ok(new
+                {
+                    policy = policyName,
+                    isBot = evidence.BotProbability >= 0.5,
+                    isHuman = evidence.BotProbability < 0.5,
+                    isVerifiedBot = context.IsVerifiedBot(),
+                    isSearchEngineBot = context.IsSearchEngineBot(),
+                    confidenceScore = evidence.BotProbability,
+                    confidence = evidence.Confidence,
+                    botType = evidence.PrimaryBotType?.ToString(),
+                    botName = evidence.PrimaryBotName,
+                    riskBand = evidence.RiskBand.ToString(),
+                    recommendedAction = GetRecommendedAction(evidence),
+                    processingTimeMs = evidence.TotalProcessingTimeMs,
+                    detectorsRan = evidence.ContributingDetectors.ToList(),
+                    detectorCount = evidence.ContributingDetectors.Count,
+                    earlyExit = evidence.EarlyExit,
+                    earlyExitVerdict = evidence.EarlyExitVerdict?.ToString(),
+                    categoryBreakdown = evidence.CategoryBreakdown.ToDictionary(
+                        kv => kv.Key,
+                        kv => new { score = kv.Value.Score, weight = kv.Value.Weight }),
+                    reasons = evidence.Contributions.Select(c => new
+                    {
+                        category = c.Category,
+                        detail = c.Reason?.Replace("\r\n", " ").Replace("\r", " ").Replace("\n", " ").Trim(),
+                        impact = c.ConfidenceDelta,
+                        detector = c.DetectorName
+                    })
+                });
+            }
+
+            // Fall back to basic result
             return Results.Ok(new
             {
                 isBot = result.IsBot,
@@ -91,14 +136,13 @@ public static class RouteBuilderExtensions
                 reasons = result.Reasons.Select(r => new
                 {
                     category = r.Category,
-                    // Clean up any newlines/carriage returns in detail text
                     detail = r.Detail?.Replace("\r\n", " ").Replace("\r", " ").Replace("\n", " ").Trim(),
                     impact = r.ConfidenceImpact
                 })
             });
         })
         .WithName("BotDetection_Check")
-        .WithSummary("Check if the current request is from a bot");
+        .WithSummary("Check if the current request is from a bot - returns full pipeline evidence when available");
 
         // Get statistics
         group.MapGet("/stats", (IBotDetectionService botService) =>
@@ -137,4 +181,45 @@ public static class RouteBuilderExtensions
 
         return endpoints;
     }
+
+    /// <summary>
+    ///     Derive recommended action from evidence.
+    ///     Uses explicit PolicyAction if set, otherwise derives from RiskBand.
+    /// </summary>
+    private static object GetRecommendedAction(AggregatedEvidence evidence)
+    {
+        // If there's an explicit policy action, use it with reason
+        if (evidence.PolicyAction.HasValue)
+        {
+            return new
+            {
+                action = evidence.PolicyAction.Value.ToString(),
+                reason = GetPolicyActionReason(evidence.PolicyAction.Value, evidence)
+            };
+        }
+
+        // Derive from RiskBand (use fully qualified to avoid namespace conflicts)
+        var (action, reason) = evidence.RiskBand switch
+        {
+            Orchestration.RiskBand.VeryHigh => ("Block", $"Very high risk (probability: {evidence.BotProbability:P0})"),
+            Orchestration.RiskBand.High => ("Block", $"High risk (probability: {evidence.BotProbability:P0})"),
+            Orchestration.RiskBand.Medium => ("Challenge", $"Medium risk (probability: {evidence.BotProbability:P0})"),
+            Orchestration.RiskBand.Low => ("Throttle", $"Low risk (probability: {evidence.BotProbability:P0})"),
+            Orchestration.RiskBand.VeryLow => ("Allow", $"Very low risk (probability: {evidence.BotProbability:P0})"),
+            _ => ("Allow", "Default action")
+        };
+
+        return new { action, reason };
+    }
+
+    private static string GetPolicyActionReason(PolicyAction action, AggregatedEvidence evidence) => action switch
+    {
+        PolicyAction.Block => $"Policy triggered block at probability {evidence.BotProbability:P0}",
+        PolicyAction.Allow => "Policy allowed request",
+        PolicyAction.Challenge => $"Policy triggered challenge at probability {evidence.BotProbability:P0}",
+        PolicyAction.Throttle => $"Policy triggered throttle at probability {evidence.BotProbability:P0}",
+        PolicyAction.EscalateToAi => $"Policy recommends AI escalation at probability {evidence.BotProbability:P0}",
+        PolicyAction.LogOnly => "Policy set to log only",
+        _ => $"Policy action: {action}"
+    };
 }

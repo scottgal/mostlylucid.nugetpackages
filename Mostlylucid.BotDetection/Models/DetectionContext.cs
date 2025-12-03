@@ -210,6 +210,7 @@ public static class SignalKeys
 
     public const string ClientIp = "ip.address";
     public const string IpIsDatacenter = "ip.is_datacenter";
+    public const string IpIsLocal = "ip.is_local";
     public const string IpProvider = "ip.provider";
 
     public const string FingerprintHash = "fingerprint.hash";
@@ -220,6 +221,11 @@ public static class SignalKeys
     public const string BehavioralRateExceeded = "behavioral.rate_exceeded";
     public const string BehavioralAnomalyDetected = "behavioral.anomaly";
     public const string BehavioralRequestCount = "behavioral.request_count";
+
+    // Stage 1 signals (version age)
+    public const string VersionAgeAnalyzed = "versionage.analyzed";
+    public const string BrowserVersionAge = "versionage.browser_age";
+    public const string OsVersionAge = "versionage.os_age";
 
     // Stage 2 signals (meta-layers)
     public const string InconsistencyScore = "inconsistency.score";

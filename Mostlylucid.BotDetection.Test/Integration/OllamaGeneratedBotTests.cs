@@ -14,13 +14,13 @@ using OllamaSharp;
 namespace Mostlylucid.BotDetection.Test.Integration;
 
 /// <summary>
-///     Long-running integration tests that use Ollama (gemma3:1b) to generate
+///     Long-running integration tests that use Ollama (ministral:8b) to generate
 ///     synthetic bot and human user-agent strings, then verify the detection system
 ///     correctly classifies them.
 ///
 ///     These tests require:
 ///     - Ollama running locally on http://localhost:11434
-///     - The gemma3:1b model installed (ollama pull gemma3:1b)
+///     - The ministral:8b model installed (ollama pull ministral:8b)
 ///
 ///     Run with: dotnet test --filter "Category=LongRunning"
 /// </summary>
@@ -29,7 +29,7 @@ namespace Mostlylucid.BotDetection.Test.Integration;
 public class OllamaGeneratedBotTests : IAsyncLifetime
 {
     private const string OllamaEndpoint = "http://localhost:11434";
-    private const string OllamaModel = "gemma3:1b";
+    private const string OllamaModel = "ministral:8b";
     private const int GenerationTimeoutMs = 30000;
 
     private OllamaApiClient? _ollama;
@@ -102,7 +102,7 @@ public class OllamaGeneratedBotTests : IAsyncLifetime
     [Fact]
     public async Task Ollama_GeneratesBotUserAgents_ThatAreDetectedAsBots()
     {
-        Skip.If(!_ollamaAvailable, "Ollama not available or gemma3:1b not installed");
+        if (Skip.If(!_ollamaAvailable, "Ollama not available or ministral:8b not installed")) return;
 
         // Arrange
         var generatedBots = new List<string>();
@@ -134,7 +134,7 @@ public class OllamaGeneratedBotTests : IAsyncLifetime
     [Fact]
     public async Task Ollama_GeneratesHumanUserAgents_ThatAreNotDetectedAsBots()
     {
-        Skip.If(!_ollamaAvailable, "Ollama not available or gemma3:1b not installed");
+        if (Skip.If(!_ollamaAvailable, "Ollama not available or ministral:8b not installed")) return;
 
         // Arrange
         var generatedHumans = new List<string>();
@@ -155,7 +155,7 @@ public class OllamaGeneratedBotTests : IAsyncLifetime
 
         // Assert - At least 80% should NOT be detected as bots
         var notDetectedCount = detectionResults.Count(r => !r.Detected);
-        var humanRate = (double)notDetectedCount / detectionResults.Count;
+        var humanRate = detectionResults.Count > 0 ? (double)notDetectedCount / detectionResults.Count : 0;
 
         Assert.True(generatedHumans.Count >= 5, $"Should generate at least 5 human UAs, got {generatedHumans.Count}");
         Assert.True(humanRate >= 0.8,
@@ -166,7 +166,7 @@ public class OllamaGeneratedBotTests : IAsyncLifetime
     [Fact]
     public async Task Ollama_GeneratesVariedBotTypes()
     {
-        Skip.If(!_ollamaAvailable, "Ollama not available or gemma3:1b not installed");
+        if (Skip.If(!_ollamaAvailable, "Ollama not available or ministral:8b not installed")) return;
 
         // Arrange
         var botTypes = new[] { "scraper", "crawler", "search engine", "monitoring", "http client library" };
@@ -208,13 +208,13 @@ public class OllamaGeneratedBotTests : IAsyncLifetime
     [Fact]
     public async Task LlmDetector_WithOllama_ClassifiesGeneratedBots()
     {
-        Skip.If(!_ollamaAvailable, "Ollama not available or gemma3:1b not installed");
+        if (Skip.If(!_ollamaAvailable, "Ollama not available or ministral:8b not installed")) return;
 
         // Arrange
         var detector = CreateLlmDetector();
         var generatedBot = await GenerateBotUserAgentAsync();
 
-        Skip.If(string.IsNullOrEmpty(generatedBot), "Failed to generate bot user-agent");
+        if (Skip.If(string.IsNullOrEmpty(generatedBot), "Failed to generate bot user-agent")) return;
 
         var context = CreateHttpContext(generatedBot!);
 
@@ -233,13 +233,13 @@ public class OllamaGeneratedBotTests : IAsyncLifetime
     [Fact]
     public async Task LlmDetector_WithOllama_ClassifiesGeneratedHumans()
     {
-        Skip.If(!_ollamaAvailable, "Ollama not available or gemma3:1b not installed");
+        if (Skip.If(!_ollamaAvailable, "Ollama not available or ministral:8b not installed")) return;
 
         // Arrange
         var detector = CreateLlmDetector();
         var generatedHuman = await GenerateHumanUserAgentAsync();
 
-        Skip.If(string.IsNullOrEmpty(generatedHuman), "Failed to generate human user-agent");
+        if (Skip.If(string.IsNullOrEmpty(generatedHuman), "Failed to generate human user-agent")) return;
 
         var context = CreateHttpContext(generatedHuman!);
 
@@ -262,7 +262,7 @@ public class OllamaGeneratedBotTests : IAsyncLifetime
     [Fact]
     public async Task Ollama_GeneratesEvasiveBots_TestsDetectionRobustness()
     {
-        Skip.If(!_ollamaAvailable, "Ollama not available or gemma3:1b not installed");
+        if (Skip.If(!_ollamaAvailable, "Ollama not available or ministral:8b not installed")) return;
 
         // Arrange - Generate bot UAs designed to evade detection
         var evasiveBots = new List<string>();
@@ -301,7 +301,7 @@ public class OllamaGeneratedBotTests : IAsyncLifetime
     [Fact]
     public async Task Ollama_BulkGenerateBotUserAgents_50Samples()
     {
-        Skip.If(!_ollamaAvailable, "Ollama not available or gemma3:1b not installed");
+        if (Skip.If(!_ollamaAvailable, "Ollama not available or ministral:8b not installed")) return;
 
         // Arrange
         var samples = new List<(string UserAgent, string Type, bool Detected)>();
@@ -363,10 +363,18 @@ public class OllamaGeneratedBotTests : IAsyncLifetime
     private async Task<string?> GenerateBotUserAgentAsync()
     {
         var prompt = @"Generate a realistic HTTP User-Agent string for a web bot/crawler/scraper.
-Include typical bot identifiers like version numbers and URLs.
-Examples: Googlebot, Scrapy, python-requests, curl, wget, etc.
-Return ONLY the User-Agent string, nothing else.
-User-Agent:";
+
+Examples of valid bot User-Agents:
+- Googlebot/2.1 (+http://www.google.com/bot.html)
+- Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)
+- python-requests/2.31.0
+- Scrapy/2.11.0 (+https://scrapy.org)
+- curl/8.4.0
+- wget/1.21.4
+- Go-http-client/2.0
+- Apache-HttpClient/4.5.14 (Java/17.0.9)
+
+Return ONLY the User-Agent string. Do NOT include any prefix like 'User-Agent:'. Just the raw string.";
 
         return await GenerateWithOllamaAsync(prompt);
     }
@@ -374,10 +382,17 @@ User-Agent:";
     private async Task<string?> GenerateHumanUserAgentAsync()
     {
         var prompt = @"Generate a realistic HTTP User-Agent string for a real web browser.
-Use current browser versions (Chrome 120+, Firefox 120+, Safari 17+, Edge 120+).
-Include proper platform info (Windows, macOS, iOS, Android, Linux).
-Return ONLY the User-Agent string, nothing else.
-User-Agent:";
+
+IMPORTANT: Follow this EXACT format for Chrome on Windows:
+Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
+
+Or this format for Firefox:
+Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0
+
+Or this format for Safari on Mac:
+Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15
+
+Return ONLY the User-Agent string. Do NOT include any prefix like 'User-Agent:'. Just the raw string.";
 
         return await GenerateWithOllamaAsync(prompt);
     }
@@ -492,23 +507,24 @@ User-Agent:";
 }
 
 /// <summary>
-///     Helper class to skip tests conditionally.
+///     Helper class to conditionally skip tests in xUnit v2.
+///     Since xUnit v2 doesn't have runtime skip support, this returns a boolean
+///     that callers should use to guard and return early from tests.
 /// </summary>
 public static class Skip
 {
-    public static void If(bool condition, string reason)
+    /// <summary>
+    ///     Checks if a test should be skipped. Caller must return early if true.
+    ///     Writes skip reason to output for visibility in test results.
+    /// </summary>
+    /// <returns>True if test should be skipped (caller should return immediately)</returns>
+    public static bool If(bool condition, string reason)
     {
         if (condition)
         {
-            throw new SkipException(reason);
+            // Output skip reason to test results
+            Console.WriteLine($"[SKIPPED] {reason}");
         }
+        return condition;
     }
-}
-
-/// <summary>
-///     Exception to skip a test.
-/// </summary>
-public class SkipException : Exception
-{
-    public SkipException(string message) : base(message) { }
 }
