@@ -261,14 +261,25 @@ public static class ServiceCollectionExtensions
 
         // Register individual detectors
         // Each detector is responsible for one detection strategy
-        services.AddSingleton<IDetector, UserAgentDetector>();
-        services.AddSingleton<IDetector, HeaderDetector>();
-        services.AddSingleton<IDetector, BehavioralDetector>();
-        services.AddSingleton<IDetector, IpDetector>();
-        services.AddSingleton<IDetector, LlmDetector>();
-        services.AddSingleton<IDetector, OnnxDetector>();
-        services.AddSingleton<IDetector, ClientSideDetector>();
-        services.AddSingleton<IDetector, InconsistencyDetector>();
+        // Register as both interface and concrete type for DI flexibility
+        services.TryAddSingleton<UserAgentDetector>();
+        services.TryAddSingleton<HeaderDetector>();
+        services.TryAddSingleton<BehavioralDetector>();
+        services.TryAddSingleton<IpDetector>();
+        services.TryAddSingleton<LlmDetector>();
+        services.TryAddSingleton<OnnxDetector>();
+        services.TryAddSingleton<ClientSideDetector>();
+        services.TryAddSingleton<InconsistencyDetector>();
+
+        // Also register as IDetector for generic detector enumeration
+        services.AddSingleton<IDetector>(sp => sp.GetRequiredService<UserAgentDetector>());
+        services.AddSingleton<IDetector>(sp => sp.GetRequiredService<HeaderDetector>());
+        services.AddSingleton<IDetector>(sp => sp.GetRequiredService<BehavioralDetector>());
+        services.AddSingleton<IDetector>(sp => sp.GetRequiredService<IpDetector>());
+        services.AddSingleton<IDetector>(sp => sp.GetRequiredService<LlmDetector>());
+        services.AddSingleton<IDetector>(sp => sp.GetRequiredService<OnnxDetector>());
+        services.AddSingleton<IDetector>(sp => sp.GetRequiredService<ClientSideDetector>());
+        services.AddSingleton<IDetector>(sp => sp.GetRequiredService<InconsistencyDetector>());
 
         // Register client-side fingerprinting services
         services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();

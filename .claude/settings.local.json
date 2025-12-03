@@ -3,7 +3,10 @@
     "allow": [
       "Bash(dotnet build:*)",
       "Bash(dotnet test:*)",
-      "Bash(powershell -c:*)"
+      "Bash(powershell -c:*)",
+      "Bash(timeout:*)",
+      "Bash(curl:*)",
+      "Bash(dotnet run:*)"
     ],
     "deny": [],
     "ask": []

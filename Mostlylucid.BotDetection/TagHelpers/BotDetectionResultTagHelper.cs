@@ -77,7 +77,7 @@ public class BotDetectionResultTagHelper : TagHelper
     ///     If set, outputs data attributes instead of script tag.
     ///     Example: "bot" outputs data-bot-risk="0.15", data-bot-policy="default", etc.
     /// </summary>
-    [HtmlAttributeName("data-prefix")]
+    [HtmlAttributeName("output-data-prefix")]
     public string? DataPrefix { get; set; }
 
     public override void Process(TagHelperContext context, TagHelperOutput output)

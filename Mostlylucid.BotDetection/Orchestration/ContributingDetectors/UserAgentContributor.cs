@@ -35,19 +35,18 @@ public class UserAgentContributor : ContributingDetectorBase
     // No triggers - runs in first wave
     public override IReadOnlyList<TriggerCondition> TriggerConditions => Array.Empty<TriggerCondition>();
 
-    public override async Task<IReadOnlyList<DetectionContribution>> ContributeAsync(
+    public override Task<IReadOnlyList<DetectionContribution>> ContributeAsync(
         BlackboardState state,
         CancellationToken cancellationToken = default)
     {
-        var stopwatch = Stopwatch.StartNew();
         var userAgent = state.UserAgent;
 
         if (string.IsNullOrWhiteSpace(userAgent))
         {
-            return Single(DetectionContribution.Bot(
+            return Task.FromResult(Single(DetectionContribution.Bot(
                 Name, "UserAgent", 0.8,
                 "Missing User-Agent header",
-                BotType.Unknown));
+                BotType.Unknown)));
         }
 
         var contributions = new List<DetectionContribution>();
@@ -56,7 +55,7 @@ public class UserAgentContributor : ContributingDetectorBase
         var (isWhitelisted, whitelistName) = CheckWhitelist(userAgent);
         if (isWhitelisted)
         {
-            return Single(DetectionContribution.VerifiedGoodBot(
+            return Task.FromResult(Single(DetectionContribution.VerifiedGoodBot(
                 Name,
                 whitelistName!,
                 $"Whitelisted bot pattern: {whitelistName}")
@@ -67,7 +66,7 @@ public class UserAgentContributor : ContributingDetectorBase
                         .Add(SignalKeys.UserAgentIsBot, true)
                         .Add(SignalKeys.UserAgentBotType, BotType.SearchEngine.ToString())
                         .Add(SignalKeys.UserAgentBotName, whitelistName!)
-                });
+                }));
         }
 
         // Check for known bot patterns
@@ -99,7 +98,7 @@ public class UserAgentContributor : ContributingDetectorBase
                         .Add(SignalKeys.UserAgentIsBot, false)));
         }
 
-        return contributions;
+        return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
     }
 
     private (bool isWhitelisted, string? name) CheckWhitelist(string userAgent)
