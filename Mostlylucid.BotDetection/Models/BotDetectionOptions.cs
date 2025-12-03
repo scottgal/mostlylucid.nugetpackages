@@ -1351,18 +1351,28 @@ public class OllamaOptions
     ///     Default compact prompt template for bot detection.
     ///     Optimized for minimal token usage with small models.
     ///     Uses strict JSON schema to prevent malformed output.
+    ///     Receives TOML-formatted evidence from all prior detectors.
     /// </summary>
-    public const string DefaultPrompt = @"You are a bot detector. Analyze the HTTP request below and classify it.
+    public const string DefaultPrompt = @"You are a bot detector. Analyze the request and prior detector evidence below.
 
-REQUEST:
 {REQUEST_INFO}
 
-RULES:
-- Bot indicators: missing Accept-Language, missing Referer, simple User-Agent, */* Accept header
-- Known bots: curl, wget, python-requests, scrapy, selenium, headless, phantom
-- When uncertain, classify as human (isBot=false)
+CONTEXT:
+- [request] = raw HTTP request data
+- [evidence] = aggregated bot probability from prior detectors (if present)
+- [detectors] = individual detector results with confidence deltas (+positive=bot, -negative=human)
+- [categories] = detection category scores (UA, Headers, IP, Behavioral, etc.)
+- [signals] = key signals from the detection pipeline
 
-OUTPUT: Return ONLY a single JSON object matching this exact schema:
+RULES:
+- Use detector evidence to inform your decision - they have already analyzed patterns
+- High bot_probability + multiple positive detector deltas = likely bot
+- Missing Accept-Language, missing Referer, datacenter IP = bot indicators
+- Known bots: curl, wget, python-requests, scrapy, selenium, headless, phantom
+- Verify bot claims match evidence - don't contradict strong detector signals
+- When uncertain AND detector evidence is weak, classify as human (isBot=false)
+
+OUTPUT: Return ONLY a single JSON object:
 {
   ""isBot"": <boolean>,
   ""confidence"": <number 0.0-1.0>,

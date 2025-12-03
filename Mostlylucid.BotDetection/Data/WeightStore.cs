@@ -479,14 +479,14 @@ public class SqliteWeightStore : IWeightStore, IAsyncDisposable
         {
             return new WeightStoreStats
             {
-                TotalWeights = reader.GetInt32(0),
-                UaPatternWeights = reader.GetInt32(1),
-                IpRangeWeights = reader.GetInt32(2),
-                PathPatternWeights = reader.GetInt32(3),
-                BehaviorHashWeights = reader.GetInt32(4),
-                CombinedSignatureWeights = reader.GetInt32(5),
+                TotalWeights = reader.IsDBNull(0) ? 0 : reader.GetInt32(0),
+                UaPatternWeights = reader.IsDBNull(1) ? 0 : reader.GetInt32(1),
+                IpRangeWeights = reader.IsDBNull(2) ? 0 : reader.GetInt32(2),
+                PathPatternWeights = reader.IsDBNull(3) ? 0 : reader.GetInt32(3),
+                BehaviorHashWeights = reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
+                CombinedSignatureWeights = reader.IsDBNull(5) ? 0 : reader.GetInt32(5),
                 AverageConfidence = reader.IsDBNull(6) ? 0 : reader.GetDouble(6),
-                HighConfidenceWeights = reader.GetInt32(7),
+                HighConfidenceWeights = reader.IsDBNull(7) ? 0 : reader.GetInt32(7),
                 OldestWeight = reader.IsDBNull(8) ? null : DateTimeOffset.Parse(reader.GetString(8)),
                 NewestWeight = reader.IsDBNull(9) ? null : DateTimeOffset.Parse(reader.GetString(9))
             };

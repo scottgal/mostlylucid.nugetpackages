@@ -470,7 +470,7 @@ public class EvidenceAggregator
     private (double botProbability, double confidence) CalculateWeightedScore()
     {
         if (_contributions.Count == 0)
-            return (0.5, 0.0); // No evidence = uncertain
+            return (0.3, 0.0); // No evidence = assume more likely human
 
         // Separate positive (bot) and negative (human) evidence
         var weighted = _contributions
@@ -479,7 +479,7 @@ public class EvidenceAggregator
             .ToList();
 
         if (weighted.Count == 0)
-            return (0.5, 0.0);
+            return (0.3, 0.0); // Only info contributions = assume more likely human
 
         var totalWeight = weighted.Sum(w => w.weight);
         var weightedSum = weighted.Sum(w => w.delta * w.weight);

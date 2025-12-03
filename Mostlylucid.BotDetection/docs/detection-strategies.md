@@ -5,13 +5,14 @@ Mostlylucid.BotDetection uses multiple detection strategies that work together t
 1. **User-Agent Detection** – Known bot pattern matching
 2. **Header Detection** – HTTP header anomaly analysis
 3. **IP Detection** – Datacenter/cloud IP identification
-4. **Behavioral Analysis** – Request pattern monitoring
-5. **Client-Side Fingerprinting** – Browser integrity checking (optional)
-6. **Inconsistency Detection** – Cross-signal contradiction detection
-7. **Risk Assessment** – Signal aggregation into risk bands
-8. **AI Detection** – ML-based classification (optional)
+4. **Version Age Detection** – Browser/OS version staleness and impossible combinations
+5. **Behavioral Analysis** – Request pattern monitoring
+6. **Client-Side Fingerprinting** – Browser integrity checking (optional)
+7. **Inconsistency Detection** – Cross-signal contradiction detection
+8. **Risk Assessment** – Signal aggregation into risk bands
+9. **AI Detection** – ML-based classification (optional)
 
-> **How it works:** Strategies 1–6 generate raw signals; strategies 7–8 combine those signals into risk bands and AI-assisted decisions.
+> **How it works:** Strategies 1–7 generate raw signals; strategies 8–9 combine those signals into risk bands and AI-assisted decisions.
 
 ## Architecture Overview
 
@@ -35,7 +36,7 @@ Background processing for heavier analysis:
 │ Request arrives                                                      │
 ├─────────────────────────────────────────────────────────────────────┤
 │ FAST PATH (sync, <100ms)                                            │
-│   ├─ Stage 0: UA → Headers → IP → ClientSide (parallel-safe)        │
+│   ├─ Stage 0: UA → Headers → IP → VersionAge → ClientSide (parallel)│
 │   ├─ Stage 1: Behavioral (depends on Stage 0)                       │
 │   ├─ Stage 2: Inconsistency (reads all prior signals)               │
 │   └─ Consensus check → Early exit if high confidence                │
@@ -62,6 +63,7 @@ Background processing for heavier analysis:
         { "Name": "User-Agent Detector", "Signal": "UserAgentAnalyzed" },
         { "Name": "Header Detector", "Signal": "HeadersAnalyzed" },
         { "Name": "IP Detector", "Signal": "IpAnalyzed" },
+        { "Name": "Version Age Detector", "Signal": "VersionAgeAnalyzed" },
         { "Name": "Behavioral Detector", "Signal": "BehaviourSampled" },
         { "Name": "Inconsistency Detector", "Signal": "InconsistencyUpdated" }
       ],
@@ -103,7 +105,20 @@ Checks client IP against:
 - Cloud provider ranges (auto-updated)
 - Cloudflare IP ranges
 
-## 4. Behavioral Analysis
+## 4. Version Age Detection
+
+Analyzes browser and OS versions to detect bots using outdated or impossible combinations:
+
+- **Outdated browsers** – Chrome 50 when current is 130 (+0.35 confidence)
+- **Ancient operating systems** – Windows XP, Android 4.x (+0.5 confidence)
+- **Impossible combinations** – Chrome 120 on Windows XP (max supported is v49)
+- **Combined boost** – Both browser AND OS outdated adds extra penalty
+
+Version data is fetched from external APIs and cached for 24 hours.
+
+See [version-age-detection.md](version-age-detection.md) for detailed configuration.
+
+## 5. Behavioral Analysis
 
 Monitors request patterns at multiple identity levels:
 
@@ -147,7 +162,7 @@ Monitors request patterns at multiple identity levels:
 - Missing cookies across multiple requests
 - Missing referrer on non-initial requests
 
-## 5. Client-Side Fingerprinting
+## 6. Client-Side Fingerprinting
 
 JavaScript-based browser integrity checking that detects headless browsers and automation frameworks. Uses a signed token system (like XSRF) to prevent spoofing.
 
@@ -206,7 +221,7 @@ var integrityScore = context.GetBrowserIntegrityScore();   // 0-100
 - `GetHeadlessLikelihood()` returns 0.0–1.0 (higher = more likely headless)
 - `GetBrowserIntegrityScore()` returns 0–100 (higher = more "real browser")
 
-## 6. Inconsistency Detection
+## 7. Inconsistency Detection
 
 Catches bots that spoof one signal but forget others:
 
@@ -219,9 +234,9 @@ Catches bots that spoof one signal but forget others:
 
 All of these contribute to an internal inconsistency score (0–100), exposed via `context.GetInconsistencyScore()` and included in the overall risk band calculation.
 
-## 7. Risk Assessment
+## 8. Risk Assessment
 
-Aggregates signals from strategies 1–6 into actionable risk bands:
+Aggregates signals from strategies 1–7 into actionable risk bands:
 
 | Risk Band | Meaning | Typical Action |
 |-----------|---------|----------------|
@@ -247,7 +262,7 @@ var action = context.GetRecommendedAction(); // Allow, Throttle, Challenge, Bloc
 var inconsistencyScore = context.GetInconsistencyScore(); // 0-100
 ```
 
-## 8. AI Detection (Optional)
+## 9. AI Detection (Optional)
 
 Use AI Detection when you need to catch sophisticated or evolving bots that evade pure pattern and heuristic-based methods.
 
@@ -269,6 +284,7 @@ Signal types:
 - `UserAgentAnalyzed` – UA detection complete
 - `HeadersAnalyzed` – Header analysis complete
 - `IpAnalyzed` – IP check complete
+- `VersionAgeAnalyzed` – Version age check complete
 - `ClientFingerprintReceived` – Client-side data received
 - `BehaviourSampled` – Behavioral analysis complete
 - `InconsistencyUpdated` – Inconsistency check complete
@@ -615,6 +631,7 @@ services.AddSingleton<ILearnedPatternStore, RedisLearnedPatternStore>();
 - [User-Agent Detection](user-agent-detection.md) - Detailed UA pattern matching
 - [Header Detection](header-detection.md) - HTTP header anomaly analysis
 - [IP Detection](ip-detection.md) - Datacenter and cloud IP detection
+- [Version Age Detection](version-age-detection.md) - Browser/OS version staleness
 - [Behavioral Analysis](behavioral-analysis.md) - Request pattern monitoring
 - [Client-Side Fingerprinting](client-side-fingerprinting.md) - Browser integrity checks
 - [AI Detection](ai-detection.md) - ONNX and Ollama AI classification

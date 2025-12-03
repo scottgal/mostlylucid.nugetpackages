@@ -1,15 +1,14 @@
 # Learning and Reputation System
 
-**New in 0.5.0-preview1**
-
 The learning and reputation system enables the bot detector to adapt over time, learning new patterns while gracefully forgetting stale ones. This prevents the system from becoming overly paranoid as infrastructure changes.
 
 ## Overview
 
-The system operates on two levels:
+The system operates on three levels:
 
 1. **Intra-Request (Blackboard Architecture)** - Detectors share signals within a single request, enabling reactive and coordinated detection
 2. **Inter-Request (Reputation System)** - Patterns are tracked across requests with online learning and time decay
+3. **Feedback Loop (Weight Store)** - Detector weights are continuously adjusted based on detection outcomes
 
 ## Blackboard Architecture
 
@@ -347,3 +346,233 @@ if (reputation.State == ReputationState.ConfirmedBad)
 // Get all suspects (for admin review)
 var suspects = await _reputationStore.GetByStateAsync(ReputationState.Suspect);
 ```
+
+## Weight Store (Feedback Loop)
+
+The Weight Store provides persistent storage for learned detector weights, enabling the system to improve detection accuracy over time based on outcomes.
+
+### Architecture
+
+```
+Detection → Signature Extraction → Weight Lookup → Enhanced Score
+     ↓                                                    ↓
+Learning Event ← ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ← Outcome
+     ↓
+Weight Update (EMA)
+     ↓
+SQLite Store
+```
+
+### Signature Types
+
+The system tracks weights for multiple signature types:
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `UaPattern` | User-Agent substrings | `HeadlessChrome`, `python-requests` |
+| `IpRange` | IP CIDR ranges | `34.64.0.0/10` (Google Cloud) |
+| `PathPattern` | Request path patterns | `/api/login`, `/wp-admin/*` |
+| `BehaviorHash` | Behavioral fingerprint | Rate + timing + path entropy |
+| `Combined` | Multi-signal signature | UA + IP + behavior combined |
+
+### How Weights Are Updated
+
+Weights use Exponential Moving Average (EMA) for smooth updates:
+
+```
+weight_new = (1 - α) × weight_old + α × outcome
+```
+
+Where:
+- `α` = learning rate (default 0.1)
+- `outcome` = 1.0 for confirmed bot, 0.0 for confirmed human
+
+### Decay for Stale Patterns
+
+Patterns that haven't been seen gradually decay toward neutral:
+
+```
+weight_decayed = weight + (0.5 - weight) × (1 - e^(-Δt/τ))
+```
+
+This prevents old patterns from having outsized influence.
+
+### Configuration
+
+```json
+{
+  "BotDetection": {
+    "Learning": {
+      "Enabled": true,
+      "WeightStore": {
+        "DatabasePath": "data/weights.db",
+        "LearningRate": 0.1,
+        "DecayTauHours": 168,
+        "MinSampleCount": 5,
+        "MaxWeight": 2.0,
+        "MinWeight": 0.1
+      }
+    }
+  }
+}
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `DatabasePath` | string | `data/weights.db` | SQLite database path |
+| `LearningRate` | double | `0.1` | EMA alpha for weight updates |
+| `DecayTauHours` | int | `168` | Time constant for weight decay (7 days) |
+| `MinSampleCount` | int | `5` | Minimum samples before weight is applied |
+| `MaxWeight` | double | `2.0` | Maximum weight multiplier |
+| `MinWeight` | double | `0.1` | Minimum weight multiplier |
+
+### Weight Store API
+
+```csharp
+// Get current weight for a signature
+var weight = await _weightStore.GetWeightAsync(SignatureType.UaPattern, "HeadlessChrome");
+
+// Update weight after detection outcome
+await _weightStore.UpdateWeightAsync(
+    SignatureType.UaPattern,
+    "HeadlessChrome",
+    wasBot: true,
+    confidence: 0.95);
+
+// Get statistics
+var stats = await _weightStore.GetStatsAsync();
+// Returns: TotalWeights, UaPatternWeights, IpRangeWeights, etc.
+
+// Cleanup old entries
+await _weightStore.DecayOldWeightsAsync(maxAgeDays: 90);
+```
+
+## Signature Feedback Handler
+
+The `SignatureFeedbackHandler` listens to learning events and automatically updates weights:
+
+### How It Works
+
+```mermaid
+sequenceDiagram
+    participant D as Detector
+    participant B as Learning Bus
+    participant H as SignatureFeedbackHandler
+    participant W as WeightStore
+
+    D->>B: Publish(HighConfidenceDetection)
+    B->>H: HandleAsync(event)
+    H->>H: Extract signatures from context
+    H->>W: UpdateWeightAsync(UaPattern, ...)
+    H->>W: UpdateWeightAsync(IpRange, ...)
+    H->>W: UpdateWeightAsync(Combined, ...)
+```
+
+### Event Types Handled
+
+| Event | Action |
+|-------|--------|
+| `HighConfidenceDetection` | Update weights for all extracted signatures |
+| `UserFeedback` | Strong weight update (confirmed by admin) |
+| `PatternDiscovered` | Add new signature with initial weight |
+
+### Signature Extraction
+
+The handler extracts multiple signatures from each detection:
+
+```csharp
+// From a single detection, extracts:
+// - UA pattern: "HeadlessChrome" (from User-Agent)
+// - IP range: "34.64.0.0/10" (datacenter range)
+// - Path pattern: "/api/login" (normalized)
+// - Behavior hash: "rate:high|timing:low|entropy:med"
+// - Combined: hash of all above
+```
+
+### Enabling the Feedback Loop
+
+The feedback handler is automatically registered when learning is enabled:
+
+```csharp
+services.AddBotDetection(options =>
+{
+    options.Learning.Enabled = true;
+});
+```
+
+Or via configuration:
+
+```json
+{
+  "BotDetection": {
+    "Learning": {
+      "Enabled": true
+    }
+  }
+}
+```
+
+## Integration with ONNX Feature Extraction
+
+The Weight Store integrates with the ONNX feature extractor to provide learned weights as input features:
+
+```
+Request → Detectors → Evidence → Feature Extractor
+                                       ↓
+                              Weight Store Lookup
+                                       ↓
+                              64-feature vector
+                                       ↓
+                                 ONNX Model
+```
+
+The feature extractor pulls top contribution weights (sorted by impact) into the feature vector, allowing the ML model to incorporate learned patterns.
+
+## Monitoring the Learning System
+
+### Diagnostic Endpoints
+
+```bash
+# Weight store statistics
+GET /bot-detection/learning/stats
+
+{
+  "totalWeights": 1234,
+  "uaPatternWeights": 456,
+  "ipRangeWeights": 234,
+  "pathPatternWeights": 321,
+  "behaviorHashWeights": 123,
+  "combinedWeights": 100,
+  "averageWeight": 1.15,
+  "oldestEntryDays": 45
+}
+
+# Recent learning events
+GET /bot-detection/learning/events?limit=100
+```
+
+### Metrics
+
+```csharp
+// OpenTelemetry metrics
+bot_detection_learning_events_total
+bot_detection_weight_updates_total
+bot_detection_weight_store_size
+bot_detection_signature_extractions_total
+```
+
+## Best Practices
+
+### Do
+
+- Enable learning in production for continuous improvement
+- Monitor weight distribution for anomalies
+- Set appropriate decay times for your traffic patterns
+- Use admin feedback for high-confidence corrections
+
+### Don't
+
+- Set learning rate too high (causes oscillation)
+- Set decay time too short (forgets too quickly)
+- Ignore weight drift alerts
+- Skip the minimum sample count requirement

@@ -89,13 +89,18 @@ public class UserAgentContributor : ContributingDetectorBase
         }
         else
         {
-            // Emit neutral contribution with signals for other detectors
-            contributions.Add(DetectionContribution.Info(
-                    Name, "UserAgent",
-                    "User-Agent appears normal",
-                    ImmutableDictionary<string, object>.Empty
-                        .Add(SignalKeys.UserAgent, userAgent)
-                        .Add(SignalKeys.UserAgentIsBot, false)));
+            // Emit negative contribution (human-like) with signals for other detectors
+            contributions.Add(new DetectionContribution
+            {
+                DetectorName = Name,
+                Category = "UserAgent",
+                ConfidenceDelta = -0.2, // Negative = evidence of human
+                Weight = 1.0,
+                Reason = "User-Agent appears normal",
+                Signals = ImmutableDictionary<string, object>.Empty
+                    .Add(SignalKeys.UserAgent, userAgent)
+                    .Add(SignalKeys.UserAgentIsBot, false)
+            });
         }
 
         return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
