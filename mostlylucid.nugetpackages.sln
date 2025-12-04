@@ -83,7 +83,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.SentimentAnalys
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.SentimentAnalysis.Tests", "Mostlylucid.SentimentAnalysis.Tests\Mostlylucid.SentimentAnalysis.Tests.csproj", "{3C4D5E6F-7890-ABCD-EF12-345678901234}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.BotDetection.Tests", "Mostlylucid.BotDetection.Tests\Mostlylucid.BotDetection.Tests.csproj", "{C646B4D9-5CFC-4FC6-BD12-94826A4DBB9E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.BotDetection.Orchestration.Tests", "Mostlylucid.BotDetection.Orchestration.Tests\Mostlylucid.BotDetection.Orchestration.Tests.csproj", "{C646B4D9-5CFC-4FC6-BD12-94826A4DBB9E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.YarpGateway", "Mostlylucid.YarpGateway\Mostlylucid.YarpGateway.csproj", "{4D7D7C8D-3A77-4A98-B6BB-79628D0FC37D}"
 EndProject

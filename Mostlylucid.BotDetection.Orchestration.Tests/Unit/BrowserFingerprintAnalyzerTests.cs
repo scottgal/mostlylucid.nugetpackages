@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Mostlylucid.BotDetection.ClientSide;
 using Xunit;
 
-namespace Mostlylucid.BotDetection.Tests.Unit;
+namespace Mostlylucid.BotDetection.Orchestration.Tests.Unit;
 
 /// <summary>
 ///     Comprehensive tests for the BrowserFingerprintAnalyzer.

@@ -22,7 +22,7 @@ using Xunit.Abstractions;
 // Resolve ambiguous RiskBand reference
 using RiskBand = Mostlylucid.BotDetection.Orchestration.RiskBand;
 
-namespace Mostlylucid.BotDetection.Tests.Integration;
+namespace Mostlylucid.BotDetection.Orchestration.Tests.Integration;
 
 /// <summary>
 ///     Integration tests for the complete learning feedback loop.

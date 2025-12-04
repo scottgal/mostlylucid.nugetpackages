@@ -95,8 +95,8 @@ public class BotDetectionOptionsTests
         // Act
         var options = new BotDetectionOptions();
 
-        // Assert - Default model was changed to gemma3:1b (small, fast, 8K context)
-        Assert.Equal("gemma3:1b", options.OllamaModel);
+        // Assert - Default model was changed to gemma3:4b (better reasoning, 8K context)
+        Assert.Equal("gemma3:4b", options.OllamaModel);
     }
 
     [Fact]
@@ -105,8 +105,8 @@ public class BotDetectionOptionsTests
         // Act
         var options = new BotDetectionOptions();
 
-        // Assert
-        Assert.Equal(2000, options.LlmTimeoutMs);
+        // Assert - Timeout increased to 5000ms for larger 4b model
+        Assert.Equal(5000, options.LlmTimeoutMs);
     }
 
     [Fact]

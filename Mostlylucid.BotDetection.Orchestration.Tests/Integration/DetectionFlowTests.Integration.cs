@@ -6,7 +6,7 @@ using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Events;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Services;
-namespace Mostlylucid.BotDetection.Tests.Integration;
+namespace Mostlylucid.BotDetection.Orchestration.Tests.Integration;
 
 [Trait("Category", "Integration")]
 public class DetectionFlowTests

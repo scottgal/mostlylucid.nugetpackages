@@ -118,7 +118,7 @@ public class LlmDetectorTests : IDisposable
         // Assert
         Assert.True(options.Enabled);
         Assert.Equal("http://localhost:11434", options.Endpoint);
-        Assert.Equal("gemma3:1b", options.Model);
+        Assert.Equal("gemma3:4b", options.Model);
         Assert.True(options.UseJsonMode);
     }
 

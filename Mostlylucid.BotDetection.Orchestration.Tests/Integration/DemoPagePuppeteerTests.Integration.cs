@@ -2,7 +2,7 @@ using PuppeteerSharp;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace Mostlylucid.BotDetection.Tests.Integration;
+namespace Mostlylucid.BotDetection.Orchestration.Tests.Integration;
 
 /// <summary>
 ///     Integration tests using PuppeteerSharp to verify the demo page

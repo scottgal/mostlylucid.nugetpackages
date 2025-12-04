@@ -4,7 +4,7 @@ using Mostlylucid.BotDetection.Models;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace Mostlylucid.BotDetection.Tests.Integration;
+namespace Mostlylucid.BotDetection.Orchestration.Tests.Integration;
 
 /// <summary>
 ///     Tests for the pattern reputation system.

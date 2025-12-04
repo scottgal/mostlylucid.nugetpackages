@@ -5,7 +5,7 @@ using Mostlylucid.BotDetection.Events;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Services;
 
-namespace Mostlylucid.BotDetection.Tests.Unit;
+namespace Mostlylucid.BotDetection.Orchestration.Tests.Unit;
 
 public class DriftDetectionHandlerTests
 {

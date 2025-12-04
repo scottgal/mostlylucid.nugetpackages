@@ -17,7 +17,12 @@
       "Bash(docker build:*)",
       "Bash(powershell.exe -Command \"Stop-Process -Name ''Mostlylucid.BotDetection.Demo'' -Force -ErrorAction SilentlyContinue; Stop-Process -Name ''dotnet'' -Force -ErrorAction SilentlyContinue; Write-Host ''Cleaned up''\")",
       "Bash(dir:*)",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nImprove LLM detection accuracy and fix localhost IP handling\n\n- Upgrade default LLM model from gemma3:1b to gemma3:4b for better reasoning\n- Simplify LLM prompt to avoid small model hallucinations (removed datacenter IP rules)\n- Filter localhost IP info from LLM input to prevent confusion\n- Add \"localhost\" string to local IP prefixes in IpContributor\n- Skip datacenter IP check for local/loopback addresses\n- Update demo appsettings to use gemma3:4b\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git commit:*)",
+      "Bash(findstr:*)",
+      "Bash(dotnet pack:*)"
     ],
     "deny": [],
     "ask": []

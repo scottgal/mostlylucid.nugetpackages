@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Models;
 
-namespace Mostlylucid.BotDetection.Tests.Unit;
+namespace Mostlylucid.BotDetection.Orchestration.Tests.Unit;
 
 public class PatternReputationUpdaterTests
 {

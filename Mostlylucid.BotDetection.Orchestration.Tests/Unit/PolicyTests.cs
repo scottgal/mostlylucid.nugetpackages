@@ -5,7 +5,7 @@ using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Orchestration;
 using Mostlylucid.BotDetection.Policies;
 
-namespace Mostlylucid.BotDetection.Tests.Unit;
+namespace Mostlylucid.BotDetection.Orchestration.Tests.Unit;
 
 /// <summary>
 ///     Tests for the policy system
