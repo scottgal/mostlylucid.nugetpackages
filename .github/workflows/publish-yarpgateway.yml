@@ -63,8 +63,40 @@ jobs:
         echo "IS_PRERELEASE=$IS_PRERELEASE" >> $GITHUB_OUTPUT
         echo "Publishing version: $VERSION (date: $DATE, prerelease: $IS_PRERELEASE)"
 
-    - name: Build project
-      run: dotnet build Mostlylucid.YarpGateway/Mostlylucid.YarpGateway.csproj --configuration Release
+    - name: Restore dependencies
+      run: |
+        dotnet restore Mostlylucid.YarpGateway/Mostlylucid.YarpGateway.csproj
+        dotnet restore Mostlylucid.YarpGateway.Tests/Mostlylucid.YarpGateway.Tests.csproj
+        dotnet restore Mostlylucid.BotDetection/Mostlylucid.BotDetection.csproj
+        dotnet restore Mostlylucid.BotDetection.Test/Mostlylucid.BotDetection.Test.csproj
+        dotnet restore Mostlylucid.BotDetection.Orchestration.Tests/Mostlylucid.BotDetection.Orchestration.Tests.csproj
+
+    - name: Build projects
+      run: |
+        dotnet build Mostlylucid.YarpGateway/Mostlylucid.YarpGateway.csproj --configuration Release --no-restore
+        dotnet build Mostlylucid.YarpGateway.Tests/Mostlylucid.YarpGateway.Tests.csproj --configuration Release --no-restore
+        dotnet build Mostlylucid.BotDetection.Test/Mostlylucid.BotDetection.Test.csproj --configuration Release --no-restore
+        dotnet build Mostlylucid.BotDetection.Orchestration.Tests/Mostlylucid.BotDetection.Orchestration.Tests.csproj --configuration Release --no-restore
+
+    - name: Run YarpGateway unit tests
+      run: |
+        dotnet test Mostlylucid.YarpGateway.Tests/Mostlylucid.YarpGateway.Tests.csproj \
+          --configuration Release \
+          --no-build \
+          --verbosity normal
+
+    - name: Run BotDetection unit tests
+      run: |
+        dotnet test Mostlylucid.BotDetection.Test/Mostlylucid.BotDetection.Test.csproj \
+          --configuration Release \
+          --no-build \
+          --verbosity normal \
+          --filter "Category!=Integration"
+        dotnet test Mostlylucid.BotDetection.Orchestration.Tests/Mostlylucid.BotDetection.Orchestration.Tests.csproj \
+          --configuration Release \
+          --no-build \
+          --verbosity normal \
+          --filter "Category!=Integration"
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
