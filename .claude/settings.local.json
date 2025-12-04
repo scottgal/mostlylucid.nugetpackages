@@ -25,7 +25,8 @@
       "Bash(dotnet pack:*)",
       "Bash(rm:*)",
       "Bash(del \".github\\workflows\\publish-all.yml\")",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(dotnet publish:*)"
     ],
     "deny": [],
     "ask": []
