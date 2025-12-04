@@ -160,7 +160,7 @@ public class BotDetectionOptions
     ///     This property will be removed in a future version.
     /// </summary>
     [Obsolete("Use AiDetection.TimeoutMs instead. This property will be removed in v1.0.")]
-    public int LlmTimeoutMs { get; set; } = 2000;
+    public int LlmTimeoutMs { get; set; } = 5000;
 
     /// <summary>
     ///     [OBSOLETE] Use AiDetection.MaxConcurrentRequests instead.
@@ -1295,9 +1295,9 @@ public class AiDetectionOptions
     /// <summary>
     ///     Timeout for AI detection in milliseconds.
     ///     If exceeded, AI detection is skipped (fail-safe).
-    ///     Valid range: 100 to 30000. Default: 2000ms
+    ///     Valid range: 100 to 30000. Default: 5000ms (increased for 4B models)
     /// </summary>
-    public int TimeoutMs { get; set; } = 2000;
+    public int TimeoutMs { get; set; } = 5000;
 
     /// <summary>
     ///     Maximum concurrent AI requests.
