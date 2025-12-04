@@ -1386,20 +1386,24 @@ public class OllamaOptions
     ///     Optimized for minimal token usage with small models.
     ///     Uses strict JSON schema to prevent malformed output.
     ///     Receives TOML-formatted evidence from all prior detectors.
+    ///
+    ///     KEY (abbreviations in evidence):
+    ///     - H=Heuristic(trained ML model), prob=bot probability from H
+    ///     - Scores: negative=human-like, positive=bot-like
+    ///     - prob: 0.0=definitely human, 1.0=definitely bot
     /// </summary>
-    public const string DefaultPrompt = @"You are a bot detector. Output ONLY valid JSON, nothing else.
-
+    public const string DefaultPrompt = @"Bot detector. JSON only.
 {REQUEST_INFO}
-
-RULES:
-- bot_probability > 0.5 = likely bot
-- Known bot patterns: curl, wget, python, scrapy, selenium, headless, spider, crawler
-- Normal browser with cookies/fingerprint = human
-- When unsure, default to human
-- botType: scraper|searchengine|monitor|malicious|social|good|unknown
-
-RESPOND WITH THIS EXACT JSON FORMAT (no text before or after):
-{""isBot"":true,""confidence"":0.85,""reasoning"":""short reason"",""botType"":""scraper"",""pattern"":""""}";
+RULES(priority order):
+1. prob<0.3→human (trust H model)
+2. prob>0.7→bot (trust H model)
+3. ua~bot/crawler/spider/scraper→bot
+4. ua~curl/wget/python/headless/sqlmap→bot
+5. referer+lang+cookies→human
+6. Chrome/Firefox/Safari+hdrs≥10→human
+7. unsure→human,conf=0.3
+TYPE:scraper|searchengine|monitor|malicious|social|good|unknown
+{""isBot"":false,""confidence"":0.8,""reasoning"":""..."",""botType"":""unknown""}";
 }
 
 /// <summary>

@@ -346,6 +346,11 @@ public static class ServiceCollectionExtensions
 
         // Register contributing detectors (new architecture)
         // These emit evidence, not verdicts - the orchestrator aggregates
+        //
+        // PRE-Wave 0 - Fast path reputation check (can short-circuit ALL processing)
+        // Checks for ConfirmedBad/ManuallyBlocked patterns before any analysis
+        services.AddSingleton<IContributingDetector, FastPathReputationContributor>();
+        //
         // Wave 0 detectors (no dependencies - run first)
         services.AddSingleton<IContributingDetector, UserAgentContributor>();
         services.AddSingleton<IContributingDetector, HeaderContributor>();
@@ -359,6 +364,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IContributingDetector, InconsistencyContributor>();
         // Project Honeypot IP reputation (triggered by IP signal)
         services.AddSingleton<IContributingDetector, ProjectHoneypotContributor>();
+        // Reputation bias - runs AFTER basic detectors extract signals, BEFORE heuristic scoring
+        // Provides learned pattern bias from PatternReputationCache
+        services.AddSingleton<IContributingDetector, ReputationBiasContributor>();
         // Heuristic early - runs before AI with basic request features
         services.AddSingleton<IContributingDetector, HeuristicContributor>();
         // AI/LLM detectors (run when escalation triggered or in demo mode)

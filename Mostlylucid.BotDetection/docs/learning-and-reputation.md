@@ -4,11 +4,50 @@ The learning and reputation system enables the bot detector to adapt over time, 
 
 ## Overview
 
-The system operates on three levels:
+The system operates on **four levels**:
 
-1. **Intra-Request (Blackboard Architecture)** - Detectors share signals within a single request, enabling reactive and coordinated detection
-2. **Inter-Request (Reputation System)** - Patterns are tracked across requests with online learning and time decay
-3. **Feedback Loop (Weight Store)** - Detector weights are continuously adjusted based on detection outcomes
+1. **Fast-Path Reputation (Instant Abort)** - Known bad patterns trigger instant blocking before any analysis
+2. **Intra-Request (Blackboard Architecture)** - Detectors share signals within a single request, enabling reactive and coordinated detection
+3. **Inter-Request (Reputation System)** - Patterns are tracked across requests with online learning and time decay
+4. **Feedback Loop (Weight Store)** - Detector weights are continuously adjusted based on detection outcomes
+
+### Complete Learning Flow
+
+```mermaid
+flowchart TB
+    subgraph Detection["Detection Path (Hot Path)"]
+        Request([Request]) --> FastPath["FastPathReputationContributor<br/>(Priority 3)"]
+        FastPath -->|ConfirmedBad?| Abort([INSTANT ABORT])
+        FastPath -->|Not known bad| Wave0["Wave 0 Detectors<br/>(UA, Header, IP, Security)"]
+        Wave0 --> Wave1["Wave 1 Detectors<br/>(Inconsistency, Honeypot)"]
+        Wave1 --> Bias["ReputationBiasContributor<br/>(Priority 45)"]
+        Bias --> Heuristic["HeuristicContributor<br/>(Priority 50)"]
+        Heuristic --> AI{Escalate?}
+        AI -->|Yes| LLM["LLM Contributor"]
+        AI -->|No| Aggregate
+        LLM --> Aggregate
+        Aggregate[Evidence Aggregation] --> Response([Response])
+    end
+
+    subgraph Learning["Learning Path (Slow Path, Background)"]
+        Response --> Bus[Learning Event Bus]
+        Bus --> SigHandler[SignatureFeedbackHandler]
+        Bus --> RepHandler[ReputationMaintenanceService]
+        SigHandler --> WeightStore[(Weight Store<br/>SQLite)]
+        RepHandler --> RepCache[(Pattern Reputation<br/>Cache)]
+    end
+
+    subgraph FeedbackLoop["Feedback Loop (Next Request)"]
+        WeightStore --> |Load weights| Heuristic
+        RepCache --> |ConfirmedBad lookup| FastPath
+        RepCache --> |Bias lookup| Bias
+    end
+```
+
+**See also:**
+- [AI Detection](ai-detection.md) - Heuristic model and LLM detection
+- [Detection Strategies](detection-strategies.md) - Wave-based detection flow
+- [Configuration](configuration.md) - Full configuration reference
 
 ## Blackboard Architecture
 
@@ -115,6 +154,220 @@ return DetectionContribution.VerifiedBadBot(
 ```
 
 Early exit skips remaining detectors and returns immediately.
+
+## Reputation Feedback Contributors
+
+**New in 1.0.1**
+
+The reputation feedback loop is closed by two specialized contributors that query the `IPatternReputationCache` to apply learned patterns during detection.
+
+### FastPathReputationContributor (Instant Abort)
+
+The `FastPathReputationContributor` runs **first** (Priority 3, Wave 0, no dependencies) to enable instant abort for known bad actors before any expensive analysis.
+
+```mermaid
+flowchart LR
+    Request([Request]) --> FastPath{FastPathReputationContributor}
+    FastPath -->|ConfirmedBad| Abort([403 BLOCKED])
+    FastPath -->|ManuallyBlocked| Abort
+    FastPath -->|Other| Continue[Continue Detection...]
+```
+
+**Key characteristics:**
+- **Priority 3** - Runs before all other detectors
+- **No trigger conditions** - Runs immediately in Wave 0
+- **Only checks abort-eligible patterns** - `ConfirmedBad` and `ManuallyBlocked`
+- **Skips Neutral/Suspect** - Those are handled by ReputationBiasContributor later
+- **Uses raw UA/IP** - No signal extraction needed
+
+**Pattern matching ("12 basic shapes"):**
+
+The fast path normalizes User-Agent to key indicators for instant lookup:
+
+```
+Chrome + Windows + len:normal → ua:a1b2c3d4e5f6g7h8
+Firefox + Linux + bot → ua:x9y8z7w6v5u4t3s2
+Python + curl + len:short → ua:m1n2o3p4q5r6s7t8
+```
+
+This normalization creates a finite set of "shapes" that can be instantly matched against known bad patterns.
+
+**Code example:**
+
+```csharp
+// FastPathReputationContributor (simplified)
+public override Task<IReadOnlyList<DetectionContribution>> ContributeAsync(
+    BlackboardState state, CancellationToken ct)
+{
+    // Check raw UA against known bad patterns
+    if (!string.IsNullOrWhiteSpace(state.UserAgent))
+    {
+        var uaPatternId = CreateUaPatternId(state.UserAgent);
+        var reputation = _reputationCache.Get(uaPatternId);
+
+        if (reputation?.CanTriggerFastAbort == true)
+        {
+            return Task.FromResult(new[]
+            {
+                DetectionContribution.VerifiedBadBot(
+                    Name, reputation.PatternId,
+                    $"Known bad pattern: {reputation.State}",
+                    BotType.MaliciousBot) with
+                {
+                    Weight = 3.0 // Very high weight for instant abort
+                }
+            });
+        }
+    }
+
+    // No fast-path hit - continue with normal detection
+    return Task.FromResult(Array.Empty<DetectionContribution>());
+}
+```
+
+### ReputationBiasContributor (Scoring Bias)
+
+The `ReputationBiasContributor` runs **after** Wave 0 signal extraction but **before** the Heuristic model to provide learned bias.
+
+```mermaid
+flowchart LR
+    Wave0[Wave 0 Signals] --> Bias{ReputationBiasContributor}
+    Bias -->|Suspect| AddBias["+0.5 confidence"]
+    Bias -->|ConfirmedGood| SubBias["-0.2 confidence"]
+    Bias -->|Combined match| HighBias["+0.75 × 1.5 weight"]
+    Bias --> Heuristic[HeuristicContributor]
+```
+
+**Key characteristics:**
+- **Priority 45** - Runs after Wave 0, before Heuristic (50)
+- **Triggers on `SignalKeys.UserAgent`** - Waits for signal extraction
+- **Checks all reputation states** - Not just abort-eligible
+- **Provides weighted bias** - Influences final scoring
+
+**Pattern types checked:**
+1. **User-Agent hash** - Normalized UA indicators
+2. **IP range** - CIDR /24 for IPv4, /48 for IPv6
+3. **Combined signature** - UA + IP + Path hash (highest weight)
+
+**Bias weights by state:**
+
+| State | FastPathWeight | Weight Multiplier | Effect |
+|-------|---------------|-------------------|--------|
+| `Neutral` | `BotScore × 0.1` | 0.1 | Minimal |
+| `Suspect` | `BotScore × 0.5` | 0.5 | Moderate |
+| `ConfirmedBad` | `BotScore × 1.0` | 1.0 | Full |
+| `ConfirmedGood` | `-0.2` | 0.2 | Reduces suspicion |
+| `ManuallyBlocked` | `1.0` | 2.5 | Always max |
+| `ManuallyAllowed` | `-1.0` | 2.5 | Always trusted |
+
+**Code example:**
+
+```csharp
+// ReputationBiasContributor (simplified)
+public override IReadOnlyList<TriggerCondition> TriggerConditions =>
+[
+    Triggers.WhenSignalExists(SignalKeys.UserAgent)
+];
+
+public override Task<IReadOnlyList<DetectionContribution>> ContributeAsync(
+    BlackboardState state, CancellationToken ct)
+{
+    var contributions = new List<DetectionContribution>();
+
+    // Check UA reputation
+    var uaReputation = _cache.Get(CreateUaPatternId(state.UserAgent));
+    if (uaReputation?.State != ReputationState.Neutral)
+    {
+        contributions.Add(CreateBiasContribution(uaReputation, "UserAgent"));
+    }
+
+    // Check IP reputation
+    var ipReputation = _cache.Get(CreateIpPatternId(state.ClientIp));
+    if (ipReputation?.State != ReputationState.Neutral)
+    {
+        contributions.Add(CreateBiasContribution(ipReputation, "IP"));
+    }
+
+    // Check combined signature (highest weight)
+    var combinedReputation = _cache.Get(CreateCombinedPatternId(
+        state.UserAgent, state.ClientIp, state.Path));
+    if (combinedReputation?.State != ReputationState.Neutral)
+    {
+        var contribution = CreateBiasContribution(combinedReputation, "Combined");
+        contributions.Add(contribution with { Weight = contribution.Weight * 1.5 });
+    }
+
+    return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
+}
+```
+
+### Signal Keys for Reputation
+
+| Signal Key | Type | Description |
+|------------|------|-------------|
+| `reputation.bias_applied` | bool | True if any reputation bias was applied |
+| `reputation.bias_count` | int | Number of reputation patterns matched |
+| `reputation.can_abort` | bool | True if any pattern can trigger fast abort |
+| `reputation.fastpath_hit` | bool | True if fast-path found ConfirmedBad/ManuallyBlocked |
+
+### Complete Detection Flow with Reputation
+
+```
+Request arrives
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│  FastPathReputationContributor (Priority 3)                 │
+│  - Check raw UA hash → IPatternReputationCache              │
+│  - Check raw IP range → IPatternReputationCache             │
+│  - If ConfirmedBad/ManuallyBlocked → INSTANT ABORT (403)    │
+└─────────────────────────────────────────────────────────────┘
+    │ (no match)
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Wave 0: UA, Header, IP, Behavioral, ClientSide, Security  │
+│  - Extract signals: UserAgent, ClientIp, Headers, etc.     │
+│  - SecurityToolContributor checks penetration tools        │
+└─────────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Wave 1: VersionAge, Inconsistency, ProjectHoneypot        │
+│  - Triggered by Wave 0 signals                             │
+│  - DNS-based IP reputation (Honeypot)                      │
+└─────────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│  ReputationBiasContributor (Priority 45)                    │
+│  - Uses extracted signals for pattern ID creation          │
+│  - Checks UA, IP, Combined patterns                        │
+│  - Adds bias contributions for Suspect/ConfirmedGood       │
+└─────────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│  HeuristicContributor (Priority 50)                         │
+│  - Logistic regression with learned weights                │
+│  - Bias contributions influence final score                │
+└─────────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│  LLM Contributor (if escalation triggered)                  │
+│  - Full AI analysis for edge cases                         │
+└─────────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│  HeuristicLateContributor (Final scoring)                   │
+│  - Consumes all evidence                                   │
+│  - Final risk score calculation                            │
+└─────────────────────────────────────────────────────────────┘
+    │
+    ▼
+Response + Learning Event → Background Update Loop
+```
 
 ### Evidence Aggregation
 

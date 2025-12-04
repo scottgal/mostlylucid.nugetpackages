@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
@@ -24,16 +25,24 @@ public class LlmDetector : IDetector, IDisposable
     private readonly ILogger<LlmDetector> _logger;
     private readonly BotDetectionOptions _options;
     private readonly BotDetectionMetrics? _metrics;
+    private readonly HttpClient _httpClient;
     private bool _disposed;
+
+    // Cached model context length (fetched once from Ollama /api/show)
+    private int? _modelContextLength;
+    private DateTime _contextLengthFetchedAt = DateTime.MinValue;
+    private static readonly TimeSpan ContextLengthCacheDuration = TimeSpan.FromHours(1);
 
     public LlmDetector(
         ILogger<LlmDetector> logger,
         IOptions<BotDetectionOptions> options,
+        IHttpClientFactory? httpClientFactory = null,
         BotDetectionMetrics? metrics = null)
     {
         _logger = logger;
         _options = options.Value;
         _metrics = metrics;
+        _httpClient = httpClientFactory?.CreateClient("Ollama") ?? new HttpClient();
         _learnedPatternsPath = Path.Combine(AppContext.BaseDirectory, "learned_bot_patterns.json");
     }
 
@@ -56,7 +65,9 @@ public class LlmDetector : IDetector, IDisposable
 
         try
         {
-            var requestInfo = BuildRequestInfo(context);
+            // Fetch context length to self-adjust request info size
+            var contextLength = await GetModelContextLengthAsync(cancellationToken);
+            var requestInfo = BuildRequestInfo(context, contextLength);
             var analysis = await AnalyzeWithLlm(requestInfo, cancellationToken);
 
             // Only report if we got a valid analysis (not the "Analysis failed" fallback)
@@ -122,107 +133,149 @@ public class LlmDetector : IDetector, IDisposable
     }
 
     /// <summary>
-    ///     Builds a compact request info string for LLM analysis.
-    ///     Uses TOML-like abbreviated format to minimize token count while remaining readable.
+    ///     Fetches model context length from Ollama /api/show endpoint.
+    ///     Caches result for 1 hour. Returns null if unavailable.
     /// </summary>
-    private string BuildRequestInfo(HttpContext context)
+    private async Task<int?> GetModelContextLengthAsync(CancellationToken ct)
     {
+        // Return cached value if still valid
+        if (_modelContextLength.HasValue && DateTime.UtcNow - _contextLengthFetchedAt < ContextLengthCacheDuration)
+            return _modelContextLength;
+
+        try
+        {
+            var endpoint = _options.AiDetection.Ollama.Endpoint?.TrimEnd('/');
+            var model = _options.AiDetection.Ollama.Model;
+
+            if (string.IsNullOrEmpty(endpoint) || string.IsNullOrEmpty(model))
+                return null;
+
+            var request = new { name = model };
+            var response = await _httpClient.PostAsJsonAsync($"{endpoint}/api/show", request, ct);
+
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            var json = await response.Content.ReadAsStringAsync(ct);
+            // Look for num_ctx in modelfile or parameters
+            // Format: "PARAMETER num_ctx 4096" or "num_ctx": 4096
+            var numCtxMatch = System.Text.RegularExpressions.Regex.Match(json, @"num_ctx["":\s]+(\d+)");
+            if (numCtxMatch.Success && int.TryParse(numCtxMatch.Groups[1].Value, out var ctx))
+            {
+                _modelContextLength = ctx;
+                _contextLengthFetchedAt = DateTime.UtcNow;
+                _logger.LogDebug("Fetched model context length: {ContextLength} for {Model}", ctx, model);
+                return ctx;
+            }
+
+            // Default: gemma3:4b has 8192 context, most small models have 2048-4096
+            _modelContextLength = 2048;
+            _contextLengthFetchedAt = DateTime.UtcNow;
+            return _modelContextLength;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to fetch model context length, using default");
+            return null;
+        }
+    }
+
+    /// <summary>
+    ///     Builds ultra-compact request info for LLM analysis.
+    ///     Self-adjusts based on model context length.
+    ///     Focus: Heuristic prob + highest-confidence signals only.
+    ///     Format: TOML-like, no whitespace waste.
+    /// </summary>
+    private string BuildRequestInfo(HttpContext context, int? contextLength = null)
+    {
+        // Adjust limits based on context length
+        // ~4 chars per token, reserve 200 tokens for prompt + 100 for response
+        var maxChars = contextLength.HasValue
+            ? Math.Max(200, (contextLength.Value - 300) * 4)
+            : 800; // Conservative default
+
+        var uaMaxLen = contextLength switch
+        {
+            >= 8192 => 150,
+            >= 4096 => 100,
+            _ => 60
+        };
+        var topDetectors = contextLength switch
+        {
+            >= 8192 => 5,
+            >= 4096 => 3,
+            _ => 2
+        };
+
         var sb = new StringBuilder();
-
-        // [request] section - basic request data
-        sb.AppendLine("[request]");
-        sb.AppendLine($"ua = \"{context.Request.Headers.UserAgent}\"");
-        sb.AppendLine($"path = \"{context.Request.Path}\"");
-        sb.AppendLine($"method = \"{context.Request.Method}\"");
-
-        var accept = context.Request.Headers.Accept.ToString();
-        var lang = context.Request.Headers.AcceptLanguage.ToString();
-        var referer = context.Request.Headers.Referer.ToString();
-
-        sb.AppendLine($"accept = \"{(!string.IsNullOrEmpty(accept) ? accept : "-")}\"");
-        sb.AppendLine($"lang = \"{(!string.IsNullOrEmpty(lang) ? lang : "-")}\"");
-        sb.AppendLine($"referer = \"{(!string.IsNullOrEmpty(referer) ? referer : "-")}\"");
-        sb.AppendLine($"cookies = {context.Request.Cookies.Any().ToString().ToLower()}");
-        sb.AppendLine($"headers = {context.Request.Headers.Count}");
-
-        // [evidence] section - aggregated evidence from other detectors (if available)
         var evidence = context.Items[BotDetectionMiddleware.AggregatedEvidenceKey] as AggregatedEvidence;
+
+        // Heuristic probability is the key signal - put it first
         if (evidence != null)
         {
-            // Check if localhost - we'll filter IP-related info to avoid confusing small LLMs
-            var isLocalhost = evidence.Signals.TryGetValue(SignalKeys.IpIsLocal, out var isLocal) && isLocal is true;
+            sb.Append($"prob={evidence.BotProbability:F2}\n");
+        }
 
-            sb.AppendLine();
-            sb.AppendLine("[evidence]");
-            sb.AppendLine($"bot_probability = {evidence.BotProbability:F2}");
-            sb.AppendLine($"confidence = {evidence.Confidence:F2}");
-            sb.AppendLine($"risk_band = \"{evidence.RiskBand}\"");
-            if (evidence.PrimaryBotType.HasValue)
-                sb.AppendLine($"bot_type = \"{evidence.PrimaryBotType}\"");
+        // Core request data - ultra compact
+        var ua = context.Request.Headers.UserAgent.ToString();
+        sb.Append($"ua=\"{(ua.Length > uaMaxLen ? ua[..(uaMaxLen - 3)] + "..." : ua)}\"\n");
 
-            // [detectors] section - top contributions sorted by impact (compact)
-            // Skip IP detector for localhost to avoid confusing small LLMs
-            var topContributions = evidence.Contributions
-                .Where(c => !isLocalhost || !c.DetectorName.Equals("Ip", StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(c => Math.Abs(c.ConfidenceDelta) * c.Weight)
-                .Take(8) // Top 8 to stay within context limits
-                .ToList();
+        var lang = context.Request.Headers.AcceptLanguage.ToString();
+        var referer = context.Request.Headers.Referer.ToString();
+        var hasCookies = context.Request.Cookies.Any();
+        var hdrs = context.Request.Headers.Count;
 
-            if (topContributions.Count != 0)
+        // Compact: only include if meaningful
+        if (!string.IsNullOrEmpty(lang))
+        {
+            var langMax = contextLength >= 4096 ? 30 : 15;
+            sb.Append($"lang=\"{(lang.Length > langMax ? lang[..(langMax - 3)] + "..." : lang)}\"\n");
+        }
+
+        if (!string.IsNullOrEmpty(referer)) sb.Append("ref=1\n");
+        if (hasCookies) sb.Append("cookies=1\n");
+        sb.Append($"hdrs={hdrs}\n");
+
+        if (evidence == null || sb.Length > maxChars)
+            return sb.ToString();
+
+        // Check if localhost
+        var isLocalhost = evidence.Signals.TryGetValue(SignalKeys.IpIsLocal, out var isLocal) && isLocal is true;
+
+        // Only show highest-confidence detectors
+        var topHits = evidence.Contributions
+            .Where(c => !isLocalhost || !c.DetectorName.Equals("Ip", StringComparison.OrdinalIgnoreCase))
+            .Where(c => Math.Abs(c.ConfidenceDelta) >= 0.1) // Only significant signals
+            .OrderByDescending(c => Math.Abs(c.ConfidenceDelta) * c.Weight)
+            .Take(topDetectors)
+            .ToList();
+
+        if (topHits.Count != 0 && sb.Length < maxChars - 100)
+        {
+            sb.Append("[top]\n");
+            var reasonMax = contextLength >= 4096 ? 20 : 12;
+            foreach (var c in topHits)
             {
-                sb.AppendLine();
-                sb.AppendLine("[detectors]");
-                foreach (var c in topContributions)
+                if (sb.Length > maxChars - 50) break;
+
+                var name = c.DetectorName switch
                 {
-                    // Compact: detector = delta | "reason"
-                    var shortReason = c.Reason.Length > 50 ? c.Reason[..47] + "..." : c.Reason;
-                    sb.AppendLine($"{c.DetectorName} = {c.ConfidenceDelta:+0.00;-0.00} | \"{shortReason}\"");
-                }
-            }
-
-            // [categories] section - category breakdown (compact)
-            // Skip IP category for localhost
-            var topCategories = evidence.CategoryBreakdown
-                .Where(kv => !isLocalhost || !kv.Key.Equals("IP", StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(kv => kv.Value.Score)
-                .Take(5)
-                .ToList();
-
-            if (topCategories.Count != 0)
-            {
-                sb.AppendLine();
-                sb.AppendLine("[categories]");
-                foreach (var (category, info) in topCategories)
-                {
-                    sb.AppendLine($"{category} = {info.Score:F2}");
-                }
-            }
-
-            // [signals] section - key signals (compact, only most relevant)
-            // Filter out localhost IP info to avoid confusing small LLMs
-            var relevantSignals = evidence.Signals
-                .Where(kv => kv.Value is bool or int or double or string { Length: < 50 })
-                .Where(kv => !isLocalhost || !kv.Key.StartsWith("ip.", StringComparison.OrdinalIgnoreCase)) // Skip IP signals for localhost
-                .Take(10)
-                .ToList();
-
-            if (relevantSignals.Count != 0)
-            {
-                sb.AppendLine();
-                sb.AppendLine("[signals]");
-                foreach (var (key, value) in relevantSignals)
-                {
-                    var formattedValue = value switch
-                    {
-                        bool b => b.ToString().ToLower(),
-                        double d => d.ToString("F2"),
-                        string s => $"\"{s}\"",
-                        _ => value?.ToString() ?? "null"
-                    };
-                    sb.AppendLine($"{key} = {formattedValue}");
-                }
+                    "Heuristic" => "H",
+                    "UserAgent" => "UA",
+                    "Header" => "Hdr",
+                    "Ip" => "IP",
+                    "Behavioral" => "Beh",
+                    "SecurityTool" => "Sec",
+                    _ => c.DetectorName.Length > 3 ? c.DetectorName[..3] : c.DetectorName
+                };
+                var reason = c.Reason.Length > reasonMax ? c.Reason[..(reasonMax - 3)] + "..." : c.Reason;
+                sb.Append($"{name}={c.ConfidenceDelta:+0.0;-0.0}|\"{reason}\"\n");
             }
         }
+
+        // Bot type hint if detected
+        if (evidence.PrimaryBotType.HasValue && evidence.PrimaryBotType != BotType.Unknown && sb.Length < maxChars - 20)
+            sb.Append($"type={evidence.PrimaryBotType}\n");
 
         return sb.ToString();
     }
@@ -323,6 +376,15 @@ public class LlmDetector : IDetector, IDisposable
                 }
             }
 
+            // Try to extract partial values from truncated JSON (common with timeouts)
+            var partialResult = TryExtractPartialJson(cleanedResponse);
+            if (partialResult != null)
+            {
+                _logger.LogDebug("LLM response partially parsed from truncated JSON: isBot={IsBot}, confidence={Confidence}",
+                    partialResult.IsBot, partialResult.Confidence);
+                return partialResult;
+            }
+
             _logger.LogWarning("LLM returned invalid JSON (model '{Model}' may need a better prompt). Response: {Response}", model, response.Length > 500 ? response[..500] + "..." : response);
         }
         catch (OperationCanceledException)
@@ -358,6 +420,63 @@ public class LlmDetector : IDetector, IDisposable
             Reasoning = result.Reasoning ?? "No reasoning provided",
             BotType = ParseBotType(result.BotType),
             Pattern = result.Pattern
+        };
+    }
+
+    /// <summary>
+    ///     Try to extract partial values from truncated JSON responses.
+    ///     This handles cases where the LLM response was cut off (timeout, token limit).
+    /// </summary>
+    private static LlmAnalysis? TryExtractPartialJson(string text)
+    {
+        // Look for isBot value with regex
+        var isBotMatch = System.Text.RegularExpressions.Regex.Match(
+            text,
+            @"""?is_?bot""?\s*:\s*(true|false|""?(\d+)""?)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        if (!isBotMatch.Success)
+            return null;
+
+        bool isBot;
+        if (isBotMatch.Groups[2].Success)
+        {
+            // Numeric value: 0 = false, anything else = true
+            isBot = isBotMatch.Groups[2].Value != "0";
+        }
+        else
+        {
+            isBot = isBotMatch.Groups[1].Value.Equals("true", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Try to extract confidence
+        var confidenceMatch = System.Text.RegularExpressions.Regex.Match(
+            text,
+            @"""?confidence""?\s*:\s*""?(\d+\.?\d*)""?",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        double confidence = isBot ? 0.7 : 0.3; // Default if not found
+        if (confidenceMatch.Success && double.TryParse(confidenceMatch.Groups[1].Value, out var parsedConf))
+        {
+            confidence = parsedConf > 1 ? parsedConf / 100.0 : parsedConf; // Handle percentage vs decimal
+        }
+
+        // Try to extract reasoning
+        var reasoningMatch = System.Text.RegularExpressions.Regex.Match(
+            text,
+            @"""?reasoning""?\s*:\s*""([^""]+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        var reasoning = reasoningMatch.Success
+            ? reasoningMatch.Groups[1].Value + " (partial response)"
+            : "Partial response from LLM";
+
+        return new LlmAnalysis
+        {
+            IsBot = isBot,
+            Confidence = confidence,
+            Reasoning = reasoning,
+            BotType = BotType.Unknown
         };
     }
 

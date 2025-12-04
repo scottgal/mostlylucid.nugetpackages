@@ -194,9 +194,10 @@ public class LearnedSignal
 }
 
 /// <summary>
-///     Well-known signal keys for cross-detector communication
+///     Well-known signal keys for cross-detector communication.
+///     This is a partial class - additional keys may be defined in other files.
 /// </summary>
-public static class SignalKeys
+public static partial class SignalKeys
 {
     // Stage 0 signals (raw detection)
     public const string UserAgent = "ua.raw";
@@ -277,4 +278,21 @@ public static class SignalKeys
 
     /// <summary>Int: Days since the IP was last seen in a honeypot trap</summary>
     public const string HoneypotDaysSinceLastActivity = "honeypot.days_since_activity";
+
+    // ==========================================
+    // Reputation bias signals
+    // Set by ReputationBiasContributor when learned patterns provide initial bias
+    // ==========================================
+
+    /// <summary>Boolean: true if reputation bias was applied from learned patterns</summary>
+    public const string ReputationBiasApplied = "reputation.bias_applied";
+
+    /// <summary>Int: number of reputation patterns that matched</summary>
+    public const string ReputationBiasCount = "reputation.bias_count";
+
+    /// <summary>Boolean: true if any matched pattern can trigger fast abort</summary>
+    public const string ReputationCanAbort = "reputation.can_abort";
+
+    /// <summary>Boolean: true if fast-path reputation check found a ConfirmedBad/ManuallyBlocked pattern</summary>
+    public const string ReputationFastPathHit = "reputation.fastpath_hit";
 }

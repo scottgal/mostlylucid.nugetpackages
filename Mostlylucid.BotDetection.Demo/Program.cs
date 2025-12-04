@@ -302,6 +302,198 @@ app.MapGet("/api/sample-user-agents", () =>
 });
 
 // ==========================================
+// API endpoints for load testing (k6, etc.)
+// Different policies to test various detection behaviors
+// ==========================================
+
+// Open endpoint - no bot detection (baseline for load testing)
+app.MapGet("/api/v1/open", () =>
+{
+    return Results.Ok(new
+    {
+        policy = "none",
+        timestamp = DateTimeOffset.UtcNow,
+        message = "Open endpoint - no bot detection applied"
+    });
+})
+.WithName("ApiOpen")
+.WithTags("Load Testing")
+.WithSummary("Baseline endpoint - no bot detection");
+
+// Default policy - standard detection
+app.MapGet("/api/v1/default", (HttpContext context) =>
+{
+    return Results.Ok(new
+    {
+        policy = "default",
+        timestamp = DateTimeOffset.UtcNow,
+        isBot = context.IsBot(),
+        confidence = context.GetBotConfidence(),
+        botType = context.GetBotType()?.ToString(),
+        botName = context.GetBotName()
+    });
+})
+.WithName("ApiDefault")
+.WithTags("Load Testing")
+.WithSummary("Default detection policy");
+
+// Strict policy - blocks all bots including verified
+app.MapGet("/api/v1/strict", (HttpContext context) =>
+{
+    return Results.Ok(new
+    {
+        policy = "strict",
+        timestamp = DateTimeOffset.UtcNow,
+        message = "Access granted - you are human"
+    });
+})
+.RequireHuman()
+.WithName("ApiStrict")
+.WithTags("Load Testing")
+.WithSummary("Strict policy - humans only, blocks all bots");
+
+// Relaxed policy - allows verified bots
+app.MapGet("/api/v1/relaxed", (HttpContext context) =>
+{
+    return Results.Ok(new
+    {
+        policy = "relaxed",
+        timestamp = DateTimeOffset.UtcNow,
+        isVerifiedBot = context.IsVerifiedBot(),
+        isSearchEngine = context.IsSearchEngineBot(),
+        botName = context.GetBotName()
+    });
+})
+.BlockBots(allowVerifiedBots: true, allowSearchEngines: true)
+.WithName("ApiRelaxed")
+.WithTags("Load Testing")
+.WithSummary("Relaxed policy - allows verified bots and search engines");
+
+// High confidence only - blocks only high-confidence bots
+app.MapGet("/api/v1/high-confidence", (HttpContext context) =>
+{
+    return Results.Ok(new
+    {
+        policy = "high-confidence",
+        timestamp = DateTimeOffset.UtcNow,
+        confidence = context.GetBotConfidence(),
+        threshold = 0.9,
+        wouldBlock = context.GetBotConfidence() >= 0.9
+    });
+})
+.BlockBots(minConfidence: 0.9)
+.WithName("ApiHighConfidence")
+.WithTags("Load Testing")
+.WithSummary("High confidence policy - only blocks bots with >90% confidence");
+
+// Log-only policy - detects but never blocks
+app.MapGet("/api/v1/log-only", (HttpContext context) =>
+{
+    return Results.Ok(new
+    {
+        policy = "log-only",
+        timestamp = DateTimeOffset.UtcNow,
+        isBot = context.IsBot(),
+        confidence = context.GetBotConfidence(),
+        botType = context.GetBotType()?.ToString(),
+        botName = context.GetBotName(),
+        note = "Detection runs but never blocks"
+    });
+})
+.WithName("ApiLogOnly")
+.WithTags("Load Testing")
+.WithSummary("Log-only policy - detects bots but never blocks");
+
+// Full detection with detailed response
+app.MapGet("/api/v1/detailed", (HttpContext context) =>
+{
+    var result = context.GetBotDetectionResult();
+    return Results.Ok(new
+    {
+        policy = "detailed",
+        timestamp = DateTimeOffset.UtcNow,
+        detection = new
+        {
+            isBot = result?.IsBot ?? false,
+            confidence = context.GetBotConfidence(),
+            botType = result?.BotType?.ToString(),
+            botName = result?.BotName,
+            riskBand = context.GetRiskBand().ToString(),
+            shouldChallenge = context.ShouldChallengeRequest(),
+            recommendedAction = context.GetRecommendedAction().ToString(),
+            reasonCount = result?.Reasons?.Count ?? 0,
+            reasons = result?.Reasons?.Select(r => new
+            {
+                category = r.Category,
+                detail = r.Detail,
+                confidence = r.ConfidenceImpact
+            }).ToArray()
+        }
+    });
+})
+.WithName("ApiDetailed")
+.WithTags("Load Testing")
+.WithSummary("Detailed detection response with all evidence");
+
+// Security tool detection test endpoint
+app.MapGet("/api/v1/security-check", (HttpContext context) =>
+{
+    var result = context.GetBotDetectionResult();
+    var isSecurityTool = result?.Reasons?.Any(r =>
+        r.Category.Contains("Security", StringComparison.OrdinalIgnoreCase) ||
+        r.Detail.Contains("security tool", StringComparison.OrdinalIgnoreCase)) ?? false;
+
+    return Results.Ok(new
+    {
+        policy = "security-check",
+        timestamp = DateTimeOffset.UtcNow,
+        securityToolDetected = isSecurityTool,
+        userAgent = context.Request.Headers.UserAgent.ToString(),
+        detection = new
+        {
+            isBot = result?.IsBot ?? false,
+            confidence = context.GetBotConfidence(),
+            botType = result?.BotType?.ToString()
+        }
+    });
+})
+.WithName("ApiSecurityCheck")
+.WithTags("Load Testing")
+.WithSummary("Endpoint that reports security tool detection");
+
+// Batch endpoint for load testing multiple detections
+app.MapPost("/api/v1/batch-check", (HttpContext context, BatchCheckRequest request) =>
+{
+    var results = new List<object>();
+
+    foreach (var ua in request.UserAgents ?? Array.Empty<string>())
+    {
+        // Note: This simulates detection - in real usage each would be a separate request
+        var isBot = ua.Contains("bot", StringComparison.OrdinalIgnoreCase) ||
+                    ua.Contains("crawler", StringComparison.OrdinalIgnoreCase) ||
+                    ua.Contains("spider", StringComparison.OrdinalIgnoreCase) ||
+                    ua.Contains("scraper", StringComparison.OrdinalIgnoreCase);
+
+        results.Add(new
+        {
+            userAgent = ua,
+            likelyBot = isBot
+        });
+    }
+
+    return Results.Ok(new
+    {
+        policy = "batch-check",
+        timestamp = DateTimeOffset.UtcNow,
+        count = results.Count,
+        results
+    });
+})
+.WithName("ApiBatchCheck")
+.WithTags("Load Testing")
+.WithSummary("Batch check multiple user agents (for testing patterns)");
+
+// ==========================================
 // PowerShell test script generator
 // ==========================================
 app.MapGet("/api/test-script", () =>
@@ -359,3 +551,6 @@ Write-Host ""n=== TESTS COMPLETE ==="" -ForegroundColor Cyan
 });
 
 app.Run();
+
+// Request models
+public record BatchCheckRequest(string[]? UserAgents);
