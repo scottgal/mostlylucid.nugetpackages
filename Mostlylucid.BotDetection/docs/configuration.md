@@ -182,7 +182,7 @@ Complete reference with all available options:
         "AiEscalationThreshold": 0.6,
         "EarlyExitThreshold": 0.3,
         "ImmediateBlockThreshold": 0.95,
-        "TimeoutMs": 5000,
+        "TimeoutMs": 15000,
         "ActionPolicyName": "throttle-stealth",
         "Weights": {
           "Behavioral": 2.0,

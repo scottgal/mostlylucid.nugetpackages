@@ -260,6 +260,22 @@ public class LlmDetector : IDetector, IDisposable
 
             var response = responseBuilder.ToString();
 
+            // Check if response is empty (Ollama may have failed silently)
+            if (string.IsNullOrWhiteSpace(response))
+            {
+                _logger.LogWarning("LLM returned empty response. Ollama may have failed to generate output for model '{Model}'", model);
+                return new LlmAnalysis { IsBot = false, Confidence = 0.0, Reasoning = "Analysis failed" };
+            }
+
+            // Check for Ollama error responses
+            if (response.Contains("error", StringComparison.OrdinalIgnoreCase) &&
+                (response.Contains("model", StringComparison.OrdinalIgnoreCase) ||
+                 response.Contains("failed", StringComparison.OrdinalIgnoreCase)))
+            {
+                _logger.LogError("Ollama returned an error: {Response}", response.Length > 500 ? response[..500] + "..." : response);
+                return new LlmAnalysis { IsBot = false, Confidence = 0.0, Reasoning = "Analysis failed" };
+            }
+
             // Strip markdown code fences if present (```json ... ``` or ``` ... ```)
             var cleanedResponse = StripMarkdownCodeFences(response);
 
@@ -307,15 +323,27 @@ public class LlmDetector : IDetector, IDisposable
                 }
             }
 
-            _logger.LogWarning("Failed to parse LLM response: {Response}", response.Length > 500 ? response[..500] + "..." : response);
+            _logger.LogWarning("LLM returned invalid JSON (model '{Model}' may need a better prompt). Response: {Response}", model, response.Length > 500 ? response[..500] + "..." : response);
         }
         catch (OperationCanceledException)
         {
-            _logger.LogWarning("LLM analysis timed out after {Timeout}ms", timeout);
+            _logger.LogWarning("LLM analysis timed out after {Timeout}ms. Consider increasing AiDetection.TimeoutMs (current: {Timeout}ms)", timeout, timeout);
+        }
+        catch (HttpRequestException httpEx) when (httpEx.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            _logger.LogError("Ollama model '{Model}' not found at {Endpoint}. Run 'ollama pull {Model}' to download it", model, endpoint, model);
+        }
+        catch (HttpRequestException httpEx) when (httpEx.StatusCode == System.Net.HttpStatusCode.InternalServerError)
+        {
+            _logger.LogError("Ollama server error (500) at {Endpoint}. Check Ollama logs - the model '{Model}' may have failed to load or run out of memory", endpoint, model);
+        }
+        catch (HttpRequestException httpEx)
+        {
+            _logger.LogError(httpEx, "Ollama HTTP error ({StatusCode}) at {Endpoint}. Is Ollama running?", (int?)httpEx.StatusCode ?? 0, endpoint);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during LLM analysis");
+            _logger.LogError(ex, "LLM analysis failed: {Message}", ex.Message);
         }
 
         return new LlmAnalysis { IsBot = false, Confidence = 0.0, Reasoning = "Analysis failed" };

@@ -105,8 +105,8 @@ public class BotDetectionOptionsTests
         // Act
         var options = new BotDetectionOptions();
 
-        // Assert - Timeout increased to 5000ms for larger 4b model
-        Assert.Equal(5000, options.LlmTimeoutMs);
+        // Assert - Timeout increased to 15000ms for larger 4b model and cold start
+        Assert.Equal(15000, options.LlmTimeoutMs);
     }
 
     [Fact]

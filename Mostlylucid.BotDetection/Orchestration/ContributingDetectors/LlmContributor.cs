@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Detectors;
 using Mostlylucid.BotDetection.Models;
 
@@ -14,17 +15,25 @@ public class LlmContributor : ContributingDetectorBase
 {
     private readonly ILogger<LlmContributor> _logger;
     private readonly LlmDetector _detector;
+    private readonly BotDetectionOptions _options;
 
     public LlmContributor(
         ILogger<LlmContributor> logger,
-        LlmDetector detector)
+        LlmDetector detector,
+        IOptions<BotDetectionOptions> options)
     {
         _logger = logger;
         _detector = detector;
+        _options = options.Value;
     }
 
     public override string Name => "Llm";
     public override int Priority => 55; // Run after ONNX
+
+    // LLM needs longer timeout for model loading and inference (especially cold start)
+    // Uses AiDetection.TimeoutMs from config (default 15000ms), with 30s as absolute max
+    public override TimeSpan ExecutionTimeout => TimeSpan.FromMilliseconds(
+        Math.Min(_options.AiDetection.TimeoutMs * 2, 30000)); // Double the LLM timeout, cap at 30s
 
     // Trigger when we have enough signals and want AI classification
     public override IReadOnlyList<TriggerCondition> TriggerConditions =>

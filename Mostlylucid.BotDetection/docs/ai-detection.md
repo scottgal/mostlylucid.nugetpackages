@@ -327,7 +327,7 @@ sequenceDiagram
        "EnableAiDetection": true,
        "AiDetection": {
          "Provider": "Ollama",
-         "TimeoutMs": 5000,
+         "TimeoutMs": 15000,
          "Ollama": {
            "Endpoint": "http://localhost:11434",
            "Model": "gemma3:4b",
@@ -345,7 +345,7 @@ sequenceDiagram
   "BotDetection": {
     "AiDetection": {
       "Provider": "Ollama",
-      "TimeoutMs": 5000,
+      "TimeoutMs": 15000,
       "MaxConcurrentRequests": 3,
       "Ollama": {
         "Endpoint": "http://localhost:11434",

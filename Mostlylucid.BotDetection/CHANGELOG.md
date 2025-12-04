@@ -18,7 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Default LLM model** changed from `gemma3:1b` to `gemma3:4b` for better reasoning accuracy
-- **Default LLM timeout** increased from 2000ms to 5000ms for larger model
+- **Default LLM timeout** increased from 2000ms to 15000ms for larger model and cold start
+- **LLM orchestrator timeout** fixed - LlmContributor now uses 2x `AiDetection.TimeoutMs` (was using default 2s)
+- **Improved LLM error logging** - clear messages for timeout, model not found (404), and server errors (500)
+- **Improved LLM prompt** - stricter JSON-only output format to reduce parsing failures
 - **Heuristic provider** is now the recommended AI provider (replaces ONNX)
 - Simplified LLM prompt to prevent small model hallucinations
 - Localhost IP detection improved - no longer incorrectly flagged as datacenter IP
@@ -30,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 If upgrading from preview versions:
 1. Replace `"Provider": "Onnx"` with `"Provider": "Heuristic"` in configuration
 2. Update Ollama model if using LLM escalation: `gemma3:4b` recommended
-3. Consider increasing `TimeoutMs` to 5000 if using LLM
+3. Default `TimeoutMs` is now 15000ms (15s) to handle cold start - adjust if needed
 
 ---
 

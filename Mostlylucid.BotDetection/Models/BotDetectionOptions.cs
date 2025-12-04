@@ -160,7 +160,7 @@ public class BotDetectionOptions
     ///     This property will be removed in a future version.
     /// </summary>
     [Obsolete("Use AiDetection.TimeoutMs instead. This property will be removed in v1.0.")]
-    public int LlmTimeoutMs { get; set; } = 5000;
+    public int LlmTimeoutMs { get; set; } = 15000;
 
     /// <summary>
     ///     [OBSOLETE] Use AiDetection.MaxConcurrentRequests instead.
@@ -1056,14 +1056,14 @@ public class FastPathOptions
     /// <example>
     ///     <code>
     ///     "AiPathDetectors": [
-    ///       { "Name": "LLM", "Signal": "LlmCompleted", "Wave": 1, "Weight": 2.5, "TimeoutMs": 5000 },
+    ///       { "Name": "LLM", "Signal": "LlmCompleted", "Wave": 1, "Weight": 2.5, "TimeoutMs": 15000 },
     ///       { "Name": "CustomAI", "Signal": "CustomAICompleted", "Wave": 1, "Weight": 2.0 }
     ///     ]
     ///     </code>
     /// </example>
     public List<DetectorConfig> AiPathDetectors { get; set; } =
     [
-        new() { Name = "LLM Detector", Signal = "LlmClassificationCompleted", ExpectedLatencyMs = 100, Wave = 1, Category = "AI", Weight = 2.5, TimeoutMs = 5000 }
+        new() { Name = "LLM Detector", Signal = "LlmClassificationCompleted", ExpectedLatencyMs = 100, Wave = 1, Category = "AI", Weight = 2.5, TimeoutMs = 15000 }
     ];
 
     /// <summary>
@@ -1295,9 +1295,10 @@ public class AiDetectionOptions
     /// <summary>
     ///     Timeout for AI detection in milliseconds.
     ///     If exceeded, AI detection is skipped (fail-safe).
-    ///     Valid range: 100 to 30000. Default: 5000ms (increased for 4B models)
+    ///     Valid range: 100 to 60000. Default: 15000ms (15s for gemma3:4b cold start)
+    ///     Note: First request may be slower while model loads into GPU memory.
     /// </summary>
-    public int TimeoutMs { get; set; } = 5000;
+    public int TimeoutMs { get; set; } = 15000;
 
     /// <summary>
     ///     Maximum concurrent AI requests.
@@ -1368,7 +1369,7 @@ public class OllamaOptions
     ///     Uses strict JSON schema to prevent malformed output.
     ///     Receives TOML-formatted evidence from all prior detectors.
     /// </summary>
-    public const string DefaultPrompt = @"Analyze request for bot detection:
+    public const string DefaultPrompt = @"You are a bot detector. Output ONLY valid JSON, nothing else.
 
 {REQUEST_INFO}
 
@@ -1377,13 +1378,10 @@ RULES:
 - Known bot patterns: curl, wget, python, scrapy, selenium, headless, spider, crawler
 - Normal browser with cookies/fingerprint = human
 - When unsure, default to human
+- botType: scraper|searchengine|monitor|malicious|social|good|unknown
 
-OUTPUT: Raw JSON only, no markdown, no backticks.
-{""isBot"":false,""confidence"":0.5,""reasoning"":""short reason"",""botType"":""unknown"",""pattern"":""""}
-
-botType options: scraper|searchengine|monitor|malicious|social|good|unknown
-
-JSON:";
+RESPOND WITH THIS EXACT JSON FORMAT (no text before or after):
+{""isBot"":true,""confidence"":0.85,""reasoning"":""short reason"",""botType"":""scraper"",""pattern"":""""}";
 }
 
 /// <summary>
