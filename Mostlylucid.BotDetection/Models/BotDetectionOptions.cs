@@ -429,6 +429,24 @@ public class BotDetectionOptions
     public ClientSideOptions ClientSide { get; set; } = new();
 
     // ==========================================
+    // Security Detection Settings
+    // ==========================================
+
+    /// <summary>
+    ///     Configuration for detecting security/penetration testing tools.
+    ///     Identifies vulnerability scanners, exploit frameworks, and hacking tools.
+    ///     Part of the security detection layer for API honeypot integration.
+    /// </summary>
+    public SecurityToolOptions SecurityTools { get; set; } = new();
+
+    /// <summary>
+    ///     Configuration for Project Honeypot HTTP:BL integration.
+    ///     Uses DNS lookups to check IP reputation against Project Honeypot's database.
+    ///     Requires a free API key from https://www.projecthoneypot.org/
+    /// </summary>
+    public ProjectHoneypotOptions ProjectHoneypot { get; set; } = new();
+
+    // ==========================================
     // Global Enable/Disable
     // ==========================================
 
@@ -1560,6 +1578,34 @@ public class DataSourcesOptions
         Url = "https://www.useragents.me/api",
         Description = "Browser versions from useragents.me - current browser versions (JSON)"
     };
+
+    // ==========================================
+    // Security Tool Pattern Sources
+    // ==========================================
+
+    /// <summary>
+    ///     Security scanner user agents from digininja/scanner_user_agents.
+    ///     Contains user agents for tools like Nikto, Nessus, SQLMap, WPScan, etc.
+    ///     Part of the security detection layer for API honeypot integration.
+    /// </summary>
+    public DataSourceConfig ScannerUserAgents { get; set; } = new()
+    {
+        Enabled = true,
+        Url = "https://raw.githubusercontent.com/digininja/scanner_user_agents/main/list.json",
+        Description = "Security scanner user agents from digininja - JSON format with tool metadata"
+    };
+
+    /// <summary>
+    ///     OWASP CoreRuleSet scanner patterns.
+    ///     Community-maintained list of security tool patterns used by ModSecurity.
+    ///     Text format with one pattern per line.
+    /// </summary>
+    public DataSourceConfig CoreRuleSetScanners { get; set; } = new()
+    {
+        Enabled = true,
+        Url = "https://raw.githubusercontent.com/coreruleset/coreruleset/main/rules/scanners-user-agents.data",
+        Description = "OWASP CoreRuleSet scanner patterns - text format, one per line"
+    };
 }
 
 /// <summary>
@@ -2126,4 +2172,182 @@ public class ThrottlingOptions
     ///     Default: "captcha"
     /// </summary>
     public string ChallengeType { get; set; } = "captcha";
+}
+
+// ==========================================
+// Security Tool Detection Configuration
+// ==========================================
+
+/// <summary>
+///     Configuration for detecting security/penetration testing tools.
+///     Identifies vulnerability scanners, exploit frameworks, and hacking tools
+///     based on User-Agent signatures.
+///
+///     Part of the security detection layer - designed to integrate with future
+///     API honeypot systems (Mostlylucid.ApiHoneypot).
+/// </summary>
+public class SecurityToolOptions
+{
+    /// <summary>
+    ///     Enable security tool detection.
+    ///     When enabled, requests from known security tools are flagged as malicious.
+    ///     Default: true
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    ///     Block requests from security tools immediately.
+    ///     When false, tools are detected and logged but not blocked.
+    ///     Default: true
+    /// </summary>
+    public bool BlockSecurityTools { get; set; } = true;
+
+    /// <summary>
+    ///     Log security tool detections at Warning level.
+    ///     Useful for security monitoring and alerting.
+    ///     Default: true
+    /// </summary>
+    public bool LogDetections { get; set; } = true;
+
+    /// <summary>
+    ///     Custom tool patterns to add to detection (case-insensitive substring match).
+    ///     Use this to add organization-specific or newly discovered tools.
+    /// </summary>
+    /// <example>
+    ///     <code>
+    ///     "CustomPatterns": ["my-custom-scanner", "internal-pentest-tool"]
+    ///     </code>
+    /// </example>
+    public List<string> CustomPatterns { get; set; } = [];
+
+    /// <summary>
+    ///     Tool patterns to exclude from detection.
+    ///     Use this if you need to allow specific security tools (e.g., for authorized pentests).
+    /// </summary>
+    /// <example>
+    ///     <code>
+    ///     "ExcludedPatterns": ["nessus"]  // Allow Nessus for internal security scanning
+    ///     </code>
+    /// </example>
+    public List<string> ExcludedPatterns { get; set; } = [];
+
+    /// <summary>
+    ///     Categories of tools to detect.
+    ///     By default, all categories are detected.
+    ///     Set to empty list to detect all categories.
+    /// </summary>
+    /// <example>
+    ///     <code>
+    ///     "EnabledCategories": ["SqlInjection", "ExploitFramework", "CredentialAttack"]
+    ///     </code>
+    /// </example>
+    public List<string> EnabledCategories { get; set; } = [];
+
+    /// <summary>
+    ///     Redirect detected security tools to a honeypot endpoint instead of blocking.
+    ///     When set, security tool requests are silently redirected to this URL
+    ///     to gather intelligence on attack patterns.
+    ///     Leave null to use standard blocking behavior.
+    /// </summary>
+    /// <example>
+    ///     <code>
+    ///     "HoneypotRedirectUrl": "/api/honeypot"
+    ///     </code>
+    /// </example>
+    public string? HoneypotRedirectUrl { get; set; }
+}
+
+// ==========================================
+// Project Honeypot Configuration
+// ==========================================
+
+/// <summary>
+///     Configuration for Project Honeypot HTTP:BL integration.
+///     Uses DNS lookups to check IP reputation against Project Honeypot's
+///     database of known harvesters, comment spammers, and suspicious visitors.
+///     See: https://www.projecthoneypot.org/httpbl_api.php
+///
+///     Requires a free API key from: https://www.projecthoneypot.org/httpbl_configure.php
+/// </summary>
+public class ProjectHoneypotOptions
+{
+    /// <summary>
+    ///     Enable Project Honeypot HTTP:BL lookups.
+    ///     Requires AccessKey to be set.
+    ///     Default: false (requires API key)
+    /// </summary>
+    public bool Enabled { get; set; } = false;
+
+    /// <summary>
+    ///     Your Project Honeypot HTTP:BL access key.
+    ///     Get a free key from: https://www.projecthoneypot.org/httpbl_configure.php
+    ///     Must be 12 lowercase alphanumeric characters.
+    /// </summary>
+    /// <example>
+    ///     <code>
+    ///     "AccessKey": "abcdefghijkl"
+    ///     </code>
+    /// </example>
+    public string? AccessKey { get; set; }
+
+    /// <summary>
+    ///     Threat score threshold above which to consider an IP as high threat.
+    ///     Scores range from 0-255 (logarithmic scale).
+    ///     IPs above this threshold trigger early exit as verified bad bot.
+    ///     Default: 25 (fairly conservative)
+    /// </summary>
+    /// <remarks>
+    ///     Threat score guidelines:
+    ///     - 0-24: Low threat
+    ///     - 25-49: Medium threat
+    ///     - 50-99: High threat
+    ///     - 100+: Very high threat (rare)
+    /// </remarks>
+    public int HighThreatThreshold { get; set; } = 25;
+
+    /// <summary>
+    ///     Maximum age in days for considering a listing relevant.
+    ///     IPs last seen more than this many days ago are given lower weight.
+    ///     Default: 90 days
+    /// </summary>
+    public int MaxDaysAge { get; set; } = 90;
+
+    /// <summary>
+    ///     Timeout for DNS lookups in milliseconds.
+    ///     DNS lookups should be fast; longer timeouts may indicate network issues.
+    ///     Default: 1000ms (1 second)
+    /// </summary>
+    public int TimeoutMs { get; set; } = 1000;
+
+    /// <summary>
+    ///     Cache duration for lookup results in seconds.
+    ///     Results are cached to avoid repeated DNS queries for the same IP.
+    ///     Default: 1800 seconds (30 minutes)
+    /// </summary>
+    public int CacheDurationSeconds { get; set; } = 1800;
+
+    /// <summary>
+    ///     Skip lookup for local/private IP addresses.
+    ///     These won't be in Project Honeypot anyway.
+    ///     Default: true
+    /// </summary>
+    public bool SkipLocalIps { get; set; } = true;
+
+    /// <summary>
+    ///     Treat harvesters (email scrapers) as malicious.
+    ///     Default: true
+    /// </summary>
+    public bool TreatHarvestersAsMalicious { get; set; } = true;
+
+    /// <summary>
+    ///     Treat comment spammers as malicious.
+    ///     Default: true
+    /// </summary>
+    public bool TreatCommentSpammersAsMalicious { get; set; } = true;
+
+    /// <summary>
+    ///     Treat "suspicious" entries as suspicious (not necessarily malicious).
+    ///     Default: true
+    /// </summary>
+    public bool TreatSuspiciousAsSuspicious { get; set; } = true;
 }

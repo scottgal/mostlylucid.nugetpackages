@@ -32,6 +32,13 @@ public interface IBotListFetcher
     ///     Only fetches if Matomo source is enabled in configuration.
     /// </summary>
     Task<List<BotPattern>> GetMatomoBotPatternsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Fetches security tool patterns from configured sources (digininja, OWASP CoreRuleSet).
+    ///     Returns patterns for identifying penetration testing and vulnerability scanning tools.
+    ///     Part of the security detection layer for API honeypot integration.
+    /// </summary>
+    Task<List<SecurityToolPattern>> GetSecurityToolPatternsAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -43,6 +50,28 @@ public class BotPattern
     public string? Pattern { get; set; }
     public string? Category { get; set; }
     public string? Url { get; set; }
+}
+
+/// <summary>
+///     Represents a security tool pattern with metadata.
+///     Used for detecting penetration testing tools, vulnerability scanners, and exploit frameworks.
+/// </summary>
+public class SecurityToolPattern
+{
+    /// <summary>The pattern to match (substring or regex)</summary>
+    public string Pattern { get; set; } = "";
+
+    /// <summary>Name of the security tool (e.g., "SQLMap", "Nikto")</summary>
+    public string? Name { get; set; }
+
+    /// <summary>Category of tool (e.g., "SqlInjection", "VulnerabilityScanner")</summary>
+    public string? Category { get; set; }
+
+    /// <summary>Whether this is a regex pattern (vs simple substring)</summary>
+    public bool IsRegex { get; set; }
+
+    /// <summary>Source where this pattern was obtained</summary>
+    public string? Source { get; set; }
 }
 
 /// <summary>
@@ -745,5 +774,196 @@ public class BotListFetcher : IBotListFetcher
 
         [JsonPropertyName("addressPrefixes")]
         public List<string>? AddressPrefixes { get; set; }
+    }
+
+    // ==========================================
+    // Security Tool Pattern Sources
+    // ==========================================
+
+    /// <summary>
+    ///     Fetches security tool patterns from configured sources.
+    ///     Sources: digininja/scanner_user_agents, OWASP CoreRuleSet.
+    /// </summary>
+    public async Task<List<SecurityToolPattern>> GetSecurityToolPatternsAsync(CancellationToken cancellationToken = default)
+    {
+        const string cacheKey = "bot_list_security_tools";
+
+        if (_cache.TryGetValue<List<SecurityToolPattern>>(cacheKey, out var cached) && cached != null)
+            return cached;
+
+        var allPatterns = new Dictionary<string, SecurityToolPattern>(StringComparer.OrdinalIgnoreCase);
+        var sources = _options.DataSources;
+        var client = _httpClientFactory.CreateClient();
+        client.Timeout = TimeSpan.FromSeconds(_options.ListDownloadTimeoutSeconds);
+
+        // Fetch digininja/scanner_user_agents (JSON format with metadata)
+        if (sources.ScannerUserAgents.Enabled && !string.IsNullOrEmpty(sources.ScannerUserAgents.Url))
+        {
+            try
+            {
+                var json = await client.GetStringAsync(sources.ScannerUserAgents.Url, cancellationToken);
+                var entries = JsonSerializer.Deserialize<List<ScannerUserAgentEntry>>(json, JsonOptions);
+
+                if (entries != null)
+                {
+                    var validCount = 0;
+                    foreach (var entry in entries.Where(e => !string.IsNullOrEmpty(e.Pattern)))
+                    {
+                        var pattern = entry.Pattern!.Trim();
+                        if (!allPatterns.ContainsKey(pattern))
+                        {
+                            allPatterns[pattern] = new SecurityToolPattern
+                            {
+                                Pattern = pattern,
+                                Name = entry.Name ?? InferToolName(pattern),
+                                Category = entry.Category ?? "SecurityTool",
+                                IsRegex = ContainsRegexChars(pattern),
+                                Source = "digininja/scanner_user_agents"
+                            };
+                            validCount++;
+                        }
+                    }
+                    _logger.LogInformation("Fetched {Count} security tool patterns from {Url}",
+                        validCount, sources.ScannerUserAgents.Url);
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Invalid JSON in scanner_user_agents from {Url}", sources.ScannerUserAgents.Url);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch scanner_user_agents from {Url}", sources.ScannerUserAgents.Url);
+            }
+        }
+
+        // Fetch OWASP CoreRuleSet scanners (text format, one pattern per line)
+        if (sources.CoreRuleSetScanners.Enabled && !string.IsNullOrEmpty(sources.CoreRuleSetScanners.Url))
+        {
+            try
+            {
+                var text = await client.GetStringAsync(sources.CoreRuleSetScanners.Url, cancellationToken);
+                var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                var validCount = 0;
+
+                foreach (var line in lines)
+                {
+                    var trimmed = line.Trim();
+
+                    // Skip comments and empty lines
+                    if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith('#'))
+                        continue;
+
+                    if (!allPatterns.ContainsKey(trimmed))
+                    {
+                        allPatterns[trimmed] = new SecurityToolPattern
+                        {
+                            Pattern = trimmed,
+                            Name = InferToolName(trimmed),
+                            Category = "SecurityTool",
+                            IsRegex = ContainsRegexChars(trimmed),
+                            Source = "OWASP/CoreRuleSet"
+                        };
+                        validCount++;
+                    }
+                }
+                _logger.LogInformation("Fetched {Count} security tool patterns from {Url}",
+                    validCount, sources.CoreRuleSetScanners.Url);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch CoreRuleSet patterns from {Url}", sources.CoreRuleSetScanners.Url);
+            }
+        }
+
+        var result = allPatterns.Values.ToList();
+
+        if (result.Count == 0)
+        {
+            _logger.LogWarning("No security tool patterns fetched from any source, using fallback patterns");
+            result = GetFallbackSecurityToolPatterns();
+        }
+        else
+        {
+            _logger.LogInformation("Total unique security tool patterns: {Count}", result.Count);
+        }
+
+        _cache.Set(cacheKey, result, CacheDuration);
+        return result;
+    }
+
+    /// <summary>
+    ///     Infer tool name from pattern for display purposes.
+    /// </summary>
+    private static string InferToolName(string pattern)
+    {
+        // Known tool names to look for
+        var knownTools = new[]
+        {
+            "sqlmap", "nikto", "nmap", "masscan", "gobuster", "feroxbuster", "ffuf", "wfuzz",
+            "dirbuster", "dirb", "wpscan", "joomscan", "acunetix", "netsparker", "nessus",
+            "openvas", "nuclei", "burp", "zap", "metasploit", "hydra", "medusa", "whatweb",
+            "shodan", "censys", "arachni", "w3af", "qualys", "detectify"
+        };
+
+        var lowerPattern = pattern.ToLowerInvariant();
+        foreach (var tool in knownTools)
+        {
+            if (lowerPattern.Contains(tool))
+                return char.ToUpperInvariant(tool[0]) + tool[1..];
+        }
+
+        // Return first word or truncated pattern
+        var firstWord = pattern.Split(' ', '/', '-', '_')[0];
+        return firstWord.Length > 20 ? firstWord[..20] + "..." : firstWord;
+    }
+
+    /// <summary>
+    ///     Check if pattern contains regex special characters.
+    /// </summary>
+    private static bool ContainsRegexChars(string pattern)
+    {
+        return pattern.Any(c => c is '.' or '*' or '+' or '?' or '[' or ']' or '(' or ')' or '{' or '}' or '|' or '^' or '$' or '\\');
+    }
+
+    /// <summary>
+    ///     Fallback security tool patterns if download fails.
+    /// </summary>
+    private static List<SecurityToolPattern> GetFallbackSecurityToolPatterns()
+    {
+        return new List<SecurityToolPattern>
+        {
+            new() { Pattern = "sqlmap", Name = "SQLMap", Category = "SqlInjection", Source = "fallback" },
+            new() { Pattern = "nikto", Name = "Nikto", Category = "VulnerabilityScanner", Source = "fallback" },
+            new() { Pattern = "nmap", Name = "Nmap", Category = "PortScanner", Source = "fallback" },
+            new() { Pattern = "gobuster", Name = "Gobuster", Category = "DirectoryBruteForce", Source = "fallback" },
+            new() { Pattern = "feroxbuster", Name = "FeroxBuster", Category = "DirectoryBruteForce", Source = "fallback" },
+            new() { Pattern = "ffuf", Name = "FFUF", Category = "DirectoryBruteForce", Source = "fallback" },
+            new() { Pattern = "wpscan", Name = "WPScan", Category = "CmsScanner", Source = "fallback" },
+            new() { Pattern = "acunetix", Name = "Acunetix", Category = "VulnerabilityScanner", Source = "fallback" },
+            new() { Pattern = "nessus", Name = "Nessus", Category = "VulnerabilityScanner", Source = "fallback" },
+            new() { Pattern = "metasploit", Name = "Metasploit", Category = "ExploitFramework", Source = "fallback" },
+            new() { Pattern = "burp", Name = "Burp Suite", Category = "WebProxy", Source = "fallback" },
+            new() { Pattern = "owasp zap", Name = "OWASP ZAP", Category = "WebProxy", Source = "fallback" },
+            new() { Pattern = "nuclei", Name = "Nuclei", Category = "VulnerabilityScanner", Source = "fallback" },
+            new() { Pattern = "masscan", Name = "Masscan", Category = "PortScanner", Source = "fallback" },
+            new() { Pattern = "hydra", Name = "Hydra", Category = "CredentialAttack", Source = "fallback" },
+        };
+    }
+
+    // JSON model for digininja scanner_user_agents
+    private class ScannerUserAgentEntry
+    {
+        [JsonPropertyName("pattern")]
+        public string? Pattern { get; set; }
+
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
+
+        [JsonPropertyName("category")]
+        public string? Category { get; set; }
+
+        [JsonPropertyName("url")]
+        public string? Url { get; set; }
     }
 }

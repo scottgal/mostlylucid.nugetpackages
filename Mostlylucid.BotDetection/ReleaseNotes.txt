@@ -1,3 +1,17 @@
+1.0.1
+
+Security Detection Layer:
+- SecurityToolContributor: Detects penetration testing tools (SQLMap, Nikto, Nmap, etc.)
+- ProjectHoneypotContributor: HTTP:BL IP reputation lookups via DNS
+- Pattern fetching from digininja/scanner_user_agents and OWASP CoreRuleSet
+- Configurable via SecurityToolOptions and ProjectHoneypotOptions
+- New SignalKeys: SecurityToolDetected, SecurityToolName, SecurityToolCategory
+- New SignalKeys: HoneypotChecked, HoneypotListed, HoneypotThreatScore, etc.
+
+Part of security detection layer designed for future API honeypot integration.
+
+---
+
 1.0.0
 
 🎉 First Stable Release!

@@ -270,6 +270,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<HeuristicDetector>();
         services.TryAddSingleton<ClientSideDetector>();
         services.TryAddSingleton<InconsistencyDetector>();
+        services.TryAddSingleton<SecurityToolDetector>();
 
         // Also register as IDetector for generic detector enumeration
         services.AddSingleton<IDetector>(sp => sp.GetRequiredService<UserAgentDetector>());
@@ -280,6 +281,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDetector>(sp => sp.GetRequiredService<HeuristicDetector>());
         services.AddSingleton<IDetector>(sp => sp.GetRequiredService<ClientSideDetector>());
         services.AddSingleton<IDetector>(sp => sp.GetRequiredService<InconsistencyDetector>());
+        services.AddSingleton<IDetector>(sp => sp.GetRequiredService<SecurityToolDetector>());
 
         // Register client-side fingerprinting services
         services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
@@ -350,9 +352,13 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IContributingDetector, IpContributor>();
         services.AddSingleton<IContributingDetector, BehavioralContributor>();
         services.AddSingleton<IContributingDetector, ClientSideContributor>();
+        // Security tool detection - runs early with UA analysis
+        services.AddSingleton<IContributingDetector, SecurityToolContributor>();
         // Wave 1+ detectors (triggered by signals from Wave 0)
         services.AddSingleton<IContributingDetector, VersionAgeContributor>();
         services.AddSingleton<IContributingDetector, InconsistencyContributor>();
+        // Project Honeypot IP reputation (triggered by IP signal)
+        services.AddSingleton<IContributingDetector, ProjectHoneypotContributor>();
         // Heuristic early - runs before AI with basic request features
         services.AddSingleton<IContributingDetector, HeuristicContributor>();
         // AI/LLM detectors (run when escalation triggered or in demo mode)

@@ -243,4 +243,38 @@ public static class SignalKeys
     public const string HeuristicPrediction = "heuristic.prediction";
     public const string HeuristicConfidence = "heuristic.confidence";
     public const string HeuristicEarlyCompleted = "heuristic.early_completed";
+
+    // ==========================================
+    // Security tool detection signals
+    // Set by SecurityToolContributor when penetration testing tools are detected
+    // ==========================================
+
+    /// <summary>Boolean: true if a security/hacking tool was detected in User-Agent</summary>
+    public const string SecurityToolDetected = "security.tool_detected";
+
+    /// <summary>String: Name of the detected security tool (e.g., "SQLMap", "Nikto")</summary>
+    public const string SecurityToolName = "security.tool_name";
+
+    /// <summary>String: Category of the security tool (e.g., "SqlInjection", "VulnerabilityScanner")</summary>
+    public const string SecurityToolCategory = "security.tool_category";
+
+    // ==========================================
+    // Project Honeypot signals
+    // Set by ProjectHoneypotContributor after HTTP:BL DNS lookup
+    // ==========================================
+
+    /// <summary>Boolean: true if Project Honeypot lookup was performed</summary>
+    public const string HoneypotChecked = "honeypot.checked";
+
+    /// <summary>Boolean: true if IP is listed in Project Honeypot database</summary>
+    public const string HoneypotListed = "honeypot.listed";
+
+    /// <summary>Int: Threat score from 0-255 (higher = more dangerous)</summary>
+    public const string HoneypotThreatScore = "honeypot.threat_score";
+
+    /// <summary>String: Visitor type flags (Suspicious, Harvester, CommentSpammer, SearchEngine)</summary>
+    public const string HoneypotVisitorType = "honeypot.visitor_type";
+
+    /// <summary>Int: Days since the IP was last seen in a honeypot trap</summary>
+    public const string HoneypotDaysSinceLastActivity = "honeypot.days_since_activity";
 }

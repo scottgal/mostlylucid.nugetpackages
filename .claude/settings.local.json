@@ -26,7 +26,11 @@
       "Bash(rm:*)",
       "Bash(del \".github\\workflows\\publish-all.yml\")",
       "Bash(git restore:*)",
-      "Bash(dotnet publish:*)"
+      "Bash(dotnet publish:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebSearch",
+      "WebFetch(domain:www.projecthoneypot.org)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []
