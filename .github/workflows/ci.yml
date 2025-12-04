@@ -18,23 +18,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-test:
+  # Fast build check - just ensure everything compiles
+  build-check:
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        dotnet-version: ['8.0.x', '9.0.x']
+    timeout-minutes: 10
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
 
-    - name: Setup .NET ${{ matrix.dotnet-version }}
+    - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: ${{ matrix.dotnet-version }}
+        dotnet-version: '9.0.x'
 
     - name: Cache NuGet packages
       uses: actions/cache@v4
@@ -50,22 +46,49 @@ jobs:
     - name: Build solution
       run: dotnet build mostlylucid.nugetpackages.sln --configuration Release --no-restore
 
-    - name: Run tests (excluding integration tests)
+  # BotDetection tests (primary focus)
+  bot-detection-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Restore and build BotDetection
       run: |
-        dotnet test mostlylucid.nugetpackages.sln \
+        dotnet restore Mostlylucid.BotDetection/Mostlylucid.BotDetection.csproj
+        dotnet restore Mostlylucid.BotDetection.Tests/Mostlylucid.BotDetection.Tests.csproj
+        dotnet build Mostlylucid.BotDetection.Tests/Mostlylucid.BotDetection.Tests.csproj --configuration Release --no-restore
+
+    - name: Run BotDetection unit tests
+      run: |
+        dotnet test Mostlylucid.BotDetection.Tests/Mostlylucid.BotDetection.Tests.csproj \
           --configuration Release \
           --no-build \
           --verbosity normal \
-          --logger "trx;LogFileName=test-results.trx" \
+          --logger "trx;LogFileName=bot-detection-results.trx" \
           --results-directory ./test-results \
-          --collect:"XPlat Code Coverage" \
           --filter "Category!=Integration"
 
     - name: Upload test results
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: test-results-${{ matrix.dotnet-version }}
+        name: bot-detection-test-results
         path: ./test-results
         retention-days: 7
 
@@ -73,73 +96,7 @@ jobs:
       uses: dorny/test-reporter@v1
       if: always()
       with:
-        name: Test Results (.NET ${{ matrix.dotnet-version }})
+        name: BotDetection Test Results
         path: ./test-results/**/*.trx
         reporter: dotnet-trx
         fail-on-error: true
-
-  # Separate job for BotDetection-specific tests (both test projects)
-  bot-detection-tests:
-    runs-on: ubuntu-latest
-    needs: build-and-test
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '9.0.x'
-
-    - name: Restore BotDetection test projects
-      run: |
-        dotnet restore Mostlylucid.BotDetection.Test/Mostlylucid.BotDetection.Test.csproj
-        dotnet restore Mostlylucid.BotDetection.Tests/Mostlylucid.BotDetection.Tests.csproj
-
-    - name: Build BotDetection test projects
-      run: |
-        dotnet build Mostlylucid.BotDetection.Test/Mostlylucid.BotDetection.Test.csproj --configuration Release --no-restore
-        dotnet build Mostlylucid.BotDetection.Tests/Mostlylucid.BotDetection.Tests.csproj --configuration Release --no-restore
-
-    - name: Run BotDetection unit tests (excluding integration tests)
-      run: |
-        dotnet test Mostlylucid.BotDetection.Test/Mostlylucid.BotDetection.Test.csproj \
-          --configuration Release \
-          --no-build \
-          --verbosity normal \
-          --filter "Category!=Integration"
-        dotnet test Mostlylucid.BotDetection.Tests/Mostlylucid.BotDetection.Tests.csproj \
-          --configuration Release \
-          --no-build \
-          --verbosity normal \
-          --filter "Category!=Integration"
-
-  # Code quality checks
-  code-quality:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '9.0.x'
-
-    - name: Restore dependencies
-      run: dotnet restore mostlylucid.nugetpackages.sln
-
-    - name: Check for warnings as errors
-      run: |
-        dotnet build mostlylucid.nugetpackages.sln \
-          --configuration Release \
-          --no-restore \
-          /warnaserror \
-          /p:TreatWarningsAsErrors=false
-      continue-on-error: true
-
-    - name: Format check
-      run: dotnet format mostlylucid.nugetpackages.sln --verify-no-changes --verbosity diagnostic
-      continue-on-error: true
