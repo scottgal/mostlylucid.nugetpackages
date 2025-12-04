@@ -153,7 +153,7 @@ public class BotDetectionOptions
     ///     This property will be removed in a future version.
     /// </summary>
     [Obsolete("Use AiDetection.Ollama.Model instead. This property will be removed in v1.0.")]
-    public string? OllamaModel { get; set; } = "gemma3:1b";
+    public string? OllamaModel { get; set; } = "gemma3:4b";
 
     /// <summary>
     ///     [OBSOLETE] Use AiDetection.TimeoutMs instead.
@@ -1338,13 +1338,14 @@ public class OllamaOptions
 
     /// <summary>
     ///     Ollama model to use for bot detection.
-    ///     Default: "gemma3:1b" (1B params, 8K context, fast)
+    ///     Default: "gemma3:4b" (4B params, 8K context, good reasoning)
     ///     Alternatives:
+    ///     - "gemma3:1b" - Faster but less accurate reasoning
     ///     - "qwen2.5:1.5b" - Good reasoning, slightly larger
     ///     - "phi3:mini" - Microsoft's small model
     ///     - "tinyllama" - Very small, basic classification
     /// </summary>
-    public string Model { get; set; } = "gemma3:1b";
+    public string Model { get; set; } = "gemma3:4b";
 
     /// <summary>
     ///     Whether to use JSON mode for structured output.
@@ -1367,33 +1368,22 @@ public class OllamaOptions
     ///     Uses strict JSON schema to prevent malformed output.
     ///     Receives TOML-formatted evidence from all prior detectors.
     /// </summary>
-    public const string DefaultPrompt = @"Bot detector. Analyze this request:
+    public const string DefaultPrompt = @"Analyze request for bot detection:
 
 {REQUEST_INFO}
 
-DETECTION RULES:
-- High bot_probability + positive detector deltas = bot
-- Missing Accept-Language/Referer, datacenter IP = bot
-- Known bots: curl, wget, python-requests, scrapy, selenium, headless
-- Weak evidence = human (isBot=false)
+RULES:
+- bot_probability > 0.5 = likely bot
+- Known bot patterns: curl, wget, python, scrapy, selenium, headless, spider, crawler
+- Normal browser with cookies/fingerprint = human
+- When unsure, default to human
 
-CRITICAL OUTPUT FORMAT:
-- Output ONLY raw JSON. Nothing else.
-- NO markdown. NO ```json. NO ``` fences.
-- NO text before or after the JSON.
-- Start with { and end with }
+OUTPUT: Raw JSON only, no markdown, no backticks.
+{""isBot"":false,""confidence"":0.5,""reasoning"":""short reason"",""botType"":""unknown"",""pattern"":""""}
 
-EXACT JSON SCHEMA (copy this structure):
-{""isBot"":false,""confidence"":0.5,""reasoning"":""brief reason"",""botType"":""unknown"",""pattern"":""""}
+botType options: scraper|searchengine|monitor|malicious|social|good|unknown
 
-Fields:
-- isBot: true or false
-- confidence: 0.0 to 1.0
-- reasoning: max 50 chars
-- botType: scraper|searchengine|monitor|malicious|social|good|unknown
-- pattern: identifier string or empty
-
-Output:";
+JSON:";
 }
 
 /// <summary>

@@ -149,6 +149,9 @@ public class LlmDetector : IDetector, IDisposable
         var evidence = context.Items[BotDetectionMiddleware.AggregatedEvidenceKey] as AggregatedEvidence;
         if (evidence != null)
         {
+            // Check if localhost - we'll filter IP-related info to avoid confusing small LLMs
+            var isLocalhost = evidence.Signals.TryGetValue(SignalKeys.IpIsLocal, out var isLocal) && isLocal is true;
+
             sb.AppendLine();
             sb.AppendLine("[evidence]");
             sb.AppendLine($"bot_probability = {evidence.BotProbability:F2}");
@@ -158,7 +161,9 @@ public class LlmDetector : IDetector, IDisposable
                 sb.AppendLine($"bot_type = \"{evidence.PrimaryBotType}\"");
 
             // [detectors] section - top contributions sorted by impact (compact)
+            // Skip IP detector for localhost to avoid confusing small LLMs
             var topContributions = evidence.Contributions
+                .Where(c => !isLocalhost || !c.DetectorName.Equals("Ip", StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(c => Math.Abs(c.ConfidenceDelta) * c.Weight)
                 .Take(8) // Top 8 to stay within context limits
                 .ToList();
@@ -176,7 +181,9 @@ public class LlmDetector : IDetector, IDisposable
             }
 
             // [categories] section - category breakdown (compact)
+            // Skip IP category for localhost
             var topCategories = evidence.CategoryBreakdown
+                .Where(kv => !isLocalhost || !kv.Key.Equals("IP", StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(kv => kv.Value.Score)
                 .Take(5)
                 .ToList();
@@ -192,8 +199,10 @@ public class LlmDetector : IDetector, IDisposable
             }
 
             // [signals] section - key signals (compact, only most relevant)
+            // Filter out localhost IP info to avoid confusing small LLMs
             var relevantSignals = evidence.Signals
                 .Where(kv => kv.Value is bool or int or double or string { Length: < 50 })
+                .Where(kv => !isLocalhost || !kv.Key.StartsWith("ip.", StringComparison.OrdinalIgnoreCase)) // Skip IP signals for localhost
                 .Take(10)
                 .ToList();
 
