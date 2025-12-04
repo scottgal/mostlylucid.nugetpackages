@@ -169,7 +169,7 @@ public class BotDetectionMiddleware(
         Endpoint? endpoint,
         IPolicyRegistry policyRegistry)
     {
-        // 0. Check for policy query parameter (for demo/testing - only when test mode enabled)
+        // 0a. Check for policy query parameter (for demo/testing - only when test mode enabled)
         if (_options.EnableTestMode && context.Request.Query.TryGetValue("policy", out var policyParam))
         {
             var queryPolicy = policyRegistry.GetPolicy(policyParam.ToString());
@@ -178,6 +178,44 @@ public class BotDetectionMiddleware(
                 _logger.LogDebug("Using policy '{Policy}' from query parameter for {Path}",
                     queryPolicy.Name, context.Request.Path);
                 return queryPolicy;
+            }
+        }
+
+        // 0b. Check for X-Bot-Policy header for direct policy selection (test mode only)
+        if (_options.EnableTestMode)
+        {
+            // X-Bot-Policy: <policyName> - direct policy selection
+            if (context.Request.Headers.TryGetValue("X-Bot-Policy", out var policyHeader) &&
+                !string.IsNullOrEmpty(policyHeader))
+            {
+                var headerPolicy = policyRegistry.GetPolicy(policyHeader!);
+                if (headerPolicy != null)
+                {
+                    _logger.LogDebug("Using '{Policy}' policy from X-Bot-Policy header for {Path}",
+                        headerPolicy.Name, context.Request.Path);
+                    return headerPolicy;
+                }
+            }
+
+            // Legacy headers for backwards compatibility
+            if (context.Request.Headers.ContainsKey("X-Force-Slow-Path"))
+            {
+                var demoPolicy = policyRegistry.GetPolicy("demo");
+                if (demoPolicy != null)
+                {
+                    _logger.LogDebug("Using 'demo' policy from X-Force-Slow-Path header for {Path}",
+                        context.Request.Path);
+                    return demoPolicy;
+                }
+            }
+            else if (context.Request.Headers.ContainsKey("X-Force-Fast-Path"))
+            {
+                var fastPolicy = policyRegistry.GetPolicy("fastpath") ??
+                                 policyRegistry.GetPolicy("default") ??
+                                 policyRegistry.DefaultPolicy;
+                _logger.LogDebug("Using '{Policy}' policy from X-Force-Fast-Path header for {Path}",
+                    fastPolicy.Name, context.Request.Path);
+                return fastPolicy;
             }
         }
 

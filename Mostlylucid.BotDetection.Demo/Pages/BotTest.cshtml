@@ -298,12 +298,12 @@
 
         <!-- Path Toggle -->
         <div class="path-toggle">
-            <span class="path-label" id="fastLabel">Fast Path</span>
+            <span class="path-label" id="fastLabel">Fast Path (all static detectors + bailout)</span>
             <label class="toggle-switch">
-                <input type="checkbox" id="pathToggle" checked onchange="togglePath()">
+                <input type="checkbox" id="pathToggle" checked onchange="togglePath(true)">
                 <span class="toggle-slider"></span>
             </label>
-            <span class="path-label active" id="slowLabel">Slow Path (Full Pipeline)</span>
+            <span class="path-label active" id="slowLabel">Demo (full pipeline + AI)</span>
             <span style="margin-left: auto; font-size: 0.8em; color: #8b949e;">
                 Processing: <strong id="timingDisplay">@Model.ProcessingTimeMs.ToString("F2")ms</strong>
             </span>
@@ -333,14 +333,21 @@
     <!-- Detection Result -->
     <div class="card">
         <h2>Detection Result</h2>
+        @{
+            // Show the relevant probability: human probability for humans, bot probability for bots
+            var displayProbability = Model.IsBot ? Model.BotProbability : Model.HumanProbability;
+            var probabilityLabel = Model.IsBot ? "bot probability" : "human probability";
+            // For coloring: high confidence in classification is good (green), low is uncertain (orange)
+            var colorClass = displayProbability > 0.7 ? "low" : displayProbability > 0.5 ? "medium" : "high";
+        }
         <div class="result-header">
-            <span class="result-badge @(Model.IsBot ? (Model.Confidence > 0.7 ? "bot" : "suspicious") : "human")">
-                @(Model.IsBot ? (Model.Confidence > 0.7 ? "Bot Detected" : "Suspicious") : "Human")
+            <span class="result-badge @(Model.IsBot ? (Model.BotProbability > 0.7 ? "bot" : "suspicious") : "human")">
+                @(Model.IsBot ? (Model.BotProbability > 0.7 ? "Bot Detected" : "Suspicious") : "Human")
             </span>
-            <span class="confidence-score @(Model.Confidence < 0.3 ? "low" : Model.Confidence < 0.7 ? "medium" : "high")">
-                @Model.Confidence.ToString("P0")
+            <span class="confidence-score @colorClass">
+                @displayProbability.ToString("P0")
             </span>
-            <span style="color: #8b949e; font-size: 0.9em;">confidence</span>
+            <span style="color: #8b949e; font-size: 0.9em;">@probabilityLabel</span>
         </div>
 
         <div class="risk-action">
@@ -449,28 +456,47 @@
     <bot-detection-script endpoint="/bot-detection/fingerprint" />
 
     <script>
-        // Path toggle functionality
-        function togglePath() {
-            var isSlowPath = document.getElementById('pathToggle').checked;
-            document.getElementById('fastLabel').classList.toggle('active', !isSlowPath);
-            document.getElementById('slowLabel').classList.toggle('active', isSlowPath);
+        // Path toggle functionality with localStorage persistence
+        // Demo (slow) = full pipeline + AI, FastPath = all static detectors + bailout
+        function togglePath(triggerRefresh) {
+            var isDemoPath = document.getElementById('pathToggle').checked;
 
-            // Update all HTMX buttons to include path header
+            // Persist to localStorage
+            localStorage.setItem('botDetectionPath', isDemoPath ? 'demo' : 'fastpath');
+
+            document.getElementById('fastLabel').classList.toggle('active', !isDemoPath);
+            document.getElementById('slowLabel').classList.toggle('active', isDemoPath);
+
+            // Update all HTMX buttons to include policy header
             document.querySelectorAll('.test-btn[hx-get]').forEach(function(btn) {
                 var headers = JSON.parse(btn.getAttribute('hx-headers') || '{}');
-                if (isSlowPath) {
-                    headers['X-Force-Slow-Path'] = 'true';
-                    delete headers['X-Force-Fast-Path'];
-                } else {
-                    headers['X-Force-Fast-Path'] = 'true';
-                    delete headers['X-Force-Slow-Path'];
-                }
+                // Use X-Bot-Policy header to select the policy
+                headers['X-Bot-Policy'] = isDemoPath ? 'demo' : 'fastpath';
                 btn.setAttribute('hx-headers', JSON.stringify(headers));
             });
+
+            // Auto-refresh when toggling (but not on initial load)
+            if (triggerRefresh) {
+                var headers = {'X-Bot-Policy': isDemoPath ? 'demo' : 'fastpath'};
+                htmx.ajax('GET', '/bot-test', {target: 'body', swap: 'outerHTML', headers: headers});
+            }
         }
 
-        // Initialize path toggle
-        togglePath();
+        // Initialize path toggle from localStorage
+        (function initPathToggle() {
+            var savedPath = localStorage.getItem('botDetectionPath');
+            var toggle = document.getElementById('pathToggle');
+
+            // Default to demo path if not set
+            if (savedPath === 'fastpath') {
+                toggle.checked = false;
+            } else {
+                toggle.checked = true;
+            }
+
+            // Initialize without triggering refresh
+            togglePath(false);
+        })();
 
         // Intercept fingerprint data
         (function() {

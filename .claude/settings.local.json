@@ -14,7 +14,8 @@
       "Bash(taskkill:*)",
       "Bash(nul)",
       "Bash(cat:*)",
-      "Bash(docker build:*)"
+      "Bash(docker build:*)",
+      "Bash(powershell.exe -Command \"Stop-Process -Name ''Mostlylucid.BotDetection.Demo'' -Force -ErrorAction SilentlyContinue; Stop-Process -Name ''dotnet'' -Force -ErrorAction SilentlyContinue; Write-Host ''Cleaned up''\")"
     ],
     "deny": [],
     "ask": []

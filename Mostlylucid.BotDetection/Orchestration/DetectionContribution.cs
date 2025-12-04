@@ -510,15 +510,26 @@ public class EvidenceAggregator
         var totalWeight = weighted.Sum(w => w.weight);
         var weightedSum = weighted.Sum(w => w.delta * w.weight);
 
-        // Normalize to 0-1 range (input deltas are -1 to +1)
-        // weightedSum / totalWeight gives us a value in [-1, +1]
-        // We map this to [0, 1]
-        var normalizedScore = (weightedSum / totalWeight + 1) / 2;
-        var botProbability = Math.Clamp(normalizedScore, 0, 1);
+        // Use sigmoid to map weighted sum to [0, 1] probability
+        // This properly leverages strong signals from high-weight detectors (like AI)
+        //
+        // weightedSum is the sum of (delta * weight) where:
+        //   - Positive values indicate bot evidence
+        //   - Negative values indicate human evidence
+        //
+        // Sigmoid: 1 / (1 + e^(-x)) maps any real number to (0, 1)
+        // We scale the input so that typical evidence ranges produce reasonable outputs:
+        //   - Strong human signal (weightedSum = -3) → ~5% bot probability
+        //   - Neutral (weightedSum = 0) → 50% bot probability
+        //   - Strong bot signal (weightedSum = +3) → ~95% bot probability
+        var botProbability = 1.0 / (1.0 + Math.Exp(-weightedSum));
 
-        // Confidence based on total evidence weight
+        // Confidence based on total evidence weight and signal strength
         // More evidence = higher confidence
-        var confidence = Math.Min(1.0, totalWeight / 5.0); // Cap at weight of 5
+        // Stronger signals (further from 0.5) = higher confidence
+        var evidenceStrength = Math.Abs(botProbability - 0.5) * 2; // 0 at 0.5, 1 at extremes
+        var weightFactor = Math.Min(1.0, totalWeight / 5.0);
+        var confidence = Math.Max(weightFactor, evidenceStrength);
 
         return (botProbability, confidence);
     }

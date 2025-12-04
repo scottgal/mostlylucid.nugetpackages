@@ -59,20 +59,35 @@ public class LlmDetector : IDetector, IDisposable
             var requestInfo = BuildRequestInfo(context);
             var analysis = await AnalyzeWithLlm(requestInfo, cancellationToken);
 
-            if (analysis.IsBot)
+            // Only report if we got a valid analysis (not the "Analysis failed" fallback)
+            if (analysis.Reasoning != "Analysis failed")
             {
-                result.Confidence = analysis.Confidence;
-                result.Reasons.Add(new DetectionReason
+                if (analysis.IsBot)
                 {
-                    Category = "LLM Analysis",
-                    Detail = analysis.Reasoning,
-                    ConfidenceImpact = analysis.Confidence
-                });
+                    result.Confidence = analysis.Confidence;
+                    result.Reasons.Add(new DetectionReason
+                    {
+                        Category = "LLM Analysis",
+                        Detail = analysis.Reasoning,
+                        ConfidenceImpact = analysis.Confidence
+                    });
 
-                result.BotType = analysis.BotType;
+                    result.BotType = analysis.BotType;
 
-                if (analysis.Confidence > 0.8)
-                    await LearnPattern(requestInfo, analysis, cancellationToken);
+                    if (analysis.Confidence > 0.8)
+                        await LearnPattern(requestInfo, analysis, cancellationToken);
+                }
+                else
+                {
+                    // Human classification - add reason with negative confidence impact
+                    result.Confidence = 1.0 - analysis.Confidence; // Inverse for human score
+                    result.Reasons.Add(new DetectionReason
+                    {
+                        Category = "LLM Analysis",
+                        Detail = $"LLM classified as human: {analysis.Reasoning}",
+                        ConfidenceImpact = -analysis.Confidence // Negative = evidence of human
+                    });
+                }
             }
 
             stopwatch.Stop();
@@ -236,31 +251,54 @@ public class LlmDetector : IDetector, IDisposable
 
             var response = responseBuilder.ToString();
 
+            // Strip markdown code fences if present (```json ... ``` or ``` ... ```)
+            var cleanedResponse = StripMarkdownCodeFences(response);
+
+            // JSON options for case-insensitive parsing (LLM outputs camelCase, C# uses PascalCase)
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            };
+
             // Try to parse as JSON first
             try
             {
-                var analysisResult = JsonSerializer.Deserialize<LlmAnalysisJson>(response);
+                var analysisResult = JsonSerializer.Deserialize<LlmAnalysisJson>(cleanedResponse, jsonOptions);
                 if (analysisResult != null)
+                {
+                    _logger.LogDebug("LLM response parsed: isBot={IsBot}, confidence={Confidence}, reasoning={Reasoning}",
+                        analysisResult.IsBot, analysisResult.Confidence, analysisResult.Reasoning);
                     return CreateAnalysis(analysisResult);
+                }
             }
-            catch (JsonException)
+            catch (JsonException ex)
             {
-                // Fall back to extracting JSON from response
+                _logger.LogDebug(ex, "Direct JSON parse failed, trying to extract JSON from response");
             }
 
             // Extract JSON from response (model might include extra text)
-            var jsonStart = response.IndexOf('{');
-            var jsonEnd = response.LastIndexOf('}');
+            var jsonStart = cleanedResponse.IndexOf('{');
+            var jsonEnd = cleanedResponse.LastIndexOf('}');
             if (jsonStart >= 0 && jsonEnd > jsonStart)
             {
-                var jsonText = response.Substring(jsonStart, jsonEnd - jsonStart + 1);
-                var analysisResult = JsonSerializer.Deserialize<LlmAnalysisJson>(jsonText);
-
-                if (analysisResult != null)
-                    return CreateAnalysis(analysisResult);
+                var jsonText = cleanedResponse.Substring(jsonStart, jsonEnd - jsonStart + 1);
+                try
+                {
+                    var analysisResult = JsonSerializer.Deserialize<LlmAnalysisJson>(jsonText, jsonOptions);
+                    if (analysisResult != null)
+                    {
+                        _logger.LogDebug("LLM response extracted and parsed: isBot={IsBot}, confidence={Confidence}, reasoning={Reasoning}",
+                            analysisResult.IsBot, analysisResult.Confidence, analysisResult.Reasoning);
+                        return CreateAnalysis(analysisResult);
+                    }
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogDebug(ex, "Failed to parse extracted JSON: {Json}", jsonText);
+                }
             }
 
-            _logger.LogWarning("Failed to parse LLM response: {Response}", response);
+            _logger.LogWarning("Failed to parse LLM response: {Response}", response.Length > 500 ? response[..500] + "..." : response);
         }
         catch (OperationCanceledException)
         {
@@ -340,6 +378,42 @@ public class LlmDetector : IDetector, IDisposable
         {
             _fileLock.Release();
         }
+    }
+
+    /// <summary>
+    ///     Strips markdown code fences from LLM response.
+    ///     Handles: ```json ... ```, ``` ... ```, and variations.
+    /// </summary>
+    private static string StripMarkdownCodeFences(string response)
+    {
+        if (string.IsNullOrWhiteSpace(response))
+            return response;
+
+        var trimmed = response.Trim();
+
+        // Handle ```json or ```JSON or ``` at the start
+        if (trimmed.StartsWith("```"))
+        {
+            // Find the end of the first line (after ```json or ```)
+            var firstNewline = trimmed.IndexOf('\n');
+            if (firstNewline > 0)
+            {
+                trimmed = trimmed[(firstNewline + 1)..];
+            }
+            else
+            {
+                // Just ``` on one line, skip it
+                trimmed = trimmed[3..];
+            }
+        }
+
+        // Handle ``` at the end
+        if (trimmed.EndsWith("```"))
+        {
+            trimmed = trimmed[..^3];
+        }
+
+        return trimmed.Trim();
     }
 
     private static BotType ParseBotType(string? botType)

@@ -57,17 +57,18 @@ public class ClientSideDetector : IDetector
 
             if (fingerprint == null)
             {
-                // No fingerprint available - might be first request or JS not executed
-                // This is not necessarily suspicious, but worth noting
+                // No fingerprint available - might be first request, JS not executed,
+                // privacy tool, or API call. This is NOT suspicious by itself.
+                // Missing data ≠ malicious - treat as neutral.
                 if (_options.ClientSide.Enabled)
                 {
                     result.Reasons.Add(new DetectionReason
                     {
                         Category = "ClientSide",
-                        Detail = "No browser fingerprint available (JS may not have executed)",
-                        ConfidenceImpact = 0.1 // Small bump
+                        Detail = "No browser fingerprint available (awaiting JS execution)",
+                        ConfidenceImpact = 0 // Neutral - absence of data is not evidence
                     });
-                    result.Confidence += 0.1;
+                    // No confidence adjustment - neutral signal
                 }
 
                 stopwatch.Stop();
@@ -164,6 +165,7 @@ public class ClientSideDetector : IDetector
 
     private static string HashIp(string ip)
     {
+        // Fast XxHash64 - MUST match BrowserTokenService.HashIp
         var ipBytes = Encoding.UTF8.GetBytes(ip + ":MLBotD-IP-Salt");
         var hash = XxHash64.Hash(ipBytes);
         return Convert.ToHexString(hash).ToLowerInvariant();

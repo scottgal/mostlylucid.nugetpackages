@@ -96,17 +96,37 @@ public sealed record DetectionPolicy
     public bool BypassTriggerConditions { get; init; }
 
     /// <summary>
-    ///     Creates a default balanced policy suitable for most endpoints.
+    ///     Creates the default policy - a sensible baseline that can be overridden via JSON config.
+    ///
+    ///     This is a FALLBACK - define your policy in appsettings.json for full control:
+    ///
+    ///     "Policies": {
+    ///       "default": {
+    ///         "FastPath": ["UserAgent", "Header", "Ip", "Behavioral", "ClientSide", "Inconsistency"],
+    ///         "AiPath": ["Onnx"],  // Add any AI detectors here for sync decision
+    ///         "EscalateToAi": true,
+    ///         "AiEscalationThreshold": 0.0,
+    ///         "EarlyExitThreshold": 0.85,
+    ///         "ImmediateBlockThreshold": 0.95
+    ///       }
+    ///     }
+    ///
+    ///     LEARNING: Async background service queues uncertain requests for full AI analysis.
     /// </summary>
     public static DetectionPolicy Default => new()
     {
         Name = "default",
-        Description = "Balanced detection for general use",
-        FastPathDetectors = ["UserAgent", "Header", "Ip"],
-        SlowPathDetectors = ["Inconsistency"],
-        AiPathDetectors = ["AI"],
+        Description = "Fast path with early bailout - configure AI detectors via JSON",
+        // All static/fast detectors - no hardcoded AI
+        FastPathDetectors = ["UserAgent", "Header", "Ip", "Behavioral", "ClientSide", "Inconsistency", "VersionAge"],
+        SlowPathDetectors = [],
+        AiPathDetectors = [], // Empty by default - add ONNX/LLM/others via JSON config
         UseFastPath = true,
-        EscalateToAi = false
+        ForceSlowPath = false,
+        EscalateToAi = false, // Off by default - enable via JSON with AI detectors
+        // Early bailout thresholds for performance
+        EarlyExitThreshold = 0.85,
+        ImmediateBlockThreshold = 0.95
     };
 
     /// <summary>
@@ -181,6 +201,112 @@ public sealed record DetectionPolicy
         [
             PolicyTransition.OnSignal("VerifiedGoodBot", PolicyAction.Allow)
         ]
+    };
+
+    /// <summary>
+    ///     Creates the LEARNING policy - used by the async learning background service.
+    ///     When uncertain requests exceed threshold, they're queued and processed with this policy.
+    ///     Runs ALL detectors including ONNX + LLM to gather maximum signal for training.
+    ///     Does NOT block - logs only for pattern learning and model improvement.
+    /// </summary>
+    public static DetectionPolicy Learning => new()
+    {
+        Name = "learning",
+        Description = "Async learning - full pipeline with ONNX + LLM for new/uncertain patterns",
+        FastPathDetectors = [], // Empty = run ALL registered fast detectors
+        SlowPathDetectors = [], // Empty = run ALL registered slow detectors
+        AiPathDetectors = [], // Empty = run ALL registered AI detectors (ONNX + LLM)
+        UseFastPath = false, // Don't use fast path shortcuts
+        ForceSlowPath = true, // Always run slow path
+        EscalateToAi = true, // Always run AI (ONNX + LLM)
+        AiEscalationThreshold = 0.0, // Always escalate - learn from everything
+        EarlyExitThreshold = 0.0, // Never early exit - always get full picture
+        ImmediateBlockThreshold = 1.0, // Never block - learning mode
+        BypassTriggerConditions = true, // Run all detectors regardless of triggers
+        Timeout = TimeSpan.FromSeconds(10) // Allow more time for thorough analysis
+    };
+
+    /// <summary>
+    ///     Creates a monitor policy that runs silently without blocking.
+    ///     Use this to observe traffic patterns before enabling enforcement.
+    ///     Fast path runs, escalates to AI for uncertain cases, but never blocks.
+    /// </summary>
+    public static DetectionPolicy Monitor => new()
+    {
+        Name = "monitor",
+        Description = "Shadow mode - detect and log, never block",
+        FastPathDetectors = ["UserAgent", "Header", "Ip", "Behavioral"],
+        SlowPathDetectors = ["Inconsistency", "ClientSide"],
+        AiPathDetectors = ["Onnx"], // Use fast ONNX, not LLM
+        UseFastPath = true,
+        EscalateToAi = true,
+        AiEscalationThreshold = 0.5, // Escalate uncertain cases
+        EarlyExitThreshold = 0.2, // Early exit for clear humans
+        ImmediateBlockThreshold = 1.0 // Never block - monitor only
+    };
+
+    /// <summary>
+    ///     Creates an API policy optimized for API endpoints.
+    ///     Focuses on behavioral and header analysis, minimal latency.
+    /// </summary>
+    public static DetectionPolicy Api => new()
+    {
+        Name = "api",
+        Description = "Optimized for API endpoints - low latency, behavioral focus",
+        FastPathDetectors = ["UserAgent", "Header", "Ip", "Behavioral"],
+        SlowPathDetectors = [], // No slow path for API latency
+        AiPathDetectors = ["Onnx"], // Fast ONNX only if escalated
+        UseFastPath = true,
+        EscalateToAi = true,
+        AiEscalationThreshold = 0.7, // High threshold - minimize AI calls
+        EarlyExitThreshold = 0.3,
+        ImmediateBlockThreshold = 0.95,
+        Timeout = TimeSpan.FromMilliseconds(100), // Tight timeout for API
+        WeightOverrides = new Dictionary<string, double>
+        {
+            ["Behavioral"] = 2.0 // Weight behavioral heavily for API
+        }.ToImmutableDictionary()
+    };
+
+    /// <summary>
+    ///     Creates a fast path policy WITH ONNX for decision-only (inference).
+    ///     Uses ONNX for real-time decisions but does NOT trigger learning.
+    ///     Good for production when you want ML decisions without learning overhead.
+    /// </summary>
+    public static DetectionPolicy FastWithOnnx => new()
+    {
+        Name = "fast-onnx",
+        Description = "Fast path + ONNX inference (decision-only, no learning)",
+        FastPathDetectors = ["UserAgent", "Header", "Ip", "Behavioral", "ClientSide", "Inconsistency", "VersionAge"],
+        SlowPathDetectors = [],
+        AiPathDetectors = ["Onnx"], // ONNX for inference only
+        UseFastPath = true,
+        ForceSlowPath = false,
+        EscalateToAi = true, // Run ONNX sync
+        AiEscalationThreshold = 0.0, // Always run ONNX
+        EarlyExitThreshold = 0.85,
+        ImmediateBlockThreshold = 0.95
+    };
+
+    /// <summary>
+    ///     Creates a fast path policy WITH ONNX + LLM for decision-only.
+    ///     Uses both ONNX and LLM for real-time decisions but does NOT trigger learning.
+    ///     Higher latency but maximum accuracy without learning overhead.
+    /// </summary>
+    public static DetectionPolicy FastWithAi => new()
+    {
+        Name = "fast-ai",
+        Description = "Fast path + ONNX + LLM inference (decision-only, no learning)",
+        FastPathDetectors = ["UserAgent", "Header", "Ip", "Behavioral", "ClientSide", "Inconsistency", "VersionAge"],
+        SlowPathDetectors = [],
+        AiPathDetectors = ["Onnx", "Llm"], // Both for inference only
+        UseFastPath = true,
+        ForceSlowPath = false,
+        EscalateToAi = true, // Run AI sync
+        AiEscalationThreshold = 0.0, // Always run AI
+        EarlyExitThreshold = 0.85,
+        ImmediateBlockThreshold = 0.95,
+        Timeout = TimeSpan.FromSeconds(3) // Allow time for LLM
     };
 }
 

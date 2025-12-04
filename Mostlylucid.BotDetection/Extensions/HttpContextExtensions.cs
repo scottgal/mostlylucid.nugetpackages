@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Mostlylucid.BotDetection.Middleware;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.BotDetection.Orchestration;
 
 namespace Mostlylucid.BotDetection.Extensions;
 
@@ -314,41 +315,5 @@ public static class HttpContextExtensions
     }
 }
 
-/// <summary>
-///     Risk bands for categorizing request risk level.
-/// </summary>
-public enum RiskBand
-{
-    /// <summary>Detection hasn't run or no data available.</summary>
-    Unknown = 0,
-
-    /// <summary>Low risk - allow normally.</summary>
-    Low = 1,
-
-    /// <summary>Elevated risk - consider throttling or soft challenge.</summary>
-    Elevated = 2,
-
-    /// <summary>Medium risk - recommend challenge (CAPTCHA, proof-of-work).</summary>
-    Medium = 3,
-
-    /// <summary>High risk - recommend blocking.</summary>
-    High = 4
-}
-
-/// <summary>
-///     Recommended actions based on risk assessment.
-/// </summary>
-public enum RecommendedAction
-{
-    /// <summary>Allow the request normally.</summary>
-    Allow,
-
-    /// <summary>Apply rate limiting or throttling.</summary>
-    Throttle,
-
-    /// <summary>Present a challenge (CAPTCHA, proof-of-work, JS challenge).</summary>
-    Challenge,
-
-    /// <summary>Block the request.</summary>
-    Block
-}
+// NOTE: RiskBand and RecommendedAction enums are now in Mostlylucid.BotDetection.Orchestration.DetectionContribution
+// Use: using Mostlylucid.BotDetection.Orchestration;

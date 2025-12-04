@@ -1359,35 +1359,33 @@ public class OllamaOptions
     ///     Uses strict JSON schema to prevent malformed output.
     ///     Receives TOML-formatted evidence from all prior detectors.
     /// </summary>
-    public const string DefaultPrompt = @"You are a bot detector. Analyze the request and prior detector evidence below.
+    public const string DefaultPrompt = @"Bot detector. Analyze this request:
 
 {REQUEST_INFO}
 
-CONTEXT:
-- [request] = raw HTTP request data
-- [evidence] = aggregated bot probability from prior detectors (if present)
-- [detectors] = individual detector results with confidence deltas (+positive=bot, -negative=human)
-- [categories] = detection category scores (UA, Headers, IP, Behavioral, etc.)
-- [signals] = key signals from the detection pipeline
+DETECTION RULES:
+- High bot_probability + positive detector deltas = bot
+- Missing Accept-Language/Referer, datacenter IP = bot
+- Known bots: curl, wget, python-requests, scrapy, selenium, headless
+- Weak evidence = human (isBot=false)
 
-RULES:
-- Use detector evidence to inform your decision - they have already analyzed patterns
-- High bot_probability + multiple positive detector deltas = likely bot
-- Missing Accept-Language, missing Referer, datacenter IP = bot indicators
-- Known bots: curl, wget, python-requests, scrapy, selenium, headless, phantom
-- Verify bot claims match evidence - don't contradict strong detector signals
-- When uncertain AND detector evidence is weak, classify as human (isBot=false)
+CRITICAL OUTPUT FORMAT:
+- Output ONLY raw JSON. Nothing else.
+- NO markdown. NO ```json. NO ``` fences.
+- NO text before or after the JSON.
+- Start with { and end with }
 
-OUTPUT: Return ONLY a single JSON object:
-{
-  ""isBot"": <boolean>,
-  ""confidence"": <number 0.0-1.0>,
-  ""reasoning"": ""<max 50 chars>"",
-  ""botType"": ""<scraper|searchengine|monitor|malicious|unknown>"",
-  ""pattern"": ""<identifier or empty>""
-}
+EXACT JSON SCHEMA (copy this structure):
+{""isBot"":false,""confidence"":0.5,""reasoning"":""brief reason"",""botType"":""unknown"",""pattern"":""""}
 
-JSON:";
+Fields:
+- isBot: true or false
+- confidence: 0.0 to 1.0
+- reasoning: max 50 chars
+- botType: scraper|searchengine|monitor|malicious|social|good|unknown
+- pattern: identifier string or empty
+
+Output:";
 }
 
 /// <summary>

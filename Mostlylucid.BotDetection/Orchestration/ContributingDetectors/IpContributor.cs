@@ -67,17 +67,22 @@ public class IpContributor : ContributingDetectorBase
 
         // Check for localhost/local network
         var isLocal = IsLocalIp(clientIp);
+        var isLoopback = clientIp is "::1" or "127.0.0.1" or "localhost";
         signals.Add(SignalKeys.IpIsLocal, isLocal);
 
         if (isLocal)
         {
+            // Loopback addresses (::1, 127.0.0.1) are typical dev/test environments - neutral
+            // Other private IPs (192.168.x.x, 10.x.x.x) could be internal tools - slight indicator
             contributions.Add(new DetectionContribution
             {
                 DetectorName = Name,
                 Category = "IP",
-                ConfidenceDelta = 0.1, // Slight bot indicator (could be testing)
+                ConfidenceDelta = isLoopback ? 0 : 0.1, // Loopback is neutral, other private IPs slight indicator
                 Weight = 0.5,
-                Reason = $"Local/private IP address: {MaskIp(clientIp)}",
+                Reason = isLoopback
+                    ? $"Localhost/loopback address: {MaskIp(clientIp)} (neutral in dev)"
+                    : $"Private network IP: {MaskIp(clientIp)}",
                 Signals = signals.ToImmutable()
             });
         }

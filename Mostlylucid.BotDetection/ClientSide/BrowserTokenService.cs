@@ -1,3 +1,4 @@
+using System.IO.Hashing;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -196,10 +197,11 @@ public class BrowserTokenService : IBrowserTokenService
 
     private static string HashIp(string ip)
     {
-        // Hash IP to avoid storing raw IPs in tokens
+        // Fast XxHash64 for IP hashing - MUST match ClientSideDetector.HashIp
+        // (Cryptographic signing uses HMAC-SHA256 separately)
         var ipBytes = Encoding.UTF8.GetBytes(ip + ":MLBotD-IP-Salt");
-        var hash = SHA256.HashData(ipBytes);
-        return Convert.ToHexString(hash[..8]).ToLowerInvariant();
+        var hash = XxHash64.Hash(ipBytes);
+        return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
     private static string GetClientIp(HttpContext context)

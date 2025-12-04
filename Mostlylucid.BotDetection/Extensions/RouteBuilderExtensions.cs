@@ -91,14 +91,19 @@ public static class RouteBuilderExtensions
                 && evidenceObj is AggregatedEvidence evidence)
             {
                 // Return full pipeline evidence
+                var isHuman = evidence.BotProbability < 0.5;
                 return Results.Ok(new
                 {
                     policy = policyName,
-                    isBot = evidence.BotProbability >= 0.5,
-                    isHuman = evidence.BotProbability < 0.5,
+                    isBot = !isHuman,
+                    isHuman,
                     isVerifiedBot = context.IsVerifiedBot(),
                     isSearchEngineBot = context.IsSearchEngineBot(),
-                    confidenceScore = evidence.BotProbability,
+                    // Primary score: how likely is this a human (0-1)?
+                    humanProbability = 1.0 - evidence.BotProbability,
+                    // Secondary: how likely is this a bot (0-1)?
+                    botProbability = evidence.BotProbability,
+                    // Overall confidence in our classification (how certain are we?)
                     confidence = evidence.Confidence,
                     botType = evidence.PrimaryBotType?.ToString(),
                     botName = evidence.PrimaryBotName,
@@ -117,6 +122,8 @@ public static class RouteBuilderExtensions
                         category = c.Category,
                         detail = c.Reason?.Replace("\r\n", " ").Replace("\r", " ").Replace("\n", " ").Trim(),
                         impact = c.ConfidenceDelta,
+                        weight = c.Weight,
+                        weightedImpact = c.ConfidenceDelta * c.Weight,
                         detector = c.DetectorName
                     })
                 });
@@ -129,7 +136,8 @@ public static class RouteBuilderExtensions
                 isHuman = !result.IsBot,
                 isVerifiedBot = context.IsVerifiedBot(),
                 isSearchEngineBot = context.IsSearchEngineBot(),
-                confidenceScore = result.ConfidenceScore,
+                humanProbability = result.IsBot ? 1.0 - result.ConfidenceScore : result.ConfidenceScore,
+                botProbability = result.IsBot ? result.ConfidenceScore : 1.0 - result.ConfidenceScore,
                 botType = result.BotType?.ToString(),
                 botName = result.BotName,
                 processingTimeMs = result.ProcessingTimeMs,
@@ -204,7 +212,8 @@ public static class RouteBuilderExtensions
             Orchestration.RiskBand.VeryHigh => ("Block", $"Very high risk (probability: {evidence.BotProbability:P0})"),
             Orchestration.RiskBand.High => ("Block", $"High risk (probability: {evidence.BotProbability:P0})"),
             Orchestration.RiskBand.Medium => ("Challenge", $"Medium risk (probability: {evidence.BotProbability:P0})"),
-            Orchestration.RiskBand.Low => ("Throttle", $"Low risk (probability: {evidence.BotProbability:P0})"),
+            Orchestration.RiskBand.Elevated => ("Throttle", $"Elevated risk (probability: {evidence.BotProbability:P0})"),
+            Orchestration.RiskBand.Low => ("Allow", $"Low risk (probability: {evidence.BotProbability:P0})"),
             Orchestration.RiskBand.VeryLow => ("Allow", $"Very low risk (probability: {evidence.BotProbability:P0})"),
             _ => ("Allow", "Default action")
         };

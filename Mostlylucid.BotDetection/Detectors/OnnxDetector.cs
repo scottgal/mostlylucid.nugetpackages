@@ -333,18 +333,19 @@ public class OnnxDetector : IDetector, IDisposable
             result.Reasons.Add(new DetectionReason
             {
                 Category = "ONNX-Heuristic",
-                Detail = $"Heuristic classification as bot (probability: {probability:F2})",
+                Detail = $"Heuristic: {probability:P0} bot likelihood",
                 ConfidenceImpact = result.Confidence
             });
         }
         else
         {
             // Human-like - return negative impact (helps with demo visibility)
+            var humanProbability = 1.0 - probability;
             result.Confidence = (0.5 - probability) * 2; // Scale 0-0.5 to 0-1 (inverted)
             result.Reasons.Add(new DetectionReason
             {
                 Category = "ONNX-Heuristic",
-                Detail = $"Heuristic classification as human (probability: {probability:F2})",
+                Detail = $"Heuristic: {humanProbability:P0} human likelihood",
                 ConfidenceImpact = -result.Confidence // Negative = human indicator
             });
         }

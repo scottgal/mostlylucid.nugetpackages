@@ -54,6 +54,11 @@ public class PolicyRegistry : IPolicyRegistry
         RegisterPolicy(DetectionPolicy.Strict);
         RegisterPolicy(DetectionPolicy.Relaxed);
         RegisterPolicy(DetectionPolicy.AllowVerifiedBots);
+        RegisterPolicy(DetectionPolicy.Learning);
+        RegisterPolicy(DetectionPolicy.Monitor);
+        RegisterPolicy(DetectionPolicy.Api);
+        RegisterPolicy(DetectionPolicy.FastWithOnnx);
+        RegisterPolicy(DetectionPolicy.FastWithAi);
 
         // Load policies from configuration
         LoadFromOptions(options.Value);

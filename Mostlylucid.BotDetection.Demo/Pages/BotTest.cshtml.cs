@@ -10,7 +10,8 @@ public class BotTestModel : PageModel
 {
     // Core detection results
     public bool IsBot { get; set; }
-    public double Confidence { get; set; }
+    public double BotProbability { get; set; }
+    public double HumanProbability { get; set; }
     public string BotType { get; set; } = "None";
     public string BotName { get; set; } = "None";
 
@@ -33,7 +34,8 @@ public class BotTestModel : PageModel
     {
         // Core detection
         IsBot = HttpContext.IsBot();
-        Confidence = HttpContext.GetBotConfidence();
+        BotProbability = HttpContext.GetBotConfidence();
+        HumanProbability = 1.0 - BotProbability;
         BotType = HttpContext.GetBotType()?.ToString() ?? "None";
         BotName = HttpContext.GetBotName() ?? "None";
 
