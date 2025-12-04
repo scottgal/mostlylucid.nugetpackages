@@ -129,14 +129,5 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-    - name: Update Docker Hub description
-      uses: peter-evans/dockerhub-description@v4
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-        repository: ${{ env.IMAGE_NAME }}
-        readme-filepath: ./Mostlylucid.YarpGateway/README.md
-        short-description: "Lightweight YARP reverse proxy gateway for Docker"
-
     - name: Image digest
       run: echo "Image pushed with digest ${{ steps.meta.outputs.digest }}"
