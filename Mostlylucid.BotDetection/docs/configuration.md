@@ -133,7 +133,7 @@ Complete reference with all available options:
       // Ollama Settings (for LLM escalation)
       "Ollama": {
         "Endpoint": "http://localhost:11434",
-        "Model": "gemma3:1b",
+        "Model": "gemma3:4b",
         "UseJsonMode": true,
         "Temperature": 0.1,
         "MaxTokens": 256
@@ -338,7 +338,7 @@ AI detection provides machine learning-based classification with continuous lear
       },
       "Ollama": {
         "Endpoint": "http://localhost:11434",
-        "Model": "gemma3:1b",
+        "Model": "gemma3:4b",
         "UseJsonMode": true,
         "Temperature": 0.1,
         "MaxTokens": 256

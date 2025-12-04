@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'botdetection-v*.*.*'
+      - 'allbot-v*.*.*'
 
 permissions:
   id-token: write
@@ -27,15 +28,21 @@ jobs:
     - name: Extract version from tag
       id: get_version
       run: |
-        TAG=${GITHUB_REF#refs/tags/botdetection-v}
-        echo "VERSION=$TAG" >> $GITHUB_OUTPUT
-        echo "Publishing version: $TAG"
+        # Handle both botdetection-v* and allbot-v* tags
+        TAG=${GITHUB_REF#refs/tags/}
+        if [[ "$TAG" == botdetection-v* ]]; then
+          VERSION=${TAG#botdetection-v}
+        else
+          VERSION=${TAG#allbot-v}
+        fi
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "Publishing version: $VERSION"
 
     - name: Restore dependencies
       run: |
         dotnet restore Mostlylucid.BotDetection/Mostlylucid.BotDetection.csproj
         dotnet restore Mostlylucid.BotDetection.Test/Mostlylucid.BotDetection.Test.csproj
-        dotnet restore Mostlylucid.BotDetection.Tests/Mostlylucid.BotDetection.Tests.csproj
+        dotnet restore Mostlylucid.BotDetection.Orchestration.Tests/Mostlylucid.BotDetection.Orchestration.Tests.csproj
 
     - name: Build
       run: dotnet build Mostlylucid.BotDetection/Mostlylucid.BotDetection.csproj --configuration Release --no-restore
@@ -46,7 +53,7 @@ jobs:
           --configuration Release \
           --verbosity normal \
           --filter "Category!=Integration"
-        dotnet test Mostlylucid.BotDetection.Tests/Mostlylucid.BotDetection.Tests.csproj \
+        dotnet test Mostlylucid.BotDetection.Orchestration.Tests/Mostlylucid.BotDetection.Orchestration.Tests.csproj \
           --configuration Release \
           --verbosity normal \
           --filter "Category!=Integration"

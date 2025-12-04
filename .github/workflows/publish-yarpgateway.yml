@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'yarpgateway-v*'
+      - 'allbot-v*.*.*'
   workflow_dispatch:
     inputs:
       version:
@@ -40,7 +41,13 @@ jobs:
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
           VERSION="${{ github.event.inputs.version }}"
         else
-          VERSION=${GITHUB_REF#refs/tags/yarpgateway-v}
+          # Handle both yarpgateway-v* and allbot-v* tags
+          TAG=${GITHUB_REF#refs/tags/}
+          if [[ "$TAG" == yarpgateway-v* ]]; then
+            VERSION=${TAG#yarpgateway-v}
+          else
+            VERSION=${TAG#allbot-v}
+          fi
         fi
         DATE=$(date +%Y%m%d)
 

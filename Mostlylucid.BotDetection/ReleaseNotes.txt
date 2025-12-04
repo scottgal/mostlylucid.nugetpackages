@@ -1,3 +1,30 @@
+1.0.0
+
+🎉 First Stable Release!
+
+Bot detection middleware for ASP.NET Core with multi-signal detection,
+AI-powered classification with continuous learning, and full observability.
+
+Key Features:
+- Multi-signal detection: User-Agent, headers, IP ranges, behavioral analysis, client-side fingerprinting
+- AI-powered classification: Heuristic model (<1ms) with optional LLM escalation
+- Continuous learning: Heuristic weights adapt over time based on detection feedback
+- Composable policies: Separate detection (WHAT) from action (HOW)
+- Stealth responses: Throttle, challenge, or honeypot bots without revealing detection
+- Auto-updated threat intel: isbot patterns and cloud IP ranges
+- Full observability: OpenTelemetry traces and metrics
+
+Breaking Changes from Preview:
+- Default LLM model changed from gemma3:1b to gemma3:4b (better reasoning)
+- Default LLM timeout increased from 2000ms to 5000ms
+- ONNX provider removed in favor of Heuristic provider (faster, no external dependencies)
+
+Migration Guide:
+- Replace "Provider": "Onnx" with "Provider": "Heuristic" in config
+- Update Ollama model if using LLM escalation: gemma3:4b recommended
+
+---
+
 0.5.0-preview2
 
 Composable Action Policy System:
