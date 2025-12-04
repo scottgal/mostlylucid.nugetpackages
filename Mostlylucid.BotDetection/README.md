@@ -9,8 +9,8 @@ Bot detection middleware for ASP.NET Core with multi-signal detection, **AI-powe
 ## Key Features
 
 - **Multi-signal detection**: User-Agent + headers + IP ranges + behavioral analysis + client-side fingerprinting
-- **AI-powered classification**: ONNX ML models (1-10ms) with optional LLM escalation
-- **Continuous learning**: Pattern reputation system that learns and adapts over time
+- **AI-powered classification**: Heuristic model (<1ms) with optional LLM escalation for complex cases
+- **Continuous learning**: Heuristic weights adapt over time based on detection feedback
 - **Composable policies**: Separate detection (WHAT) from action (HOW) for maximum flexibility
 - **Stealth responses**: Throttle, challenge, or honeypot bots without revealing detection
 - **Auto-updated threat intel**: Pulls isbot patterns and cloud IP ranges automatically
@@ -70,10 +70,10 @@ app.Run();
 
     "EnableAiDetection": true,
     "AiDetection": {
-      "Provider": "Onnx",
-      "Onnx": {
-        "AutoDownloadModel": true,
-        "EnableHeuristicFallback": true
+      "Provider": "Heuristic",
+      "Heuristic": {
+        "Enabled": true,
+        "EnableWeightLearning": true
       }
     },
 
@@ -92,7 +92,7 @@ app.Run();
 ```
 
 This enables:
-- **AI detection** with ONNX (auto-downloads model, falls back to heuristics)
+- **AI detection** with Heuristic model (sub-millisecond, learns from feedback)
 - **Learning system** that improves detection over time
 - **Stealth throttling** (bots don't know they're being slowed)
 - **Path-based policies** (strict for sensitive endpoints)
@@ -136,7 +136,7 @@ public IActionResult Index() => View();
 | **Version Age** | Browser/OS version staleness detection | <1ms |
 | **Behavioral** | Rate limiting + anomaly detection | 1-5ms |
 | **Inconsistency** | Cross-signal mismatch detection | 1-5ms |
-| **ONNX AI** | ML-based classification with learning | 1-10ms |
+| **Heuristic AI** | Feature-weighted classification with learning | <1ms |
 | **LLM** | Full reasoning (escalation only) | 50-500ms |
 
 ## AI Detection & Learning (Key Differentiator)
@@ -144,11 +144,11 @@ public IActionResult Index() => View();
 The AI detection and learning system is what sets this library apart:
 
 ```
-Request → Fast Detectors → ONNX Model → Decision → Learning Bus
-                ↓                           ↓            ↓
-           Quick signals              Risk score    Pattern Reputation
-                                           ↓            ↓
-                                    Action Policy   Model Training
+Request → Fast Detectors → Heuristic Model → Decision → Learning Bus
+                ↓                                ↓            ↓
+           Quick signals                   Risk score    Pattern Reputation
+                                                ↓            ↓
+                                         Action Policy   Weight Updates
 ```
 
 ### Enable with:
@@ -158,8 +158,8 @@ Request → Fast Detectors → ONNX Model → Decision → Learning Bus
   "BotDetection": {
     "EnableAiDetection": true,
     "AiDetection": {
-      "Provider": "Onnx",
-      "Onnx": { "AutoDownloadModel": true }
+      "Provider": "Heuristic",
+      "Heuristic": { "Enabled": true, "EnableWeightLearning": true }
     },
     "Learning": { "Enabled": true }
   }
@@ -187,7 +187,7 @@ See [action-policies.md](docs/action-policies.md) for full details.
 | Feature | Description | Docs |
 |---------|-------------|------|
 | **Configuration** | Full options reference | [configuration.md](docs/configuration.md) |
-| **AI Detection** | ONNX models, GPU setup, training | [ai-detection.md](docs/ai-detection.md) |
+| **AI Detection** | Heuristic model, LLM escalation, learning | [ai-detection.md](docs/ai-detection.md) |
 | **Learning & Reputation** | Pattern learning, drift detection | [learning-and-reputation.md](docs/learning-and-reputation.md) |
 | **Action Policies** | Block, throttle, challenge, redirect | [action-policies.md](docs/action-policies.md) |
 | **Detection Policies** | Path-based detection configuration | [policies.md](docs/policies.md) |
@@ -235,21 +235,20 @@ app.MapBotDetectionEndpoints("/bot-detection");
 ## Service Registration Options
 
 ```csharp
-// Default: all heuristics + ONNX AI
+// Default: all detectors + Heuristic AI with learning
 builder.Services.AddBotDetection();
 
 // User-agent only (fastest, minimal)
 builder.Services.AddSimpleBotDetection();
 
-// All heuristics + LLM escalation (requires Ollama)
-builder.Services.AddAdvancedBotDetection("http://localhost:11434", "gemma3:1b");
+// All detectors + LLM escalation (requires Ollama)
+builder.Services.AddAdvancedBotDetection("http://localhost:11434", "gemma3:4b");
 ```
 
 ## Requirements
 
 - .NET 8.0 or .NET 9.0
-- Optional: CUDA for GPU-accelerated ONNX inference
-- Optional: [Ollama](https://ollama.ai/) for LLM-based detection
+- Optional: [Ollama](https://ollama.ai/) for LLM-based detection escalation
 
 ## License
 

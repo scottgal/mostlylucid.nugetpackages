@@ -17,6 +17,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  checks: write
+
 jobs:
   # Fast build check - just ensure everything compiles
   build-check:
@@ -94,7 +98,7 @@ jobs:
 
     - name: Test Report
       uses: dorny/test-reporter@v1
-      if: always()
+      if: always() && github.event_name != 'pull_request'
       with:
         name: BotDetection Test Results
         path: ./test-results/**/*.trx
