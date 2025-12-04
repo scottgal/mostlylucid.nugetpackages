@@ -87,8 +87,8 @@ public class PolicyEvaluator : IPolicyEvaluator
             ["Behavioral"] = 1.2,
             ["Inconsistency"] = 1.5,
             ["ClientSide"] = 1.3,
-            ["Onnx"] = 2.0,
-            ["Llm"] = 2.5,
+            ["Heuristic"] = 2.0,  // Meta-layer that consumes all evidence
+            ["Llm"] = 2.5,        // AI/LLM escalation
             ["IpReputation"] = 1.5
         };
     }
@@ -133,6 +133,32 @@ public class PolicyEvaluator : IPolicyEvaluator
                 });
         }
 
+        // Check if we should escalate to AI BEFORE early exit
+        // This ensures AI detectors run when configured, even for low-risk scores
+        // Skip if BypassTriggerConditions is true (all detectors including AI already ran)
+        var aiAlreadyRan = policy.BypassTriggerConditions ||
+                           (policy.AiPathDetectors.Count > 0 &&
+                            state.CompletedDetectors.Any(d => policy.AiPathDetectors.Contains(d, StringComparer.OrdinalIgnoreCase)));
+
+        if (policy.EscalateToAi &&
+            state.CurrentRiskScore >= policy.AiEscalationThreshold &&
+            !aiAlreadyRan)
+        {
+            _logger.LogDebug(
+                "Policy {PolicyName} escalating to AI at score {Score} (threshold: {Threshold})",
+                policy.Name, state.CurrentRiskScore, policy.AiEscalationThreshold);
+
+            return PolicyEvaluationResult.TakeAction(
+                PolicyAction.EscalateToAi,
+                new PolicyTransition
+                {
+                    WhenRiskExceeds = policy.AiEscalationThreshold,
+                    Action = PolicyAction.EscalateToAi,
+                    Description = "Escalate to AI analysis"
+                });
+        }
+
+        // Early exit check - only applies AFTER AI has run (or if AI is not configured)
         if (state.CurrentRiskScore <= policy.EarlyExitThreshold && policy.UseFastPath)
         {
             _logger.LogDebug(
@@ -146,31 +172,6 @@ public class PolicyEvaluator : IPolicyEvaluator
                     WhenRiskBelow = policy.EarlyExitThreshold,
                     Action = PolicyAction.Allow,
                     Description = "Early exit threshold met"
-                });
-        }
-
-        // Check if we should escalate to AI
-        // Skip if BypassTriggerConditions is true (all detectors including AI already ran)
-        // Also skip if AiPathDetectors is empty and BypassTriggerConditions is true
-        var aiAlreadyRan = policy.BypassTriggerConditions ||
-                           (policy.AiPathDetectors.Count > 0 &&
-                            state.CompletedDetectors.Any(d => policy.AiPathDetectors.Contains(d, StringComparer.OrdinalIgnoreCase)));
-
-        if (policy.EscalateToAi &&
-            state.CurrentRiskScore >= policy.AiEscalationThreshold &&
-            !aiAlreadyRan)
-        {
-            _logger.LogDebug(
-                "Policy {PolicyName} escalating to AI at score {Score}",
-                policy.Name, state.CurrentRiskScore);
-
-            return PolicyEvaluationResult.TakeAction(
-                PolicyAction.EscalateToAi,
-                new PolicyTransition
-                {
-                    WhenRiskExceeds = policy.AiEscalationThreshold,
-                    Action = PolicyAction.EscalateToAi,
-                    Description = "Escalate to AI analysis"
                 });
         }
 

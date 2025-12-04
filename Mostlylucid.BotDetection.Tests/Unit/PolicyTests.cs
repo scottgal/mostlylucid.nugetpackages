@@ -388,9 +388,9 @@ public class PolicyTests
             FastPathDetectors = ["UserAgent"]
         };
 
-        var weight = evaluator.GetEffectiveWeight(policy, "Onnx");
+        var weight = evaluator.GetEffectiveWeight(policy, "Heuristic");
 
-        Assert.Equal(2.0, weight); // Global default for Onnx
+        Assert.Equal(2.0, weight); // Global default for Heuristic
     }
 
     [Fact]

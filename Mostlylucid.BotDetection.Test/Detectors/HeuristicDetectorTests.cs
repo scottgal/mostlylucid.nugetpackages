@@ -7,20 +7,20 @@ using Mostlylucid.BotDetection.Test.Helpers;
 namespace Mostlylucid.BotDetection.Test.Detectors;
 
 /// <summary>
-///     Tests for OnnxDetector heuristic fallback and configuration
+///     Tests for HeuristicDetector with learned weights
 /// </summary>
-public class OnnxDetectorTests : IDisposable
+public class HeuristicDetectorTests : IDisposable
 {
-    private readonly ILogger<OnnxDetector> _logger;
+    private readonly ILogger<HeuristicDetector> _logger;
 
-    public OnnxDetectorTests()
+    public HeuristicDetectorTests()
     {
-        _logger = new Mock<ILogger<OnnxDetector>>().Object;
+        _logger = new Mock<ILogger<HeuristicDetector>>().Object;
     }
 
-    private OnnxDetector CreateDetector(BotDetectionOptions? options = null)
+    private HeuristicDetector CreateDetector(BotDetectionOptions? options = null)
     {
-        return new OnnxDetector(
+        return new HeuristicDetector(
             _logger,
             Options.Create(options ?? new BotDetectionOptions()));
     }
@@ -40,7 +40,7 @@ public class OnnxDetectorTests : IDisposable
         {
             AiDetection = new AiDetectionOptions
             {
-                Onnx = new OnnxOptions { Enabled = false }
+                Heuristic = new HeuristicOptions { Enabled = false }
             }
         };
         var detector = CreateDetector(options);
@@ -62,7 +62,7 @@ public class OnnxDetectorTests : IDisposable
         {
             AiDetection = new AiDetectionOptions
             {
-                Onnx = new OnnxOptions { Enabled = true, EnableHeuristicFallback = true }
+                Heuristic = new HeuristicOptions { Enabled = true }
             }
         };
         var detector = CreateDetector(options);
@@ -71,13 +71,13 @@ public class OnnxDetectorTests : IDisposable
         // Act
         var result = await detector.DetectAsync(context);
 
-        // Assert - should have a reason from heuristic fallback
+        // Assert - should have a reason from heuristic model
         Assert.NotEmpty(result.Reasons);
     }
 
     #endregion
 
-    #region Heuristic Fallback Tests
+    #region Heuristic Tests
 
     [Fact]
     public async Task DetectAsync_HumanLikeRequest_ReturnsNegativeConfidenceImpact()
@@ -87,7 +87,7 @@ public class OnnxDetectorTests : IDisposable
         {
             AiDetection = new AiDetectionOptions
             {
-                Onnx = new OnnxOptions { Enabled = true, EnableHeuristicFallback = true }
+                Heuristic = new HeuristicOptions { Enabled = true }
             }
         };
         var detector = CreateDetector(options);
@@ -119,7 +119,7 @@ public class OnnxDetectorTests : IDisposable
         {
             AiDetection = new AiDetectionOptions
             {
-                Onnx = new OnnxOptions { Enabled = true, EnableHeuristicFallback = true }
+                Heuristic = new HeuristicOptions { Enabled = true }
             }
         };
         var detector = CreateDetector(options);
@@ -149,7 +149,7 @@ public class OnnxDetectorTests : IDisposable
         {
             AiDetection = new AiDetectionOptions
             {
-                Onnx = new OnnxOptions { Enabled = true, EnableHeuristicFallback = true }
+                Heuristic = new HeuristicOptions { Enabled = true }
             }
         };
         var detector = CreateDetector(options);
@@ -169,14 +169,14 @@ public class OnnxDetectorTests : IDisposable
     #region Category Tests
 
     [Fact]
-    public async Task DetectAsync_HeuristicFallback_UsesCorrectCategory()
+    public async Task DetectAsync_Heuristic_UsesCorrectCategory()
     {
         // Arrange
         var options = new BotDetectionOptions
         {
             AiDetection = new AiDetectionOptions
             {
-                Onnx = new OnnxOptions { Enabled = true, EnableHeuristicFallback = true }
+                Heuristic = new HeuristicOptions { Enabled = true }
             }
         };
         var detector = CreateDetector(options);
@@ -187,7 +187,59 @@ public class OnnxDetectorTests : IDisposable
 
         // Assert
         Assert.NotEmpty(result.Reasons);
-        Assert.Equal("ONNX-Heuristic", result.Reasons.First().Category);
+        Assert.Equal("Heuristic", result.Reasons.First().Category);
+    }
+
+    #endregion
+
+    #region Feature Name Tests
+
+    [Fact]
+    public async Task GetFeatureNames_AfterDetection_ReturnsDynamicFeatures()
+    {
+        // Arrange
+        var options = new BotDetectionOptions
+        {
+            AiDetection = new AiDetectionOptions
+            {
+                Heuristic = new HeuristicOptions { Enabled = true }
+            }
+        };
+        var detector = CreateDetector(options);
+        var context = MockHttpContext.CreateWithUserAgent("Mozilla/5.0 Chrome/120");
+
+        // Act - Trigger initialization by running detection
+        await detector.DetectAsync(context);
+        var featureNames = detector.GetFeatureNames();
+
+        // Assert - Should have default weights loaded
+        Assert.True(featureNames.Count > 0, "Should have at least default feature names");
+        Assert.Contains("ua:contains_bot", featureNames);
+        Assert.Contains("hdr:accept-language", featureNames);
+    }
+
+    [Fact]
+    public async Task GetCurrentWeights_AfterDetection_ReturnsDynamicWeights()
+    {
+        // Arrange
+        var options = new BotDetectionOptions
+        {
+            AiDetection = new AiDetectionOptions
+            {
+                Heuristic = new HeuristicOptions { Enabled = true }
+            }
+        };
+        var detector = CreateDetector(options);
+        var context = MockHttpContext.CreateWithUserAgent("Mozilla/5.0 Chrome/120");
+
+        // Act - Trigger initialization by running detection
+        await detector.DetectAsync(context);
+        var weights = detector.GetCurrentWeights();
+
+        // Assert - Should have default weights for known patterns
+        Assert.True(weights.Count > 0, "Should have at least default weights");
+        Assert.True(weights.ContainsKey("ua:contains_bot"), "Should have weight for bot UA pattern");
+        Assert.True(weights["ua:contains_bot"] > 0, "Bot pattern should have positive weight");
     }
 
     #endregion

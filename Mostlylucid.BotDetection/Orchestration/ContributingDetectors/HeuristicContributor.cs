@@ -6,26 +6,26 @@ using Mostlylucid.BotDetection.Models;
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 
 /// <summary>
-///     ONNX ML model contributor - uses trained ML model for bot classification.
-///     Runs in Wave 1+ after initial detectors have run and when AI escalation is triggered.
+///     Heuristic model contributor - uses learned weights for bot classification.
+///     Runs in Wave 1+ after initial detectors have run.
 /// </summary>
-public class OnnxContributor : ContributingDetectorBase
+public class HeuristicContributor : ContributingDetectorBase
 {
-    private readonly ILogger<OnnxContributor> _logger;
-    private readonly OnnxDetector _detector;
+    private readonly ILogger<HeuristicContributor> _logger;
+    private readonly HeuristicDetector _detector;
 
-    public OnnxContributor(
-        ILogger<OnnxContributor> logger,
-        OnnxDetector detector)
+    public HeuristicContributor(
+        ILogger<HeuristicContributor> logger,
+        HeuristicDetector detector)
     {
         _logger = logger;
         _detector = detector;
     }
 
-    public override string Name => "Onnx";
+    public override string Name => "Heuristic";
     public override int Priority => 50; // Run after basic detectors
 
-    // Trigger when we have enough signals and want AI classification
+    // Trigger when we have enough signals and want heuristic classification
     public override IReadOnlyList<TriggerCondition> TriggerConditions =>
     [
         // Run when UserAgent signal exists (basic info available)
@@ -44,41 +44,42 @@ public class OnnxContributor : ContributingDetectorBase
 
             if (result.Reasons.Count == 0)
             {
-                // ONNX disabled or skipped
+                // Heuristic disabled or skipped
                 contributions.Add(new DetectionContribution
                 {
                     DetectorName = Name,
-                    Category = "AI",
+                    Category = "Heuristic",
                     ConfidenceDelta = 0,
                     Weight = 0,
-                    Reason = "ONNX detection disabled or skipped",
+                    Reason = "Heuristic detection disabled or skipped",
                     Signals = ImmutableDictionary<string, object>.Empty
                 });
             }
             else
             {
-                // ONNX made a prediction (use reason's ConfidenceImpact which is negative for human)
+                // Heuristic made a prediction (use reason's ConfidenceImpact which is negative for human)
                 var reason = result.Reasons.First();
                 var isBot = reason.ConfidenceImpact > 0;
 
                 contributions.Add(new DetectionContribution
                 {
                     DetectorName = Name,
-                    Category = "AI",
+                    Category = "Heuristic",
                     ConfidenceDelta = reason.ConfidenceImpact,
-                    Weight = 2.0, // AI predictions are weighted heavily
+                    Weight = 2.0, // Heuristic predictions are weighted heavily
                     Reason = reason.Detail,
                     BotType = result.BotType,
                     BotName = result.BotName,
                     Signals = ImmutableDictionary<string, object>.Empty
-                        .Add(SignalKeys.AiPrediction, isBot ? "bot" : "human")
-                        .Add(SignalKeys.AiConfidence, result.Confidence)
+                        .Add(SignalKeys.HeuristicPrediction, isBot ? "bot" : "human")
+                        .Add(SignalKeys.HeuristicConfidence, result.Confidence)
+                        .Add(SignalKeys.HeuristicEarlyCompleted, true) // Signal for late heuristic
                 });
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "ONNX detection failed");
+            _logger.LogWarning(ex, "Heuristic detection failed");
         }
 
         return contributions;

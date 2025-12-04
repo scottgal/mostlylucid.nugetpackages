@@ -30,6 +30,10 @@ public class BotTestModel : PageModel
     public int DetectorCount { get; set; }
     public List<string> DetectorsRan { get; set; } = new();
 
+    // AI explanation (from LLM or Heuristic detector)
+    public string? AiExplanation { get; set; }
+    public string AiExplanationSource { get; set; } = "";
+
     public void OnGet()
     {
         // Core detection
@@ -64,6 +68,24 @@ public class BotTestModel : PageModel
             foreach (var (category, info) in evidence.CategoryBreakdown)
             {
                 CategoryScores[category] = Math.Round(info.Score * 100, 1);
+            }
+
+            // Extract AI explanation from LLM or Heuristic detector
+            var llmContribution = evidence.Contributions
+                .FirstOrDefault(c => c.DetectorName == "Llm");
+            var heuristicContribution = evidence.Contributions
+                .FirstOrDefault(c => c.DetectorName == "Heuristic");
+
+            // Prefer LLM explanation (richer), fall back to Heuristic summary
+            if (llmContribution != null && !string.IsNullOrEmpty(llmContribution.Reason))
+            {
+                AiExplanation = llmContribution.Reason;
+                AiExplanationSource = "LLM";
+            }
+            else if (heuristicContribution != null && !string.IsNullOrEmpty(heuristicContribution.Reason))
+            {
+                AiExplanation = heuristicContribution.Reason;
+                AiExplanationSource = "Heuristic";
             }
         }
     }

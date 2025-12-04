@@ -32,6 +32,14 @@ public class BotDetectionOptions
     /// </summary>
     public bool EnableTestMode { get; set; }
 
+    /// <summary>
+    ///     Test mode simulations - mapping from test mode name to simulated User-Agent.
+    ///     Used when EnableTestMode is true and ml-bot-test-mode header is sent.
+    ///     The detection runs the REAL pipeline with the simulated User-Agent.
+    ///     Example: { "googlebot": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" }
+    /// </summary>
+    public Dictionary<string, string> TestModeSimulations { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
     // ==========================================
     // Detection Strategy Toggles
     // ==========================================
@@ -729,7 +737,7 @@ public class ClientSideOptions
 ///         <list type="bullet">
 ///             <item><b>Wave 1</b> - Fast pattern matching (&lt;1ms): UserAgent, Header</item>
 ///             <item><b>Wave 2</b> - Lookups and state (1-10ms): IP, Behavioral, ClientSide</item>
-///             <item><b>Wave 3</b> - Analysis (10-100ms): Inconsistency, ONNX</item>
+///             <item><b>Wave 3</b> - Analysis (10-100ms): Inconsistency, Heuristic</item>
 ///             <item><b>Wave 4</b> - AI/LLM (&gt;100ms): LLM detector</item>
 ///         </list>
 ///         Detectors in the same wave run in parallel. Waves execute sequentially.
@@ -749,7 +757,7 @@ public class ClientSideOptions
 ///         { "Name": "Behavioral", "Signal": "BehaviorAnalyzed", "Wave": 2, "Weight": 1.5 }
 ///       ],
 ///       "SlowPathDetectors": [
-///         { "Name": "ONNX", "Signal": "OnnxCompleted", "Wave": 3, "Weight": 2.0 },
+///         { "Name": "Heuristic", "Signal": "HeuristicCompleted", "Wave": 3, "Weight": 2.0 },
 ///         { "Name": "LLM", "Signal": "LlmCompleted", "Wave": 4, "Weight": 2.5 }
 ///       ]
 ///     }
@@ -1009,21 +1017,21 @@ public class FastPathOptions
     ///         </list>
     ///     </para>
     ///     <para>
-    ///         Default: ONNX ML inference detector.
+    ///         Default: Heuristic detector with learned weights.
     ///         Add custom detectors for specialized analysis.
     ///     </para>
     /// </remarks>
     /// <example>
     ///     <code>
     ///     "SlowPathDetectors": [
-    ///       { "Name": "ONNX", "Signal": "OnnxCompleted", "Wave": 1, "Weight": 2.0 },
+    ///       { "Name": "Heuristic Detector", "Signal": "AiClassificationCompleted", "Wave": 1, "Weight": 2.0 },
     ///       { "Name": "CustomMLModel", "Signal": "CustomMLCompleted", "Wave": 1, "Weight": 1.5 }
     ///     ]
     ///     </code>
     /// </example>
     public List<DetectorConfig> SlowPathDetectors { get; set; } =
     [
-        new() { Name = "ONNX Detector", Signal = "AiClassificationCompleted", ExpectedLatencyMs = 5, Wave = 1, Category = "AI", Weight = 2.0 }
+        new() { Name = "Heuristic Detector", Signal = "HeuristicCompleted", ExpectedLatencyMs = 1, Wave = 1, Category = "Heuristic", Weight = 2.0 }
     ];
 
     /// <summary>
@@ -1262,19 +1270,19 @@ public enum AiProvider
     Ollama,
 
     /// <summary>
-    ///     Use ONNX Runtime with a lightweight classification model.
-    ///     COMPACT: Works offline, no external dependencies, minimal resources.
-    ///     QUALITY: Good for common patterns, less nuanced than LLM.
-    ///     LATENCY: 1-10ms per request (very fast).
+    ///     Use heuristic-based detection with learned weights.
+    ///     LIGHTWEIGHT: No external dependencies, minimal resources, fast inference.
+    ///     QUALITY: Good for common patterns, improves over time via learning.
+    ///     LATENCY: &lt;1ms per request (extremely fast).
     ///     USE WHEN: You need fast, lightweight detection without external servers.
-    ///     NOTE: Falls back to heuristics if no model is available.
+    ///     NOTE: Weights are learned and persisted to database for continuous improvement.
     /// </summary>
-    Onnx
+    Heuristic
 }
 
 /// <summary>
 ///     Configuration for AI-based bot detection.
-///     Supports Ollama (LLM) or ONNX (classification model).
+///     Supports Ollama (LLM) or Heuristic (lightweight learned model).
 /// </summary>
 public class AiDetectionOptions
 {
@@ -1305,10 +1313,10 @@ public class AiDetectionOptions
     public OllamaOptions Ollama { get; set; } = new();
 
     /// <summary>
-    ///     ONNX-specific configuration.
-    ///     Only used when Provider is Onnx.
+    ///     Heuristic-specific configuration.
+    ///     Used for lightweight, fast bot detection with learned weights.
     /// </summary>
-    public OnnxOptions Onnx { get; set; } = new();
+    public HeuristicOptions Heuristic { get; set; } = new();
 }
 
 /// <summary>
@@ -1389,52 +1397,53 @@ Output:";
 }
 
 /// <summary>
-///     ONNX-specific configuration for AI detection.
-///     Uses a lightweight classification model for bot detection.
-///     COMPACT but less accurate than Ollama LLM - good for fast, offline detection.
+///     Heuristic-specific configuration for lightweight bot detection.
+///     Uses a simple linear model (logistic regression) with learned weights.
+///     Weights are persisted to the database and updated via learning feedback.
 /// </summary>
-public class OnnxOptions
+public class HeuristicOptions
 {
     /// <summary>
-    ///     Whether ONNX detection is enabled.
-    ///     Default: true (but requires model to be available or EnableHeuristicFallback = true)
+    ///     Whether heuristic detection is enabled.
+    ///     Default: true
     /// </summary>
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    ///     Path to the ONNX model file.
-    ///     If not specified, looks for {AppContext.BaseDirectory}/models/bot_classifier.onnx
-    ///     The models/ directory is created automatically and should be gitignored.
-    /// </summary>
-    public string? ModelPath { get; set; }
-
-    /// <summary>
-    ///     URL to download the ONNX model from if not present locally.
-    ///     Set to empty string to disable auto-download and use heuristic fallback.
-    ///     You can train your own model or use a pre-trained text classifier.
-    /// </summary>
-    public string ModelDownloadUrl { get; set; } = "";
-
-    /// <summary>
-    ///     Whether to download the model automatically at startup.
-    ///     If false and model doesn't exist, falls back to heuristic detection.
+    ///     Load learned weights from the WeightStore on startup.
+    ///     When true, weights persist across restarts and improve over time.
+    ///     When false, uses default weights only.
     ///     Default: true
     /// </summary>
-    public bool AutoDownloadModel { get; set; } = true;
+    public bool LoadLearnedWeights { get; set; } = true;
 
     /// <summary>
-    ///     Whether to use GPU acceleration if available.
-    ///     Requires Microsoft.ML.OnnxRuntime.Gpu package.
-    ///     Default: false (CPU only - recommended for most deployments)
-    /// </summary>
-    public bool UseGpu { get; set; } = false;
-
-    /// <summary>
-    ///     Enable heuristic fallback when no model is available.
-    ///     The heuristic uses feature weights learned from typical bot patterns.
+    ///     Update weights based on detection feedback.
+    ///     When enabled, the model improves as it processes more requests.
     ///     Default: true
     /// </summary>
-    public bool EnableHeuristicFallback { get; set; } = true;
+    public bool EnableWeightLearning { get; set; } = true;
+
+    /// <summary>
+    ///     Minimum confidence threshold for learning updates.
+    ///     Only detections with confidence >= this value contribute to weight updates.
+    ///     Range: 0.0-1.0. Default: 0.8
+    /// </summary>
+    public double MinConfidenceForLearning { get; set; } = 0.8;
+
+    /// <summary>
+    ///     Learning rate for weight updates.
+    ///     Higher values = faster adaptation but potentially less stable.
+    ///     Range: 0.001-0.5. Default: 0.01
+    /// </summary>
+    public double LearningRate { get; set; } = 0.01;
+
+    /// <summary>
+    ///     How often to reload weights from the store (in minutes).
+    ///     Set to 0 to disable periodic reloads (weights only load on startup).
+    ///     Default: 60 (hourly)
+    /// </summary>
+    public int WeightReloadIntervalMinutes { get; set; } = 60;
 }
 
 // ==========================================

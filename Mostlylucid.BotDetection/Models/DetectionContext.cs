@@ -234,7 +234,13 @@ public static class SignalKeys
     public const string RiskBand = "risk.band";
     public const string RiskScore = "risk.score";
 
+    // AI/LLM signals
     public const string AiPrediction = "ai.prediction";
     public const string AiConfidence = "ai.confidence";
     public const string AiLearnedPattern = "ai.learned_pattern";
+
+    // Heuristic signals (meta-layer that consumes all evidence)
+    public const string HeuristicPrediction = "heuristic.prediction";
+    public const string HeuristicConfidence = "heuristic.confidence";
+    public const string HeuristicEarlyCompleted = "heuristic.early_completed";
 }

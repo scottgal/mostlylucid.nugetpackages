@@ -69,5 +69,6 @@ public enum BotType
     Scraper,
     MaliciousBot,
     GoodBot,
-    VerifiedBot
+    VerifiedBot,
+    AiBot
 }

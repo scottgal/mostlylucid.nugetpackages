@@ -8,6 +8,7 @@ using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Services;
 namespace Mostlylucid.BotDetection.Tests.Integration;
 
+[Trait("Category", "Integration")]
 public class DetectionFlowTests
 {
     private readonly BotDetectionOptions _options;

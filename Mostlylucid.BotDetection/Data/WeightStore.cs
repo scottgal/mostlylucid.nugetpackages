@@ -148,6 +148,12 @@ public static class SignatureTypes
     public const string CombinedSignature = "combined";
     public const string DetectorName = "detector";
     public const string HeaderPattern = "header_pattern";
+
+    /// <summary>
+    ///     Heuristic detector feature weights.
+    ///     Used by <see cref="Detectors.HeuristicDetector"/> for learned classification.
+    /// </summary>
+    public const string HeuristicFeature = "heuristic_feature";
 }
 
 /// <summary>

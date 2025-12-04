@@ -262,6 +262,58 @@ public class BlackboardOrchestrator
                     {
                         if (evalResult.Action.HasValue)
                         {
+                            // Handle EscalateToAi specially - run AI detectors then continue
+                            if (evalResult.Action.Value == PolicyAction.EscalateToAi)
+                            {
+                                // Default AI detectors if none specified in policy
+                                var knownAiDetectors = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Onnx", "Llm" };
+                                var aiDetectorNames = policy.AiPathDetectors.Count > 0
+                                    ? policy.AiPathDetectors.ToHashSet(StringComparer.OrdinalIgnoreCase)
+                                    : knownAiDetectors; // Empty = run ALL known AI detectors
+
+                                // Get AI detectors that haven't run yet
+                                var aiDetectors = _detectors
+                                    .Where(d => d.IsEnabled && IsCircuitClosed(d.Name))
+                                    .Where(d => aiDetectorNames.Contains(d.Name))
+                                    .Where(d => !ranDetectors.Contains(d.Name))
+                                    .OrderBy(d => d.Priority)
+                                    .ToList();
+
+                                if (aiDetectors.Count > 0)
+                                {
+                                    _logger.LogDebug(
+                                        "Policy {Policy} escalating to AI, running {Count} AI detectors: {Names}",
+                                        policy.Name,
+                                        aiDetectors.Count,
+                                        string.Join(", ", aiDetectors.Select(d => d.Name)));
+
+                                    // Mark as ran
+                                    foreach (var detector in aiDetectors)
+                                    {
+                                        ranDetectors.Add(detector.Name);
+                                    }
+
+                                    // Execute AI detectors
+                                    await ExecuteWaveAsync(
+                                        aiDetectors,
+                                        state,
+                                        aggregator,
+                                        signals,
+                                        completedDetectors,
+                                        failedDetectors,
+                                        cts.Token);
+
+                                    // Update signals after AI ran
+                                    signals[DetectorCountTrigger.CompletedDetectorsSignal] = completedDetectors.Count;
+                                    signals[RiskThresholdTrigger.CurrentRiskSignal] = aggregator.Aggregate().BotProbability;
+
+                                    // Continue to allow early exit check after AI
+                                    waveNumber++;
+                                    continue;
+                                }
+                            }
+
+                            // For other actions (Block, Allow, Challenge), set final action and exit
                             finalAction = evalResult.Action.Value;
                             _logger.LogDebug(
                                 "Policy {Policy} triggered action {Action}: {Reason}",
@@ -302,18 +354,33 @@ public class BlackboardOrchestrator
 
         var result = aggregator.Aggregate();
 
-        // Apply policy action to result
+        // Always use stopwatch for actual wall-clock time (more accurate than sum of contributions)
+        var actualProcessingTimeMs = stopwatch.Elapsed.TotalMilliseconds;
+
+        // Apply policy action and timing to result
+        // Mark EarlyExit=true when policy triggered an early action (Allow/Block before full pipeline)
+        var wasEarlyExit = finalAction.HasValue &&
+                           (finalAction.Value == PolicyAction.Allow || finalAction.Value == PolicyAction.Block) &&
+                           result.ContributingDetectors.Count < 9; // Less than full detector count
+
         if (finalAction.HasValue)
         {
             result = result with
             {
                 PolicyAction = finalAction.Value,
-                PolicyName = policy.Name
+                PolicyName = policy.Name,
+                TotalProcessingTimeMs = actualProcessingTimeMs,
+                EarlyExit = wasEarlyExit || result.EarlyExit,
+                EarlyExitVerdict = wasEarlyExit ? EarlyExitVerdict.PolicyAllowed : result.EarlyExitVerdict
             };
         }
         else
         {
-            result = result with { PolicyName = policy.Name };
+            result = result with
+            {
+                PolicyName = policy.Name,
+                TotalProcessingTimeMs = actualProcessingTimeMs
+            };
         }
 
         // Publish learning event
@@ -399,9 +466,13 @@ public class BlackboardOrchestrator
 
             foreach (var contribution in contributions)
             {
-                // Set processing time
-                var withTime = contribution with { ProcessingTimeMs = stopwatch.ElapsedMilliseconds };
-                aggregator.AddContribution(withTime);
+                // Set processing time and priority for pipeline ordering
+                var withMetadata = contribution with
+                {
+                    ProcessingTimeMs = stopwatch.ElapsedMilliseconds,
+                    Priority = detector.Priority
+                };
+                aggregator.AddContribution(withMetadata);
 
                 // Merge signals
                 foreach (var signal in contribution.Signals)

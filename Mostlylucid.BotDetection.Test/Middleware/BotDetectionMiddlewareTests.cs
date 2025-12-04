@@ -261,33 +261,34 @@ public class BotDetectionMiddlewareTests
         // Act
         await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object);
 
-        // Assert - orchestrator should NOT be called
+        // Assert - "disable" mode skips detection entirely, no result stored
         mockOrchestrator.Verify(o => o.DetectWithPolicyAsync(It.IsAny<HttpContext>(), It.IsAny<DetectionPolicy>(), It.IsAny<CancellationToken>()), Times.Never);
         Assert.True(nextCalled);
         Assert.Equal("disabled", context.Response.Headers["X-Test-Mode"]);
-
-        var result = context.Items[BotDetectionMiddleware.BotDetectionResultKey] as BotDetectionResult;
-        Assert.NotNull(result);
-        Assert.False(result.IsBot);
+        // No result stored when disabled
     }
 
     [Theory]
-    [InlineData("bot", true, BotType.Unknown, "Test Bot")]
-    [InlineData("human", false, null, null)]
-    [InlineData("googlebot", true, BotType.SearchEngine, "Googlebot")]
-    [InlineData("bingbot", true, BotType.SearchEngine, "Bingbot")]
-    [InlineData("scraper", true, BotType.Scraper, "Test Scraper")]
-    [InlineData("malicious", true, BotType.MaliciousBot, "Test Malicious Bot")]
-    [InlineData("social", true, BotType.SocialMediaBot, "Test Social Bot")]
-    [InlineData("monitor", true, BotType.MonitoringBot, "Test Monitoring Bot")]
-    public async Task InvokeAsync_TestModeEnabled_SimulatesCorrectBotType(
-        string testMode, bool expectedIsBot, BotType? expectedBotType, string? expectedBotName)
+    [InlineData("googlebot", "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)")]
+    [InlineData("bingbot", "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)")]
+    [InlineData("human", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")]
+    public async Task InvokeAsync_TestModeEnabled_RunsRealDetectionWithSimulatedUA(
+        string testMode, string expectedSimulatedUA)
     {
         // Arrange
         RequestDelegate next = _ => Task.CompletedTask;
         var mockOrchestrator = CreateMockOrchestrator();
         var mockPolicyRegistry = CreateMockPolicyRegistry();
-        var options = new BotDetectionOptions { EnableTestMode = true };
+        var options = new BotDetectionOptions
+        {
+            EnableTestMode = true,
+            TestModeSimulations = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["googlebot"] = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+                ["bingbot"] = "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)",
+                ["human"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+        };
         var middleware = CreateMiddleware(next, options);
         var context = MockHttpContext.CreateWithHeaders(new Dictionary<string, string>
         {
@@ -297,17 +298,13 @@ public class BotDetectionMiddlewareTests
         // Act
         await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object);
 
-        // Assert
-        var result = context.Items[BotDetectionMiddleware.BotDetectionResultKey] as BotDetectionResult;
-        Assert.NotNull(result);
-        Assert.Equal(expectedIsBot, result.IsBot);
-        Assert.Equal(expectedBotType, result.BotType);
-        if (expectedBotName != null)
-            Assert.Equal(expectedBotName, result.BotName);
+        // Assert - real orchestrator should be called (test mode now runs real detection)
+        mockOrchestrator.Verify(o => o.DetectWithPolicyAsync(It.IsAny<HttpContext>(), It.IsAny<DetectionPolicy>(), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal("true", context.Response.Headers["X-Test-Mode"]);
     }
 
     [Fact]
-    public async Task InvokeAsync_TestModeEnabled_UnknownModeCreatesGenericBot()
+    public async Task InvokeAsync_TestModeEnabled_UnknownModeRunsRealDetectionWithOriginalUA()
     {
         // Arrange
         RequestDelegate next = _ => Task.CompletedTask;
@@ -323,13 +320,9 @@ public class BotDetectionMiddlewareTests
         // Act
         await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object);
 
-        // Assert
-        var result = context.Items[BotDetectionMiddleware.BotDetectionResultKey] as BotDetectionResult;
-        Assert.NotNull(result);
-        Assert.True(result.IsBot);
-        Assert.Equal(BotType.Unknown, result.BotType);
-        Assert.Equal("Test custom-bot-type", result.BotName);
-        Assert.Equal(0.7, result.ConfidenceScore);
+        // Assert - unknown test mode still runs real detection (no UA override if not configured)
+        mockOrchestrator.Verify(o => o.DetectWithPolicyAsync(It.IsAny<HttpContext>(), It.IsAny<DetectionPolicy>(), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal("true", context.Response.Headers["X-Test-Mode"]);
     }
 
     [Fact]
@@ -339,7 +332,14 @@ public class BotDetectionMiddlewareTests
         RequestDelegate next = _ => Task.CompletedTask;
         var mockOrchestrator = CreateMockOrchestrator();
         var mockPolicyRegistry = CreateMockPolicyRegistry();
-        var options = new BotDetectionOptions { EnableTestMode = true };
+        var options = new BotDetectionOptions
+        {
+            EnableTestMode = true,
+            TestModeSimulations = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["googlebot"] = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+            }
+        };
         var middleware = CreateMiddleware(next, options);
         var context = MockHttpContext.CreateWithHeaders(new Dictionary<string, string>
         {
@@ -349,10 +349,9 @@ public class BotDetectionMiddlewareTests
         // Act
         await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object);
 
-        // Assert
+        // Assert - test mode header and simulated UA header are set
         Assert.Equal("true", context.Response.Headers["X-Test-Mode"]);
-        Assert.True(context.Response.Headers.ContainsKey("X-Bot-Detected"));
-        Assert.True(context.Response.Headers.ContainsKey("X-Bot-Confidence"));
+        Assert.True(context.Response.Headers.ContainsKey("X-Test-Simulated-UA"));
     }
 
     [Fact]

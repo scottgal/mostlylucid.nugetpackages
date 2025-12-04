@@ -49,8 +49,19 @@ public static partial class BotSignatures
         ["Screaming Frog"] = "Screaming Frog SEO",
         ["SEOkicks"] = "SEOkicks",
         ["Uptimebot"] = "Uptime Monitor",
+        ["UptimeRobot"] = "UptimeRobot Monitor",
         ["StatusCake"] = "StatusCake Monitor",
         ["Pingdom"] = "Pingdom Monitor",
+
+        // AI/LLM Crawlers
+        ["GPTBot"] = "OpenAI GPT",
+        ["ChatGPT-User"] = "ChatGPT User",
+        ["OAI-SearchBot"] = "OpenAI Search",
+        ["ClaudeBot"] = "Anthropic Claude",
+        ["Claude-Web"] = "Anthropic Claude Web",
+        ["PerplexityBot"] = "Perplexity AI",
+        ["Bytespider"] = "ByteDance AI",
+        ["cohere-ai"] = "Cohere AI",
 
         // Archives & Research
         ["ia_archiver"] = "Internet Archive",

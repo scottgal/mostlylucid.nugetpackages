@@ -267,7 +267,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<BehavioralDetector>();
         services.TryAddSingleton<IpDetector>();
         services.TryAddSingleton<LlmDetector>();
-        services.TryAddSingleton<OnnxDetector>();
+        services.TryAddSingleton<HeuristicDetector>();
         services.TryAddSingleton<ClientSideDetector>();
         services.TryAddSingleton<InconsistencyDetector>();
 
@@ -277,7 +277,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDetector>(sp => sp.GetRequiredService<BehavioralDetector>());
         services.AddSingleton<IDetector>(sp => sp.GetRequiredService<IpDetector>());
         services.AddSingleton<IDetector>(sp => sp.GetRequiredService<LlmDetector>());
-        services.AddSingleton<IDetector>(sp => sp.GetRequiredService<OnnxDetector>());
+        services.AddSingleton<IDetector>(sp => sp.GetRequiredService<HeuristicDetector>());
         services.AddSingleton<IDetector>(sp => sp.GetRequiredService<ClientSideDetector>());
         services.AddSingleton<IDetector>(sp => sp.GetRequiredService<InconsistencyDetector>());
 
@@ -353,9 +353,12 @@ public static class ServiceCollectionExtensions
         // Wave 1+ detectors (triggered by signals from Wave 0)
         services.AddSingleton<IContributingDetector, VersionAgeContributor>();
         services.AddSingleton<IContributingDetector, InconsistencyContributor>();
-        // AI detectors (run when escalation triggered or in demo mode)
-        services.AddSingleton<IContributingDetector, OnnxContributor>();
+        // Heuristic early - runs before AI with basic request features
+        services.AddSingleton<IContributingDetector, HeuristicContributor>();
+        // AI/LLM detectors (run when escalation triggered or in demo mode)
         services.AddSingleton<IContributingDetector, LlmContributor>();
+        // Heuristic late - runs AFTER AI (or after all static if no AI), consumes all evidence
+        services.AddSingleton<IContributingDetector, HeuristicLateContributor>();
 
         // ==========================================
         // Policy System (path-based detection workflows)

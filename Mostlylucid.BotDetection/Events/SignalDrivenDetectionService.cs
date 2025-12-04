@@ -29,7 +29,7 @@ public class SignalDrivenDetectionService
     private readonly BehavioralDetector _behavioralAnalyzer;
     private readonly ClientSideDetector? _clientSideAnalyzer;
     private readonly InconsistencyDetector _inconsistencyAnalyzer;
-    private readonly OnnxDetector? _onnxAnalyzer;
+    private readonly HeuristicDetector? _heuristicAnalyzer;
     private readonly LlmDetector? _llmAnalyzer;
 
     // Detector names for consensus tracking
@@ -52,7 +52,7 @@ public class SignalDrivenDetectionService
         BehavioralDetector behavioralAnalyzer,
         InconsistencyDetector inconsistencyAnalyzer,
         ClientSideDetector? clientSideAnalyzer = null,
-        OnnxDetector? onnxAnalyzer = null,
+        HeuristicDetector? heuristicAnalyzer = null,
         LlmDetector? llmAnalyzer = null,
         ILearningEventBus? learningBus = null,
         BotDetectionMetrics? metrics = null)
@@ -66,7 +66,7 @@ public class SignalDrivenDetectionService
         _behavioralAnalyzer = behavioralAnalyzer;
         _clientSideAnalyzer = clientSideAnalyzer;
         _inconsistencyAnalyzer = inconsistencyAnalyzer;
-        _onnxAnalyzer = onnxAnalyzer;
+        _heuristicAnalyzer = heuristicAnalyzer;
         _llmAnalyzer = llmAnalyzer;
         _learningBus = learningBus;
         _metrics = metrics;
@@ -132,9 +132,9 @@ public class SignalDrivenDetectionService
             // === Stage 3: AI/ML (if enabled) ===
             if (_options.EnableLlmDetection)
             {
-                if (_options.AiDetection.Provider == AiProvider.Onnx && _onnxAnalyzer != null)
+                if (_options.AiDetection.Provider == AiProvider.Heuristic && _heuristicAnalyzer != null)
                 {
-                    await RunDetectorAsync(_onnxAnalyzer, httpContext, context, bus, ct);
+                    await RunDetectorAsync(_heuristicAnalyzer, httpContext, context, bus, ct);
                 }
                 else if (_options.AiDetection.Provider == AiProvider.Ollama && _llmAnalyzer != null)
                 {
@@ -144,7 +144,7 @@ public class SignalDrivenDetectionService
             }
             else
             {
-                bus.ReportCompletion("ONNX Detector", DetectorCompletionStatus.Skipped);
+                bus.ReportCompletion("Heuristic Detector", DetectorCompletionStatus.Skipped);
                 bus.ReportCompletion("LLM Detector", DetectorCompletionStatus.Skipped);
             }
 
@@ -184,8 +184,8 @@ public class SignalDrivenDetectionService
 
         if (_options.EnableLlmDetection)
         {
-            if (_options.AiDetection.Provider == AiProvider.Onnx)
-                detectors.Add("ONNX Detector");
+            if (_options.AiDetection.Provider == AiProvider.Heuristic)
+                detectors.Add("Heuristic Detector");
             else if (_options.AiDetection.Provider == AiProvider.Ollama)
                 detectors.Add("LLM Detector");
         }

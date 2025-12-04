@@ -224,7 +224,7 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task OnnxFeatureExtractor_ProducesFixedSizeVector()
+    public async Task HeuristicFeatureExtractor_ProducesFixedSizeVector()
     {
         // Arrange
         using var host = await CreateTestHost();
@@ -281,29 +281,34 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
         context.Request.Path = "/api/test";
 
         // Act
-        var features = OnnxFeatureExtractor.ExtractFeatures(context, evidence);
+        var features = HeuristicFeatureExtractor.ExtractFeatures(context, evidence);
 
-        // Assert
-        _output.WriteLine($"Feature vector size: {features.Length}");
-        _output.WriteLine($"Feature count constant: {OnnxFeatureExtractor.FeatureCount}");
-        Assert.Equal(OnnxFeatureExtractor.FeatureCount, features.Length);
-        Assert.Equal(64, features.Length);
+        // Assert - features is now Dictionary<string, float>
+        _output.WriteLine($"Feature count: {features.Count}");
+        Assert.True(features.Count > 0, "Should extract at least some features");
 
-        // Log some key features
-        _output.WriteLine($"UA length norm (0): {features[0]:F3}");
-        _output.WriteLine($"Detector 1 confidence (12): {features[12]:F3}");
-        _output.WriteLine($"Detector 2 confidence (13): {features[13]:F3}");
-        _output.WriteLine($"Bot probability (48): {features[48]:F3}");
-        _output.WriteLine($"Confidence (49): {features[49]:F3}");
+        // Log key features by prefix
+        foreach (var (key, value) in features.OrderBy(f => f.Key).Take(20))
+        {
+            _output.WriteLine($"{key}: {value:F3}");
+        }
 
-        // Verify detector scores are sorted by confidence descending
-        Assert.Equal(0.8f, features[12], 0.01); // Highest: UA Detector (0.8)
-        Assert.Equal(0.5f, features[13], 0.01); // Second: Version Age (0.5)
-        Assert.Equal(0.3f, features[14], 0.01); // Third: Header Detector (0.3)
+        // Verify detector scores are present (dynamic keys based on detector names)
+        Assert.True(features.ContainsKey("det:user-agent detector"), "Should have UA detector");
+        Assert.True(features.ContainsKey("det:header detector"), "Should have Header detector");
+        Assert.True(features.ContainsKey("det:version age detector"), "Should have Version detector");
+
+        // Verify category scores
+        Assert.True(features.ContainsKey("cat:useragent"), "Should have UserAgent category");
+        Assert.True(features.ContainsKey("cat:headers"), "Should have Headers category");
+
+        // Verify result signals are present
+        Assert.True(features.ContainsKey("result:bot_probability"), "Should have bot probability");
+        Assert.True(features.ContainsKey("result:confidence"), "Should have confidence");
     }
 
     [Fact]
-    public async Task OnnxFeatureExtractor_FillsEmptySlotsWithZeros()
+    public async Task HeuristicFeatureExtractor_ExtractsMinimalEvidence()
     {
         // Arrange
         using var host = await CreateTestHost();
@@ -338,21 +343,27 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
         context.Request.Headers.UserAgent = "Test";
 
         // Act
-        var features = OnnxFeatureExtractor.ExtractFeatures(context, evidence);
+        var features = HeuristicFeatureExtractor.ExtractFeatures(context, evidence);
 
-        // Assert
-        Assert.Equal(64, features.Length);
+        // Assert - dynamic dictionary should contain expected keys
+        Assert.True(features.Count > 0, "Should extract features");
 
-        // First detector slot should have the value
-        Assert.Equal(0.6f, features[12], 0.01);
+        // Single detector should be present
+        Assert.True(features.ContainsKey("det:single detector"), "Should have single detector");
+        Assert.Equal(0.6f, features["det:single detector"], 0.01);
 
-        // Remaining detector slots should be 0
-        for (int i = 13; i < 28; i++)
+        // Category should be present
+        Assert.True(features.ContainsKey("cat:test"), "Should have test category");
+
+        // Bot probability and confidence should be present
+        Assert.True(features.ContainsKey("result:bot_probability"), "Should have bot probability");
+        Assert.Equal(0.4f, features["result:bot_probability"], 0.01);
+
+        _output.WriteLine($"Extracted {features.Count} features from minimal evidence");
+        foreach (var (key, value) in features.OrderBy(f => f.Key))
         {
-            Assert.Equal(0f, features[i]);
+            _output.WriteLine($"  {key}: {value:F3}");
         }
-
-        _output.WriteLine("Empty slots correctly filled with zeros");
     }
 
     [Fact]

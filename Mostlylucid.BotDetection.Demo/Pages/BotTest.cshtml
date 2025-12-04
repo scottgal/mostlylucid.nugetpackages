@@ -11,6 +11,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - Mostlylucid.BotDetection</title>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <!-- highlight.js for JSON syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
     <style>
         * { box-sizing: border-box; }
         body {
@@ -213,6 +217,10 @@
             word-break: break-all;
             max-height: 400px;
         }
+        /* Override highlight.js background for consistency */
+        .fingerprint-data pre { margin: 0; background: transparent !important; }
+        .fingerprint-data code { background: transparent !important; }
+        .hljs { background: transparent !important; }
 
         /* Loading indicator */
         .htmx-request .htmx-indicator { display: inline-block; }
@@ -233,65 +241,76 @@
     <div class="card">
         <h2>Simulate Bot Types</h2>
         <p style="font-size: 0.85em; color: #8b949e; margin-bottom: 15px;">Click to test detection with different bot signatures</p>
+        <div style="background: #21262d; border-left: 3px solid #f0883e; padding: 12px 15px; margin-bottom: 15px; border-radius: 0 6px 6px 0;">
+            <strong style="color: #f0883e;">Demo Note:</strong>
+            <span style="color: #8b949e; font-size: 0.85em;">
+                These buttons simulate bot User-Agent strings only. Your real browser's fingerprint, headers, and behavioral
+                patterns remain legitimate, so detection may still classify you as human &mdash; for example, "Malicious Bot"
+                may return as human with the LLM noting: <em style="color: #c9d1d9;">"missing Accept-Language/Referer, datacenter IP detected,
+                and weak evidence suggests possible bot activity. Further investigation needed."</em>
+                Check the <strong style="color: #c9d1d9;">Raw API Response</strong> below for full detector reasoning.
+                In production, actual bots exhibit consistent bot signals across all detectors.
+            </span>
+        </div>
         <div class="test-buttons">
             <button class="test-btn human"
                     hx-get="/bot-test"
-                    hx-headers='{"ml-bot-test-mode": "human"}'
+                    hx-headers='{"ml-bot-test-mode": "human", "X-Bot-Policy": "demo"}'
                     hx-target="body"
                     hx-swap="outerHTML">Real Browser</button>
             <button class="test-btn search"
                     hx-get="/bot-test"
-                    hx-headers='{"ml-bot-test-mode": "googlebot"}'
+                    hx-headers='{"ml-bot-test-mode": "googlebot", "X-Bot-Policy": "demo"}'
                     hx-target="body"
                     hx-swap="outerHTML">Googlebot</button>
             <button class="test-btn search"
                     hx-get="/bot-test"
-                    hx-headers='{"ml-bot-test-mode": "bingbot"}'
+                    hx-headers='{"ml-bot-test-mode": "bingbot", "X-Bot-Policy": "demo"}'
                     hx-target="body"
                     hx-swap="outerHTML">Bingbot</button>
             <button class="test-btn scraper"
                     hx-get="/bot-test"
-                    hx-headers='{"ml-bot-test-mode": "scrapy"}'
+                    hx-headers='{"ml-bot-test-mode": "scrapy", "X-Bot-Policy": "demo"}'
                     hx-target="body"
                     hx-swap="outerHTML">Scrapy</button>
             <button class="test-btn scraper"
                     hx-get="/bot-test"
-                    hx-headers='{"ml-bot-test-mode": "curl"}'
+                    hx-headers='{"ml-bot-test-mode": "curl", "X-Bot-Policy": "demo"}'
                     hx-target="body"
                     hx-swap="outerHTML">cURL</button>
             <button class="test-btn scraper"
                     hx-get="/bot-test"
-                    hx-headers='{"ml-bot-test-mode": "puppeteer"}'
+                    hx-headers='{"ml-bot-test-mode": "puppeteer", "X-Bot-Policy": "demo"}'
                     hx-target="body"
                     hx-swap="outerHTML">Puppeteer</button>
             <button class="test-btn malicious"
                     hx-get="/bot-test"
-                    hx-headers='{"ml-bot-test-mode": "malicious"}'
+                    hx-headers='{"ml-bot-test-mode": "malicious", "X-Bot-Policy": "demo"}'
                     hx-target="body"
                     hx-swap="outerHTML">Malicious Bot</button>
             <button class="test-btn ai"
                     hx-get="/bot-test"
-                    hx-headers='{"ml-bot-test-mode": "gptbot"}'
+                    hx-headers='{"ml-bot-test-mode": "gptbot", "X-Bot-Policy": "demo"}'
                     hx-target="body"
                     hx-swap="outerHTML">GPTBot</button>
             <button class="test-btn ai"
                     hx-get="/bot-test"
-                    hx-headers='{"ml-bot-test-mode": "claudebot"}'
+                    hx-headers='{"ml-bot-test-mode": "claudebot", "X-Bot-Policy": "demo"}'
                     hx-target="body"
                     hx-swap="outerHTML">ClaudeBot</button>
             <button class="test-btn social"
                     hx-get="/bot-test"
-                    hx-headers='{"ml-bot-test-mode": "twitterbot"}'
+                    hx-headers='{"ml-bot-test-mode": "twitterbot", "X-Bot-Policy": "demo"}'
                     hx-target="body"
                     hx-swap="outerHTML">TwitterBot</button>
             <button class="test-btn social"
                     hx-get="/bot-test"
-                    hx-headers='{"ml-bot-test-mode": "facebookbot"}'
+                    hx-headers='{"ml-bot-test-mode": "facebookbot", "X-Bot-Policy": "demo"}'
                     hx-target="body"
                     hx-swap="outerHTML">FacebookBot</button>
             <button class="test-btn monitor"
                     hx-get="/bot-test"
-                    hx-headers='{"ml-bot-test-mode": "uptimerobot"}'
+                    hx-headers='{"ml-bot-test-mode": "uptimerobot", "X-Bot-Policy": "demo"}'
                     hx-target="body"
                     hx-swap="outerHTML">UptimeRobot</button>
         </div>
@@ -368,6 +387,20 @@
                 <span class="action-value">@Model.BotName</span>
             </div>
         </div>
+
+        <!-- AI Explanation -->
+        @if (!string.IsNullOrEmpty(Model.AiExplanation))
+        {
+            var isLlm = Model.AiExplanationSource == "LLM";
+            var accentColor = isLlm ? "#8957e5" : "#388bfd";
+            var label = isLlm ? "LLM Analysis" : "Heuristic Analysis";
+            <div style="margin-top: 20px; background: #21262d; border-left: 3px solid @accentColor; padding: 12px 15px; border-radius: 0 6px 6px 0;">
+                <div style="font-size: 0.8em; color: @accentColor; font-weight: 600; margin-bottom: 6px;">
+                    <span style="margin-right: 6px;">@(isLlm ? "🤖" : "📊")</span>@label
+                </div>
+                <div style="color: #c9d1d9; font-size: 0.9em; line-height: 1.5;">@Model.AiExplanation</div>
+            </div>
+        }
 
         <!-- Active Detectors -->
         <div style="margin-top: 20px;">
@@ -452,10 +485,33 @@
         <div class="fingerprint-data" id="apiResponse" style="margin-top: 15px;">Click button to fetch...</div>
     </div>
 
-    <!-- Bot Detection Script -->
+    <!-- Bot Detection Script - fingerprint collection -->
+    <!-- Note: Fingerprint endpoint uses path mapping to demo policy for consistent collection -->
     <bot-detection-script endpoint="/bot-detection/fingerprint" />
 
     <script>
+        // ==========================================
+        // Helper functions (must be defined first)
+        // ==========================================
+
+        // Helper to escape HTML for safe display
+        function escapeHtml(text) {
+            var div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Helper to render JSON with syntax highlighting
+        function renderHighlightedJson(element, data) {
+            var json = JSON.stringify(data, null, 2);
+            element.innerHTML = '<pre><code class="language-json">' + escapeHtml(json) + '</code></pre>';
+            hljs.highlightElement(element.querySelector('code'));
+        }
+
+        // ==========================================
+        // Path toggle functionality
+        // ==========================================
+
         // Path toggle functionality with localStorage persistence
         // Demo (slow) = full pipeline + AI, FastPath = all static detectors + bailout
         function togglePath(triggerRefresh) {
@@ -505,7 +561,7 @@
                 if (this._url && this._url.includes('fingerprint')) {
                     try {
                         var parsed = JSON.parse(data);
-                        document.getElementById('fingerprintData').textContent = JSON.stringify(parsed, null, 2);
+                        renderHighlightedJson(document.getElementById('fingerprintData'), parsed);
                         updateClientUI(parsed);
                     } catch(e) {}
                 }
@@ -553,13 +609,23 @@
         }
 
         function fetchDetectionCheck() {
-            fetch('/bot-detection/check')
+            // Get current policy from toggle
+            var isDemoPath = document.getElementById('pathToggle').checked;
+            var policy = isDemoPath ? 'demo' : 'fastpath';
+
+            fetch('/bot-detection/check', {
+                headers: { 'X-Bot-Policy': policy }
+            })
                 .then(r => r.json())
                 .then(data => {
-                    document.getElementById('apiResponse').textContent = JSON.stringify(data, null, 2);
+                    renderHighlightedJson(document.getElementById('apiResponse'), data);
+                    // Update timing display from API response
+                    if (data.processingTimeMs !== undefined) {
+                        document.getElementById('timingDisplay').textContent = data.processingTimeMs.toFixed(2) + 'ms';
+                    }
                 })
                 .catch(e => {
-                    document.getElementById('apiResponse').textContent = 'Error: ' + e.message;
+                    document.getElementById('apiResponse').innerHTML = '<span style="color: #da3633;">Error: ' + e.message + '</span>';
                 });
         }
 

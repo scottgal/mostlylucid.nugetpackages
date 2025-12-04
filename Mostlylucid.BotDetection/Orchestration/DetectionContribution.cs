@@ -73,6 +73,12 @@ public sealed record DetectionContribution
     public double ProcessingTimeMs { get; init; }
 
     /// <summary>
+    ///     Priority of the detector (lower = runs earlier).
+    ///     Used to show execution order in the pipeline.
+    /// </summary>
+    public int Priority { get; init; }
+
+    /// <summary>
     ///     Whether this contribution should trigger early exit (e.g., verified good bot)
     /// </summary>
     public bool TriggerEarlyExit { get; init; }
@@ -192,7 +198,13 @@ public enum EarlyExitVerdict
     Whitelisted,
 
     /// <summary>Blacklisted client</summary>
-    Blacklisted
+    Blacklisted,
+
+    /// <summary>Policy allowed early exit (fastpath confident decision)</summary>
+    PolicyAllowed,
+
+    /// <summary>Policy blocked early exit (fastpath confident decision)</summary>
+    PolicyBlocked
 }
 
 /// <summary>
@@ -274,6 +286,12 @@ public sealed record AggregatedEvidence
     ///     Action determined by policy (if any)
     /// </summary>
     public PolicyAction? PolicyAction { get; init; }
+
+    /// <summary>
+    ///     Whether AI detectors (ONNX, LLM) contributed to this decision.
+    ///     When false, probability/risk are clamped to avoid overconfidence.
+    /// </summary>
+    public bool AiRan { get; init; }
 }
 
 /// <summary>
@@ -434,17 +452,34 @@ public class EvidenceAggregator
     {
         lock (_lock)
         {
+            // Check if AI detectors contributed
+            var aiDetectors = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Onnx", "Llm" };
+            var detectorNames = _contributions.Select(c => c.DetectorName).ToHashSet();
+            var aiRan = detectorNames.Any(d => aiDetectors.Contains(d));
+
             // Handle early exit
             if (_earlyExitContribution != null)
             {
-                return CreateEarlyExitResult(_earlyExitContribution);
+                return CreateEarlyExitResult(_earlyExitContribution, aiRan);
             }
 
             // Calculate weighted score
-            var (botProbability, confidence) = CalculateWeightedScore();
+            var (rawBotProbability, rawConfidence) = CalculateWeightedScore();
 
-            // Determine risk band
-            var riskBand = DetermineRiskBand(botProbability, confidence);
+            // CRITICAL: Clamp probability when AI hasn't run
+            // Without AI, we can't be confident about extreme probabilities
+            var botProbability = aiRan
+                ? rawBotProbability
+                : Math.Clamp(rawBotProbability, 0.20, 0.80);
+
+            // Compute coverage-based confidence (how many detector types ran)
+            var coverageConfidence = ComputeCoverageConfidence(detectorNames, aiRan);
+
+            // Final confidence is the minimum of evidence strength and coverage
+            var confidence = Math.Min(rawConfidence, coverageConfidence);
+
+            // Determine risk band (uses AI-aware mapping)
+            var riskBand = DetermineRiskBand(botProbability, confidence, aiRan);
 
             // Find primary bot type/name
             var (primaryType, primaryName) = FindPrimaryBot();
@@ -464,13 +499,53 @@ public class EvidenceAggregator
                 Signals = new Dictionary<string, object>(_signals),
                 TotalProcessingTimeMs = _contributions.Sum(c => c.ProcessingTimeMs),
                 CategoryBreakdown = categoryBreakdown,
-                ContributingDetectors = _contributions.Select(c => c.DetectorName).ToHashSet(),
-                FailedDetectors = _failedDetectors.ToHashSet()
+                ContributingDetectors = detectorNames,
+                FailedDetectors = _failedDetectors.ToHashSet(),
+                AiRan = aiRan
             };
         }
     }
 
-    private AggregatedEvidence CreateEarlyExitResult(DetectionContribution exitContribution)
+    /// <summary>
+    ///     Compute confidence based on detector coverage.
+    ///     More detector types = higher confidence.
+    /// </summary>
+    private static double ComputeCoverageConfidence(IReadOnlySet<string> detectorsRan, bool aiRan)
+    {
+        var maxScore = 0.0;
+        var score = 0.0;
+
+        void Add(string name, double weight)
+        {
+            maxScore += weight;
+            if (detectorsRan.Contains(name))
+                score += weight;
+        }
+
+        Add("UserAgent", 1.0);
+        Add("Ip", 0.5);
+        Add("Header", 1.0);
+        Add("ClientSide", 1.0);
+        Add("Behavioral", 1.0);
+        Add("VersionAge", 0.8);
+        Add("Inconsistency", 0.8);
+        Add("Heuristic", 2.0);  // Meta-layer that consumes all evidence
+
+        // AI/LLM is worth a lot for confidence (escalation)
+        if (aiRan)
+        {
+            maxScore += 2.5;
+            score += 2.5;
+        }
+        else
+        {
+            maxScore += 2.5; // Still count toward max even if not ran
+        }
+
+        return maxScore == 0 ? 0 : score / maxScore;
+    }
+
+    private AggregatedEvidence CreateEarlyExitResult(DetectionContribution exitContribution, bool aiRan)
     {
         var isGood = exitContribution.EarlyExitVerdict is
             EarlyExitVerdict.VerifiedGoodBot or EarlyExitVerdict.Whitelisted;
@@ -489,7 +564,8 @@ public class EvidenceAggregator
             TotalProcessingTimeMs = _contributions.Sum(c => c.ProcessingTimeMs),
             CategoryBreakdown = BuildCategoryBreakdown(),
             ContributingDetectors = _contributions.Select(c => c.DetectorName).ToHashSet(),
-            FailedDetectors = _failedDetectors.ToHashSet()
+            FailedDetectors = _failedDetectors.ToHashSet(),
+            AiRan = aiRan
         };
     }
 
@@ -534,20 +610,38 @@ public class EvidenceAggregator
         return (botProbability, confidence);
     }
 
-    private static RiskBand DetermineRiskBand(double botProbability, double confidence)
+    private static RiskBand DetermineRiskBand(double botProbability, double confidence, bool aiRan)
     {
         // If low confidence, be conservative
         if (confidence < 0.3)
             return RiskBand.Medium;
 
-        return botProbability switch
+        // AI-aware risk mapping
+        // VeryLow is ONLY possible with AI confirmation
+        if (aiRan)
         {
-            < 0.2 => RiskBand.VeryLow,
-            < 0.4 => RiskBand.Low,
-            < 0.6 => RiskBand.Medium,
-            < 0.8 => RiskBand.High,
-            _ => RiskBand.VeryHigh
-        };
+            return botProbability switch
+            {
+                < 0.05 => RiskBand.VeryLow, // AI confirms very human
+                < 0.2 => RiskBand.Low,
+                < 0.5 => RiskBand.Medium,
+                < 0.8 => RiskBand.High,
+                _ => RiskBand.VeryHigh
+            };
+        }
+        else
+        {
+            // Without AI, we can't confidently say VeryLow
+            // The probability is already clamped to 0.20-0.80, so these thresholds
+            // mean we'll rarely go below Medium without AI
+            return botProbability switch
+            {
+                < 0.25 => RiskBand.Low, // Best we can say without AI
+                < 0.55 => RiskBand.Medium,
+                < 0.75 => RiskBand.High,
+                _ => RiskBand.VeryHigh
+            };
+        }
     }
 
     private (BotType?, string?) FindPrimaryBot()

@@ -110,13 +110,42 @@ public static class RouteBuilderExtensions
                     riskBand = evidence.RiskBand.ToString(),
                     recommendedAction = GetRecommendedAction(evidence),
                     processingTimeMs = evidence.TotalProcessingTimeMs,
+                    // Pipeline execution info
+                    aiRan = evidence.AiRan,
                     detectorsRan = evidence.ContributingDetectors.ToList(),
                     detectorCount = evidence.ContributingDetectors.Count,
+                    failedDetectors = evidence.FailedDetectors.ToList(),
                     earlyExit = evidence.EarlyExit,
                     earlyExitVerdict = evidence.EarlyExitVerdict?.ToString(),
+                    // All collected signals from the pipeline
+                    signals = evidence.Signals.Count > 0 ? evidence.Signals : null,
                     categoryBreakdown = evidence.CategoryBreakdown.ToDictionary(
                         kv => kv.Key,
                         kv => new { score = kv.Value.Score, weight = kv.Value.Weight }),
+                    // Detailed detector contributions with signals, priority, and timing
+                    // Sorted by timestamp for pipeline execution order
+                    contributions = evidence.Contributions
+                        .OrderBy(c => c.Timestamp)
+                        .Select(c => new
+                        {
+                            detector = c.DetectorName,
+                            category = c.Category,
+                            priority = c.Priority,
+                            timestamp = c.Timestamp,
+                            processingMs = c.ProcessingTimeMs,
+                            impact = c.ConfidenceDelta,
+                            weight = c.Weight,
+                            weightedImpact = Math.Round(c.ConfidenceDelta * c.Weight, 4),
+                            reason = c.Reason?.Replace("\r\n", " ").Replace("\r", " ").Replace("\n", " ").Trim(),
+                            botType = c.BotType?.ToString(),
+                            botName = c.BotName,
+                            // Include all signals this detector emitted
+                            signals = c.Signals.Count > 0
+                                ? c.Signals.ToDictionary(s => s.Key, s => s.Value)
+                                : null,
+                            earlyExit = c.TriggerEarlyExit ? c.EarlyExitVerdict?.ToString() : null
+                        }),
+                    // Legacy format for backward compatibility
                     reasons = evidence.Contributions.Select(c => new
                     {
                         category = c.Category,

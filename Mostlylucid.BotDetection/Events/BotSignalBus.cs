@@ -20,9 +20,17 @@ public enum BotSignalType
 
     // Stage 2: Meta-analysis (depends on stages 0+1)
     InconsistencyUpdated,
+    VersionAgeAnalyzed,
 
-    // Stage 3: AI/ML (can read all prior signals)
+    // Stage 3: Heuristic early (uses basic features, runs before AI)
+    HeuristicEarlyCompleted,
+
+    // Stage 4: AI/ML (can read all prior signals including early heuristic)
     AiClassificationCompleted,
+    LlmClassificationCompleted,
+
+    // Stage 5: Heuristic late (runs AFTER AI, consumes all evidence)
+    HeuristicLateCompleted,
 
     // Detector completion signals (for consensus)
     DetectorComplete,

@@ -92,23 +92,23 @@ public class DetectionPolicyConfig : BaseComponentConfig
     /// <summary>
     ///     Fast path detector names to run (synchronous, in-request).
     ///     These run in Wave 0 and are expected to complete quickly (&lt;100ms).
-    ///     Default: ["UserAgent", "Header", "Ip"]
+    ///     Default: [] (empty = run ALL registered detectors when combined with SlowPath/AiPath)
     /// </summary>
-    public List<string> FastPath { get; set; } = ["UserAgent", "Header", "Ip"];
+    public List<string> FastPath { get; set; } = [];
 
     /// <summary>
     ///     Slow path detector names to run (async when triggered).
     ///     These run in subsequent waves and may include expensive analysis.
-    ///     Default: ["Behavioral", "Inconsistency"]
+    ///     Default: [] (empty = run ALL registered detectors when combined with FastPath/AiPath)
     /// </summary>
-    public List<string> SlowPath { get; set; } = ["Behavioral", "Inconsistency"];
+    public List<string> SlowPath { get; set; } = [];
 
     /// <summary>
     ///     AI detector names to run (when escalated).
     ///     Only run when escalated by other detectors or risk threshold.
-    ///     Default: ["Onnx", "Llm"]
+    ///     Default: [] (empty = run ALL registered AI detectors when EscalateToAi=true)
     /// </summary>
-    public List<string> AiPath { get; set; } = ["Onnx", "Llm"];
+    public List<string> AiPath { get; set; } = [];
 
     // ==========================================
     // Detection Flow Control

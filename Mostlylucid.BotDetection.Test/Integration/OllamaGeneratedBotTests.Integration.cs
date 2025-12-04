@@ -24,6 +24,7 @@ namespace Mostlylucid.BotDetection.Test.Integration;
 ///
 ///     Run with: dotnet test --filter "Category=LongRunning"
 /// </summary>
+[Trait("Category", "Integration")]
 [Trait("Category", "LongRunning")]
 [Trait("Category", "Ollama")]
 public class OllamaGeneratedBotTests : IAsyncLifetime

@@ -1,6 +1,6 @@
 # AI Detection
 
-The AI detection system provides machine learning-based bot classification using ONNX models and optional LLM inference. This is a **key feature** that enables continuous learning and adaptive detection.
+The AI detection system provides machine learning-based bot classification using a learned heuristic model and optional LLM inference. This is a **key feature** that enables continuous learning and adaptive detection.
 
 ## Architecture Overview
 
@@ -9,7 +9,7 @@ flowchart TB
     subgraph Detection["Detection Pipeline"]
         Request([HTTP Request]) --> FastPath["Fast Path<br/>(Waves 1-3)"]
         FastPath --> RiskCheck{Risk > Threshold?}
-        RiskCheck -->|Yes| SlowPath["Slow Path<br/>(ONNX)"]
+        RiskCheck -->|Yes| SlowPath["Slow Path<br/>(Heuristic)"]
         RiskCheck -->|No| Response
         SlowPath --> AiCheck{Escalate to AI?}
         AiCheck -->|Yes| AiPath["AI Path<br/>(LLM)"]
@@ -19,11 +19,10 @@ flowchart TB
 
     subgraph Learning["Learning Loop"]
         Response --> LearningBus[Learning Event Bus]
-        LearningBus --> TrainingData[(Training Data)]
+        LearningBus --> WeightStore[(Weight Store)]
         LearningBus --> ReputationStore[(Pattern Reputation)]
-        TrainingData --> ModelTraining[Model Training]
-        ModelTraining --> OnnxModel[(ONNX Model)]
-        OnnxModel --> SlowPath
+        WeightStore --> HeuristicModel[Heuristic Model]
+        HeuristicModel --> SlowPath
     end
 ```
 
@@ -36,12 +35,12 @@ flowchart TB
   "BotDetection": {
     "EnableAiDetection": true,
     "AiDetection": {
-      "Provider": "Onnx",
+      "Provider": "Heuristic",
       "TimeoutMs": 1000,
-      "Onnx": {
-        "AutoDownloadModel": true,
-        "EnableHeuristicFallback": true,
-        "UseGpu": false
+      "Heuristic": {
+        "Enabled": true,
+        "LoadLearnedWeights": true,
+        "EnableWeightLearning": true
       }
     },
     "Learning": {
@@ -60,13 +59,13 @@ services.AddBotDetection(options =>
     options.EnableAiDetection = true;
     options.AiDetection = new AiDetectionOptions
     {
-        Provider = AiProvider.Onnx,
+        Provider = AiProvider.Heuristic,
         TimeoutMs = 1000,
-        Onnx = new OnnxOptions
+        Heuristic = new HeuristicOptions
         {
-            AutoDownloadModel = true,
-            EnableHeuristicFallback = true,
-            UseGpu = false
+            Enabled = true,
+            LoadLearnedWeights = true,
+            EnableWeightLearning = true
         }
     };
 });
@@ -77,47 +76,120 @@ services.AddAdvancedBotDetection();
 
 ---
 
-## ONNX Detection (Recommended)
+## Heuristic Detection (Recommended)
 
-ONNX provides fast, offline ML inference without external dependencies. This is the **recommended** provider for production.
+The heuristic detector provides fast, learned classification using a lightweight logistic regression model. This is the **recommended** provider for production.
 
 ### How It Works
+
+The heuristic detector operates in two modes depending on when it runs in the pipeline:
 
 ```mermaid
 sequenceDiagram
     participant R as Request
     participant E as Feature Extractor
-    participant O as ONNX Runtime
-    participant M as Model
+    participant H as Heuristic Model
+    participant W as Weight Store
     participant L as Learning Bus
 
     R->>E: Extract features
-    E->>E: Build 12-feature vector
-    E->>O: Run inference
-    O->>M: Load model
-    M->>O: Classification result
-    O->>R: Bot probability (0.0-1.0)
+    alt Early Mode (before other detectors)
+        E->>E: Build 12-feature vector<br/>(request metadata only)
+    else Full Mode (after other detectors)
+        E->>E: Build 64-feature vector<br/>(includes detector results)
+    end
+    E->>H: Run inference (weights x features)
+    H->>W: Load learned weights
+    W->>H: Weights + bias
+    H->>R: Bot probability (0.0-1.0)
     R->>L: Publish training data
+    L->>W: Update weights
 ```
 
-### Feature Vector
+### Dynamic Feature Dictionary (KV Store Approach)
 
-The ONNX model uses 12 features extracted from each request:
+The heuristic model uses a **fully dynamic key-value feature dictionary** from `HeuristicFeatureExtractor`.
 
-| Feature | Description | Weight |
-|---------|-------------|--------|
-| `ua_length` | User-Agent string length | 0.15 |
-| `ua_has_bot_keyword` | Contains "bot", "spider", etc. | 0.25 |
-| `ua_has_version` | Contains version numbers | 0.10 |
-| `header_count` | Number of HTTP headers | 0.12 |
-| `has_accept_language` | Accept-Language present | 0.18 |
-| `has_accept_encoding` | Accept-Encoding present | 0.08 |
-| `has_cookies` | Cookie header present | 0.15 |
-| `has_referer` | Referer header present | 0.10 |
-| `is_datacenter_ip` | IP in datacenter range | 0.20 |
-| `request_rate` | Requests per minute | 0.15 |
-| `path_entropy` | Path randomness score | 0.08 |
-| `timing_variance` | Request timing variance | 0.12 |
+**Key Innovation:** Features are NOT a fixed-size vector. Instead, they are a dictionary of `name → value` pairs where feature names are discovered at runtime based on:
+- Detector names that contributed
+- Category names that were scored
+- Signal types that were detected
+- User-Agent patterns that matched
+
+This means **new detectors automatically create new features** without any code changes.
+
+#### Feature Naming Convention
+
+Features use prefixes to indicate their source:
+
+| Prefix | Source | Example |
+|--------|--------|---------|
+| `req:` | Request metadata | `req:ua_length`, `req:is_https` |
+| `hdr:` | Header presence | `hdr:accept-language`, `hdr:referer` |
+| `ua:` | User-Agent patterns | `ua:contains_bot`, `ua:chrome` |
+| `accept:` | Accept header patterns | `accept:wildcard`, `accept:html` |
+| `det:` | Detector results | `det:user_agent_detector`, `det:ip_detector` |
+| `det_abs:` | Detector absolute scores | `det_abs:behavioral_detector` |
+| `cat:` | Category breakdown | `cat:suspicious:score`, `cat:verified:count` |
+| `sig:` | Signal presence | `sig:known_bot_pattern`, `sig:cloud_ip` |
+| `fail:` | Failed detectors | `fail:llm_detector` |
+| `stat:` | Aggregated statistics | `stat:detector_max`, `stat:category_avg` |
+| `result:` | Final results | `result:bot_probability`, `result:confidence` |
+| `bottype:` | Bot type classification | `bottype:searchengine`, `bottype:scraper` |
+| `botname:` | Specific bot name | `botname:googlebot`, `botname:gptbot` |
+
+#### Example Feature Extraction
+
+For a request from Googlebot, the extracted features might include:
+
+```json
+{
+  "req:ua_length": 0.45,
+  "req:is_https": 1.0,
+  "hdr:accept-language": 0.0,
+  "hdr:accept": 1.0,
+  "ua:contains_bot": 1.0,
+  "ua:chrome": 0.0,
+  "det:user_agent_detector": 0.95,
+  "det:ip_detector": 0.8,
+  "cat:searchengine:score": 0.9,
+  "stat:detector_max": 0.95,
+  "result:bot_probability": 0.92,
+  "bottype:searchengine": 1.0,
+  "botname:googlebot": 1.0
+}
+```
+
+### Two Modes of Operation
+
+1. **Early Mode** - When the heuristic detector runs before other detectors:
+   - Uses only `req:*`, `hdr:*`, `ua:*`, and `accept:*` features
+   - Fast, pattern-based classification from request metadata
+   - Good for quick preliminary decisions
+
+2. **Full Mode** - When `AggregatedEvidence` is available:
+   - Uses all feature types including `det:*`, `cat:*`, `sig:*`, etc.
+   - Leverages results from all detectors in the pipeline
+   - Best accuracy through ensemble learning
+
+### Dynamic Weight Learning
+
+Because features are dynamic, weights are also dynamic:
+
+- **Default weights** are provided for common patterns (e.g., `ua:contains_bot` → +0.9)
+- **New features** automatically get a default weight of +0.1
+- **Learned weights** are stored in SQLite and loaded on startup
+- **Weight updates** happen through the learning feedback loop
+
+```csharp
+// Weights are stored per feature name, not per index
+// Example stored weights:
+// "ua:contains_bot" → 0.92
+// "det:user_agent_detector" → 0.85
+// "hdr:accept-language" → -0.65  (negative = human-like)
+```
+
+**Note:** Negative weights indicate human-like signals, positive weights indicate bot-like signals.
 
 ### Configuration Options
 
@@ -125,19 +197,16 @@ The ONNX model uses 12 features extracted from each request:
 {
   "BotDetection": {
     "AiDetection": {
-      "Provider": "Onnx",
+      "Provider": "Heuristic",
       "TimeoutMs": 1000,
       "MaxConcurrentRequests": 10,
-      "Onnx": {
-        "ModelPath": "models/bot_classifier.onnx",
-        "AutoDownloadModel": true,
-        "ModelDownloadUrl": "https://example.com/models/bot_classifier.onnx",
-        "UseGpu": false,
-        "GpuDeviceId": 0,
-        "EnableHeuristicFallback": true,
-        "InferenceThreads": 4,
-        "EnableMemoryOptimization": true,
-        "EnableProfiling": false
+      "Heuristic": {
+        "Enabled": true,
+        "LoadLearnedWeights": true,
+        "EnableWeightLearning": true,
+        "MinConfidenceForLearning": 0.8,
+        "LearningRate": 0.01,
+        "WeightReloadIntervalMinutes": 60
       }
     }
   }
@@ -146,150 +215,62 @@ The ONNX model uses 12 features extracted from each request:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `ModelPath` | string | `models/bot_classifier.onnx` | Path to ONNX model file |
-| `AutoDownloadModel` | bool | `true` | Download model if not present |
-| `ModelDownloadUrl` | string | `""` | URL to download model from |
-| `UseGpu` | bool | `false` | Enable CUDA GPU acceleration |
-| `GpuDeviceId` | int | `0` | CUDA device ID (for multi-GPU) |
-| `EnableHeuristicFallback` | bool | `true` | Use heuristic weights when no model |
-| `InferenceThreads` | int | `4` | Threads for inference (CPU only) |
-| `EnableMemoryOptimization` | bool | `true` | Optimize memory usage |
-| `EnableProfiling` | bool | `false` | Enable performance profiling |
+| `Enabled` | bool | `true` | Enable heuristic detection |
+| `LoadLearnedWeights` | bool | `true` | Load weights from database on startup |
+| `EnableWeightLearning` | bool | `true` | Update weights from detection feedback |
+| `MinConfidenceForLearning` | double | `0.8` | Minimum confidence for weight updates |
+| `LearningRate` | double | `0.01` | Learning rate for weight adjustments |
+| `WeightReloadIntervalMinutes` | int | `60` | How often to reload weights from store |
 
-### GPU Acceleration (CUDA)
+### Continuous Learning
 
-For high-throughput scenarios, enable GPU acceleration:
-
-```json
-{
-  "BotDetection": {
-    "AiDetection": {
-      "Onnx": {
-        "UseGpu": true,
-        "GpuDeviceId": 0
-      }
-    }
-  }
-}
-```
-
-**Requirements:**
-- NVIDIA GPU with CUDA support
-- CUDA Toolkit 11.x or 12.x installed
-- cuDNN library installed
-- `Microsoft.ML.OnnxRuntime.Gpu` NuGet package
-
-**Performance Comparison:**
-
-| Mode | Latency | Throughput | Memory |
-|------|---------|------------|--------|
-| CPU (4 threads) | 5-10ms | ~200 req/s | ~50MB |
-| GPU (RTX 3060) | 1-2ms | ~2000 req/s | ~200MB |
-| GPU (A100) | <1ms | ~10000 req/s | ~500MB |
-
-### Heuristic Fallback
-
-When no ONNX model is available, the system uses heuristic weights:
-
-```csharp
-// Built-in fallback scoring
-var score =
-    (uaHasBotKeyword ? 0.4 : 0.0) +
-    (isDatacenterIp ? 0.3 : 0.0) +
-    (!hasAcceptLanguage ? 0.2 : 0.0) +
-    (!hasCookies ? 0.1 : 0.0);
-```
-
-This ensures detection continues even without the ML model.
-
-### Model Management
-
-#### Auto-Download
-
-```json
-{
-  "BotDetection": {
-    "AiDetection": {
-      "Onnx": {
-        "AutoDownloadModel": true,
-        "ModelDownloadUrl": "https://your-cdn.com/models/bot_classifier_v2.onnx"
-      }
-    }
-  }
-}
-```
-
-The model is downloaded on first request and cached locally.
-
-#### Custom Model Path
-
-```json
-{
-  "BotDetection": {
-    "AiDetection": {
-      "Onnx": {
-        "ModelPath": "/opt/models/custom_bot_classifier.onnx",
-        "AutoDownloadModel": false
-      }
-    }
-  }
-}
-```
-
-#### Model Hot-Reload
-
-The system watches for model file changes and reloads automatically:
-
-```csharp
-// Model is reloaded when file changes
-// No restart required
-```
-
-### Training Your Own Model
-
-The learning system collects training data from detections:
+The heuristic model improves over time through the learning feedback loop:
 
 ```mermaid
 flowchart LR
     Detection[Detection Result] --> Bus[Learning Bus]
-    Bus --> Store[(Training Store)]
-    Store --> Export[Export CSV/Parquet]
-    Export --> Train[Train Model]
-    Train --> Validate[Validate]
-    Validate --> Deploy[Deploy ONNX]
+    Bus --> Store[(Weight Store)]
+    Store --> Weights[Updated Weights]
+    Weights --> Model[Heuristic Model]
+    Model --> Detection
 ```
 
-**Export Training Data:**
+**How Learning Works:**
+
+1. Each detection produces a feature vector and confidence score
+2. High-confidence detections update weights in the `WeightStore`
+3. Weights are persisted to SQLite for survival across restarts
+4. Periodic weight reloads ensure the model stays current
+
+### Weight Persistence
+
+Weights are stored in the SQLite database and persist across application restarts:
 
 ```csharp
-// Access via diagnostic endpoints
-app.MapGet("/bot-detection/training-data", async (ILearnedPatternStore store) =>
-{
-    var data = await store.ExportTrainingDataAsync();
-    return Results.File(data, "text/csv", "training_data.csv");
-});
+// Weights are automatically loaded from store
+// and updated based on detection feedback
+
+// Manual weight reload
+var detector = app.Services.GetRequiredService<HeuristicDetector>();
+await detector.ReloadWeightsAsync();
 ```
 
-**Training Pipeline (Python):**
+### Feature Names API
 
-```python
-import onnx
-import pandas as pd
-from sklearn.ensemble import GradientBoostingClassifier
-from skl2onnx import convert_sklearn
+For debugging and introspection:
 
-# Load training data
-df = pd.read_csv('training_data.csv')
-X = df[['ua_length', 'ua_has_bot_keyword', ...]]  # 12 features
-y = df['is_bot']
+```csharp
+// Get feature names
+var names = HeuristicDetector.GetFeatureNames();
+// ["ua_length_norm", "has_accept_language", ...]
 
-# Train model
-model = GradientBoostingClassifier(n_estimators=100)
-model.fit(X, y)
+// Get current weights
+var weights = detector.GetCurrentWeights();
+// [0.5f, -0.8f, ...]
 
-# Convert to ONNX
-onnx_model = convert_sklearn(model, initial_types=[('input', FloatTensorType([None, 12]))])
-onnx.save_model(onnx_model, 'bot_classifier.onnx')
+// Get current bias
+var bias = detector.GetCurrentBias();
+// 0.2f
 ```
 
 ---
@@ -393,32 +374,6 @@ sequenceDiagram
 | `RetryCount` | int | `2` | Retries on failure |
 | `RetryDelayMs` | int | `100` | Delay between retries |
 
-### Custom Prompts
-
-Override the default analysis prompt:
-
-```json
-{
-  "BotDetection": {
-    "AiDetection": {
-      "Ollama": {
-        "CustomPrompt": "Analyze this HTTP request for bot indicators.\n\n{REQUEST_INFO}\n\nRespond with JSON:\n{\"isBot\": boolean, \"confidence\": 0.0-1.0, \"reasoning\": \"...\", \"botType\": \"...\", \"indicators\": [...]}"
-      }
-    }
-  }
-}
-```
-
-**Template Variables:**
-
-| Variable | Content |
-|----------|---------|
-| `{REQUEST_INFO}` | Full request details (headers, path, etc.) |
-| `{USER_AGENT}` | User-Agent string |
-| `{HEADERS}` | HTTP headers JSON |
-| `{IP_INFO}` | IP and datacenter info |
-| `{BEHAVIOR}` | Behavioral stats |
-
 ### Recommended Models
 
 | Model | Size | Context | Speed | Accuracy | Use Case |
@@ -429,38 +384,17 @@ Override the default analysis prompt:
 | `phi3:mini` | 3.8B | 4K | ~150ms | Best | Low volume, high accuracy |
 | `llama3.2:3b` | 3B | 8K | ~200ms | Best | Research/analysis |
 
-### GPU Acceleration
-
-Ollama automatically uses GPU if available:
-
-```bash
-# Check GPU status
-ollama ps
-
-# Force CPU-only
-OLLAMA_NO_GPU=1 ollama serve
-```
-
-**VRAM Requirements:**
-
-| Model | CPU RAM | GPU VRAM |
-|-------|---------|----------|
-| tinyllama | ~2GB | ~1GB |
-| gemma3:1b | ~3GB | ~2GB |
-| phi3:mini | ~6GB | ~4GB |
-| llama3.2:3b | ~8GB | ~6GB |
-
 ---
 
 ## Provider Comparison
 
 ```mermaid
 flowchart LR
-    subgraph ONNX["ONNX Provider"]
-        O1[Fast: 1-10ms]
-        O2[Offline: No network]
-        O3[Light: ~50MB RAM]
-        O4[Pattern-based]
+    subgraph Heuristic["Heuristic Provider"]
+        H1[Fast: <1ms]
+        H2[Offline: No network]
+        H3[Light: ~10KB model]
+        H4[Pattern-based + learning]
     end
 
     subgraph Ollama["Ollama Provider"]
@@ -471,23 +405,22 @@ flowchart LR
     end
 
     Request([Request]) --> Decision{Choose Provider}
-    Decision -->|Default| ONNX
+    Decision -->|Default| Heuristic
     Decision -->|Escalation| Ollama
 ```
 
-| Feature | ONNX | Ollama |
-|---------|------|--------|
-| **Latency** | 1-10ms | 50-500ms |
-| **Accuracy** | Good (pattern-based) | Best (full reasoning) |
-| **Resources** | ~50MB RAM | 1-4GB RAM |
+| Feature | Heuristic | Ollama |
+|---------|-----------|--------|
+| **Latency** | <1ms | 50-500ms |
+| **Accuracy** | Good (pattern-based + learning) | Best (full reasoning) |
+| **Resources** | ~10KB memory | 1-4GB RAM |
 | **Dependencies** | None (in-process) | Ollama server |
 | **Offline** | Yes | Yes (local) |
-| **GPU** | Optional CUDA | Automatic |
 | **Learning** | Continuous | Static |
 
 ### Recommendation
 
-1. **Start with ONNX** - Fast, low overhead, good accuracy
+1. **Start with Heuristic** - Fast, low overhead, continuously learns
 2. **Add Ollama for escalation** - Catch sophisticated bots
 3. **Enable learning** - Continuous improvement
 
@@ -496,15 +429,15 @@ flowchart LR
   "BotDetection": {
     "EnableAiDetection": true,
     "AiDetection": {
-      "Provider": "Onnx",
-      "Onnx": {
-        "AutoDownloadModel": true,
-        "EnableHeuristicFallback": true
+      "Provider": "Heuristic",
+      "Heuristic": {
+        "Enabled": true,
+        "EnableWeightLearning": true
       }
     },
     "FastPath": {
       "SlowPathDetectors": [
-        { "Name": "ONNX Detector", "Signal": "OnnxCompleted", "Wave": 1 }
+        { "Name": "Heuristic Detector", "Signal": "AiClassificationCompleted", "Wave": 1 }
       ],
       "AiPathDetectors": [
         { "Name": "LLM Detector", "Signal": "LlmCompleted", "Wave": 1 }
@@ -530,7 +463,7 @@ AI detection is designed to fail gracefully:
 flowchart TB
     AI[AI Detection] --> Check{Available?}
     Check -->|Yes| Run[Run Inference]
-    Check -->|No| Fallback[Heuristic Fallback]
+    Check -->|No| Fallback[Default Weights]
 
     Run --> Result{Success?}
     Result -->|Yes| Score[Return Score]
@@ -544,7 +477,7 @@ flowchart TB
 **Guarantees:**
 - AI detection **never blocks** the pipeline
 - Timeouts are logged, not thrown
-- Heuristic fallback always available
+- Default weights always available
 - Circuit breaker prevents cascade failures
 
 ---
@@ -558,8 +491,8 @@ flowchart TB
 bot_detection_ai_inference_duration_seconds
 bot_detection_ai_inference_total
 bot_detection_ai_inference_errors_total
-bot_detection_ai_model_loaded
-bot_detection_ai_gpu_memory_bytes
+bot_detection_heuristic_weights_loaded
+bot_detection_heuristic_learning_updates_total
 ```
 
 ### Health Check
@@ -577,14 +510,19 @@ app.MapHealthChecks("/health/ai", new HealthCheckOptions
 GET /bot-detection/ai-status
 
 {
-  "provider": "Onnx",
-  "modelLoaded": true,
-  "modelPath": "models/bot_classifier.onnx",
-  "modelVersion": "2.1.0",
-  "gpuEnabled": false,
+  "provider": "Heuristic",
+  "weightsLoaded": true,
+  "weightCount": 47,
+  "featuresSample": [
+    "ua:contains_bot",
+    "hdr:accept-language",
+    "det:user_agent_detector",
+    "stat:detector_max"
+  ],
+  "bias": 0.1,
+  "learningEnabled": true,
   "inferenceCount": 12345,
-  "averageLatencyMs": 3.2,
-  "heuristicFallbackActive": false
+  "averageLatencyMs": 0.3
 }
 ```
 
@@ -592,29 +530,17 @@ GET /bot-detection/ai-status
 
 ## Troubleshooting
 
-### ONNX Model Not Loading
+### Weights Not Loading
 
 ```
-Error: Failed to load ONNX model from 'models/bot_classifier.onnx'
-```
-
-**Solutions:**
-1. Check file path exists
-2. Verify file permissions
-3. Enable `AutoDownloadModel`
-4. Check `ModelDownloadUrl` is accessible
-
-### GPU Not Detected
-
-```
-Warning: CUDA not available, falling back to CPU
+Warning: Failed to load weights from store, using defaults
 ```
 
 **Solutions:**
-1. Install CUDA Toolkit 11.x+
-2. Install cuDNN
-3. Add `Microsoft.ML.OnnxRuntime.Gpu` package
-4. Check `nvidia-smi` works
+1. Check database connection
+2. Verify `WeightStore` is registered
+3. Check `LoadLearnedWeights` is true
+4. Ensure database file exists and is writable
 
 ### Ollama Connection Failed
 
@@ -628,14 +554,14 @@ Error: Failed to connect to Ollama at http://localhost:11434
 3. Verify firewall settings
 4. Pull required model: `ollama pull gemma3:1b`
 
-### High Latency
+### Learning Not Updating
 
-**ONNX slow:**
-- Enable GPU
-- Increase `InferenceThreads`
-- Enable `EnableMemoryOptimization`
+```
+Debug: No weight store available, skipping weight update
+```
 
-**Ollama slow:**
-- Use smaller model (tinyllama)
-- Reduce `MaxTokens`
-- Check GPU utilization
+**Solutions:**
+1. Ensure `IWeightStore` is registered
+2. Check `EnableWeightLearning` is true
+3. Verify `MinConfidenceForLearning` threshold
+4. Check database write permissions

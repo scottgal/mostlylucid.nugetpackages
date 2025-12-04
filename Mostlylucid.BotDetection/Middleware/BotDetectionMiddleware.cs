@@ -69,20 +69,38 @@ public class BotDetectionMiddleware(
 
     #endregion
 
-    private static readonly Dictionary<string, TestModeConfig> TestModeConfigs =
+    // Default test mode simulations - used as fallback when options don't contain the mode
+    private static readonly Dictionary<string, string> DefaultTestModeSimulations =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["disable"] = new(false, 0.0, null, null, "Bot detection disabled via test header"),
-            ["human"] = new(false, 0.0, null, null, "Simulated human traffic"),
-            ["bot"] = new(true, 1.0, BotType.Unknown, "Test Bot", "Simulated bot traffic"),
-            ["googlebot"] = new(true, 0.95, BotType.SearchEngine, "Googlebot", "Simulated Googlebot"),
-            ["bingbot"] = new(true, 0.95, BotType.SearchEngine, "Bingbot", "Simulated Bingbot"),
-            ["scraper"] = new(true, 0.9, BotType.Scraper, "Test Scraper", "Simulated scraper bot"),
-            ["malicious"] = new(true, 1.0, BotType.MaliciousBot, "Test Malicious Bot", "Simulated malicious bot"),
-            ["social"] = new(true, 0.85, BotType.SocialMediaBot, "Test Social Bot", "Simulated social media bot"),
-            ["socialbot"] = new(true, 0.85, BotType.SocialMediaBot, "Test Social Bot", "Simulated social media bot"),
-            ["monitor"] = new(true, 0.8, BotType.MonitoringBot, "Test Monitoring Bot", "Simulated monitoring bot"),
-            ["monitoring"] = new(true, 0.8, BotType.MonitoringBot, "Test Monitoring Bot", "Simulated monitoring bot")
+            // Human browser
+            ["human"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+
+            // Generic bots
+            ["bot"] = "bot/1.0 (+http://example.com/bot)",
+
+            // Search engine crawlers
+            ["googlebot"] = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+            ["bingbot"] = "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)",
+
+            // Scrapers and tools
+            ["scrapy"] = "Scrapy/2.11 (+https://scrapy.org)",
+            ["curl"] = "curl/8.4.0",
+            ["puppeteer"] = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/120.0.0.0 Safari/537.36",
+
+            // Malicious patterns (known bad actors)
+            ["malicious"] = "sqlmap/1.7 (http://sqlmap.org)",
+
+            // AI/LLM crawlers
+            ["gptbot"] = "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+            ["claudebot"] = "ClaudeBot/1.0; +https://www.anthropic.com/claude-bot",
+
+            // Social media bots
+            ["twitterbot"] = "Twitterbot/1.0",
+            ["facebookbot"] = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+
+            // Monitoring bots
+            ["uptimerobot"] = "UptimeRobot/2.0"
         };
 
     private static readonly Random Jitter = new();
@@ -125,12 +143,13 @@ public class BotDetectionMiddleware(
         }
 
         // Test mode: Allow overriding bot detection via header
+        // In test mode, we still run the real pipeline but with a simulated User-Agent
         if (_options.EnableTestMode)
         {
             var testMode = context.Request.Headers["ml-bot-test-mode"].FirstOrDefault();
             if (!string.IsNullOrEmpty(testMode))
             {
-                await HandleTestMode(context, testMode);
+                await HandleTestModeWithRealDetection(context, testMode, orchestrator, policyRegistry);
                 return;
             }
         }
@@ -378,6 +397,9 @@ public class BotDetectionMiddleware(
             }
         }
 
+        // Include AI status for calibration visibility
+        context.Response.Headers.TryAdd($"{prefix}Ai-Ran", aggregated.AiRan.ToString().ToLowerInvariant());
+
         // Full JSON result if enabled (useful for debugging)
         if (headerConfig.IncludeFullJson)
         {
@@ -387,6 +409,7 @@ public class BotDetectionMiddleware(
                 confidence = aggregated.Confidence,
                 riskBand = aggregated.RiskBand.ToString(),
                 policy = policyName,
+                aiRan = aggregated.AiRan,
                 detectors = aggregated.ContributingDetectors,
                 categories = aggregated.CategoryBreakdown.ToDictionary(
                     kv => kv.Key,
@@ -561,9 +584,78 @@ public class BotDetectionMiddleware(
 
     #region Test Mode
 
+    private async Task HandleTestModeWithRealDetection(
+        HttpContext context,
+        string testMode,
+        BlackboardOrchestrator orchestrator,
+        IPolicyRegistry policyRegistry)
+    {
+        _logger.LogInformation("Test mode: Running real detection with simulated UA for '{Mode}'", testMode);
+
+        // Handle "disable" mode - skip detection entirely
+        if (testMode.Equals("disable", StringComparison.OrdinalIgnoreCase))
+        {
+            context.Response.Headers.TryAdd("X-Test-Mode", "disabled");
+            await _next(context);
+            return;
+        }
+
+        // Get simulated User-Agent from options first, then fallback to defaults
+        string? simulatedUserAgent = null;
+        if (_options.TestModeSimulations.TryGetValue(testMode, out var configuredUa))
+        {
+            simulatedUserAgent = configuredUa;
+        }
+        else if (DefaultTestModeSimulations.TryGetValue(testMode, out var defaultUa))
+        {
+            simulatedUserAgent = defaultUa;
+        }
+
+        // Override the User-Agent header temporarily for detection
+        var originalUserAgent = context.Request.Headers.UserAgent.ToString();
+        if (!string.IsNullOrEmpty(simulatedUserAgent))
+        {
+            context.Request.Headers.UserAgent = simulatedUserAgent;
+        }
+
+        try
+        {
+            // Resolve policy (respecting X-Bot-Policy header)
+            var endpoint = context.GetEndpoint();
+            var policy = ResolvePolicy(context, endpoint, policyRegistry);
+
+            // Run the REAL detection pipeline
+            var aggregatedResult = await orchestrator.DetectWithPolicyAsync(context, policy, context.RequestAborted);
+            PopulateContextFromAggregated(context, aggregatedResult, policy.Name);
+
+            // Add response headers
+            context.Response.Headers.TryAdd("X-Test-Mode", "true");
+            context.Response.Headers.TryAdd("X-Test-Simulated-UA", simulatedUserAgent ?? "none");
+
+            if (_options.ResponseHeaders.Enabled)
+            {
+                AddResponseHeaders(context, aggregatedResult, policy.Name);
+            }
+
+            _logger.LogInformation(
+                "Test mode result: BotProbability={Probability:P0}, Detectors={Count}, Processing={Ms:F1}ms",
+                aggregatedResult.BotProbability,
+                aggregatedResult.ContributingDetectors.Count,
+                aggregatedResult.TotalProcessingTimeMs);
+        }
+        finally
+        {
+            // Restore original User-Agent
+            context.Request.Headers.UserAgent = originalUserAgent;
+        }
+
+        await _next(context);
+    }
+
+    // Legacy test mode handler for fallback
     private async Task HandleTestMode(HttpContext context, string testMode)
     {
-        _logger.LogInformation("Test mode: Simulating bot detection as '{Mode}'", testMode);
+        _logger.LogInformation("Test mode (legacy): Simulating bot detection as '{Mode}'", testMode);
 
         var testResult = CreateTestResult(testMode);
         PopulateContextItems(context, testResult);
@@ -587,46 +679,25 @@ public class BotDetectionMiddleware(
 
     private static BotDetectionResult CreateTestResult(string testMode)
     {
-        if (TestModeConfigs.TryGetValue(testMode, out var config))
-        {
-            return new BotDetectionResult
-            {
-                IsBot = config.IsBot,
-                ConfidenceScore = config.Confidence,
-                BotType = config.BotType,
-                BotName = config.BotName,
-                Reasons =
-                [
-                    new DetectionReason
-                    {
-                        Category = "Test Mode",
-                        Detail = config.Detail,
-                        ConfidenceImpact = config.Confidence
-                    }
-                ]
-            };
-        }
-
-        // Unknown test mode - create generic bot
+        // Simple fallback for legacy mode - just creates a generic result
+        var isHuman = testMode.Equals("human", StringComparison.OrdinalIgnoreCase);
         return new BotDetectionResult
         {
-            IsBot = true,
-            ConfidenceScore = 0.7,
-            BotType = BotType.Unknown,
-            BotName = $"Test {testMode}",
+            IsBot = !isHuman,
+            ConfidenceScore = isHuman ? 0.0 : 0.7,
+            BotType = isHuman ? null : BotType.Unknown,
+            BotName = isHuman ? null : $"Test {testMode}",
             Reasons =
             [
                 new DetectionReason
                 {
                     Category = "Test Mode",
-                    Detail = $"Simulated '{testMode}' bot",
-                    ConfidenceImpact = 0.7
+                    Detail = $"Simulated '{testMode}' (legacy fallback)",
+                    ConfidenceImpact = isHuman ? 0.0 : 0.7
                 }
             ]
         };
     }
-
-    private record TestModeConfig(bool IsBot, double Confidence, BotType? BotType, string? BotName, string Detail);
 
     #endregion
 
