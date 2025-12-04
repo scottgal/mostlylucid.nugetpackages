@@ -76,10 +76,13 @@ public class FastPathReputationContributor : ContributingDetectorBase
             }
         }
 
-        // No fast-path match - let other detectors handle it
+        // No fast-path match - report neutral so we show in detector list
         if (matchedPattern == null)
         {
-            return Task.FromResult<IReadOnlyList<DetectionContribution>>(Array.Empty<DetectionContribution>());
+            return Task.FromResult<IReadOnlyList<DetectionContribution>>(new[]
+            {
+                DetectionContribution.Neutral(Name, "No known bad patterns in reputation cache")
+            });
         }
 
         // FAST PATH HIT - create instant abort contribution

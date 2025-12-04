@@ -16,7 +16,7 @@ A semantics-aware governance layer that sits behind traditional network firewall
 
 ## Architecture
 
-### Pipeline lanes
+### Pipeline lanes get 
 - **Light lane:**
     - **Purpose:** Low-latency screening.
     - **Components:** Strict rules, header sanity, IP reputation cache, ASN/geo.

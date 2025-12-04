@@ -108,8 +108,8 @@ public class SecurityToolContributor : ContributingDetectorBase
             }
         }
 
-        // No security tool detected
-        return None();
+        // No security tool detected - report neutral
+        return Single(DetectionContribution.Neutral(Name, "No security tools detected in User-Agent"));
     }
 
     private async Task<IReadOnlyList<CompiledSecurityPattern>> GetPatternsAsync(CancellationToken cancellationToken)

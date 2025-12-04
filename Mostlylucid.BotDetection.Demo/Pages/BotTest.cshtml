@@ -57,45 +57,82 @@
         .test-btn.monitor { background: #388bfd; color: white; }
         .test-btn.active { box-shadow: 0 0 0 2px #58a6ff; }
 
-        /* Path Toggle */
-        .path-toggle {
+        /* Detection Mode Selector */
+        .mode-selector {
             display: flex;
-            align-items: center;
-            gap: 10px;
+            flex-direction: column;
+            gap: 8px;
             margin-bottom: 20px;
-            padding: 12px;
+            padding: 15px;
             background: #21262d;
             border-radius: 6px;
         }
-        .toggle-switch {
+        .mode-selector-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .mode-selector-title {
+            font-size: 0.9em;
+            color: #8b949e;
+            font-weight: 500;
+        }
+        .mode-options {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        .mode-option {
             position: relative;
-            width: 50px;
-            height: 26px;
         }
-        .toggle-switch input { display: none; }
-        .toggle-slider {
+        .mode-option input[type="radio"] {
             position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
             cursor: pointer;
-            inset: 0;
-            background: #30363d;
-            border-radius: 13px;
-            transition: 0.3s;
+            z-index: 1;
         }
-        .toggle-slider:before {
-            content: "";
-            position: absolute;
-            width: 20px;
-            height: 20px;
-            left: 3px;
-            bottom: 3px;
-            background: white;
-            border-radius: 50%;
-            transition: 0.3s;
+        .mode-option label {
+            display: block;
+            padding: 12px 14px;
+            background: #161b22;
+            border: 2px solid #30363d;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
         }
-        .toggle-switch input:checked + .toggle-slider { background: #238636; }
-        .toggle-switch input:checked + .toggle-slider:before { transform: translateX(24px); }
-        .path-label { font-size: 0.9em; }
-        .path-label.active { color: #58a6ff; font-weight: 600; }
+        .mode-option input[type="radio"]:checked + label {
+            border-color: #58a6ff;
+            background: #1f6feb20;
+        }
+        .mode-option input[type="radio"]:hover + label {
+            border-color: #484f58;
+        }
+        .mode-option-title {
+            font-weight: 600;
+            font-size: 0.9em;
+            color: #c9d1d9;
+            margin-bottom: 4px;
+        }
+        .mode-option-desc {
+            font-size: 0.75em;
+            color: #8b949e;
+            line-height: 1.4;
+        }
+        .mode-option-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7em;
+            font-weight: 600;
+            margin-left: 6px;
+        }
+        .mode-option-badge.debug { background: #8957e5; color: white; }
+        .mode-option-badge.fast { background: #238636; color: white; }
+        .mode-option-badge.blocked { background: #da3633; color: white; }
+        .mode-option-badge.learning { background: #1f6feb; color: white; }
 
         /* Stats Grid */
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
@@ -230,12 +267,13 @@
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
             .client-grid { grid-template-columns: 1fr; }
             .category-scores { grid-template-columns: repeat(2, 1fr); }
+            .mode-options { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
     <h1>Bot Detection Showroom</h1>
-    <p class="subtitle">Full detection pipeline demonstration - all slow path detectors enabled</p>
+    <p class="subtitle">Interactive demonstration of the bot detection pipeline - select a mode to see different behaviors</p>
 
     <!-- Test Buttons -->
     <div class="card">
@@ -315,17 +353,44 @@
                     hx-swap="outerHTML">UptimeRobot</button>
         </div>
 
-        <!-- Path Toggle -->
-        <div class="path-toggle">
-            <span class="path-label" id="fastLabel">Fast Path (all static detectors + bailout)</span>
-            <label class="toggle-switch">
-                <input type="checkbox" id="pathToggle" checked onchange="togglePath(true)">
-                <span class="toggle-slider"></span>
-            </label>
-            <span class="path-label active" id="slowLabel">Demo (full pipeline + AI)</span>
-            <span style="margin-left: auto; font-size: 0.8em; color: #8b949e;">
-                Processing: <strong id="timingDisplay">@Model.ProcessingTimeMs.ToString("F2")ms</strong>
-            </span>
+        <!-- Detection Mode Selector -->
+        <div class="mode-selector">
+            <div class="mode-selector-header">
+                <span class="mode-selector-title">Detection Mode</span>
+                <span style="font-size: 0.8em; color: #8b949e;">
+                    Processing: <strong id="timingDisplay">@Model.ProcessingTimeMs.ToString("F2")ms</strong>
+                </span>
+            </div>
+            <div class="mode-options">
+                <div class="mode-option">
+                    <input type="radio" name="detectionMode" id="mode-demo" value="demo" checked>
+                    <label for="mode-demo">
+                        <div class="mode-option-title">Demo Full<span class="mode-option-badge debug">DEBUG</span></div>
+                        <div class="mode-option-desc">All detectors + AI (Heuristic + LLM). Shows complete pipeline with debug logging. ~500ms</div>
+                    </label>
+                </div>
+                <div class="mode-option">
+                    <input type="radio" name="detectionMode" id="mode-fastpath" value="fastpath">
+                    <label for="mode-fastpath">
+                        <div class="mode-option-title">Demo Fast<span class="mode-option-badge fast">FAST</span></div>
+                        <div class="mode-option-desc">All static detectors + Heuristic only, no LLM. Production-like latency. ~50ms</div>
+                    </label>
+                </div>
+                <div class="mode-option">
+                    <input type="radio" name="detectionMode" id="mode-realfast" value="realfast">
+                    <label for="mode-realfast">
+                        <div class="mode-option-title">Real Fast<span class="mode-option-badge blocked">BLOCKS</span></div>
+                        <div class="mode-option-desc">What users actually see. Bots get blocked/redirected. You'll see a block page if detected!</div>
+                    </label>
+                </div>
+                <div class="mode-option">
+                    <input type="radio" name="detectionMode" id="mode-learning" value="learning">
+                    <label for="mode-learning">
+                        <div class="mode-option-title">Learning Mode<span class="mode-option-badge learning">ASYNC</span></div>
+                        <div class="mode-option-desc">Full pipeline runs async for weight learning. Never blocks, always saves patterns.</div>
+                    </label>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -509,49 +574,58 @@
         }
 
         // ==========================================
-        // Path toggle functionality
+        // Detection Mode selector functionality
         // ==========================================
 
-        // Path toggle functionality with localStorage persistence
-        // Demo (slow) = full pipeline + AI, FastPath = all static detectors + bailout
-        function togglePath(triggerRefresh) {
-            var isDemoPath = document.getElementById('pathToggle').checked;
+        // Get the currently selected detection mode
+        function getSelectedMode() {
+            var selected = document.querySelector('input[name="detectionMode"]:checked');
+            return selected ? selected.value : 'demo';
+        }
+
+        // Handle mode change - update all buttons and optionally refresh
+        function handleModeChange(triggerRefresh) {
+            var mode = getSelectedMode();
 
             // Persist to localStorage
-            localStorage.setItem('botDetectionPath', isDemoPath ? 'demo' : 'fastpath');
+            localStorage.setItem('botDetectionMode', mode);
 
-            document.getElementById('fastLabel').classList.toggle('active', !isDemoPath);
-            document.getElementById('slowLabel').classList.toggle('active', isDemoPath);
-
-            // Update all HTMX buttons to include policy header
+            // Update all HTMX buttons to use the selected policy
             document.querySelectorAll('.test-btn[hx-get]').forEach(function(btn) {
                 var headers = JSON.parse(btn.getAttribute('hx-headers') || '{}');
-                // Use X-Bot-Policy header to select the policy
-                headers['X-Bot-Policy'] = isDemoPath ? 'demo' : 'fastpath';
+                headers['X-Bot-Policy'] = mode;
                 btn.setAttribute('hx-headers', JSON.stringify(headers));
             });
 
-            // Auto-refresh when toggling (but not on initial load)
+            // Auto-refresh when changing mode (but not on initial load)
             if (triggerRefresh) {
-                var headers = {'X-Bot-Policy': isDemoPath ? 'demo' : 'fastpath'};
+                var headers = {'X-Bot-Policy': mode};
                 htmx.ajax('GET', '/bot-test', {target: 'body', swap: 'outerHTML', headers: headers});
             }
         }
 
-        // Initialize path toggle from localStorage
-        (function initPathToggle() {
-            var savedPath = localStorage.getItem('botDetectionPath');
-            var toggle = document.getElementById('pathToggle');
+        // Initialize mode selector from localStorage and attach event listeners
+        (function initModeSelector() {
+            var savedMode = localStorage.getItem('botDetectionMode') || 'demo';
 
-            // Default to demo path if not set
-            if (savedPath === 'fastpath') {
-                toggle.checked = false;
+            // Set the saved mode as checked
+            var radio = document.getElementById('mode-' + savedMode);
+            if (radio) {
+                radio.checked = true;
             } else {
-                toggle.checked = true;
+                // Fallback to demo if invalid mode
+                document.getElementById('mode-demo').checked = true;
             }
 
-            // Initialize without triggering refresh
-            togglePath(false);
+            // Attach change listeners to all radio buttons
+            document.querySelectorAll('input[name="detectionMode"]').forEach(function(radio) {
+                radio.addEventListener('change', function() {
+                    handleModeChange(true);
+                });
+            });
+
+            // Initialize button headers without triggering refresh
+            handleModeChange(false);
         })();
 
         // Intercept fingerprint data
@@ -609,9 +683,8 @@
         }
 
         function fetchDetectionCheck() {
-            // Get current policy from toggle
-            var isDemoPath = document.getElementById('pathToggle').checked;
-            var policy = isDemoPath ? 'demo' : 'fastpath';
+            // Get current policy from mode selector
+            var policy = getSelectedMode();
 
             fetch('/bot-detection/check', {
                 headers: { 'X-Bot-Policy': policy }

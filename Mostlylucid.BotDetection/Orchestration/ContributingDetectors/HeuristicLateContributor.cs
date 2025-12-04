@@ -118,8 +118,14 @@ public class HeuristicLateContributor : ContributingDetectorBase
     /// </summary>
     private static AggregatedEvidence BuildTempEvidence(BlackboardState state)
     {
-        // Aggregate signals from all contributions
+        // Aggregate signals from blackboard state first
         var signals = new Dictionary<string, object>();
+        foreach (var signal in state.Signals)
+        {
+            signals[signal.Key] = signal.Value;
+        }
+
+        // Then overlay signals from all contributions (these take precedence)
         foreach (var contrib in state.Contributions)
         {
             foreach (var signal in contrib.Signals)

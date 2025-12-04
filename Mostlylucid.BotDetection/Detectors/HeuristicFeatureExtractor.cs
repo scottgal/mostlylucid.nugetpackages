@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Orchestration;
 
 namespace Mostlylucid.BotDetection.Detectors;
@@ -54,6 +55,9 @@ public static class HeuristicFeatureExtractor
 
         // === Signal Presence (named by actual signal type) ===
         ExtractSignalPresence(evidence, features);
+
+        // === AI/LLM Results (extract actual values, not just presence) ===
+        ExtractAiResults(evidence, features);
 
         // === Aggregated Statistics ===
         ExtractStatistics(evidence, features);
@@ -223,6 +227,69 @@ public static class HeuristicFeatureExtractor
         {
             // No fingerprint - slightly suspicious but not conclusive
             features["fp:missing"] = 1f;
+        }
+    }
+
+    /// <summary>
+    ///     Extracts AI/LLM detector results as numeric features.
+    ///     This provides the actual prediction values, not just presence indicators.
+    ///     Critical for late heuristic to incorporate AI feedback.
+    /// </summary>
+    private static void ExtractAiResults(AggregatedEvidence evidence, Dictionary<string, float> features)
+    {
+        // Check if AI ran
+        if (!evidence.AiRan)
+        {
+            features["ai:ran"] = 0f;
+            return;
+        }
+
+        features["ai:ran"] = 1f;
+
+        // Extract AI prediction (bot = 1, human = 0)
+        if (evidence.Signals.TryGetValue(SignalKeys.AiPrediction, out var prediction))
+        {
+            var isBot = prediction is string s && s.Equals("bot", StringComparison.OrdinalIgnoreCase);
+            features["ai:prediction"] = isBot ? 1f : 0f;
+        }
+
+        // Extract AI confidence as numeric value
+        if (evidence.Signals.TryGetValue(SignalKeys.AiConfidence, out var confidenceObj))
+        {
+            var confidence = confidenceObj switch
+            {
+                double d => (float)d,
+                float f => f,
+                int i => i / 100f,
+                _ => 0.5f
+            };
+            features["ai:confidence"] = confidence;
+
+            // Also extract AI's contribution to bot probability
+            // If AI said human with high confidence, that's a strong negative (human) signal
+            var aiPrediction = features.GetValueOrDefault("ai:prediction", 0.5f);
+            if (aiPrediction < 0.5f) // Human prediction
+            {
+                // Convert confidence to negative (human-leaning) feature
+                features["ai:human_confidence"] = confidence;
+                features["ai:bot_confidence"] = 0f;
+            }
+            else // Bot prediction
+            {
+                features["ai:human_confidence"] = 0f;
+                features["ai:bot_confidence"] = confidence;
+            }
+        }
+
+        // Get the actual confidence delta from the LLM contribution
+        var llmContribution = evidence.Contributions
+            .FirstOrDefault(c => c.DetectorName.Equals("Llm", StringComparison.OrdinalIgnoreCase));
+
+        if (llmContribution != null)
+        {
+            // Store the signed delta (negative = human, positive = bot)
+            features["ai:delta"] = (float)llmContribution.ConfidenceDelta;
+            features["ai:weight"] = (float)llmContribution.Weight;
         }
     }
 

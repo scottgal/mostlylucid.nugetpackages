@@ -155,6 +155,12 @@ public class ReputationBiasContributor : ContributingDetectorBase
             }
         }
 
+        // Always return at least one contribution so detector shows in list
+        if (contributions.Count == 0)
+        {
+            contributions.Add(DetectionContribution.Neutral(Name, "No learned reputation patterns matched"));
+        }
+
         return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
     }
 

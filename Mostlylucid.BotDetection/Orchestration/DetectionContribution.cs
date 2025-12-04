@@ -144,6 +144,22 @@ public sealed record DetectionContribution
     };
 
     /// <summary>
+    ///     Helper to create a neutral contribution (no impact, just reports detector ran)
+    /// </summary>
+    public static DetectionContribution Neutral(
+        string detector,
+        string reason,
+        ImmutableDictionary<string, object>? signals = null) => new()
+    {
+        DetectorName = detector,
+        Category = detector,
+        ConfidenceDelta = 0,
+        Weight = 0,
+        Reason = reason,
+        Signals = signals ?? ImmutableDictionary<string, object>.Empty
+    };
+
+    /// <summary>
     ///     Helper to create an early exit contribution (verified good bot)
     /// </summary>
     public static DetectionContribution VerifiedGoodBot(

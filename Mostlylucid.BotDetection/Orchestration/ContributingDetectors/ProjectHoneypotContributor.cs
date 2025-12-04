@@ -54,7 +54,7 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
         if (!_options.ProjectHoneypot.Enabled ||
             string.IsNullOrWhiteSpace(_options.ProjectHoneypot.AccessKey))
         {
-            return None();
+            return Single(DetectionContribution.Neutral(Name, "Skipped: not configured"));
         }
 
         var clientIp = state.GetSignal<string>(SignalKeys.ClientIp);
@@ -67,7 +67,7 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
         var isLocal = state.GetSignal<bool>(SignalKeys.IpIsLocal);
         if (isLocal)
         {
-            return None();
+            return Single(DetectionContribution.Neutral(Name, "Skipped: localhost/private IP"));
         }
 
         // Parse the IP address

@@ -625,6 +625,27 @@ public class BlackboardOrchestrator
             ? LearningEventType.HighConfidenceDetection
             : LearningEventType.FullDetection;
 
+        // Include UA, IP, path for signature extraction
+        var metadata = new Dictionary<string, object>
+        {
+            ["botProbability"] = result.BotProbability,
+            ["riskBand"] = result.RiskBand.ToString(),
+            ["contributingDetectors"] = result.ContributingDetectors.ToList(),
+            ["failedDetectors"] = result.FailedDetectors.ToList(),
+            ["processingTimeMs"] = elapsed.TotalMilliseconds,
+            ["categoryBreakdown"] = result.CategoryBreakdown.ToDictionary(
+                kv => kv.Key,
+                kv => (object)kv.Value.Score)
+        };
+
+        // Add signature data from signals (required for weight learning)
+        if (result.Signals.TryGetValue(SignalKeys.UserAgent, out var ua))
+            metadata["userAgent"] = ua;
+        if (result.Signals.TryGetValue(SignalKeys.ClientIp, out var ip))
+            metadata["ip"] = ip;
+        if (result.Signals.TryGetValue("path", out var path))
+            metadata["path"] = path;
+
         _learningBus.TryPublish(new LearningEvent
         {
             Type = eventType,
@@ -632,17 +653,7 @@ public class BlackboardOrchestrator
             Confidence = result.Confidence,
             Label = result.BotProbability >= 0.5,
             RequestId = requestId,
-            Metadata = new Dictionary<string, object>
-            {
-                ["botProbability"] = result.BotProbability,
-                ["riskBand"] = result.RiskBand.ToString(),
-                ["contributingDetectors"] = result.ContributingDetectors.ToList(),
-                ["failedDetectors"] = result.FailedDetectors.ToList(),
-                ["processingTimeMs"] = elapsed.TotalMilliseconds,
-                ["categoryBreakdown"] = result.CategoryBreakdown.ToDictionary(
-                    kv => kv.Key,
-                    kv => (object)kv.Value.Score)
-            }
+            Metadata = metadata
         });
     }
 
