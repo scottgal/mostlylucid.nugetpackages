@@ -509,7 +509,7 @@ Detection policies define WHAT to detect:
         "Description": "High-security detection",
         "FastPath": ["UserAgent", "Header", "Ip"],
         "SlowPath": ["Behavioral", "Inconsistency", "ClientSide"],
-        "AiPath": ["Onnx", "Llm"],
+        "AiPath": ["Heuristic", "Llm"],
         "ForceSlowPath": true,
         "EscalateToAi": true,
         "AiEscalationThreshold": 0.4,

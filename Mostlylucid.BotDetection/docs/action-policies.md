@@ -37,7 +37,7 @@ flowchart TB
         Throttle --> LearningBus
         Challenge --> LearningBus
         LearningBus --> ReputationStore[(Pattern Reputation)]
-        LearningBus --> OnnxTraining[ONNX Training Data]
+        LearningBus --> WeightStore[(Heuristic Weight Store)]
         ReputationStore --> Evidence
     end
 
@@ -74,10 +74,10 @@ app.UseBotDetection();
 
     "EnableAiDetection": true,
     "AiDetection": {
-      "Provider": "Onnx",
-      "Onnx": {
-        "AutoDownloadModel": true,
-        "EnableHeuristicFallback": true
+      "Provider": "Heuristic",
+      "Heuristic": {
+        "Enabled": true,
+        "EnableWeightLearning": true
       }
     },
 
@@ -933,9 +933,10 @@ The learning system improves detection over time:
     },
     "EnableAiDetection": true,
     "AiDetection": {
-      "Provider": "Onnx",
-      "Onnx": {
-        "AutoDownloadModel": true
+      "Provider": "Heuristic",
+      "Heuristic": {
+        "Enabled": true,
+        "EnableWeightLearning": true
       }
     }
   }
