@@ -6,6 +6,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionFolder", "SolutionF
 		README.md = README.md
 		.github\workflows\publish-llmalttext.yml = .github\workflows\publish-llmalttext.yml
 		.github\workflows\publish-botdetection.yml = .github\workflows\publish-botdetection.yml
+		.github\workflows\publish-yarpgateway.yml = .github\workflows\publish-yarpgateway.yml
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.BotDetection.Demo", "Mostlylucid.BotDetection.Demo\Mostlylucid.BotDetection.Demo.csproj", "{98CBEEC8-A949-4C42-B826-EEB4774095D6}"

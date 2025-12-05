@@ -1,3 +1,5 @@
+using Mostlylucid.BotDetection.Extensions;
+using Mostlylucid.BotDetection.Middleware;
 using Mostlylucid.YarpGateway.Configuration;
 using Mostlylucid.YarpGateway.Data;
 using Mostlylucid.YarpGateway.Endpoints;
@@ -45,6 +47,9 @@ try
     // Add database if configured
     builder.Services.AddGatewayDatabase(builder.Configuration);
 
+    // Add Bot Detection - the core feature of this gateway!
+    builder.Services.AddBotDetection(builder.Configuration);
+
     // Add YARP reverse proxy
     builder.Services.AddYarpServices(builder.Configuration);
 
@@ -61,6 +66,9 @@ try
 
     // Admin secret middleware (if configured)
     app.UseAdminSecretMiddleware();
+
+    // Bot Detection middleware - runs on every request
+    app.UseBotDetection();
 
     // Admin API endpoints
     app.MapAdminEndpoints();

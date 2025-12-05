@@ -1,0 +1,52 @@
+# Git
+**/.git
+**/.gitignore
+
+# IDE
+**/.vs
+**/.vscode
+**/.idea
+**/*.user
+**/*.suo
+
+# Build outputs
+**/bin
+**/obj
+
+# Other projects (only include what's needed)
+Mostlylucid.BotDetection.Demo/
+Mostlylucid.BotDetection.Test/
+Mostlylucid.BotDetection.Orchestration.Tests/
+Mostlylucid.YarpGateway.Tests/
+Mostlylucid.GeoDetection/
+Mostlylucid.GeoDetection.Test/
+Mostlylucid.LlmAccessibilityAuditor/
+Mostlylucid.LlmAccessibilityAuditor.Test/
+Mostlylucid.LlmAltText/
+Mostlylucid.LlmAltText.Test/
+Mostlylucid.LLMContentModeration/
+Mostlylucid.LLMContentModeration.Test/
+Mostlylucid.LlmLogSummarizer/
+Mostlylucid.LlmLogSummarizer.Test/
+Mostlylucid.LlmPiiRedactor/
+Mostlylucid.LlmPiiRedactor.Tests/
+Mostlylucid.LlmSeoMetadata/
+Mostlylucid.LlmSeoMetadata.Test/
+Mostlylucid.SentimentAnalysis/
+Mostlylucid.SentimentAnalysis.Tests/
+
+# Documentation
+**/*.md
+**/docs/
+
+# Misc
+**/.DS_Store
+**/Thumbs.db
+**/logs/
+**/data/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+
+# Exclude example configs
+Mostlylucid.YarpGateway/config/

@@ -171,6 +171,9 @@ public class BotDetectionMiddleware(
         var aggregatedResult = await orchestrator.DetectWithPolicyAsync(context, policy, context.RequestAborted);
         PopulateContextFromAggregated(context, aggregatedResult, policy.Name);
 
+        // Log detection result
+        LogDetectionResult(context, aggregatedResult, policy.Name);
+
         // Add response headers if enabled
         if (_options.ResponseHeaders.Enabled)
         {
@@ -428,6 +431,58 @@ public class BotDetectionMiddleware(
             // Base64 encode to avoid header encoding issues
             var base64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
             context.Response.Headers.TryAdd($"{prefix}Result-Json", base64);
+        }
+    }
+
+    #endregion
+
+    #region Detection Logging
+
+    private void LogDetectionResult(
+        HttpContext context,
+        AggregatedEvidence aggregated,
+        string policyName)
+    {
+        // Always log at Information level for visibility
+        // LogAllRequests controls whether to log human traffic (low risk)
+        // LogDetailedReasons controls whether to include detection reasons
+
+        var riskScore = aggregated.BotProbability;
+        var riskBand = aggregated.RiskBand;
+        var isLikelyBot = riskScore >= _options.BotThreshold;
+
+        // For low-risk (likely human) requests, only log if LogAllRequests is true
+        if (!isLikelyBot && !_options.LogAllRequests)
+        {
+            return;
+        }
+
+        var path = context.Request.Path;
+        var method = context.Request.Method;
+        var botName = aggregated.PrimaryBotName ?? "unknown";
+        var detectors = string.Join(",", aggregated.ContributingDetectors);
+
+        if (_options.LogDetailedReasons && aggregated.Contributions.Count > 0)
+        {
+            // Detailed logging with reasons
+            var topReasons = aggregated.Contributions
+                .OrderByDescending(c => Math.Abs(c.ConfidenceDelta))
+                .Take(3)
+                .Select(c => $"{c.Category}:{c.ConfidenceDelta:+0.00;-0.00}")
+                .ToList();
+
+            _logger.LogInformation(
+                "Bot detection: {Method} {Path} -> risk={Risk:F2} ({RiskBand}), bot={BotName}, policy={Policy}, " +
+                "detectors=[{Detectors}], reasons=[{Reasons}], time={Time:F1}ms",
+                method, path, riskScore, riskBand, botName, policyName,
+                detectors, string.Join(", ", topReasons), aggregated.TotalProcessingTimeMs);
+        }
+        else
+        {
+            // Simple logging
+            _logger.LogInformation(
+                "Bot detection: {Method} {Path} -> risk={Risk:F2} ({RiskBand}), bot={BotName}, policy={Policy}, time={Time:F1}ms",
+                method, path, riskScore, riskBand, botName, policyName, aggregated.TotalProcessingTimeMs);
         }
     }
 

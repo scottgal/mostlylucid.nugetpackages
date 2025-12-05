@@ -2,13 +2,15 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0-alpine AS build
 WORKDIR /src
 
-# Copy project file and restore (layer cached if csproj unchanged)
-COPY Mostlylucid.YarpGateway.csproj .
-RUN dotnet restore
+# Copy project files and restore (layer cached if csproj unchanged)
+COPY Mostlylucid.YarpGateway/Mostlylucid.YarpGateway.csproj Mostlylucid.YarpGateway/
+COPY Mostlylucid.BotDetection/Mostlylucid.BotDetection.csproj Mostlylucid.BotDetection/
+RUN dotnet restore Mostlylucid.YarpGateway/Mostlylucid.YarpGateway.csproj
 
 # Copy source and publish with optimizations
-COPY . .
-RUN dotnet publish -c Release -o /app --no-restore \
+COPY Mostlylucid.YarpGateway/ Mostlylucid.YarpGateway/
+COPY Mostlylucid.BotDetection/ Mostlylucid.BotDetection/
+RUN dotnet publish Mostlylucid.YarpGateway/Mostlylucid.YarpGateway.csproj -c Release -o /app --no-restore \
     /p:DebugType=none \
     /p:DebugSymbols=false
 

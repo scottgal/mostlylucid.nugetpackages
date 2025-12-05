@@ -27,6 +27,11 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <!-- Bot Detection -->
+        <ProjectReference Include="..\Mostlylucid.BotDetection\Mostlylucid.BotDetection.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
         <!-- YARP Reverse Proxy -->
         <PackageReference Include="Yarp.ReverseProxy" Version="2.2.0" />
 
