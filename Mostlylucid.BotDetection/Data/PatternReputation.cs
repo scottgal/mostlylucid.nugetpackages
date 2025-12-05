@@ -96,9 +96,15 @@ public record PatternReputation
     };
 
     /// <summary>
-    ///     Whether this pattern alone can trigger fast-path abort.
+    ///     Whether this pattern alone can trigger fast-path abort (known bad).
     /// </summary>
     public bool CanTriggerFastAbort => State is ReputationState.ConfirmedBad or ReputationState.ManuallyBlocked;
+
+    /// <summary>
+    ///     Whether this pattern alone can trigger fast-path allow (known good).
+    ///     Enables instant pass-through for verified search engines, trusted bots, etc.
+    /// </summary>
+    public bool CanTriggerFastAllow => State is ReputationState.ConfirmedGood or ReputationState.ManuallyAllowed;
 }
 
 /// <summary>

@@ -1,4 +1,5 @@
 using Mostlylucid.BotDetection.Actions;
+using Mostlylucid.BotDetection.ApiHolodeck.Extensions;
 using Mostlylucid.BotDetection.ClientSide;
 using Mostlylucid.BotDetection.Extensions;
 using Mostlylucid.BotDetection.Filters;
@@ -9,6 +10,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Add bot detection - configuration from appsettings.json
 // Full detection mode is enabled via the "full-log" ActionPolicy in config
 builder.Services.AddBotDetection();
+
+// Add ApiHolodeck for honeypot detection and bot redirection
+// Configuration from BotDetection:Holodeck section in appsettings.json
+builder.Services.AddApiHolodeck();
 
 builder.Services.AddControllers();
 builder.Services.AddRazorPages(); // For TagHelper support

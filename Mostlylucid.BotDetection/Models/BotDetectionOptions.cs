@@ -525,6 +525,26 @@ public class BotDetectionOptions
     ///     Supports glob patterns (e.g., "/api/*", "/login/**").
     ///     Key = path pattern, Value = policy name.
     /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         By default, common static asset paths are mapped to the "static" policy
+    ///         to prevent false positives from webpack bundles and frontend resources.
+    ///         The "static" policy uses minimal detection with very high thresholds.
+    ///     </para>
+    ///     <para>
+    ///         To disable default static file mappings, set <see cref="UseDefaultStaticPathPolicies"/> to false.
+    ///     </para>
+    /// </remarks>
+    /// <example>
+    ///     <code>
+    ///     "PathPolicies": {
+    ///       "/api/**": "api",
+    ///       "/admin/**": "strict",
+    ///       "/js/**": "static",
+    ///       "/css/**": "static"
+    ///     }
+    ///     </code>
+    /// </example>
     public Dictionary<string, string> PathPolicies { get; set; } = new();
 
     /// <summary>
@@ -532,6 +552,29 @@ public class BotDetectionOptions
     ///     If not specified, uses built-in "default" policy.
     /// </summary>
     public string? DefaultPolicyName { get; set; }
+
+    /// <summary>
+    ///     Whether to apply default path mappings for static assets (JS, CSS, images, fonts).
+    ///     When true, paths like /js/**, /css/**, /images/**, etc. automatically use the "static" policy.
+    ///     Set to false to disable and configure your own static file handling.
+    ///     Default: true
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         The "static" policy is very permissive to avoid false positives from:
+    ///         <list type="bullet">
+    ///             <item>Webpack-bundled JavaScript with hash filenames</item>
+    ///             <item>CSS stylesheets loaded in parallel</item>
+    ///             <item>Image sprites and font files</item>
+    ///             <item>Rapid browser prefetch/preload requests</item>
+    ///         </list>
+    ///     </para>
+    ///     <para>
+    ///         Default static paths: /js/**, /css/**, /lib/**, /fonts/**, /images/**, /img/**,
+    ///         /assets/**, /static/**, /_content/**, and common file extensions.
+    ///     </para>
+    /// </remarks>
+    public bool UseDefaultStaticPathPolicies { get; set; } = true;
 
     /// <summary>
     ///     Global detector weight overrides.

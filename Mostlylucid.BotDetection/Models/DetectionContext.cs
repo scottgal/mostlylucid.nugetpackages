@@ -290,9 +290,12 @@ public static partial class SignalKeys
     /// <summary>Int: number of reputation patterns that matched</summary>
     public const string ReputationBiasCount = "reputation.bias_count";
 
-    /// <summary>Boolean: true if any matched pattern can trigger fast abort</summary>
+    /// <summary>Boolean: true if any matched pattern can trigger fast abort (known bad)</summary>
     public const string ReputationCanAbort = "reputation.can_abort";
 
-    /// <summary>Boolean: true if fast-path reputation check found a ConfirmedBad/ManuallyBlocked pattern</summary>
+    /// <summary>Boolean: true if any matched pattern can trigger fast allow (known good)</summary>
+    public const string ReputationCanAllow = "reputation.can_allow";
+
+    /// <summary>Boolean: true if fast-path reputation check found a confirmed pattern (good or bad)</summary>
     public const string ReputationFastPathHit = "reputation.fastpath_hit";
 }

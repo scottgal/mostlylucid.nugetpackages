@@ -187,6 +187,51 @@ public sealed record DetectionPolicy
     };
 
     /// <summary>
+    ///     Creates a static asset policy - very permissive for JS/CSS/images/fonts.
+    ///     Static assets are often requested rapidly by browsers (webpack bundles, etc.)
+    ///     which can trigger false positives in behavioral detection.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This policy uses minimal detection to avoid false positives:
+    ///         <list type="bullet">
+    ///             <item><b>FastPathReputation</b> - IP reputation lookup (blocks known bad actors fast)</item>
+    ///             <item><b>UserAgent</b> - Basic user agent analysis</item>
+    ///             <item><b>Header</b> - HTTP header validation</item>
+    ///         </list>
+    ///     </para>
+    ///     <para>
+    ///         Notably EXCLUDES <b>Behavioral</b> detection which causes false positives
+    ///         due to rapid parallel requests for webpack bundles, CSS sprites, etc.
+    ///     </para>
+    ///     <para>
+    ///         Thresholds are very permissive - only blocks verified bad actors (0.99).
+    ///         Early exit at 0.7 means most requests pass quickly.
+    ///     </para>
+    /// </remarks>
+    public static DetectionPolicy Static => new()
+    {
+        Name = "static",
+        Description = "Very permissive policy for static assets (JS, CSS, images, fonts)",
+        // FastPathReputation for IP reputation + basic UA/Header checks
+        // Explicitly EXCLUDES Behavioral to avoid false positives from rapid parallel requests
+        FastPathDetectors = ["FastPathReputation", "UserAgent", "Header"],
+        SlowPathDetectors = [],
+        AiPathDetectors = [],
+        UseFastPath = true,
+        ForceSlowPath = false,
+        EscalateToAi = false,
+        EarlyExitThreshold = 0.7,  // Exit early - assume good for static assets
+        ImmediateBlockThreshold = 0.99, // Only block verified bad actors
+        WeightOverrides = new Dictionary<string, double>
+        {
+            // If Behavioral somehow runs, reduce its weight significantly
+            // Static asset requests (webpack bundles, etc.) trigger false positives
+            ["Behavioral"] = 0.1
+        }.ToImmutableDictionary()
+    };
+
+    /// <summary>
     ///     Creates a policy that allows verified bots (search engines, social media).
     /// </summary>
     public static DetectionPolicy AllowVerifiedBots => new()
