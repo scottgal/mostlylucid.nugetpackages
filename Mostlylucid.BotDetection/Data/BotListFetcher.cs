@@ -885,12 +885,21 @@ public class BotListFetcher : IBotListFetcher
             }
         }
 
+        // Always merge fallback patterns to ensure common tools are covered
+        // (external sources may not include all well-known tools like Burp, Acunetix)
+        foreach (var fallback in GetFallbackSecurityToolPatterns())
+        {
+            if (!allPatterns.ContainsKey(fallback.Pattern))
+            {
+                allPatterns[fallback.Pattern] = fallback;
+            }
+        }
+
         var result = allPatterns.Values.ToList();
 
         if (result.Count == 0)
         {
-            _logger.LogWarning("No security tool patterns fetched from any source, using fallback patterns");
-            result = GetFallbackSecurityToolPatterns();
+            _logger.LogWarning("No security tool patterns available");
         }
         else
         {

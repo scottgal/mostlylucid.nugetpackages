@@ -67,7 +67,7 @@ public class ProjectHoneypotContributorTests
     // ==========================================
 
     [Fact]
-    public async Task ContributeAsync_WhenDisabled_ReturnsEmpty()
+    public async Task ContributeAsync_WhenDisabled_ReturnsSkipMessage()
     {
         // Arrange
         _options.ProjectHoneypot.Enabled = false;
@@ -77,12 +77,14 @@ public class ProjectHoneypotContributorTests
         // Act
         var contributions = await contributor.ContributeAsync(state);
 
-        // Assert
-        Assert.Empty(contributions);
+        // Assert - Returns neutral contribution with skip message
+        Assert.Single(contributions);
+        Assert.Equal(0, contributions[0].ConfidenceDelta);
+        Assert.Contains("disabled", contributions[0].Reason);
     }
 
     [Fact]
-    public async Task ContributeAsync_NoAccessKey_ReturnsEmpty()
+    public async Task ContributeAsync_NoAccessKey_ReturnsSkipMessage()
     {
         // Arrange
         _options.ProjectHoneypot.AccessKey = null;
@@ -92,12 +94,14 @@ public class ProjectHoneypotContributorTests
         // Act
         var contributions = await contributor.ContributeAsync(state);
 
-        // Assert
-        Assert.Empty(contributions);
+        // Assert - Returns neutral contribution with skip message
+        Assert.Single(contributions);
+        Assert.Equal(0, contributions[0].ConfidenceDelta);
+        Assert.Contains("not configured", contributions[0].Reason);
     }
 
     [Fact]
-    public async Task ContributeAsync_EmptyAccessKey_ReturnsEmpty()
+    public async Task ContributeAsync_EmptyAccessKey_ReturnsSkipMessage()
     {
         // Arrange
         _options.ProjectHoneypot.AccessKey = "";
@@ -107,8 +111,10 @@ public class ProjectHoneypotContributorTests
         // Act
         var contributions = await contributor.ContributeAsync(state);
 
-        // Assert
-        Assert.Empty(contributions);
+        // Assert - Returns neutral contribution with skip message
+        Assert.Single(contributions);
+        Assert.Equal(0, contributions[0].ConfidenceDelta);
+        Assert.Contains("not configured", contributions[0].Reason);
     }
 
     // ==========================================
@@ -144,7 +150,7 @@ public class ProjectHoneypotContributorTests
     }
 
     [Fact]
-    public async Task ContributeAsync_LocalIp_ReturnsEmpty()
+    public async Task ContributeAsync_LocalIp_ReturnsSkipMessage()
     {
         // Arrange
         var contributor = CreateContributor();
@@ -153,8 +159,10 @@ public class ProjectHoneypotContributorTests
         // Act
         var contributions = await contributor.ContributeAsync(state);
 
-        // Assert
-        Assert.Empty(contributions);
+        // Assert - Returns neutral contribution with skip message
+        Assert.Single(contributions);
+        Assert.Equal(0, contributions[0].ConfidenceDelta);
+        Assert.Contains("localhost", contributions[0].Reason.ToLowerInvariant());
     }
 
     [Fact]

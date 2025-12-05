@@ -438,24 +438,6 @@
                     hx-target="body"
                     hx-swap="outerHTML"
                     onclick="showUaInInput('acunetix')">Acunetix</button>
-            <button class="test-btn malicious" data-ua-mode="honeypot-harvester"
-                    hx-get="/bot-test"
-                    hx-headers='{"ml-bot-test-mode": "honeypot-harvester", "X-Bot-Policy": "demo"}'
-                    hx-target="body"
-                    hx-swap="outerHTML"
-                    onclick="showUaInInput('honeypot-harvester')">Honeypot: Harvester</button>
-            <button class="test-btn malicious" data-ua-mode="honeypot-spammer"
-                    hx-get="/bot-test"
-                    hx-headers='{"ml-bot-test-mode": "honeypot-spammer", "X-Bot-Policy": "demo"}'
-                    hx-target="body"
-                    hx-swap="outerHTML"
-                    onclick="showUaInInput('honeypot-spammer')">Honeypot: Spammer</button>
-            <button class="test-btn scraper" data-ua-mode="honeypot-suspicious"
-                    hx-get="/bot-test"
-                    hx-headers='{"ml-bot-test-mode": "honeypot-suspicious", "X-Bot-Policy": "demo"}'
-                    hx-target="body"
-                    hx-swap="outerHTML"
-                    onclick="showUaInInput('honeypot-suspicious')">Honeypot: Suspicious</button>
         </div>
 
         <!-- Custom User-Agent Input -->
@@ -720,20 +702,37 @@
             'nessus': 'Nessus SOAP',
             'nmap': 'Mozilla/5.0 (compatible; Nmap Scripting Engine; https://nmap.org/book/nse.html)',
             'burpsuite': 'Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Burp/2023.10',
-            'acunetix': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US) Acunetix Web Vulnerability Scanner',
-            // Project Honeypot test markers
-            'honeypot-harvester': '<test-honeypot:harvester>',
-            'honeypot-spammer': '<test-honeypot:spammer>',
-            'honeypot-suspicious': '<test-honeypot:suspicious>'
+            'acunetix': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US) Acunetix Web Vulnerability Scanner'
         };
 
         // Show UA string in input when clicking preset buttons
+        // Also store in sessionStorage so it survives page refresh (HTMX replaces body)
+        // For "human" mode, clear the session so API uses real browser UA
         function showUaInInput(mode) {
             var input = document.getElementById('customUaInput');
-            if (input && uaStrings[mode]) {
+            if (mode === 'human') {
+                // Clear test mode - use real browser UA for API calls
+                sessionStorage.removeItem('botTestLastUA');
+                if (input) {
+                    input.value = '';
+                    input.placeholder = 'Your real browser UA will be used';
+                }
+            } else if (input && uaStrings[mode]) {
                 input.value = uaStrings[mode];
+                sessionStorage.setItem('botTestLastUA', uaStrings[mode]);
             }
         }
+
+        // Restore last UA on page load (after HTMX swaps)
+        (function restoreLastUA() {
+            var lastUA = sessionStorage.getItem('botTestLastUA');
+            if (lastUA) {
+                var input = document.getElementById('customUaInput');
+                if (input) {
+                    input.value = lastUA;
+                }
+            }
+        })();
 
         // ==========================================
         // Custom User-Agent testing
@@ -875,13 +874,30 @@
         function fetchDetectionCheck() {
             // Get current policy from mode selector
             var policy = getSelectedMode();
+            var apiResponse = document.getElementById('apiResponse');
+
+            // In "realfast" mode (Real Experience), the API doesn't return debug JSON
+            // It either blocks bots or allows humans silently - no detailed response
+            if (policy === 'realfast') {
+                apiResponse.innerHTML = '<span style="color: #8b949e;">Real Experience mode - API returns minimal response (bots blocked, humans allowed silently).\n\nSwitch to a debug mode (Full Pipeline, Fast, UA Only, or Learning) to see detailed API response.</span>';
+                return;
+            }
+
+            // Build headers with policy
+            var headers = { 'X-Bot-Policy': policy };
+
+            // If we have a stored test mode, include it so API result matches page render
+            var lastUA = sessionStorage.getItem('botTestLastUA');
+            if (lastUA) {
+                headers['ml-bot-test-ua'] = lastUA;
+            }
 
             fetch('/bot-detection/check', {
-                headers: { 'X-Bot-Policy': policy }
+                headers: headers
             })
                 .then(r => r.json())
                 .then(data => {
-                    renderHighlightedJson(document.getElementById('apiResponse'), data);
+                    renderHighlightedJson(apiResponse, data);
                     // Update timing displays from API response
                     if (data.processingTimeMs !== undefined) {
                         var timeStr = data.processingTimeMs.toFixed(1) + 'ms';
@@ -890,7 +906,7 @@
                     }
                 })
                 .catch(e => {
-                    document.getElementById('apiResponse').innerHTML = '<span style="color: #da3633;">Error: ' + e.message + '</span>';
+                    apiResponse.innerHTML = '<span style="color: #da3633;">Error: ' + e.message + '</span>';
                 });
         }
 

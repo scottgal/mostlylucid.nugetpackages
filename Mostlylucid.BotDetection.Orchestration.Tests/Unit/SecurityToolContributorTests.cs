@@ -102,7 +102,7 @@ public class SecurityToolContributorTests
     }
 
     [Fact]
-    public async Task ContributeAsync_NormalUserAgent_ReturnsEmpty()
+    public async Task ContributeAsync_NormalUserAgent_ReturnsNeutral()
     {
         // Arrange
         SetupFetcherWithFallbackPatterns();
@@ -112,8 +112,10 @@ public class SecurityToolContributorTests
         // Act
         var contributions = await contributor.ContributeAsync(state);
 
-        // Assert
-        Assert.Empty(contributions);
+        // Assert - Returns neutral contribution when no security tool detected
+        Assert.Single(contributions);
+        Assert.Equal(0, contributions[0].ConfidenceDelta);
+        Assert.Contains("No security tools detected", contributions[0].Reason);
     }
 
     [Fact]
@@ -238,8 +240,10 @@ public class SecurityToolContributorTests
         // Act
         var contributions = await contributor.ContributeAsync(state);
 
-        // Assert
-        Assert.Empty(contributions);
+        // Assert - Returns neutral contribution when pattern doesn't match
+        Assert.Single(contributions);
+        Assert.Equal(0, contributions[0].ConfidenceDelta);
+        Assert.Contains("No security tools detected", contributions[0].Reason);
     }
 
     // ==========================================

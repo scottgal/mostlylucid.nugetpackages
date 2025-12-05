@@ -75,11 +75,13 @@ public class BotListFetcherSecurityToolsTests : IDisposable
     {
         // Arrange
         var (fetcher, handlerMock) = CreateFetcher();
+        // Actual digininja format: {ua: "full UA string", scanner: "ToolName", version: "...", "last seen": "..."}
+        // The fetcher extracts unique scanner names and uses them as patterns
         var jsonContent = JsonSerializer.Serialize(new[]
         {
-            new { pattern = "sqlmap", name = "SQLMap", category = "SqlInjection" },
-            new { pattern = "nikto", name = "Nikto", category = "VulnerabilityScanner" },
-            new { pattern = "nmap", name = "Nmap", category = "PortScanner" }
+            new { ua = "Mozilla/5.0 (some UA)", scanner = "CustomTool1" },
+            new { ua = "Another UA string", scanner = "CustomTool2" },
+            new { ua = "Yet another", scanner = "CustomTool3" }
         });
 
         SetupHttpResponse(handlerMock, _options.DataSources.ScannerUserAgents.Url!, jsonContent);
@@ -88,35 +90,40 @@ public class BotListFetcherSecurityToolsTests : IDisposable
         // Act
         var patterns = await fetcher.GetSecurityToolPatternsAsync();
 
-        // Assert
-        Assert.Equal(3, patterns.Count);
+        // Assert - Should contain extracted scanner names (lowercased) + fallback patterns
+        Assert.True(patterns.Count >= 15); // At least fallback patterns
 
-        var sqlmap = patterns.First(p => p.Pattern == "sqlmap");
-        Assert.Equal("SQLMap", sqlmap.Name);
-        Assert.Equal("SqlInjection", sqlmap.Category);
-        Assert.Equal("digininja/scanner_user_agents", sqlmap.Source);
-        Assert.False(sqlmap.IsRegex);
+        // Check digininja patterns were extracted
+        Assert.Contains(patterns, p => p.Pattern == "customtool1" && p.Source == "digininja/scanner_user_agents");
+        Assert.Contains(patterns, p => p.Pattern == "customtool2" && p.Source == "digininja/scanner_user_agents");
+        Assert.Contains(patterns, p => p.Pattern == "customtool3" && p.Source == "digininja/scanner_user_agents");
+
+        // Fallback patterns should always be present
+        Assert.Contains(patterns, p => p.Pattern == "burp");
+        Assert.Contains(patterns, p => p.Pattern == "acunetix");
     }
 
     [Fact]
-    public async Task GetSecurityToolPatternsAsync_HandlesRegexPatterns()
+    public async Task GetSecurityToolPatternsAsync_CoreRuleSetPatternsAreRegexDetected()
     {
         // Arrange
         var (fetcher, handlerMock) = CreateFetcher();
+        // digininja extracts scanner names (not patterns)
         var jsonContent = JsonSerializer.Serialize(new[]
         {
-            new { pattern = @"sqlmap[\s/]?\d", name = "SQLMap", category = "SqlInjection" },
-            new { pattern = "simple-pattern", name = "Simple", category = "Other" }
+            new { ua = "some ua", scanner = "SimpleScanner" }
         });
 
+        // CoreRuleSet can have regex patterns
         SetupHttpResponse(handlerMock, _options.DataSources.ScannerUserAgents.Url!, jsonContent);
-        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, "");
+        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, @"sqlmap[\s/]?\d
+simple-pattern");
 
         // Act
         var patterns = await fetcher.GetSecurityToolPatternsAsync();
 
         // Assert
-        var regexPattern = patterns.First(p => p.Pattern.Contains("sqlmap"));
+        var regexPattern = patterns.First(p => p.Pattern.Contains(@"sqlmap[\s/]?\d"));
         Assert.True(regexPattern.IsRegex);
 
         var simplePattern = patterns.First(p => p.Pattern == "simple-pattern");
@@ -124,13 +131,16 @@ public class BotListFetcherSecurityToolsTests : IDisposable
     }
 
     [Fact]
-    public async Task GetSecurityToolPatternsAsync_InfersToolNameFromPattern()
+    public async Task GetSecurityToolPatternsAsync_ExtractsUniqueScannersFromDigininja()
     {
         // Arrange
         var (fetcher, handlerMock) = CreateFetcher();
+        // Digininja format uses "scanner" field for tool name
         var jsonContent = JsonSerializer.Serialize(new[]
         {
-            new { pattern = "sqlmap/1.5", name = (string?)null, category = (string?)null }
+            new { ua = "UA1", scanner = "Nikto" },
+            new { ua = "UA2", scanner = "Nikto" }, // Duplicate scanner name
+            new { ua = "UA3", scanner = "Nessus" }
         });
 
         SetupHttpResponse(handlerMock, _options.DataSources.ScannerUserAgents.Url!, jsonContent);
@@ -139,9 +149,12 @@ public class BotListFetcherSecurityToolsTests : IDisposable
         // Act
         var patterns = await fetcher.GetSecurityToolPatternsAsync();
 
-        // Assert
-        var pattern = patterns.First();
-        Assert.Equal("Sqlmap", pattern.Name);
+        // Assert - Nikto appears only once (deduplicated by scanner name)
+        var niktoPatterns = patterns.Where(p => p.Pattern == "nikto").ToList();
+        Assert.Single(niktoPatterns);
+
+        // Nessus should be present
+        Assert.Contains(patterns, p => p.Pattern == "nessus");
     }
 
     // ==========================================
@@ -157,26 +170,23 @@ public class BotListFetcherSecurityToolsTests : IDisposable
         SetupHttpResponse(handlerMock, _options.DataSources.ScannerUserAgents.Url!, "[]");
         SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, @"
 # This is a comment
-gobuster
-feroxbuster
-ffuf
+uniquetool1
+uniquetool2
+uniquetool3
 
 # Another comment
-wpscan
+uniquetool4
 ");
 
         // Act
         var patterns = await fetcher.GetSecurityToolPatternsAsync();
 
-        // Assert
-        Assert.Equal(4, patterns.Count);
-        Assert.Contains(patterns, p => p.Pattern == "gobuster");
-        Assert.Contains(patterns, p => p.Pattern == "feroxbuster");
-        Assert.Contains(patterns, p => p.Pattern == "ffuf");
-        Assert.Contains(patterns, p => p.Pattern == "wpscan");
-
-        // All should have OWASP source
-        Assert.All(patterns, p => Assert.Equal("OWASP/CoreRuleSet", p.Source));
+        // Assert - Contains CoreRuleSet patterns + fallback patterns
+        Assert.True(patterns.Count >= 15); // At least fallback patterns
+        Assert.Contains(patterns, p => p.Pattern == "uniquetool1" && p.Source == "OWASP/CoreRuleSet");
+        Assert.Contains(patterns, p => p.Pattern == "uniquetool2" && p.Source == "OWASP/CoreRuleSet");
+        Assert.Contains(patterns, p => p.Pattern == "uniquetool3" && p.Source == "OWASP/CoreRuleSet");
+        Assert.Contains(patterns, p => p.Pattern == "uniquetool4" && p.Source == "OWASP/CoreRuleSet");
     }
 
     [Fact]
@@ -189,19 +199,21 @@ wpscan
         SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, @"
 # Comment line
    # Indented comment
-pattern1
+uniquepattern1
 
 
-pattern2
+uniquepattern2
 ");
 
         // Act
         var patterns = await fetcher.GetSecurityToolPatternsAsync();
 
-        // Assert
-        Assert.Equal(2, patterns.Count);
-        Assert.Contains(patterns, p => p.Pattern == "pattern1");
-        Assert.Contains(patterns, p => p.Pattern == "pattern2");
+        // Assert - Contains unique patterns + fallback patterns
+        Assert.Contains(patterns, p => p.Pattern == "uniquepattern1");
+        Assert.Contains(patterns, p => p.Pattern == "uniquepattern2");
+        // Comments and empty lines should NOT be in patterns
+        Assert.DoesNotContain(patterns, p => p.Pattern.StartsWith("#"));
+        Assert.DoesNotContain(patterns, p => string.IsNullOrWhiteSpace(p.Pattern));
     }
 
     // ==========================================
@@ -213,22 +225,22 @@ pattern2
     {
         // Arrange
         var (fetcher, handlerMock) = CreateFetcher();
+        // digininja format: scanner name becomes pattern (lowercased)
         var jsonContent = JsonSerializer.Serialize(new[]
         {
-            new { pattern = "sqlmap", name = "SQLMap", category = "SqlInjection" },
-            new { pattern = "SQLMAP", name = "SQLMap Upper", category = "SqlInjection" } // Duplicate (case-insensitive)
+            new { ua = "UA1", scanner = "UniqueScanner" },
+            new { ua = "UA2", scanner = "UNIQUESCANNER" } // Duplicate (case-insensitive)
         });
 
         SetupHttpResponse(handlerMock, _options.DataSources.ScannerUserAgents.Url!, jsonContent);
-        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, "sqlmap\nSQLMAP"); // More duplicates
+        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, "uniquescanner\nUNIQUESCANNER"); // More duplicates
 
         // Act
         var patterns = await fetcher.GetSecurityToolPatternsAsync();
 
-        // Assert - Should have only one sqlmap pattern (first one wins)
-        Assert.Single(patterns);
-        Assert.Equal("sqlmap", patterns[0].Pattern);
-        Assert.Equal("digininja/scanner_user_agents", patterns[0].Source); // First source wins
+        // Assert - Should have only one uniquescanner pattern (deduplicated)
+        var uniqueScannerPatterns = patterns.Where(p => p.Pattern.Equals("uniquescanner", StringComparison.OrdinalIgnoreCase)).ToList();
+        Assert.Single(uniqueScannerPatterns);
     }
 
     // ==========================================
@@ -242,7 +254,7 @@ pattern2
         var (fetcher, handlerMock) = CreateFetcher();
         var jsonContent = JsonSerializer.Serialize(new[]
         {
-            new { pattern = "sqlmap", name = "SQLMap", category = "SqlInjection" }
+            new { ua = "UA1", scanner = "CustomScanner" }
         });
 
         SetupHttpResponse(handlerMock, _options.DataSources.ScannerUserAgents.Url!, jsonContent);
@@ -275,15 +287,17 @@ pattern2
 
         // Scanner user agents fails
         SetupHttpResponse(handlerMock, _options.DataSources.ScannerUserAgents.Url!, HttpStatusCode.InternalServerError);
-        // CoreRuleSet succeeds
-        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, "gobuster\nnikto");
+        // CoreRuleSet succeeds with unique patterns
+        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, "uniquepattern1\nuniquepattern2");
 
         // Act
         var patterns = await fetcher.GetSecurityToolPatternsAsync();
 
-        // Assert - Should have patterns from CRS
-        Assert.Equal(2, patterns.Count);
-        Assert.All(patterns, p => Assert.Equal("OWASP/CoreRuleSet", p.Source));
+        // Assert - Should have patterns from CRS + fallback patterns
+        Assert.True(patterns.Count >= 15); // At least fallback patterns
+        Assert.Contains(patterns, p => p.Pattern == "uniquepattern1" && p.Source == "OWASP/CoreRuleSet");
+        Assert.Contains(patterns, p => p.Pattern == "uniquepattern2" && p.Source == "OWASP/CoreRuleSet");
+        Assert.Contains(patterns, p => p.Pattern == "burp" && p.Source == "fallback");
     }
 
     [Fact]
@@ -312,14 +326,14 @@ pattern2
         var (fetcher, handlerMock) = CreateFetcher();
 
         SetupHttpResponse(handlerMock, _options.DataSources.ScannerUserAgents.Url!, "not valid json{{{");
-        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, "gobuster");
+        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, "uniquecrstool");
 
         // Act
         var patterns = await fetcher.GetSecurityToolPatternsAsync();
 
-        // Assert - Should have patterns from CRS only
-        Assert.Single(patterns);
-        Assert.Equal("gobuster", patterns[0].Pattern);
+        // Assert - Should have patterns from CRS + fallback patterns
+        Assert.Contains(patterns, p => p.Pattern == "uniquecrstool" && p.Source == "OWASP/CoreRuleSet");
+        Assert.Contains(patterns, p => p.Pattern == "burp" && p.Source == "fallback");
     }
 
     // ==========================================
@@ -334,14 +348,14 @@ pattern2
         var (fetcher, handlerMock) = CreateFetcher();
 
         // Only CRS should be called
-        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, "gobuster");
+        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, "uniquecrsonlytool");
 
         // Act
         var patterns = await fetcher.GetSecurityToolPatternsAsync();
 
-        // Assert
-        Assert.Single(patterns);
-        Assert.Equal("OWASP/CoreRuleSet", patterns[0].Source);
+        // Assert - Should have CRS + fallback patterns
+        Assert.Contains(patterns, p => p.Pattern == "uniquecrsonlytool" && p.Source == "OWASP/CoreRuleSet");
+        Assert.Contains(patterns, p => p.Pattern == "burp" && p.Source == "fallback");
 
         // Scanner user agents should not be called
         handlerMock.Protected().Verify(
@@ -358,14 +372,14 @@ pattern2
         _options.DataSources.ScannerUserAgents.Url = "";
         var (fetcher, handlerMock) = CreateFetcher();
 
-        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, "gobuster");
+        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, "uniqueemptyurltool");
 
         // Act
         var patterns = await fetcher.GetSecurityToolPatternsAsync();
 
-        // Assert
-        Assert.Single(patterns);
-        Assert.Equal("OWASP/CoreRuleSet", patterns[0].Source);
+        // Assert - Should have CRS + fallback patterns
+        Assert.Contains(patterns, p => p.Pattern == "uniqueemptyurltool" && p.Source == "OWASP/CoreRuleSet");
+        Assert.Contains(patterns, p => p.Pattern == "burp" && p.Source == "fallback");
     }
 
     [Fact]
@@ -393,33 +407,34 @@ pattern2
     {
         // Arrange
         var (fetcher, handlerMock) = CreateFetcher();
+        // digininja format: scanner name becomes pattern (lowercased, trimmed)
         var jsonContent = JsonSerializer.Serialize(new[]
         {
-            new { pattern = "  sqlmap  ", name = "SQLMap", category = "SqlInjection" }
+            new { ua = "UA1", scanner = "  CustomTrimmedTool  " }
         });
 
         SetupHttpResponse(handlerMock, _options.DataSources.ScannerUserAgents.Url!, jsonContent);
-        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, "  gobuster  ");
+        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, "  uniquecrspattern  ");
 
         // Act
         var patterns = await fetcher.GetSecurityToolPatternsAsync();
 
         // Assert - Patterns should be trimmed
-        Assert.Equal(2, patterns.Count);
-        Assert.Contains(patterns, p => p.Pattern == "sqlmap");
-        Assert.Contains(patterns, p => p.Pattern == "gobuster");
+        Assert.Contains(patterns, p => p.Pattern == "customtrimmedtool");
+        Assert.Contains(patterns, p => p.Pattern == "uniquecrspattern");
     }
 
     [Fact]
-    public async Task GetSecurityToolPatternsAsync_SkipsEmptyPatterns()
+    public async Task GetSecurityToolPatternsAsync_SkipsEmptyScannerNames()
     {
         // Arrange
         var (fetcher, handlerMock) = CreateFetcher();
+        // digininja format: entries with empty/null scanner are skipped
         var jsonContent = JsonSerializer.Serialize(new object[]
         {
-            new { pattern = "", name = "Empty", category = "None" },
-            new { pattern = "sqlmap", name = "SQLMap", category = "SqlInjection" },
-            new { pattern = (string?)null, name = "Null", category = "None" }
+            new { ua = "UA1", scanner = "" },
+            new { ua = "UA2", scanner = "ValidScanner" },
+            new { ua = "UA3", scanner = (string?)null }
         });
 
         SetupHttpResponse(handlerMock, _options.DataSources.ScannerUserAgents.Url!, jsonContent);
@@ -428,42 +443,37 @@ pattern2
         // Act
         var patterns = await fetcher.GetSecurityToolPatternsAsync();
 
-        // Assert - Should only have the non-empty pattern
-        Assert.Single(patterns);
-        Assert.Equal("sqlmap", patterns[0].Pattern);
+        // Assert - Should have validscanner from digininja + fallback patterns
+        Assert.Contains(patterns, p => p.Pattern == "validscanner" && p.Source == "digininja/scanner_user_agents");
+        // Should not have empty patterns
+        Assert.DoesNotContain(patterns, p => string.IsNullOrWhiteSpace(p.Pattern));
     }
 
     // ==========================================
-    // Category Inference Tests
+    // Name Inference Tests (for CoreRuleSet patterns without explicit names)
     // ==========================================
 
     [Theory]
-    [InlineData("sqlmap", "Sqlmap")]
-    [InlineData("nikto/2.1.6", "Nikto")]
-    [InlineData("nmap scripting engine", "Nmap")]
-    [InlineData("gobuster/3.1", "Gobuster")]
-    [InlineData("hydra-http", "Hydra")]
-    [InlineData("metasploit framework", "Metasploit")]
-    [InlineData("wpscan v3.8", "Wpscan")]
-    [InlineData("unknown-tool", "unknown")] // Split on '-' returns first word
-    public async Task GetSecurityToolPatternsAsync_InfersToolNameCorrectly(string pattern, string expectedName)
+    [InlineData("uniquenikto/2.1.6", "Nikto")]
+    [InlineData("uniquenmap scripting engine", "Nmap")]
+    [InlineData("uniquegobuster/3.1", "Gobuster")]
+    [InlineData("uniquehydra-http", "Hydra")]
+    [InlineData("uniquemetasploit framework", "Metasploit")]
+    public async Task GetSecurityToolPatternsAsync_InfersToolNameForCoreRuleSetPatterns(string pattern, string expectedName)
     {
         // Arrange
         var (fetcher, handlerMock) = CreateFetcher();
-        var jsonContent = JsonSerializer.Serialize(new[]
-        {
-            new { pattern, name = (string?)null, category = (string?)null }
-        });
 
-        SetupHttpResponse(handlerMock, _options.DataSources.ScannerUserAgents.Url!, jsonContent);
-        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, "");
+        SetupHttpResponse(handlerMock, _options.DataSources.ScannerUserAgents.Url!, "[]");
+        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, pattern);
 
         // Act
         var patterns = await fetcher.GetSecurityToolPatternsAsync();
 
-        // Assert
-        Assert.Single(patterns);
-        Assert.Equal(expectedName, patterns[0].Name);
+        // Assert - Find the pattern from CoreRuleSet
+        var crsPattern = patterns.FirstOrDefault(p => p.Pattern == pattern && p.Source == "OWASP/CoreRuleSet");
+        Assert.NotNull(crsPattern);
+        Assert.Equal(expectedName, crsPattern.Name);
     }
 
     // ==========================================
