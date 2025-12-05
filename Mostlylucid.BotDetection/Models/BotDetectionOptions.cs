@@ -349,6 +349,14 @@ public class BotDetectionOptions
     /// </summary>
     public bool EnableDatabaseWalMode { get; set; } = true;
 
+    /// <summary>
+    ///     Maximum number of weight entries to cache in memory (LRU cache).
+    ///     This enables high-read/low-write access pattern (CQRS-style).
+    ///     Reads hit memory cache, writes go to SQLite and update cache.
+    ///     Default: 1000 entries per signature type.
+    /// </summary>
+    public int WeightStoreCacheSize { get; set; } = 1000;
+
     // ==========================================
     // Whitelists and Customization
     // ==========================================

@@ -566,12 +566,18 @@ public class EvidenceAggregator
         var isGood = exitContribution.EarlyExitVerdict is
             EarlyExitVerdict.VerifiedGoodBot or EarlyExitVerdict.Whitelisted;
 
+        // Note: Verified good bots (like Googlebot) ARE bots (botProbability = 1.0)
+        // They're just allowed. The "good" part affects the action (Allow), not the classification.
+        // Whitelisted items might be bots or humans depending on what was whitelisted.
+        var isBot = exitContribution.EarlyExitVerdict is
+            EarlyExitVerdict.VerifiedGoodBot or EarlyExitVerdict.VerifiedBadBot;
+
         return new AggregatedEvidence
         {
             Contributions = _contributions.ToList(),
-            BotProbability = isGood ? 0.0 : 1.0,
+            BotProbability = isBot ? 1.0 : 0.0, // Bots are bots, even if allowed
             Confidence = 1.0, // Verified = high confidence
-            RiskBand = RiskBand.Verified,
+            RiskBand = isGood ? RiskBand.Verified : RiskBand.VeryHigh,
             EarlyExit = true,
             EarlyExitVerdict = exitContribution.EarlyExitVerdict,
             PrimaryBotType = exitContribution.BotType,

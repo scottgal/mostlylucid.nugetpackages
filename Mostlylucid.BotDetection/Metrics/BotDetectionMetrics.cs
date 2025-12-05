@@ -19,20 +19,33 @@ public sealed class BotDetectionMetrics : IDisposable
     private readonly Counter<long> _humansDetected;
     private readonly Counter<long> _detectorErrors;
 
+    // WeightStore cache counters
+    private readonly Counter<long> _cacheHits;
+    private readonly Counter<long> _cacheMisses;
+    private readonly Counter<long> _cacheWrites;
+    private readonly Counter<long> _cacheFlushes;
+    private readonly Counter<long> _cacheFlushErrors;
+
     // Histograms
     private readonly Histogram<double> _detectionDuration;
     private readonly Histogram<double> _patternMatchDuration;
     private readonly Histogram<double> _cidrMatchDuration;
+    private readonly Histogram<double> _cacheFlushDuration;
+    private readonly Histogram<int> _cacheFlushBatchSize;
 
     // Gauges (using ObservableGauge)
     private readonly ObservableGauge<int> _cachedPatternsCount;
     private readonly ObservableGauge<int> _cachedCidrRangesCount;
     private readonly ObservableGauge<double> _averageConfidence;
+    private readonly ObservableGauge<int> _weightStoreCacheSize;
+    private readonly ObservableGauge<int> _weightStorePendingWrites;
 
     // Internal state for gauges
     private int _patternCount;
     private int _cidrCount;
     private double _recentAverageConfidence;
+    private int _currentCacheSize;
+    private int _currentPendingWrites;
     private readonly object _confidenceLock = new();
     private readonly Queue<double> _recentConfidences = new();
     private const int MaxRecentConfidences = 100;
@@ -78,6 +91,42 @@ public sealed class BotDetectionMetrics : IDisposable
             unit: "ms",
             description: "Time taken for CIDR range matching");
 
+        // WeightStore cache metrics
+        _cacheHits = _meter.CreateCounter<long>(
+            "botdetection.weightstore.cache.hits",
+            unit: "{hit}",
+            description: "Number of WeightStore cache hits");
+
+        _cacheMisses = _meter.CreateCounter<long>(
+            "botdetection.weightstore.cache.misses",
+            unit: "{miss}",
+            description: "Number of WeightStore cache misses (DB lookups)");
+
+        _cacheWrites = _meter.CreateCounter<long>(
+            "botdetection.weightstore.cache.writes",
+            unit: "{write}",
+            description: "Number of writes queued for persistence");
+
+        _cacheFlushes = _meter.CreateCounter<long>(
+            "botdetection.weightstore.flush.total",
+            unit: "{flush}",
+            description: "Number of flush operations to SQLite");
+
+        _cacheFlushErrors = _meter.CreateCounter<long>(
+            "botdetection.weightstore.flush.errors",
+            unit: "{error}",
+            description: "Number of failed flush operations");
+
+        _cacheFlushDuration = _meter.CreateHistogram<double>(
+            "botdetection.weightstore.flush.duration",
+            unit: "ms",
+            description: "Time taken to flush pending writes to SQLite");
+
+        _cacheFlushBatchSize = _meter.CreateHistogram<int>(
+            "botdetection.weightstore.flush.batch_size",
+            unit: "{write}",
+            description: "Number of writes per flush batch");
+
         // Observable gauges for cache state
         _cachedPatternsCount = _meter.CreateObservableGauge(
             "botdetection.cache.patterns.count",
@@ -96,6 +145,18 @@ public sealed class BotDetectionMetrics : IDisposable
             () => _recentAverageConfidence,
             unit: "1",
             description: "Average confidence score of recent detections");
+
+        _weightStoreCacheSize = _meter.CreateObservableGauge(
+            "botdetection.weightstore.cache.size",
+            () => _currentCacheSize,
+            unit: "{entry}",
+            description: "Current number of entries in WeightStore cache");
+
+        _weightStorePendingWrites = _meter.CreateObservableGauge(
+            "botdetection.weightstore.pending_writes",
+            () => _currentPendingWrites,
+            unit: "{write}",
+            description: "Number of writes pending flush to SQLite");
     }
 
     /// <summary>
@@ -194,6 +255,76 @@ public sealed class BotDetectionMetrics : IDisposable
     {
         _cidrCount = count;
     }
+
+    #region WeightStore Cache Metrics
+
+    /// <summary>
+    ///     Records a cache hit (value found in memory).
+    /// </summary>
+    public void RecordCacheHit(string? signatureType = null)
+    {
+        var tags = signatureType != null
+            ? new TagList { { "signature_type", signatureType } }
+            : default;
+        _cacheHits.Add(1, tags);
+    }
+
+    /// <summary>
+    ///     Records a cache miss (required DB lookup).
+    /// </summary>
+    public void RecordCacheMiss(string? signatureType = null)
+    {
+        var tags = signatureType != null
+            ? new TagList { { "signature_type", signatureType } }
+            : default;
+        _cacheMisses.Add(1, tags);
+    }
+
+    /// <summary>
+    ///     Records a write queued for persistence.
+    /// </summary>
+    public void RecordCacheWrite(string? signatureType = null)
+    {
+        var tags = signatureType != null
+            ? new TagList { { "signature_type", signatureType } }
+            : default;
+        _cacheWrites.Add(1, tags);
+    }
+
+    /// <summary>
+    ///     Records a completed flush operation.
+    /// </summary>
+    public void RecordFlush(int batchSize, TimeSpan duration, bool success)
+    {
+        if (success)
+        {
+            _cacheFlushes.Add(1);
+            _cacheFlushDuration.Record(duration.TotalMilliseconds);
+            _cacheFlushBatchSize.Record(batchSize);
+        }
+        else
+        {
+            _cacheFlushErrors.Add(1);
+        }
+    }
+
+    /// <summary>
+    ///     Updates the current cache size gauge.
+    /// </summary>
+    public void UpdateWeightStoreCacheSize(int size)
+    {
+        _currentCacheSize = size;
+    }
+
+    /// <summary>
+    ///     Updates the pending writes gauge.
+    /// </summary>
+    public void UpdatePendingWrites(int count)
+    {
+        _currentPendingWrites = count;
+    }
+
+    #endregion
 
     /// <summary>
     ///     Creates a timer scope that automatically records duration.

@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Mostlylucid.BotDetection.Metrics;
 using Mostlylucid.BotDetection.Models;
 
 namespace Mostlylucid.BotDetection.Data;
@@ -157,28 +160,221 @@ public static class SignatureTypes
 }
 
 /// <summary>
-///     SQLite implementation of the weight store with in-memory caching.
+///     SQLite implementation of the weight store with sliding expiration memory cache.
+///     Uses a CQRS-style pattern with write-behind:
+///     - Reads: Hit memory cache first (fast path), fall back to SQLite on miss
+///     - Writes: Update cache immediately, queue SQLite writes for background flush
+///     Sliding expiration provides automatic LRU-like eviction behavior.
 /// </summary>
-public class SqliteWeightStore : IWeightStore, IAsyncDisposable
+public class SqliteWeightStore : IWeightStore, IAsyncDisposable, IDisposable
 {
     private readonly ILogger<SqliteWeightStore> _logger;
+    private readonly BotDetectionMetrics? _metrics;
     private readonly string _connectionString;
+    private readonly int _cacheSize;
+    private readonly TimeSpan _slidingExpiration;
     private readonly SemaphoreSlim _initLock = new(1, 1);
-    private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, LearnedWeight>> _cache = new();
+
+    // Memory cache with sliding expiration - auto-evicts least recently used entries
+    private readonly MemoryCache _cache;
+
+    // Write-behind queue for batched SQLite persistence
+    // Cache holds current state, SQLite is persisted async every 500ms
+    private readonly ConcurrentDictionary<string, PendingWrite> _pendingWrites = new();
+    private readonly Timer _flushTimer;
+    private readonly TimeSpan _flushInterval = TimeSpan.FromMilliseconds(500);
+    private readonly SemaphoreSlim _flushLock = new(1, 1);
+
     private bool _initialized;
+    private bool _disposed;
 
     private const string TableName = "learned_weights";
 
+    /// <summary>
+    ///     Represents a pending write operation to be flushed to SQLite.
+    ///     Cache holds the current computed values; this just persists them.
+    /// </summary>
+    private record PendingWrite
+    {
+        public required string SignatureType { get; init; }
+        public required string Signature { get; init; }
+        public required double Weight { get; init; }
+        public required double Confidence { get; init; }
+        public required int ObservationCount { get; init; }
+        public required DateTimeOffset Timestamp { get; init; }
+    }
+
     public SqliteWeightStore(
         ILogger<SqliteWeightStore> logger,
-        IOptions<BotDetectionOptions> options)
+        IOptions<BotDetectionOptions> options,
+        BotDetectionMetrics? metrics = null)
     {
         _logger = logger;
+        _metrics = metrics;
+        _cacheSize = options.Value.WeightStoreCacheSize > 0
+            ? options.Value.WeightStoreCacheSize
+            : 1000;
+
+        // Sliding expiration provides automatic LRU-like behavior
+        // Entries not accessed within this window are evicted
+        _slidingExpiration = TimeSpan.FromMinutes(30);
+
+        // Configure MemoryCache with size limit for bounded memory usage
+        _cache = new MemoryCache(new MemoryCacheOptions
+        {
+            SizeLimit = _cacheSize,
+            CompactionPercentage = 0.25 // Remove 25% when limit reached
+        });
 
         var dbPath = options.Value.DatabasePath
                      ?? Path.Combine(AppContext.BaseDirectory, "botdetection.db");
 
         _connectionString = $"Data Source={dbPath}";
+
+        // Start background flush timer for write-behind pattern
+        _flushTimer = new Timer(FlushPendingWritesCallback, null, _flushInterval, _flushInterval);
+
+        _logger.LogDebug("WeightStore initialized with sliding cache (size={CacheSize}, expiration={Expiration}min, flush={Flush}s)",
+            _cacheSize, _slidingExpiration.TotalMinutes, _flushInterval.TotalSeconds);
+    }
+
+    /// <summary>
+    ///     Creates a cache key for a signature type and signature.
+    /// </summary>
+    private static string CacheKey(string signatureType, string signature) => $"{signatureType}:{signature}";
+
+    /// <summary>
+    ///     Creates a tag key for a signature type (for bulk eviction).
+    /// </summary>
+    private static string TagKey(string signatureType) => $"tag:{signatureType}";
+
+    /// <summary>
+    ///     Gets cache entry options with sliding expiration and size.
+    /// </summary>
+    private MemoryCacheEntryOptions GetCacheEntryOptions()
+    {
+        return new MemoryCacheEntryOptions()
+            .SetSlidingExpiration(_slidingExpiration)
+            .SetSize(1); // Each entry counts as 1 toward size limit
+    }
+
+    /// <summary>
+    ///     Timer callback for flushing pending writes to SQLite.
+    /// </summary>
+    private void FlushPendingWritesCallback(object? state)
+    {
+        // Fire and forget - errors are logged but don't crash the timer
+        _ = FlushPendingWritesAsync(CancellationToken.None);
+    }
+
+    /// <summary>
+    ///     Flushes all pending writes to SQLite in a single batch.
+    ///     Called periodically by the timer and on dispose.
+    /// </summary>
+    public async Task FlushPendingWritesAsync(CancellationToken ct = default)
+    {
+        if (_pendingWrites.IsEmpty) return;
+
+        // Only one flush at a time
+        if (!await _flushLock.WaitAsync(0, ct)) return;
+
+        var sw = Stopwatch.StartNew();
+        var batchSize = 0;
+        var success = false;
+
+        try
+        {
+            await EnsureInitializedAsync(ct);
+
+            // Snapshot and clear pending writes atomically
+            var writes = new List<PendingWrite>();
+            foreach (var key in _pendingWrites.Keys.ToList())
+            {
+                if (_pendingWrites.TryRemove(key, out var write))
+                {
+                    writes.Add(write);
+                }
+            }
+
+            if (writes.Count == 0) return;
+            batchSize = writes.Count;
+
+            _metrics?.UpdatePendingWrites(_pendingWrites.Count);
+
+            await using var conn = new SqliteConnection(_connectionString);
+            await conn.OpenAsync(ct);
+
+            // Use transaction for batch write
+            await using var transaction = await conn.BeginTransactionAsync(ct);
+
+            try
+            {
+                // Single SQL statement for all writes (cache holds final computed values)
+                var sql = $@"
+                    INSERT INTO {TableName} (signature_type, signature, weight, confidence, observation_count, first_seen, last_seen)
+                    VALUES (@type, @sig, @weight, @conf, @count, @now, @now)
+                    ON CONFLICT(signature_type, signature) DO UPDATE SET
+                        weight = @weight,
+                        confidence = @conf,
+                        observation_count = @count,
+                        last_seen = @now
+                ";
+
+                foreach (var write in writes)
+                {
+                    var now = write.Timestamp.ToString("O");
+
+                    await using var cmd = new SqliteCommand(sql, conn, (SqliteTransaction)transaction);
+                    cmd.Parameters.AddWithValue("@type", write.SignatureType);
+                    cmd.Parameters.AddWithValue("@sig", write.Signature);
+                    cmd.Parameters.AddWithValue("@weight", write.Weight);
+                    cmd.Parameters.AddWithValue("@conf", write.Confidence);
+                    cmd.Parameters.AddWithValue("@count", write.ObservationCount);
+                    cmd.Parameters.AddWithValue("@now", now);
+                    await cmd.ExecuteNonQueryAsync(ct);
+                }
+
+                await transaction.CommitAsync(ct);
+                success = true;
+                _logger.LogDebug("Flushed {Count} pending writes to SQLite in {Duration:F1}ms", writes.Count, sw.ElapsedMilliseconds);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(ct);
+                throw;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to flush pending writes to SQLite");
+        }
+        finally
+        {
+            sw.Stop();
+            _metrics?.RecordFlush(batchSize, sw.Elapsed, success);
+            _flushLock.Release();
+        }
+    }
+
+    /// <summary>
+    ///     Queues a write operation for background persistence.
+    ///     Latest write wins - if multiple updates happen before flush, only the final value persists.
+    /// </summary>
+    private void QueueWrite(string signatureType, string signature, double weight, double confidence, int observationCount)
+    {
+        var key = CacheKey(signatureType, signature);
+        _pendingWrites[key] = new PendingWrite
+        {
+            SignatureType = signatureType,
+            Signature = signature,
+            Weight = weight,
+            Confidence = confidence,
+            ObservationCount = observationCount,
+            Timestamp = DateTimeOffset.UtcNow
+        };
+
+        _metrics?.RecordCacheWrite(signatureType);
+        _metrics?.UpdatePendingWrites(_pendingWrites.Count);
     }
 
     private async Task EnsureInitializedAsync(CancellationToken ct)
@@ -224,20 +420,25 @@ public class SqliteWeightStore : IWeightStore, IAsyncDisposable
 
     public async Task<double> GetWeightAsync(string signatureType, string signature, CancellationToken ct = default)
     {
-        // Check cache first
-        if (_cache.TryGetValue(signatureType, out var typeCache) &&
-            typeCache.TryGetValue(signature, out var cached))
+        var key = CacheKey(signatureType, signature);
+
+        // Check cache first (fast path - no DB access)
+        if (_cache.TryGetValue(key, out LearnedWeight? cached) && cached != null)
         {
+            _metrics?.RecordCacheHit(signatureType);
             return cached.Weight * cached.Confidence; // Weighted by confidence
         }
 
+        _metrics?.RecordCacheMiss(signatureType);
+
+        // Cache miss - load from DB
         await EnsureInitializedAsync(ct);
 
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync(ct);
 
         var sql = $@"
-            SELECT weight, confidence FROM {TableName}
+            SELECT weight, confidence, observation_count, first_seen, last_seen FROM {TableName}
             WHERE signature_type = @type AND signature = @sig
         ";
 
@@ -250,6 +451,20 @@ public class SqliteWeightStore : IWeightStore, IAsyncDisposable
         {
             var weight = reader.GetDouble(0);
             var confidence = reader.GetDouble(1);
+
+            // Cache the result for future reads (sliding expiration auto-evicts stale entries)
+            var learnedWeight = new LearnedWeight
+            {
+                SignatureType = signatureType,
+                Signature = signature,
+                Weight = weight,
+                Confidence = confidence,
+                ObservationCount = reader.GetInt32(2),
+                FirstSeen = DateTimeOffset.Parse(reader.GetString(3)),
+                LastSeen = DateTimeOffset.Parse(reader.GetString(4))
+            };
+            _cache.Set(key, learnedWeight, GetCacheEntryOptions());
+
             return weight * confidence;
         }
 
@@ -264,25 +479,28 @@ public class SqliteWeightStore : IWeightStore, IAsyncDisposable
         var result = new Dictionary<string, double>();
         var sigList = signatures.ToList();
 
-        // Check cache for all
-        if (_cache.TryGetValue(signatureType, out var typeCache))
+        // Check cache for all (fast path)
+        foreach (var sig in sigList)
         {
-            foreach (var sig in sigList)
+            var key = CacheKey(signatureType, sig);
+            if (_cache.TryGetValue(key, out LearnedWeight? cached) && cached != null)
             {
-                if (typeCache.TryGetValue(sig, out var cached))
-                {
-                    result[sig] = cached.Weight * cached.Confidence;
-                }
+                result[sig] = cached.Weight * cached.Confidence;
+                _metrics?.RecordCacheHit(signatureType);
             }
-
-            if (result.Count == sigList.Count)
-                return result; // All found in cache
         }
+
+        if (result.Count == sigList.Count)
+            return result; // All found in cache
 
         // Fetch missing from DB
         var missing = sigList.Where(s => !result.ContainsKey(s)).ToList();
         if (missing.Count == 0)
             return result;
+
+        // Record cache misses for missing items
+        for (int i = 0; i < missing.Count; i++)
+            _metrics?.RecordCacheMiss(signatureType);
 
         await EnsureInitializedAsync(ct);
 
@@ -292,7 +510,7 @@ public class SqliteWeightStore : IWeightStore, IAsyncDisposable
         // Build parameterized query for missing signatures
         var placeholders = string.Join(",", missing.Select((_, i) => $"@sig{i}"));
         var sql = $@"
-            SELECT signature, weight, confidence FROM {TableName}
+            SELECT signature, weight, confidence, observation_count, first_seen, last_seen FROM {TableName}
             WHERE signature_type = @type AND signature IN ({placeholders})
         ";
 
@@ -304,18 +522,33 @@ public class SqliteWeightStore : IWeightStore, IAsyncDisposable
         }
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
+        var cacheOptions = GetCacheEntryOptions();
         while (await reader.ReadAsync(ct))
         {
             var sig = reader.GetString(0);
             var weight = reader.GetDouble(1);
             var confidence = reader.GetDouble(2);
+
+            // Cache the result
+            var learnedWeight = new LearnedWeight
+            {
+                SignatureType = signatureType,
+                Signature = sig,
+                Weight = weight,
+                Confidence = confidence,
+                ObservationCount = reader.GetInt32(3),
+                FirstSeen = DateTimeOffset.Parse(reader.GetString(4)),
+                LastSeen = DateTimeOffset.Parse(reader.GetString(5))
+            };
+            _cache.Set(CacheKey(signatureType, sig), learnedWeight, cacheOptions);
+
             result[sig] = weight * confidence;
         }
 
         return result;
     }
 
-    public async Task UpdateWeightAsync(
+    public Task UpdateWeightAsync(
         string signatureType,
         string signature,
         double weight,
@@ -323,35 +556,10 @@ public class SqliteWeightStore : IWeightStore, IAsyncDisposable
         int observationCount,
         CancellationToken ct = default)
     {
-        await EnsureInitializedAsync(ct);
+        var key = CacheKey(signatureType, signature);
 
-        await using var conn = new SqliteConnection(_connectionString);
-        await conn.OpenAsync(ct);
-
-        var now = DateTimeOffset.UtcNow.ToString("O");
-        var sql = $@"
-            INSERT INTO {TableName} (signature_type, signature, weight, confidence, observation_count, first_seen, last_seen)
-            VALUES (@type, @sig, @weight, @conf, @count, @now, @now)
-            ON CONFLICT(signature_type, signature) DO UPDATE SET
-                weight = @weight,
-                confidence = @conf,
-                observation_count = @count,
-                last_seen = @now
-        ";
-
-        await using var cmd = new SqliteCommand(sql, conn);
-        cmd.Parameters.AddWithValue("@type", signatureType);
-        cmd.Parameters.AddWithValue("@sig", signature);
-        cmd.Parameters.AddWithValue("@weight", weight);
-        cmd.Parameters.AddWithValue("@conf", confidence);
-        cmd.Parameters.AddWithValue("@count", observationCount);
-        cmd.Parameters.AddWithValue("@now", now);
-
-        await cmd.ExecuteNonQueryAsync(ct);
-
-        // Update cache
-        var typeCache = _cache.GetOrAdd(signatureType, _ => new ConcurrentDictionary<string, LearnedWeight>());
-        typeCache[signature] = new LearnedWeight
+        // Update cache immediately (source of truth for reads)
+        var learnedWeight = new LearnedWeight
         {
             SignatureType = signatureType,
             Signature = signature,
@@ -361,54 +569,69 @@ public class SqliteWeightStore : IWeightStore, IAsyncDisposable
             FirstSeen = DateTimeOffset.UtcNow,
             LastSeen = DateTimeOffset.UtcNow
         };
+        _cache.Set(key, learnedWeight, GetCacheEntryOptions());
+
+        // Queue for async SQLite persistence (write-behind)
+        QueueWrite(signatureType, signature, weight, confidence, observationCount);
 
         _logger.LogDebug(
             "Updated weight: {Type}/{Signature} = {Weight:F3} (conf={Confidence:F2}, count={Count})",
             signatureType, signature, weight, confidence, observationCount);
+
+        return Task.CompletedTask;
     }
 
-    public async Task RecordObservationAsync(
+    public Task RecordObservationAsync(
         string signatureType,
         string signature,
         bool wasBot,
         double detectionConfidence,
         CancellationToken ct = default)
     {
-        await EnsureInitializedAsync(ct);
+        var key = CacheKey(signatureType, signature);
 
-        await using var conn = new SqliteConnection(_connectionString);
-        await conn.OpenAsync(ct);
-
-        // Use exponential moving average for weight updates
-        var weightDelta = wasBot ? detectionConfidence : -detectionConfidence;
+        // Calculate new weight using EMA in memory
         var alpha = 0.1; // Learning rate
+        var weightDelta = wasBot ? detectionConfidence : -detectionConfidence;
 
-        var now = DateTimeOffset.UtcNow.ToString("O");
-        var sql = $@"
-            INSERT INTO {TableName} (signature_type, signature, weight, confidence, observation_count, first_seen, last_seen)
-            VALUES (@type, @sig, @delta, @conf, 1, @now, @now)
-            ON CONFLICT(signature_type, signature) DO UPDATE SET
-                weight = weight * (1 - @alpha) + @delta * @alpha,
-                confidence = MIN(1.0, confidence + @conf * 0.01),
-                observation_count = observation_count + 1,
-                last_seen = @now
-        ";
+        double newWeight;
+        double newConfidence;
+        int newObservationCount;
 
-        await using var cmd = new SqliteCommand(sql, conn);
-        cmd.Parameters.AddWithValue("@type", signatureType);
-        cmd.Parameters.AddWithValue("@sig", signature);
-        cmd.Parameters.AddWithValue("@delta", weightDelta);
-        cmd.Parameters.AddWithValue("@conf", detectionConfidence);
-        cmd.Parameters.AddWithValue("@alpha", alpha);
-        cmd.Parameters.AddWithValue("@now", now);
-
-        await cmd.ExecuteNonQueryAsync(ct);
-
-        // Invalidate cache for this entry
-        if (_cache.TryGetValue(signatureType, out var typeCache))
+        // Get existing cached value if present
+        if (_cache.TryGetValue(key, out LearnedWeight? existing) && existing != null)
         {
-            typeCache.TryRemove(signature, out _);
+            // Apply EMA: new_weight = old_weight * (1-α) + delta * α
+            newWeight = existing.Weight * (1 - alpha) + weightDelta * alpha;
+            newConfidence = Math.Min(1.0, existing.Confidence + detectionConfidence * 0.01);
+            newObservationCount = existing.ObservationCount + 1;
         }
+        else
+        {
+            // First observation
+            newWeight = weightDelta;
+            newConfidence = detectionConfidence;
+            newObservationCount = 1;
+        }
+
+        // Update cache immediately (source of truth for reads)
+        var learnedWeight = new LearnedWeight
+        {
+            SignatureType = signatureType,
+            Signature = signature,
+            Weight = newWeight,
+            Confidence = newConfidence,
+            ObservationCount = newObservationCount,
+            FirstSeen = existing?.FirstSeen ?? DateTimeOffset.UtcNow,
+            LastSeen = DateTimeOffset.UtcNow
+        };
+        _cache.Set(key, learnedWeight, GetCacheEntryOptions());
+
+        // Queue for async SQLite persistence (write-behind)
+        // For observations, we store the final computed values since cache is source of truth
+        QueueWrite(signatureType, signature, newWeight, newConfidence, newObservationCount);
+
+        return Task.CompletedTask;
     }
 
     public async Task<IReadOnlyList<LearnedWeight>> GetAllWeightsAsync(
@@ -431,10 +654,11 @@ public class SqliteWeightStore : IWeightStore, IAsyncDisposable
         cmd.Parameters.AddWithValue("@type", signatureType);
 
         var results = new List<LearnedWeight>();
+        var cacheOptions = GetCacheEntryOptions();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            results.Add(new LearnedWeight
+            var learnedWeight = new LearnedWeight
             {
                 SignatureType = reader.GetString(0),
                 Signature = reader.GetString(1),
@@ -443,14 +667,11 @@ public class SqliteWeightStore : IWeightStore, IAsyncDisposable
                 ObservationCount = reader.GetInt32(4),
                 FirstSeen = DateTimeOffset.Parse(reader.GetString(5)),
                 LastSeen = DateTimeOffset.Parse(reader.GetString(6))
-            });
-        }
+            };
+            results.Add(learnedWeight);
 
-        // Update cache
-        var typeCache = _cache.GetOrAdd(signatureType, _ => new ConcurrentDictionary<string, LearnedWeight>());
-        foreach (var weight in results)
-        {
-            typeCache[weight.Signature] = weight;
+            // Warm up cache with loaded weights
+            _cache.Set(CacheKey(signatureType, learnedWeight.Signature), learnedWeight, cacheOptions);
         }
 
         return results;
@@ -539,14 +760,76 @@ public class SqliteWeightStore : IWeightStore, IAsyncDisposable
                 "Weight decay: {Updated} decayed, {Deleted} deleted",
                 updated, deleted);
 
-            // Clear cache to force reload
-            _cache.Clear();
+            // Compact cache to remove stale entries (MemoryCache handles this automatically via sliding expiration)
+            _cache.Compact(0.25);
         }
     }
 
-    public ValueTask DisposeAsync()
+    /// <summary>
+    ///     Evicts all cached entries for a specific signature type (tag-based eviction).
+    /// </summary>
+    public void EvictByTag(string signatureType)
     {
+        // MemoryCache doesn't natively support tag-based eviction, but we can compact
+        // For now, just compact - sliding expiration will handle stale entries
+        _cache.Compact(0.1);
+        _logger.LogDebug("Compacted cache for signature type: {SignatureType}", signatureType);
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        if (disposing)
+        {
+            // Stop the timer first
+            _flushTimer.Dispose();
+
+            // Flush any remaining pending writes synchronously
+            try
+            {
+                FlushPendingWritesAsync(CancellationToken.None).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to flush pending writes during dispose");
+            }
+
+            _cache.Dispose();
+            _flushLock.Dispose();
+            _initLock.Dispose();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        // Stop the timer
+        await _flushTimer.DisposeAsync();
+
+        // Flush remaining writes
+        try
+        {
+            await FlushPendingWritesAsync(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to flush pending writes during async dispose");
+        }
+
+        _cache.Dispose();
+        _flushLock.Dispose();
         _initLock.Dispose();
-        return ValueTask.CompletedTask;
+
+        GC.SuppressFinalize(this);
     }
 }

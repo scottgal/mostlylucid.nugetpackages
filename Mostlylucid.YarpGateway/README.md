@@ -323,6 +323,189 @@ Configure these in your GitHub repository settings:
 - `DOCKERHUB_USERNAME` - Docker Hub username
 - `DOCKERHUB_TOKEN` - Docker Hub access token
 
+## Bot Detection Integration
+
+YarpGateway uses [Mostlylucid.BotDetection](../Mostlylucid.BotDetection/) for intelligent bot filtering at the edge.
+
+### Quick Setup
+
+Add bot detection with a single line in your configuration:
+
+```json
+{
+  "BotDetection": {
+    "Enabled": true,
+    "BotThreshold": 0.7,
+    "BlockDetectedBots": true
+  }
+}
+```
+
+### Recommended Production Configuration
+
+```json
+{
+  "BotDetection": {
+    "BotThreshold": 0.7,
+    "BlockDetectedBots": true,
+    "DefaultActionPolicyName": "throttle-stealth",
+
+    "EnableAiDetection": true,
+    "AiDetection": {
+      "Provider": "Heuristic",
+      "Heuristic": {
+        "Enabled": true,
+        "EnableWeightLearning": true
+      }
+    },
+
+    "Learning": {
+      "Enabled": true
+    },
+
+    "PathPolicies": {
+      "/api/auth/*": "strict",
+      "/api/checkout/*": "strict",
+      "/robots.txt": "allowAll",
+      "/sitemap.xml": "allowVerifiedBots"
+    }
+  }
+}
+```
+
+### Common Scenarios
+
+#### API Protection
+
+Block bots from API endpoints while allowing legitimate traffic:
+
+```json
+{
+  "BotDetection": {
+    "BotThreshold": 0.6,
+    "BlockDetectedBots": true,
+    "DefaultActionPolicyName": "block",
+    "PathPolicies": {
+      "/api/*": "strict",
+      "/health": "allowAll"
+    }
+  }
+}
+```
+
+#### Allow Verified Crawlers (Googlebot, Bingbot)
+
+Let search engine bots through while blocking scrapers:
+
+```json
+{
+  "BotDetection": {
+    "BotThreshold": 0.7,
+    "BlockDetectedBots": true,
+    "PathPolicies": {
+      "/": "allowVerifiedBots",
+      "/api/*": "strict"
+    }
+  }
+}
+```
+
+#### Stealth Throttling
+
+Slow down bots without revealing detection:
+
+```json
+{
+  "BotDetection": {
+    "BotThreshold": 0.7,
+    "BlockDetectedBots": true,
+    "DefaultActionPolicyName": "throttle-stealth",
+    "ActionPolicies": {
+      "throttle-stealth": {
+        "Type": "throttle",
+        "DelayMs": 3000,
+        "JitterMs": 1000
+      }
+    }
+  }
+}
+```
+
+#### Shadow Mode (Log Only)
+
+Monitor bot traffic without blocking:
+
+```json
+{
+  "BotDetection": {
+    "BotThreshold": 0.5,
+    "BlockDetectedBots": false,
+    "DefaultActionPolicyName": "logonly"
+  }
+}
+```
+
+#### Project Honeypot IP Reputation
+
+Add IP reputation checking (requires free API key from [projecthoneypot.org](https://www.projecthoneypot.org/)):
+
+```json
+{
+  "BotDetection": {
+    "ProjectHoneypot": {
+      "Enabled": true,
+      "AccessKey": "your-access-key"
+    }
+  }
+}
+```
+
+#### LLM-Powered Detection
+
+For complex cases, escalate to an LLM (requires [Ollama](https://ollama.ai/)):
+
+```json
+{
+  "BotDetection": {
+    "EnableAiDetection": true,
+    "AiDetection": {
+      "Provider": "HeuristicWithEscalation",
+      "LlmEscalation": {
+        "OllamaUrl": "http://localhost:11434",
+        "Model": "gemma3:4b",
+        "EscalationThreshold": 0.4
+      }
+    }
+  }
+}
+```
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `BOTDETECTION__ENABLED` | Enable/disable bot detection |
+| `BOTDETECTION__BOTTHRESHOLD` | Detection threshold (0.0-1.0) |
+| `BOTDETECTION__BLOCKDETECTEDBOTS` | Block or just log detected bots |
+| `BOTDETECTION__PROJECTHONEYPOT__ACCESSKEY` | Project Honeypot API key |
+| `BOTDETECTION__AIDETECTION__LLMESCALATION__OLLAMAURL` | Ollama server URL |
+
+### Detection Methods
+
+| Method | Latency | Description |
+|--------|---------|-------------|
+| User-Agent | <1ms | Pattern matching against 1000+ known bots |
+| Headers | <1ms | Suspicious/missing header detection |
+| IP Ranges | <1ms | Datacenter IP identification (AWS, GCP, Azure) |
+| Security Tools | <1ms | Detects Nikto, sqlmap, Burp Suite, etc. |
+| Heuristic AI | <1ms | Weighted feature classification with learning |
+| Project Honeypot | ~100ms | IP reputation via DNS lookup |
+| LLM Escalation | 50-500ms | Full reasoning for edge cases |
+
+### Full Documentation
+
+For complete configuration options, custom detectors, and advanced scenarios, see the [BotDetection README](../Mostlylucid.BotDetection/README.md).
+
 ## License
 
 [Unlicense](https://unlicense.org/) - Public Domain

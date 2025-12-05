@@ -281,6 +281,14 @@ public class DriftDetectionHandler : ILearningEventHandler
         if (evt.Confidence < _options.FeedbackMinConfidence)
             return;
 
+        // Determine if this was a bot or human detection
+        // Use botProbability from metadata if available, otherwise fall back to Label
+        var wasBot = evt.Label ?? false;
+        if (evt.Metadata?.TryGetValue("botProbability", out var probObj) == true && probObj is double botProb)
+        {
+            wasBot = botProb >= 0.5;
+        }
+
         // Extract signature candidates
         var signatures = ExtractSignatures(evt);
 
@@ -299,7 +307,7 @@ public class DriftDetectionHandler : ILearningEventHandler
                 // Check if we should feed back
                 if (existing.Occurrences + 1 >= _options.FeedbackMinOccurrences)
                 {
-                    await EmitSignatureFeedbackAsync(sig, ct);
+                    await EmitSignatureFeedbackAsync(sig, wasBot, ct);
                 }
             }
             else
@@ -308,8 +316,8 @@ public class DriftDetectionHandler : ILearningEventHandler
                 _learnedPatterns[sig.PatternId] = sig;
 
                 _logger.LogDebug(
-                    "New pattern learned: {Type} = {Pattern} (confidence={Confidence:F2})",
-                    sig.SignatureType, sig.Pattern, sig.Confidence);
+                    "New pattern learned: {Type} = {Pattern} (confidence={Confidence:F2}, wasBot={WasBot})",
+                    sig.SignatureType, sig.Pattern, sig.Confidence, wasBot);
             }
         }
     }
@@ -367,11 +375,11 @@ public class DriftDetectionHandler : ILearningEventHandler
     /// <summary>
     ///     Emit feedback event to update fast-path detectors.
     /// </summary>
-    private async Task EmitSignatureFeedbackAsync(LearnedSignature sig, CancellationToken ct)
+    private async Task EmitSignatureFeedbackAsync(LearnedSignature sig, bool wasBot, CancellationToken ct)
     {
         _logger.LogInformation(
-            "Feeding back learned pattern: {Type} = {Pattern} (occurrences={Count}, action={Action})",
-            sig.SignatureType, sig.Pattern, sig.Occurrences, sig.Action);
+            "Feeding back learned pattern: {Type} = {Pattern} (occurrences={Count}, action={Action}, wasBot={WasBot})",
+            sig.SignatureType, sig.Pattern, sig.Occurrences, sig.Action, wasBot);
 
         _learningBus.TryPublish(new LearningEvent
         {
@@ -379,6 +387,7 @@ public class DriftDetectionHandler : ILearningEventHandler
             Source = nameof(DriftDetectionHandler),
             Pattern = sig.Pattern,
             Confidence = sig.Confidence,
+            Label = wasBot, // Include bot/human classification
             Metadata = new Dictionary<string, object>
             {
                 ["patternId"] = sig.PatternId,
@@ -388,7 +397,8 @@ public class DriftDetectionHandler : ILearningEventHandler
                 ["botType"] = sig.BotType?.ToString() ?? "Unknown",
                 ["botName"] = sig.BotName ?? "",
                 ["firstSeen"] = sig.FirstSeen,
-                ["lastSeen"] = sig.LastSeen
+                ["lastSeen"] = sig.LastSeen,
+                ["wasBot"] = wasBot
             }
         });
 

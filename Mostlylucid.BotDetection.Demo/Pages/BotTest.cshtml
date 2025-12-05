@@ -526,20 +526,29 @@
     <div class="card">
         <h2>Detection Result</h2>
         @{
-            // Show the relevant probability: human probability for humans, bot probability for bots
-            var displayProbability = Model.IsBot ? Model.BotProbability : Model.HumanProbability;
-            var probabilityLabel = Model.IsBot ? "bot probability" : "human probability";
-            // For coloring: high confidence in classification is good (green), low is uncertain (orange)
-            var colorClass = displayProbability > 0.7 ? "low" : displayProbability > 0.5 ? "medium" : "high";
+            // Show both probabilities to demonstrate dual scoring
+            var humanProb = Model.HumanProbability;
+            var botProb = Model.BotProbability;
         }
         <div class="result-header">
             <span class="result-badge @(Model.IsBot ? (Model.BotProbability > 0.7 ? "bot" : "suspicious") : "human")">
                 @(Model.IsBot ? (Model.BotProbability > 0.7 ? "Bot Detected" : "Suspicious") : "Human")
             </span>
-            <span class="confidence-score @colorClass">
-                @displayProbability.ToString("P0")
-            </span>
-            <span style="color: #8b949e; font-size: 0.9em;">@probabilityLabel</span>
+        </div>
+        <!-- Dual probability display -->
+        <div style="display: flex; gap: 24px; margin-top: 12px; justify-content: center;">
+            <div style="text-align: center;">
+                <div style="font-size: 1.8em; font-weight: 700; color: @(humanProb > 0.5 ? "#3fb950" : "#8b949e");">
+                    @humanProb.ToString("P0")
+                </div>
+                <div style="color: #8b949e; font-size: 0.85em;">Human Probability</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 1.8em; font-weight: 700; color: @(botProb > 0.5 ? "#f85149" : "#8b949e");">
+                    @botProb.ToString("P0")
+                </div>
+                <div style="color: #8b949e; font-size: 0.85em;">Bot Probability</div>
+            </div>
         </div>
 
         <div class="risk-action">

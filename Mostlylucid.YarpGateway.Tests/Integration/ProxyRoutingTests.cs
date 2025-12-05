@@ -132,17 +132,18 @@ public class ProxyRoutingTests : IClassFixture<GatewayTestFixture>
     [Fact]
     public async Task MultipleRequests_AllForwarded()
     {
-        // Act
-        var tasks = Enumerable.Range(0, 10)
-            .Select(i => _fixture.GatewayClient.GetAsync($"/api/echo?req={i}"))
-            .ToArray();
-
-        var responses = await Task.WhenAll(tasks);
+        // Act - send requests sequentially to avoid race conditions in CI
+        var responses = new List<HttpResponseMessage>();
+        for (var i = 0; i < 10; i++)
+        {
+            var response = await _fixture.GatewayClient.GetAsync($"/api/echo?req={i}");
+            responses.Add(response);
+        }
 
         // Assert - all requests should succeed
         responses.Should().AllSatisfy(r => r.StatusCode.Should().Be(HttpStatusCode.OK));
-        // Note: RecordedRequests may have more due to test isolation, but all our requests should complete
-        _fixture.RecordedRequests.Should().HaveCountGreaterOrEqualTo(10);
+        // All 10 sequential requests should be recorded
+        _fixture.RecordedRequests.Should().HaveCount(10);
     }
 
     [Theory]

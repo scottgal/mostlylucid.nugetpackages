@@ -621,7 +621,11 @@ public class BlackboardOrchestrator
         if (_learningBus == null)
             return;
 
-        var eventType = result.BotProbability >= 0.8
+        // High confidence detection for BOTH bots (probability >= 0.8) AND humans (probability <= 0.2)
+        // This enables the heuristic to learn good behavior patterns, not just bad ones
+        var isHighConfidenceBot = result.BotProbability >= 0.8;
+        var isHighConfidenceHuman = result.BotProbability <= 0.2;
+        var eventType = (isHighConfidenceBot || isHighConfidenceHuman)
             ? LearningEventType.HighConfidenceDetection
             : LearningEventType.FullDetection;
 

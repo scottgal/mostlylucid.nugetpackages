@@ -92,10 +92,17 @@ public class SignatureFeedbackHandler : ILearningEventHandler
 
     private async Task HandleHighConfidenceDetection(LearningEvent evt, CancellationToken ct)
     {
-        if (!evt.Confidence.HasValue || evt.Confidence.Value < 0.7)
+        // evt.Confidence is detection certainty, evt.Label indicates bot (true) or human (false)
+        // We want high-confidence learning for BOTH bot and human detections
+        if (!evt.Confidence.HasValue || evt.Confidence.Value < 0.5)
             return;
 
-        var wasBot = evt.Label ?? (evt.Confidence >= 0.5);
+        // Use label if available; for high-confidence events, botProbability in metadata is more accurate
+        var wasBot = evt.Label ?? false;
+        if (evt.Metadata?.TryGetValue("botProbability", out var probObj) == true && probObj is double botProb)
+        {
+            wasBot = botProb >= 0.5;
+        }
 
         // Extract signatures from metadata
         var signatures = ExtractSignatures(evt);
@@ -121,7 +128,12 @@ public class SignatureFeedbackHandler : ILearningEventHandler
         if (!evt.Confidence.HasValue || evt.Confidence.Value < 0.3)
             return;
 
-        var wasBot = evt.Label ?? (evt.Confidence >= 0.5);
+        // Use botProbability from metadata for accurate bot/human determination
+        var wasBot = evt.Label ?? false;
+        if (evt.Metadata?.TryGetValue("botProbability", out var probObj) == true && probObj is double botProb)
+        {
+            wasBot = botProb >= 0.5;
+        }
 
         var signatures = ExtractSignatures(evt);
 
@@ -147,16 +159,24 @@ public class SignatureFeedbackHandler : ILearningEventHandler
             ? st?.ToString() ?? SignatureTypes.CombinedSignature
             : SignatureTypes.CombinedSignature;
 
+        // Get wasBot from Label, or from metadata["wasBot"], defaulting to false (human)
+        // since most traffic is human
+        var wasBot = evt.Label;
+        if (!wasBot.HasValue && evt.Metadata?.TryGetValue("wasBot", out var wbObj) == true)
+        {
+            wasBot = wbObj is bool wb ? wb : null;
+        }
+
         await _weightStore.RecordObservationAsync(
             sigType,
             evt.Pattern,
-            evt.Label ?? true,
+            wasBot ?? false, // Default to human if not specified
             evt.Confidence ?? 0.5,
             ct);
 
         _logger.LogDebug(
             "Signature feedback: {Type}/{Pattern}, wasBot={WasBot}",
-            sigType, evt.Pattern, evt.Label);
+            sigType, evt.Pattern, wasBot);
     }
 
     private async Task HandleUserFeedback(LearningEvent evt, CancellationToken ct)
