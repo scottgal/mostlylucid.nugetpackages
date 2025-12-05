@@ -343,7 +343,7 @@ What a Policy Looks Like
 "DeepInspection": {
 "FastPath": [],
 "SlowPath": ["IpReputation", "Inconsistency"],
-"AiPath": ["LlmAnalyzer", "OnnxModel"],
+"AiPath": ["LlmAnalyzer", "Heuristic"],
 "Transitions": [
 { "WhenRiskBelow": 0.4, "GoTo": "Default" },
 { "WhenRiskExceeds": 0.95, "GoTo": "BlockPolicy" }
