@@ -23,13 +23,32 @@ Human → Real backend
 
 This isn't a wrapper around YARP with bot detection bolted on. **Bot detection IS the core feature.** YARP provides the routing infrastructure.
 
-Integrates [Mostlylucid.BotDetection](https://www.nuget.org/packages/Mostlylucid.BotDetection) v1.0.0:
+Integrates [Mostlylucid.BotDetection](https://www.nuget.org/packages/Mostlylucid.BotDetection) v1.2.0:
 
-- **8-Layer Detection Pipeline** - User-Agent, headers, IP reputation, behavioral analysis, client-side fingerprinting, version age, inconsistency detection, AI classification
+### Detection Pipeline
+
+| Method | Description | Latency |
+|--------|-------------|---------|
+| **User-Agent** | Pattern matching against 1000+ known bots | <1ms |
+| **Headers** | Suspicious/missing header detection | <1ms |
+| **IP Reputation** | Datacenter IP ranges (AWS, GCP, Azure, Cloudflare) | <1ms |
+| **Security Tools** | Nikto, sqlmap, Burp Suite, Nmap, Acunetix detection | <1ms |
+| **Version Age** | Browser/OS version staleness detection | <1ms |
+| **Project Honeypot** | HTTP:BL IP reputation via DNS lookup | ~100ms |
+| **Behavioral** | Rate limiting + anomaly detection | 1-5ms |
+| **Inconsistency** | Cross-signal mismatch detection | 1-5ms |
+| **Client-Side** | JavaScript fingerprinting, headless browser detection | <1ms |
+| **Heuristic AI** | Feature-weighted classification with continuous learning | <1ms |
+| **LLM Escalation** | Full reasoning for uncertain cases (Ollama) | 50-500ms |
+
+### Key Capabilities
+
 - **Sub-Millisecond Fast Path** - Most requests classified in <1ms
-- **AI Escalation** - Uncertain cases escalate to heuristic model or LLM (Ollama)
+- **AI Escalation** - Uncertain cases escalate to heuristic model or LLM
+- **Continuous Learning** - Weights adapt from detection feedback
+- **Pattern Reputation** - Learned signatures feed back to fast detectors
+- **Drift Detection** - Monitors when fast-path diverges from full analysis
 - **Stealth Responses** - Bots don't know they're detected
-- **Continuous Learning** - Adapts to new patterns automatically
 - **Full Observability** - OpenTelemetry metrics and traces
 
 ### Detection → Action → Route
@@ -39,12 +58,13 @@ Request
    ↓
 ┌─────────────────────────────────────┐
 │  Fast Path (<1ms)                   │
-│  UA + Headers + IP + Fingerprint    │
+│  UA + Headers + IP + SecurityTools  │
+│  + Fingerprint + Heuristic AI       │
 └─────────────────────────────────────┘
-   ↓
+   ↓ (if uncertain)
 ┌─────────────────────────────────────┐
-│  Slow Path (if uncertain)           │
-│  Behavioral + Inconsistency + AI    │
+│  Slow Path                          │
+│  Behavioral + Inconsistency + LLM   │
 └─────────────────────────────────────┘
    ↓
    Risk Score (0.0 - 1.0)
@@ -57,25 +77,20 @@ Request
 │  → Challenge (CAPTCHA)              │
 │  → Block (403/custom)               │
 └─────────────────────────────────────┘
+   ↓
+┌─────────────────────────────────────┐
+│  Learning Bus                       │
+│  → Pattern reputation updates       │
+│  → Weight adjustments               │
+│  → Drift monitoring                 │
+└─────────────────────────────────────┘
 ```
-
-## Future: More Behavioral Modules
-
-Bot detection is v1.0. Additional detection modules coming:
-
-- **Geo-blocking** - Route by country/region
-- **Rate limiting** - Behavioral rate limits (not just IP-based)
-- **Anomaly detection** - Unusual request patterns
-- **API abuse detection** - Credential stuffing, enumeration attacks
-- **Custom detectors** - Plugin architecture for your own logic
-
-Each module feeds into the same behavioral routing decision.
 
 ---
 
 ## Quick Start
 
-### Zero-Config
+### Zero-Config Mode
 
 ```bash
 docker run -d -p 8080:8080 \
@@ -83,12 +98,116 @@ docker run -d -p 8080:8080 \
   scottgal/mostlylucid.yarpgateway
 ```
 
-### With Bot Detection Config
+### With Configuration
 
 ```bash
 docker run -d -p 8080:8080 \
   -v ./config:/app/config:ro \
   scottgal/mostlylucid.yarpgateway
+```
+
+### Configuration Precedence
+
+1. `DEFAULT_UPSTREAM` env var (highest - zero-config mode)
+2. YARP config file (`/app/config/yarp.json`)
+3. Empty config (no routes - shows warning)
+
+## Bot Detection Configuration
+
+### Recommended Production Setup
+
+**config/appsettings.json**:
+
+```json
+{
+  "BotDetection": {
+    "BotThreshold": 0.7,
+    "BlockDetectedBots": true,
+    "DefaultActionPolicyName": "throttle-stealth",
+
+    "EnableAiDetection": true,
+    "AiDetection": {
+      "Provider": "Heuristic",
+      "Heuristic": {
+        "Enabled": true,
+        "EnableWeightLearning": true
+      }
+    },
+
+    "Learning": {
+      "Enabled": true
+    },
+
+    "PathPolicies": {
+      "/api/auth/*": "strict",
+      "/api/checkout/*": "strict",
+      "/robots.txt": "allowAll",
+      "/sitemap.xml": "allowVerifiedBots"
+    }
+  }
+}
+```
+
+### Detection Policies
+
+Configure which detectors run and how they're weighted:
+
+```json
+{
+  "BotDetection": {
+    "Policies": {
+      "default": {
+        "Description": "All detectors + Heuristic, LLM for uncertain",
+        "FastPath": ["UserAgent", "Header", "Ip", "SecurityTool", "ProjectHoneypot",
+                     "Behavioral", "ClientSide", "Inconsistency", "VersionAge", "Heuristic"],
+        "AiPath": ["Llm", "HeuristicLate"],
+        "EscalateToAi": true,
+        "EarlyExitThreshold": 0.85,
+        "ImmediateBlockThreshold": 0.95
+      },
+      "strict": {
+        "Description": "Lower thresholds for sensitive endpoints",
+        "FastPath": ["UserAgent", "Header", "Ip", "SecurityTool", "Heuristic"],
+        "EarlyExitThreshold": 0.70,
+        "ImmediateBlockThreshold": 0.80
+      },
+      "fastpath": {
+        "Description": "No LLM, heuristic only",
+        "FastPath": ["UserAgent", "Header", "Ip", "SecurityTool", "Heuristic"],
+        "EscalateToAi": false
+      }
+    },
+    "PathPolicies": {
+      "/api/checkout/*": "strict",
+      "/api/public/*": "fastpath"
+    }
+  }
+}
+```
+
+### Action Policies
+
+Control HOW to respond to detected bots:
+
+```json
+{
+  "BotDetection": {
+    "ActionPolicies": {
+      "block": { "Type": "Block", "StatusCode": 403 },
+      "throttle-stealth": {
+        "Type": "Throttle",
+        "DelayMs": 3000,
+        "JitterMs": 1000
+      },
+      "honeypot": {
+        "Type": "Redirect",
+        "RedirectCluster": "honeypot"
+      },
+      "challenge": { "Type": "Challenge" },
+      "logonly": { "Type": "Allow" }
+    }
+  }
+}
 ```
 
 ## Bot-Aware Routing Example
@@ -125,6 +244,7 @@ docker run -d -p 8080:8080 \
 {
   "BotDetection": {
     "Enabled": true,
+    "DefaultActionPolicyName": "allow",
 
     "ActionPolicies": {
       "allow": { "Type": "Allow" },
@@ -158,6 +278,59 @@ docker run -d -p 8080:8080 \
 | Scraper | 0.7-0.9 | Honeypot (fake data) |
 | Malicious | > 0.9 | Blocked |
 
+## LLM Integration (Ollama)
+
+For complex cases, escalate to an LLM for full reasoning:
+
+```json
+{
+  "BotDetection": {
+    "EnableAiDetection": true,
+    "AiDetection": {
+      "Provider": "HeuristicWithEscalation",
+      "LlmEscalation": {
+        "OllamaUrl": "http://ollama:11434",
+        "Model": "gemma3:4b",
+        "EscalationThreshold": 0.4
+      }
+    }
+  }
+}
+```
+
+```yaml
+services:
+  gateway:
+    image: scottgal/mostlylucid.yarpgateway:latest
+    environment:
+      - BOTDETECTION__AIDETECTION__LLMESCALATION__OLLAMAURL=http://ollama:11434
+    depends_on:
+      - ollama
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+```
+
+## Project Honeypot Integration
+
+Add IP reputation checking (free API key from [projecthoneypot.org](https://www.projecthoneypot.org/)):
+
+```json
+{
+  "BotDetection": {
+    "ProjectHoneypot": {
+      "Enabled": true,
+      "AccessKey": "your-access-key",
+      "HighThreatThreshold": 25,
+      "TreatHarvestersAsMalicious": true,
+      "TreatCommentSpammersAsMalicious": true
+    }
+  }
+}
+```
+
 ## Full Docker Compose
 
 ```yaml
@@ -168,6 +341,9 @@ services:
       - "80:8080"
     volumes:
       - ./config:/app/config:ro
+      - ./data:/app/data
+    environment:
+      - ADMIN_SECRET=your-secret
     depends_on:
       - api
       - honeypot
@@ -191,44 +367,118 @@ services:
 |----------|---------|-------------|
 | `DEFAULT_UPSTREAM` | - | Catch-all upstream (zero-config mode) |
 | `ADMIN_SECRET` | - | Protect admin API with X-Admin-Secret header |
+| `ADMIN_BASE_PATH` | `/admin` | Admin API base path |
 | `GATEWAY_HTTP_PORT` | `8080` | HTTP port |
+| `YARP_CONFIG_FILE` | `/app/config/yarp.json` | YARP config path |
 | `LOG_LEVEL` | `Information` | Logging level |
 | `DB_PROVIDER` | `none` | Optional: `postgres`, `sqlserver` |
+| `DB_CONNECTION_STRING` | - | Database connection string |
+| `DB_MIGRATE_ON_STARTUP` | `true` | Auto-run migrations |
+
+### Bot Detection Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `BOTDETECTION__ENABLED` | Enable/disable bot detection |
+| `BOTDETECTION__BOTTHRESHOLD` | Detection threshold (0.0-1.0) |
+| `BOTDETECTION__BLOCKDETECTEDBOTS` | Block or just log detected bots |
+| `BOTDETECTION__PROJECTHONEYPOT__ACCESSKEY` | Project Honeypot API key |
+| `BOTDETECTION__AIDETECTION__LLMESCALATION__OLLAMAURL` | Ollama server URL |
 
 ## Directory Mounts
 
 | Path | Purpose |
 |------|---------|
 | `/app/config` | Configuration (appsettings.json, yarp.json) |
-| `/app/data` | Persistent data (learned patterns, weights) |
+| `/app/data` | Persistent data (learned patterns, weights, reputation cache) |
 | `/app/logs` | Log files |
+| `/app/plugins` | Plugin assemblies |
 
 ## Admin API
 
 ```bash
+# Health check
 curl http://localhost:8080/admin/health
-# {"status":"ok","routesConfigured":2,"clustersConfigured":3}
+# {"status":"ok","routesConfigured":2,"clustersConfigured":3,"mode":"configured"}
 
+# Current routes and clusters
 curl http://localhost:8080/admin/routes
 curl http://localhost:8080/admin/clusters
+
+# Gateway metrics
 curl http://localhost:8080/admin/metrics
+
+# Effective configuration
+curl http://localhost:8080/admin/config/effective
+
+# Active configuration sources
+curl http://localhost:8080/admin/config/sources
+
+# Browse mounted directories
+curl http://localhost:8080/admin/fs
+curl http://localhost:8080/admin/fs/config
+```
+
+If `ADMIN_SECRET` is set, include `X-Admin-Secret: your-secret` header.
+
+## Raspberry Pi Deployment
+
+Multi-arch images support ARM:
+
+```bash
+# Install Docker on Pi
+curl -fsSL https://get.docker.com | sh
+
+# Pull and run (auto-selects arm64 or armv7)
+docker run -d --name gateway \
+  -p 80:8080 \
+  --restart unless-stopped \
+  -e DEFAULT_UPSTREAM=http://192.168.1.100:3000 \
+  scottgal/mostlylucid.yarpgateway
+```
+
+### Pi-Optimized Settings
+
+```yaml
+services:
+  gateway:
+    image: scottgal/mostlylucid.yarpgateway:latest
+    ports:
+      - "80:8080"
+    environment:
+      - DEFAULT_UPSTREAM=http://your-backend:3000
+      - LOG_LEVEL=Warning
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    restart: unless-stopped
 ```
 
 ## Architectures
 
 - `linux/amd64` - x86-64 servers, cloud VMs
 - `linux/arm64` - Raspberry Pi 4/5, Apple Silicon, AWS Graviton
+- `linux/arm/v7` - Raspberry Pi 3/Zero 2 W
+
+## Image Size
+
+Optimized Alpine-based image:
+- Base: ~80MB (ASP.NET 9.0 Alpine runtime)
+- App: ~10MB
+- **Total: ~90MB**
 
 ## Tags
 
 - `latest` - Current stable
-- `1.0.0` - Specific version
+- `X.Y.Z[-previewN]` - Specific version (e.g., `1.2.0-preview1`)
 - `YYYYMMDD` - Date builds
 
 ## Links
 
 - **GitHub**: [github.com/scottgal/mostlylucid.nugetpackages](https://github.com/scottgal/mostlylucid.nugetpackages)
 - **NuGet (BotDetection)**: [nuget.org/packages/Mostlylucid.BotDetection](https://www.nuget.org/packages/Mostlylucid.BotDetection)
+- **Full Documentation**: [BotDetection README](https://github.com/scottgal/mostlylucid.nugetpackages/tree/main/Mostlylucid.BotDetection)
 
 ## License
 

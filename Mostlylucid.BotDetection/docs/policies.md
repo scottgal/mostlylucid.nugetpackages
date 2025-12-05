@@ -174,7 +174,7 @@ Each detector has a default weight. Policies can override weights:
 | Behavioral | 1.2 | Request rate patterns |
 | Inconsistency | 1.5 | Cross-signal mismatches |
 | ClientSide | 1.3 | Browser fingerprinting |
-| Onnx | 2.0 | ML model inference |
+| Heuristic | 2.0 | Feature-weighted classification with learning |
 | Llm | 2.5 | LLM analysis |
 | IpReputation | 1.5 | IP reputation lookup |
 
@@ -302,7 +302,7 @@ flowchart TB
         "Description": "Checkout flow protection",
         "FastPath": ["UserAgent", "Header", "Ip"],
         "SlowPath": ["Behavioral", "Inconsistency", "ClientSide"],
-        "AiPath": ["Onnx"],
+        "AiPath": ["Heuristic", "Llm"],
         "ForceSlowPath": true,
         "EscalateToAi": true,
         "AiEscalationThreshold": 0.5,

@@ -16,8 +16,8 @@ Basic detection without blocking - good for getting started:
     // Uncomment to enable AI-powered detection with learning (RECOMMENDED):
     // "EnableAiDetection": true,
     // "AiDetection": {
-    //   "Provider": "Onnx",
-    //   "Onnx": { "AutoDownloadModel": true, "EnableHeuristicFallback": true }
+    //   "Provider": "Heuristic",
+    //   "Heuristic": { "Enabled": true, "EnableWeightLearning": true }
     // },
     // "Learning": { "Enabled": true }
   }
@@ -26,7 +26,7 @@ Basic detection without blocking - good for getting started:
 
 ### Typical Production Configuration (RECOMMENDED)
 
-Full detection with ONNX AI, learning enabled, and stealth throttling:
+Full detection with Heuristic AI, learning enabled, and stealth throttling:
 
 ```json
 {
@@ -39,12 +39,12 @@ Full detection with ONNX AI, learning enabled, and stealth throttling:
     // === AI Detection with Learning (KEY FEATURE) ===
     "EnableAiDetection": true,
     "AiDetection": {
-      "Provider": "Onnx",
+      "Provider": "Heuristic",
       "TimeoutMs": 1000,
-      "Onnx": {
-        "AutoDownloadModel": true,
-        "EnableHeuristicFallback": true,
-        "UseGpu": false
+      "Heuristic": {
+        "Enabled": true,
+        "EnableWeightLearning": true,
+        "LoadLearnedWeights": true
       }
     },
 
@@ -94,6 +94,7 @@ Complete reference with all available options:
     "EnableHeaderAnalysis": true,
     "EnableIpDetection": true,
     "EnableBehavioralAnalysis": true,
+    "EnableLlmDetection": true,
     "EnableTestMode": false,
     "MaxRequestsPerMinute": 60,
     "CacheDurationSeconds": 300,
@@ -115,19 +116,18 @@ Complete reference with all available options:
     // ==========================================
     "EnableAiDetection": true,
     "AiDetection": {
-      "Provider": "Onnx",
-      "TimeoutMs": 1000,
-      "MaxConcurrentRequests": 10,
+      "Provider": "Heuristic",
+      "TimeoutMs": 15000,
+      "MaxConcurrentRequests": 5,
 
-      // ONNX Settings (recommended)
-      "Onnx": {
-        "ModelPath": "models/bot_classifier.onnx",
-        "AutoDownloadModel": true,
-        "ModelDownloadUrl": "",
-        "UseGpu": false,
-        "GpuDeviceId": 0,
-        "EnableHeuristicFallback": true,
-        "InferenceThreads": 4
+      // Heuristic Settings (recommended - fast, learns)
+      "Heuristic": {
+        "Enabled": true,
+        "LoadLearnedWeights": true,
+        "EnableWeightLearning": true,
+        "MinConfidenceForLearning": 0.8,
+        "LearningRate": 0.01,
+        "WeightReloadIntervalMinutes": 60
       },
 
       // Ollama Settings (for LLM escalation)
@@ -171,27 +171,36 @@ Complete reference with all available options:
       "/sitemap.xml": "allowVerifiedBots"
     },
     "Policies": {
-      "custom": {
-        "Description": "Custom detection policy",
-        "FastPath": ["UserAgent", "Header", "Ip"],
-        "SlowPath": ["Behavioral", "Inconsistency"],
-        "AiPath": ["Onnx"],
+      "default": {
+        "Description": "All detectors + Heuristic, LLM for uncertain",
+        "FastPath": ["FastPathReputation", "UserAgent", "Header", "Ip", "SecurityTool", "ProjectHoneypot", "Behavioral", "ClientSide", "Inconsistency", "VersionAge", "ReputationBias", "Heuristic"],
+        "SlowPath": [],
+        "AiPath": ["Llm", "HeuristicLate"],
         "UseFastPath": true,
         "ForceSlowPath": false,
         "EscalateToAi": true,
-        "AiEscalationThreshold": 0.6,
-        "EarlyExitThreshold": 0.3,
+        "AiEscalationThreshold": 0.0,
+        "EarlyExitThreshold": 0.85,
         "ImmediateBlockThreshold": 0.95,
-        "TimeoutMs": 15000,
-        "ActionPolicyName": "throttle-stealth",
-        "Weights": {
-          "Behavioral": 2.0,
-          "Inconsistency": 1.5
-        },
-        "Transitions": [
-          { "WhenRiskExceeds": 0.9, "ActionPolicyName": "block-hard" },
-          { "WhenSignal": "VerifiedGoodBot", "Action": "Allow" }
-        ]
+        "Tags": ["production", "all-detectors", "heuristic", "llm"]
+      },
+      "fastpath": {
+        "Description": "No LLM, heuristic only - lowest latency",
+        "FastPath": ["FastPathReputation", "UserAgent", "Header", "Ip", "SecurityTool", "ProjectHoneypot", "Behavioral", "ClientSide", "Inconsistency", "VersionAge", "ReputationBias", "Heuristic"],
+        "SlowPath": [],
+        "AiPath": [],
+        "UseFastPath": true,
+        "ForceSlowPath": false,
+        "EscalateToAi": false,
+        "EarlyExitThreshold": 0.15,
+        "ImmediateBlockThreshold": 0.90,
+        "Tags": ["production", "heuristic-only"]
+      },
+      "strict": {
+        "Description": "Lower thresholds for sensitive endpoints",
+        "FastPath": ["FastPathReputation", "UserAgent", "Header", "Ip", "SecurityTool", "Heuristic"],
+        "EarlyExitThreshold": 0.70,
+        "ImmediateBlockThreshold": 0.80
       }
     },
 
@@ -221,21 +230,64 @@ Complete reference with all available options:
     // ==========================================
     "FastPath": {
       "Enabled": true,
-      "MaxParallelDetectors": 4,
+      "MaxParallelDetectors": 8,
       "EnableWaveParallelism": true,
-      "WaveTimeoutMs": 50,
-      "AbortThreshold": 0.95,
-      "EarlyExitThreshold": 0.85,
-      "SkipSlowPathThreshold": 0.2,
-      "SlowPathTriggerThreshold": 0.5,
-      "FastPathTimeoutMs": 100,
-      "SlowPathQueueCapacity": 10000,
+      "WaveTimeoutMs": 500,
+      "FastPathTimeoutMs": 1000,
+      "EarlyExitThreshold": 0.99,
+      "SkipSlowPathThreshold": 0.0,
+      "SlowPathTriggerThreshold": 0.0,
       "AlwaysRunFullOnPaths": ["/api/checkout", "/api/login"],
       "EnableDriftDetection": true,
       "DriftThreshold": 0.005,
       "EnableFeedbackLoop": true,
       "FeedbackMinConfidence": 0.9,
-      "FeedbackMinOccurrences": 5
+      "FeedbackMinOccurrences": 5,
+      "SlowPathDetectors": [
+        { "Name": "Heuristic Detector", "Signal": "AiClassificationCompleted", "ExpectedLatencyMs": 1, "Wave": 1, "Category": "AI", "Weight": 2.0 },
+        { "Name": "LLM Detector", "Signal": "LlmClassificationCompleted", "ExpectedLatencyMs": 500, "Wave": 2, "Category": "AI", "Weight": 2.5 },
+        { "Name": "Inconsistency Detector", "Signal": "InconsistencyUpdated", "ExpectedLatencyMs": 2, "Wave": 1, "Category": "Inconsistency", "Weight": 1.5 },
+        { "Name": "Version Age Detector", "Signal": "VersionAgeAnalyzed", "ExpectedLatencyMs": 1, "Wave": 1, "Category": "VersionAge", "Weight": 1.0 }
+      ]
+    },
+
+    // ==========================================
+    // VERSION AGE SETTINGS
+    // ==========================================
+    "VersionAge": {
+      "Enabled": true,
+      "CheckBrowserVersion": true,
+      "CheckOsVersion": true,
+      "MaxBrowserVersionAge": 10
+    },
+
+    // ==========================================
+    // SECURITY TOOLS SETTINGS
+    // ==========================================
+    "SecurityTools": {
+      "Enabled": true,
+      "BlockSecurityTools": true,
+      "LogDetections": true,
+      "CustomPatterns": [],
+      "ExcludedPatterns": [],
+      "EnabledCategories": [],
+      "HoneypotRedirectUrl": null
+    },
+
+    // ==========================================
+    // PROJECT HONEYPOT SETTINGS
+    // ==========================================
+    "ProjectHoneypot": {
+      "Enabled": true,
+      "AccessKey": null,
+      "HighThreatThreshold": 25,
+      "MaxDaysAge": 90,
+      "TimeoutMs": 1000,
+      "CacheDurationSeconds": 1800,
+      "SkipLocalIps": true,
+      "TreatHarvestersAsMalicious": true,
+      "TreatCommentSpammersAsMalicious": true,
+      "TreatSuspiciousAsSuspicious": true
     },
 
     // ==========================================
@@ -265,6 +317,66 @@ Complete reference with all available options:
       "CollectAudio": false,
       "MinIntegrityScore": 70,
       "HeadlessThreshold": 0.5
+    },
+
+    // ==========================================
+    // RESPONSE HEADERS
+    // ==========================================
+    "ResponseHeaders": {
+      "Enabled": true,
+      "HeaderPrefix": "X-Bot-",
+      "IncludePolicyName": true,
+      "IncludeConfidence": true,
+      "IncludeDetectors": true,
+      "IncludeProcessingTime": true,
+      "IncludeBotName": true,
+      "IncludeFullJson": false
+    },
+
+    // ==========================================
+    // DATA SOURCES
+    // ==========================================
+    "DataSources": {
+      "IsBot": {
+        "Enabled": true,
+        "Url": "https://raw.githubusercontent.com/omrilotan/isbot/main/src/patterns.json"
+      },
+      "Matomo": {
+        "Enabled": false,
+        "Url": "https://raw.githubusercontent.com/matomo-org/device-detector/master/regexes/bots.yml"
+      },
+      "CrawlerUserAgents": {
+        "Enabled": false,
+        "Url": "https://raw.githubusercontent.com/monperrus/crawler-user-agents/master/crawler-user-agents.json"
+      },
+      "AwsIpRanges": {
+        "Enabled": true,
+        "Url": "https://ip-ranges.amazonaws.com/ip-ranges.json"
+      },
+      "GcpIpRanges": {
+        "Enabled": true,
+        "Url": "https://www.gstatic.com/ipranges/cloud.json"
+      },
+      "AzureIpRanges": {
+        "Enabled": false,
+        "Url": ""
+      },
+      "CloudflareIpv4": {
+        "Enabled": true,
+        "Url": "https://www.cloudflare.com/ips-v4"
+      },
+      "CloudflareIpv6": {
+        "Enabled": true,
+        "Url": "https://www.cloudflare.com/ips-v6"
+      },
+      "ScannerUserAgents": {
+        "Enabled": true,
+        "Url": "https://raw.githubusercontent.com/digininja/scanner_user_agents/main/list.json"
+      },
+      "CoreRuleSetScanners": {
+        "Enabled": true,
+        "Url": "https://raw.githubusercontent.com/coreruleset/coreruleset/main/rules/scanners-user-agents.data"
+      }
     },
 
     // ==========================================
@@ -309,6 +421,7 @@ Complete reference with all available options:
 | `EnableIpDetection` | bool | `true` | Enable IP-based detection |
 | `EnableBehavioralAnalysis` | bool | `true` | Enable behavioral rate analysis |
 | `EnableAiDetection` | bool | `true` | **Enable AI-based classification (RECOMMENDED)** |
+| `EnableLlmDetection` | bool | `true` | Enable LLM escalation for uncertain cases |
 | `EnableTestMode` | bool | `false` | Enable test mode headers (dev only!) |
 | `MaxRequestsPerMinute` | int | `60` | Rate limit threshold (1-10000) |
 | `CacheDurationSeconds` | int | `300` | Cache duration for results (0-86400) |
@@ -319,23 +432,56 @@ Complete reference with all available options:
 
 AI detection provides machine learning-based classification with continuous learning. **This is a key differentiator** - the system improves over time.
 
+### Providers
+
+| Provider | Description | Latency | Use Case |
+|----------|-------------|---------|----------|
+| `Heuristic` | Feature-weighted logistic regression with learning | <1ms | **Default - fast, learns** |
+| `Ollama` | LLM-based analysis with full reasoning | 50-500ms | Escalation for complex cases |
+| `HeuristicWithEscalation` | Heuristic first, LLM for uncertain | <1ms + escalation | Best accuracy |
+
+### Heuristic Provider (Recommended)
+
 ```json
 {
   "BotDetection": {
     "EnableAiDetection": true,
     "AiDetection": {
-      "Provider": "Onnx",
+      "Provider": "Heuristic",
       "TimeoutMs": 1000,
       "MaxConcurrentRequests": 10,
-      "Onnx": {
-        "ModelPath": "models/bot_classifier.onnx",
-        "AutoDownloadModel": true,
-        "ModelDownloadUrl": "",
-        "UseGpu": false,
-        "GpuDeviceId": 0,
-        "EnableHeuristicFallback": true,
-        "InferenceThreads": 4
-      },
+      "Heuristic": {
+        "Enabled": true,
+        "LoadLearnedWeights": true,
+        "EnableWeightLearning": true,
+        "MinConfidenceForLearning": 0.8,
+        "LearningRate": 0.01,
+        "WeightReloadIntervalMinutes": 60
+      }
+    }
+  }
+}
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `Enabled` | bool | `true` | Enable heuristic detection |
+| `LoadLearnedWeights` | bool | `true` | Load weights from database on startup |
+| `EnableWeightLearning` | bool | `true` | Update weights from detection feedback |
+| `MinConfidenceForLearning` | double | `0.8` | Minimum confidence for weight updates |
+| `LearningRate` | double | `0.01` | Learning rate for weight adjustments |
+| `WeightReloadIntervalMinutes` | int | `60` | How often to reload weights from store |
+
+### Ollama Provider (LLM Escalation)
+
+```json
+{
+  "BotDetection": {
+    "EnableAiDetection": true,
+    "AiDetection": {
+      "Provider": "Ollama",
+      "TimeoutMs": 15000,
+      "MaxConcurrentRequests": 5,
       "Ollama": {
         "Endpoint": "http://localhost:11434",
         "Model": "gemma3:4b",
@@ -350,22 +496,13 @@ AI detection provides machine learning-based classification with continuous lear
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `Provider` | string | `"Onnx"` | AI provider: `Onnx` (fast) or `Ollama` (LLM) |
-| `TimeoutMs` | int | `1000` | Timeout for AI inference |
-| `MaxConcurrentRequests` | int | `10` | Max parallel AI requests |
+| `Endpoint` | string | `http://localhost:11434` | Ollama API endpoint |
+| `Model` | string | `gemma3:4b` | Model name (gemma3:4b recommended) |
+| `UseJsonMode` | bool | `true` | Request JSON output |
+| `Temperature` | double | `0.1` | Randomness (0.0-1.0) |
+| `MaxTokens` | int | `256` | Max response tokens |
 
-### ONNX Options
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `ModelPath` | string | `models/bot_classifier.onnx` | Path to ONNX model |
-| `AutoDownloadModel` | bool | `true` | Auto-download if missing |
-| `UseGpu` | bool | `false` | Enable CUDA GPU acceleration |
-| `GpuDeviceId` | int | `0` | CUDA device ID |
-| `EnableHeuristicFallback` | bool | `true` | Use heuristics when no model |
-| `InferenceThreads` | int | `4` | CPU threads for inference |
-
-See [ai-detection.md](ai-detection.md) for full details on GPU setup and model training.
+See [ai-detection.md](ai-detection.md) for full details on models and learning.
 
 ---
 
@@ -430,6 +567,106 @@ See [learning-and-reputation.md](learning-and-reputation.md) for full details.
 
 ---
 
+## Version Age Settings
+
+Detects outdated browser and OS versions that are suspicious.
+
+```json
+{
+  "BotDetection": {
+    "VersionAge": {
+      "Enabled": true,
+      "CheckBrowserVersion": true,
+      "CheckOsVersion": true,
+      "MaxBrowserVersionAge": 10
+    }
+  }
+}
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `Enabled` | bool | `true` | Enable version age detection |
+| `CheckBrowserVersion` | bool | `true` | Check browser version freshness |
+| `CheckOsVersion` | bool | `true` | Check OS version freshness |
+| `MaxBrowserVersionAge` | int | `10` | Max browser major versions old |
+
+---
+
+## Security Tools Settings
+
+Detects security scanners, exploit frameworks, and hacking tools.
+
+```json
+{
+  "BotDetection": {
+    "SecurityTools": {
+      "Enabled": true,
+      "BlockSecurityTools": true,
+      "LogDetections": true,
+      "CustomPatterns": [],
+      "ExcludedPatterns": [],
+      "EnabledCategories": [],
+      "HoneypotRedirectUrl": null
+    }
+  }
+}
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `Enabled` | bool | `true` | Enable security tool detection |
+| `BlockSecurityTools` | bool | `true` | Block security tools immediately |
+| `LogDetections` | bool | `true` | Log at Warning level |
+| `CustomPatterns` | string[] | `[]` | Custom tool patterns to add |
+| `ExcludedPatterns` | string[] | `[]` | Patterns to allow |
+| `EnabledCategories` | string[] | `[]` | Categories to detect (empty = all) |
+| `HoneypotRedirectUrl` | string | `null` | Redirect to honeypot instead of blocking |
+
+See [security-tools-detection.md](security-tools-detection.md) for details.
+
+---
+
+## Project Honeypot Settings
+
+Uses HTTP:BL DNS lookups for IP reputation. Requires a FREE API key from [projecthoneypot.org](https://www.projecthoneypot.org/).
+
+```json
+{
+  "BotDetection": {
+    "ProjectHoneypot": {
+      "Enabled": true,
+      "AccessKey": "your-12-char-key",
+      "HighThreatThreshold": 25,
+      "MaxDaysAge": 90,
+      "TimeoutMs": 1000,
+      "CacheDurationSeconds": 1800,
+      "SkipLocalIps": true,
+      "TreatHarvestersAsMalicious": true,
+      "TreatCommentSpammersAsMalicious": true,
+      "TreatSuspiciousAsSuspicious": true
+    }
+  }
+}
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `Enabled` | bool | `false` | Enable HTTP:BL lookups |
+| `AccessKey` | string | `null` | Your 12-char API key |
+| `HighThreatThreshold` | int | `25` | Threat score for high threat |
+| `MaxDaysAge` | int | `90` | Max age for relevance |
+| `TimeoutMs` | int | `1000` | DNS lookup timeout |
+| `CacheDurationSeconds` | int | `1800` | Cache duration (30 min) |
+| `SkipLocalIps` | bool | `true` | Skip private IPs |
+| `TreatHarvestersAsMalicious` | bool | `true` | Flag email scrapers |
+| `TreatCommentSpammersAsMalicious` | bool | `true` | Flag comment spammers |
+| `TreatSuspiciousAsSuspicious` | bool | `true` | Flag suspicious IPs |
+
+See [project-honeypot.md](project-honeypot.md) for details.
+
+---
+
 ## Behavioral Settings
 
 ```json
@@ -474,6 +711,40 @@ See [behavioral-analysis.md](behavioral-analysis.md) for details.
 ```
 
 See [client-side-fingerprinting.md](client-side-fingerprinting.md) for details.
+
+---
+
+## Response Headers Settings
+
+Add detection results to response headers for debugging and integration.
+
+```json
+{
+  "BotDetection": {
+    "ResponseHeaders": {
+      "Enabled": true,
+      "HeaderPrefix": "X-Bot-",
+      "IncludePolicyName": true,
+      "IncludeConfidence": true,
+      "IncludeDetectors": true,
+      "IncludeProcessingTime": true,
+      "IncludeBotName": true,
+      "IncludeFullJson": false
+    }
+  }
+}
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `Enabled` | bool | `false` | Enable response headers |
+| `HeaderPrefix` | string | `"X-Bot-"` | Prefix for all headers |
+| `IncludePolicyName` | bool | `true` | Include policy name |
+| `IncludeConfidence` | bool | `true` | Include confidence score |
+| `IncludeDetectors` | bool | `true` | Include detector list |
+| `IncludeProcessingTime` | bool | `true` | Include timing |
+| `IncludeBotName` | bool | `true` | Include bot name |
+| `IncludeFullJson` | bool | `false` | Include full JSON (verbose) |
 
 ---
 
@@ -533,19 +804,6 @@ YandexBot, Sogou, Exabot, facebot, ia_archiver
 
 ---
 
-## Legacy Configuration
-
-These properties are deprecated and will be removed in v2.0:
-
-| Legacy | Replacement |
-|--------|-------------|
-| `EnableLlmDetection` | `EnableAiDetection` |
-| `OllamaEndpoint` | `AiDetection.Ollama.Endpoint` |
-| `OllamaModel` | `AiDetection.Ollama.Model` |
-| `LlmTimeoutMs` | `AiDetection.TimeoutMs` |
-
----
-
 ## Environment-Specific Examples
 
 ### Development
@@ -558,6 +816,10 @@ These properties are deprecated and will be removed in v2.0:
     "EnableTestMode": true,
     "DefaultActionPolicyName": "debug",
     "EnableAiDetection": true,
+    "AiDetection": {
+      "Provider": "Heuristic",
+      "Heuristic": { "Enabled": true, "EnableWeightLearning": true }
+    },
     "Learning": { "Enabled": true },
     "LogAllRequests": true,
     "LogPerformanceMetrics": true
@@ -574,6 +836,10 @@ These properties are deprecated and will be removed in v2.0:
     "BlockDetectedBots": false,
     "DefaultActionPolicyName": "shadow",
     "EnableAiDetection": true,
+    "AiDetection": {
+      "Provider": "Heuristic",
+      "Heuristic": { "Enabled": true, "EnableWeightLearning": true }
+    },
     "Learning": { "Enabled": true, "EnableDriftDetection": true }
   }
 }
@@ -589,8 +855,8 @@ These properties are deprecated and will be removed in v2.0:
     "DefaultActionPolicyName": "throttle-stealth",
     "EnableAiDetection": true,
     "AiDetection": {
-      "Provider": "Onnx",
-      "Onnx": { "AutoDownloadModel": true, "UseGpu": false }
+      "Provider": "Heuristic",
+      "Heuristic": { "Enabled": true, "EnableWeightLearning": true }
     },
     "Learning": {
       "Enabled": true,
@@ -600,4 +866,34 @@ These properties are deprecated and will be removed in v2.0:
     "LogPerformanceMetrics": false
   }
 }
+```
+
+---
+
+## Test Mode Simulations
+
+When `EnableTestMode` is true, you can simulate different bot types with the `ml-bot-test-mode` header:
+
+```json
+{
+  "BotDetection": {
+    "EnableTestMode": true,
+    "TestModeSimulations": {
+      "human": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0",
+      "googlebot": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+      "scrapy": "Scrapy/2.11 (+https://scrapy.org)",
+      "curl": "curl/8.4.0",
+      "malicious": "sqlmap/1.7 (http://sqlmap.org)",
+      "gptbot": "Mozilla/5.0 AppleWebKit/537.36 (compatible; GPTBot/1.0)",
+      "nikto": "Mozilla/5.00 (Nikto/2.1.6)",
+      "honeypot-harvester": "<test-honeypot:harvester>",
+      "honeypot-spammer": "<test-honeypot:spammer>"
+    }
+  }
+}
+```
+
+Usage:
+```bash
+curl -H "ml-bot-test-mode: googlebot" http://localhost/api/test
 ```
