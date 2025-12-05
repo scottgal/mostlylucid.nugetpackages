@@ -5,6 +5,36 @@ All notable changes to the Mostlylucid.BotDetection package will be documented i
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2024-12-05
+
+### Added
+- **SecurityToolContributor** - Detects penetration testing tools (SQLMap, Nikto, Nmap, Burp Suite, Acunetix, etc.)
+- **ProjectHoneypotContributor** - HTTP:BL IP reputation lookups via DNS with caching
+- **HeuristicLateContributor** - Post-AI refinement layer that runs after LLM for final classification
+- **Honeypot test mode** - Use `<test-honeypot:harvester|spammer|suspicious>` markers for testing without real DNS lookups
+- **Security scanner patterns** - Auto-fetched from digininja/scanner_user_agents and OWASP CoreRuleSet
+- **Demo enhancements** - Interactive bot simulator with 20+ preconfigured bot types, custom UA input, honeypot buttons
+- **Integration tests** - Production security defaults verification, honeypot simulation tests, contributor registration tests
+- **New documentation** - security-tools-detection.md, project-honeypot.md, updated ai-detection.md with HeuristicLate
+
+### Changed
+- **Default LLM model** upgraded to `gemma3:4b` for better reasoning accuracy
+- **LLM prompt** improved for better accuracy with smaller models
+- **Localhost IP detection** fixed - no longer incorrectly flagged as datacenter IP
+- **Detection results** flow downstream only via `HttpContext.Items` by default
+
+### Security
+- **ResponseHeaders.Enabled** defaults to `false` (never leak detection details to clients)
+- **EnableTestMode** defaults to `false` (test mode must be explicitly enabled)
+- **IncludeFullJson** defaults to `false` (never expose full detection JSON)
+
+### New Signal Keys
+- `security_tool.detected`, `security_tool.name`, `security_tool.category`
+- `honeypot.checked`, `honeypot.listed`, `honeypot.threat_score`, `honeypot.visitor_type`
+- `honeypot.days_since_activity`, `HoneypotTestMode`
+
+---
+
 ## [1.0.0] - 2024-12-04
 
 ### Added

@@ -30,7 +30,10 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebSearch",
       "WebFetch(domain:www.projecthoneypot.org)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(python3:*)",
+      "WebFetch(domain:ip-ranges.amazonaws.com)",
+      "WebFetch(domain:www.gstatic.com)"
     ],
     "deny": [],
     "ask": []

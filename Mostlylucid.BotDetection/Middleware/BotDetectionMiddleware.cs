@@ -146,6 +146,15 @@ public class BotDetectionMiddleware(
         // In test mode, we still run the real pipeline but with a simulated User-Agent
         if (_options.EnableTestMode)
         {
+            // ml-bot-test-ua: Custom UA string to test directly
+            var customUa = context.Request.Headers["ml-bot-test-ua"].FirstOrDefault();
+            if (!string.IsNullOrEmpty(customUa))
+            {
+                await HandleCustomUaDetection(context, customUa, orchestrator, policyRegistry);
+                return;
+            }
+
+            // ml-bot-test-mode: Named test modes (googlebot, scrapy, etc.)
             var testMode = context.Request.Headers["ml-bot-test-mode"].FirstOrDefault();
             if (!string.IsNullOrEmpty(testMode))
             {
@@ -639,6 +648,56 @@ public class BotDetectionMiddleware(
 
             _logger.LogInformation(
                 "Test mode result: BotProbability={Probability:P0}, Detectors={Count}, Processing={Ms:F1}ms",
+                aggregatedResult.BotProbability,
+                aggregatedResult.ContributingDetectors.Count,
+                aggregatedResult.TotalProcessingTimeMs);
+        }
+        finally
+        {
+            // Restore original User-Agent
+            context.Request.Headers.UserAgent = originalUserAgent;
+        }
+
+        await _next(context);
+    }
+
+    /// <summary>
+    /// Handles custom User-Agent testing via ml-bot-test-ua header.
+    /// Allows testing with any arbitrary User-Agent string.
+    /// </summary>
+    private async Task HandleCustomUaDetection(
+        HttpContext context,
+        string customUa,
+        BlackboardOrchestrator orchestrator,
+        IPolicyRegistry policyRegistry)
+    {
+        _logger.LogInformation("Custom UA test: Running real detection with '{UA}'", customUa);
+
+        // Override the User-Agent header temporarily for detection
+        var originalUserAgent = context.Request.Headers.UserAgent.ToString();
+        context.Request.Headers.UserAgent = customUa;
+
+        try
+        {
+            // Resolve policy (respecting X-Bot-Policy header)
+            var endpoint = context.GetEndpoint();
+            var policy = ResolvePolicy(context, endpoint, policyRegistry);
+
+            // Run the REAL detection pipeline
+            var aggregatedResult = await orchestrator.DetectWithPolicyAsync(context, policy, context.RequestAborted);
+            PopulateContextFromAggregated(context, aggregatedResult, policy.Name);
+
+            // Add response headers
+            context.Response.Headers.TryAdd("X-Test-Mode", "custom-ua");
+            context.Response.Headers.TryAdd("X-Test-Custom-UA", customUa);
+
+            if (_options.ResponseHeaders.Enabled)
+            {
+                AddResponseHeaders(context, aggregatedResult, policy.Name);
+            }
+
+            _logger.LogInformation(
+                "Custom UA test result: BotProbability={Probability:P0}, Detectors={Count}, Processing={Ms:F1}ms",
                 aggregatedResult.BotProbability,
                 aggregatedResult.ContributingDetectors.Count,
                 aggregatedResult.TotalProcessingTimeMs);

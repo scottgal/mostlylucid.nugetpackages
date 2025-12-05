@@ -80,8 +80,11 @@
         }
         .mode-options {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 8px;
+        }
+        @@media (max-width: 900px) {
+            .mode-options { grid-template-columns: repeat(2, 1fr); }
         }
         .mode-option {
             position: relative;
@@ -133,6 +136,48 @@
         .mode-option-badge.fast { background: #238636; color: white; }
         .mode-option-badge.blocked { background: #da3633; color: white; }
         .mode-option-badge.learning { background: #1f6feb; color: white; }
+
+        /* Custom UA Input */
+        .custom-ua-section {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #30363d;
+        }
+        .custom-ua-input {
+            display: flex;
+            gap: 8px;
+            align-items: stretch;
+        }
+        .custom-ua-input input[type="text"] {
+            flex: 1;
+            padding: 10px 14px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            color: #c9d1d9;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.85em;
+        }
+        .custom-ua-input input[type="text"]:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+        .custom-ua-input input[type="text"]::placeholder {
+            color: #6e7681;
+        }
+        .custom-ua-input button {
+            padding: 10px 20px;
+            background: #238636;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .custom-ua-input button:hover {
+            background: #2ea043;
+        }
 
         /* Stats Grid */
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
@@ -291,66 +336,140 @@
             </span>
         </div>
         <div class="test-buttons">
-            <button class="test-btn human"
+            <button class="test-btn human" data-ua-mode="human"
                     hx-get="/bot-test"
                     hx-headers='{"ml-bot-test-mode": "human", "X-Bot-Policy": "demo"}'
                     hx-target="body"
-                    hx-swap="outerHTML">Real Browser</button>
-            <button class="test-btn search"
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('human')">Real Browser</button>
+            <button class="test-btn search" data-ua-mode="googlebot"
                     hx-get="/bot-test"
                     hx-headers='{"ml-bot-test-mode": "googlebot", "X-Bot-Policy": "demo"}'
                     hx-target="body"
-                    hx-swap="outerHTML">Googlebot</button>
-            <button class="test-btn search"
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('googlebot')">Googlebot</button>
+            <button class="test-btn search" data-ua-mode="bingbot"
                     hx-get="/bot-test"
                     hx-headers='{"ml-bot-test-mode": "bingbot", "X-Bot-Policy": "demo"}'
                     hx-target="body"
-                    hx-swap="outerHTML">Bingbot</button>
-            <button class="test-btn scraper"
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('bingbot')">Bingbot</button>
+            <button class="test-btn scraper" data-ua-mode="scrapy"
                     hx-get="/bot-test"
                     hx-headers='{"ml-bot-test-mode": "scrapy", "X-Bot-Policy": "demo"}'
                     hx-target="body"
-                    hx-swap="outerHTML">Scrapy</button>
-            <button class="test-btn scraper"
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('scrapy')">Scrapy</button>
+            <button class="test-btn scraper" data-ua-mode="curl"
                     hx-get="/bot-test"
                     hx-headers='{"ml-bot-test-mode": "curl", "X-Bot-Policy": "demo"}'
                     hx-target="body"
-                    hx-swap="outerHTML">cURL</button>
-            <button class="test-btn scraper"
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('curl')">cURL</button>
+            <button class="test-btn scraper" data-ua-mode="puppeteer"
                     hx-get="/bot-test"
                     hx-headers='{"ml-bot-test-mode": "puppeteer", "X-Bot-Policy": "demo"}'
                     hx-target="body"
-                    hx-swap="outerHTML">Puppeteer</button>
-            <button class="test-btn malicious"
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('puppeteer')">Puppeteer</button>
+            <button class="test-btn malicious" data-ua-mode="malicious"
                     hx-get="/bot-test"
                     hx-headers='{"ml-bot-test-mode": "malicious", "X-Bot-Policy": "demo"}'
                     hx-target="body"
-                    hx-swap="outerHTML">Malicious Bot</button>
-            <button class="test-btn ai"
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('malicious')">Malicious Bot</button>
+            <button class="test-btn ai" data-ua-mode="gptbot"
                     hx-get="/bot-test"
                     hx-headers='{"ml-bot-test-mode": "gptbot", "X-Bot-Policy": "demo"}'
                     hx-target="body"
-                    hx-swap="outerHTML">GPTBot</button>
-            <button class="test-btn ai"
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('gptbot')">GPTBot</button>
+            <button class="test-btn ai" data-ua-mode="claudebot"
                     hx-get="/bot-test"
                     hx-headers='{"ml-bot-test-mode": "claudebot", "X-Bot-Policy": "demo"}'
                     hx-target="body"
-                    hx-swap="outerHTML">ClaudeBot</button>
-            <button class="test-btn social"
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('claudebot')">ClaudeBot</button>
+            <button class="test-btn social" data-ua-mode="twitterbot"
                     hx-get="/bot-test"
                     hx-headers='{"ml-bot-test-mode": "twitterbot", "X-Bot-Policy": "demo"}'
                     hx-target="body"
-                    hx-swap="outerHTML">TwitterBot</button>
-            <button class="test-btn social"
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('twitterbot')">TwitterBot</button>
+            <button class="test-btn social" data-ua-mode="facebookbot"
                     hx-get="/bot-test"
                     hx-headers='{"ml-bot-test-mode": "facebookbot", "X-Bot-Policy": "demo"}'
                     hx-target="body"
-                    hx-swap="outerHTML">FacebookBot</button>
-            <button class="test-btn monitor"
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('facebookbot')">FacebookBot</button>
+            <button class="test-btn monitor" data-ua-mode="uptimerobot"
                     hx-get="/bot-test"
                     hx-headers='{"ml-bot-test-mode": "uptimerobot", "X-Bot-Policy": "demo"}'
                     hx-target="body"
-                    hx-swap="outerHTML">UptimeRobot</button>
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('uptimerobot')">UptimeRobot</button>
+            <button class="test-btn malicious" data-ua-mode="nikto"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "nikto", "X-Bot-Policy": "demo"}'
+                    hx-target="body"
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('nikto')">Nikto Scanner</button>
+            <button class="test-btn malicious" data-ua-mode="nessus"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "nessus", "X-Bot-Policy": "demo"}'
+                    hx-target="body"
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('nessus')">Nessus</button>
+            <button class="test-btn malicious" data-ua-mode="nmap"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "nmap", "X-Bot-Policy": "demo"}'
+                    hx-target="body"
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('nmap')">Nmap</button>
+            <button class="test-btn malicious" data-ua-mode="burpsuite"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "burpsuite", "X-Bot-Policy": "demo"}'
+                    hx-target="body"
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('burpsuite')">Burp Suite</button>
+            <button class="test-btn malicious" data-ua-mode="acunetix"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "acunetix", "X-Bot-Policy": "demo"}'
+                    hx-target="body"
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('acunetix')">Acunetix</button>
+            <button class="test-btn malicious" data-ua-mode="honeypot-harvester"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "honeypot-harvester", "X-Bot-Policy": "demo"}'
+                    hx-target="body"
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('honeypot-harvester')">Honeypot: Harvester</button>
+            <button class="test-btn malicious" data-ua-mode="honeypot-spammer"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "honeypot-spammer", "X-Bot-Policy": "demo"}'
+                    hx-target="body"
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('honeypot-spammer')">Honeypot: Spammer</button>
+            <button class="test-btn scraper" data-ua-mode="honeypot-suspicious"
+                    hx-get="/bot-test"
+                    hx-headers='{"ml-bot-test-mode": "honeypot-suspicious", "X-Bot-Policy": "demo"}'
+                    hx-target="body"
+                    hx-swap="outerHTML"
+                    onclick="showUaInInput('honeypot-suspicious')">Honeypot: Suspicious</button>
+        </div>
+
+        <!-- Custom User-Agent Input -->
+        <div class="custom-ua-section">
+            <div style="font-size: 0.85em; color: #8b949e; margin-bottom: 8px;">
+                Test with custom User-Agent string
+            </div>
+            <div class="custom-ua-input">
+                <input type="text"
+                       id="customUaInput"
+                       placeholder="Enter any User-Agent string to test... e.g. MyBot/1.0 or curl/7.68.0"
+                       onkeypress="if(event.key==='Enter') testCustomUa()">
+                <button onclick="testCustomUa()">Test UA</button>
+            </div>
         </div>
 
         <!-- Detection Mode Selector -->
@@ -363,31 +482,38 @@
             </div>
             <div class="mode-options">
                 <div class="mode-option">
-                    <input type="radio" name="detectionMode" id="mode-demo" value="demo" checked>
-                    <label for="mode-demo">
-                        <div class="mode-option-title">Demo Full<span class="mode-option-badge debug">DEBUG</span></div>
-                        <div class="mode-option-desc">All detectors + AI (Heuristic + LLM). Shows complete pipeline with debug logging. ~500ms</div>
+                    <input type="radio" name="detectionMode" id="mode-realfast" value="realfast" checked>
+                    <label for="mode-realfast">
+                        <div class="mode-option-title">Real Experience<span class="mode-option-badge fast">DEFAULT</span></div>
+                        <div class="mode-option-desc">What users actually see. Fast detection, bots get blocked/challenged!</div>
+                    </label>
+                </div>
+                <div class="mode-option">
+                    <input type="radio" name="detectionMode" id="mode-uaonly" value="uaonly">
+                    <label for="mode-uaonly">
+                        <div class="mode-option-title">UA Only<span class="mode-option-badge fast">FASTEST</span></div>
+                        <div class="mode-option-desc">Just User-Agent analysis. Best for testing custom UA strings. ~5ms</div>
                     </label>
                 </div>
                 <div class="mode-option">
                     <input type="radio" name="detectionMode" id="mode-fastpath" value="fastpath">
                     <label for="mode-fastpath">
-                        <div class="mode-option-title">Demo Fast<span class="mode-option-badge fast">FAST</span></div>
-                        <div class="mode-option-desc">All static detectors + Heuristic only, no LLM. Production-like latency. ~50ms</div>
+                        <div class="mode-option-title">Fast (No Block)<span class="mode-option-badge debug">DEBUG</span></div>
+                        <div class="mode-option-desc">All static detectors + Heuristic. Shows results without blocking. ~50ms</div>
                     </label>
                 </div>
                 <div class="mode-option">
-                    <input type="radio" name="detectionMode" id="mode-realfast" value="realfast">
-                    <label for="mode-realfast">
-                        <div class="mode-option-title">Real Fast<span class="mode-option-badge blocked">BLOCKS</span></div>
-                        <div class="mode-option-desc">What users actually see. Bots get blocked/redirected. You'll see a block page if detected!</div>
+                    <input type="radio" name="detectionMode" id="mode-demo" value="demo">
+                    <label for="mode-demo">
+                        <div class="mode-option-title">Full Pipeline<span class="mode-option-badge debug">DEBUG</span></div>
+                        <div class="mode-option-desc">All detectors + AI (Heuristic + LLM). Complete pipeline with debug logging. ~500ms</div>
                     </label>
                 </div>
                 <div class="mode-option">
                     <input type="radio" name="detectionMode" id="mode-learning" value="learning">
                     <label for="mode-learning">
-                        <div class="mode-option-title">Learning Mode<span class="mode-option-badge learning">ASYNC</span></div>
-                        <div class="mode-option-desc">Full pipeline runs async for weight learning. Never blocks, always saves patterns.</div>
+                        <div class="mode-option-title">Learning<span class="mode-option-badge learning">ASYNC</span></div>
+                        <div class="mode-option-desc">Full pipeline for weight learning. Never blocks, saves patterns.</div>
                     </label>
                 </div>
             </div>
@@ -409,7 +535,7 @@
             <div class="stat-label">Categories</div>
         </div>
         <div class="stat-box">
-            <div class="stat-value">@Model.ProcessingTimeMs.ToString("F1")ms</div>
+            <div class="stat-value" id="processingTimeDisplay">@Model.ProcessingTimeMs.ToString("F1")ms</div>
             <div class="stat-label">Processing Time</div>
         </div>
     </div>
@@ -574,6 +700,70 @@
         }
 
         // ==========================================
+        // User-Agent Strings Map (matches appsettings.json TestModeSimulations)
+        // ==========================================
+        var uaStrings = {
+            'human': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'googlebot': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+            'bingbot': 'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
+            'scrapy': 'Scrapy/2.11 (+https://scrapy.org)',
+            'curl': 'curl/8.4.0',
+            'puppeteer': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/120.0.0.0 Safari/537.36',
+            'malicious': 'sqlmap/1.7 (http://sqlmap.org)',
+            'gptbot': 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.0; +https://openai.com/gptbot)',
+            'claudebot': 'ClaudeBot/1.0; +https://anthropic.com',
+            'twitterbot': 'Twitterbot/1.0',
+            'facebookbot': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+            'uptimerobot': 'UptimeRobot/2.0; +http://www.uptimerobot.com/',
+            // Security scanners
+            'nikto': 'Mozilla/5.00 (Nikto/2.1.6) (Evasions:None) (Test:Port Check)',
+            'nessus': 'Nessus SOAP',
+            'nmap': 'Mozilla/5.0 (compatible; Nmap Scripting Engine; https://nmap.org/book/nse.html)',
+            'burpsuite': 'Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Burp/2023.10',
+            'acunetix': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US) Acunetix Web Vulnerability Scanner',
+            // Project Honeypot test markers
+            'honeypot-harvester': '<test-honeypot:harvester>',
+            'honeypot-spammer': '<test-honeypot:spammer>',
+            'honeypot-suspicious': '<test-honeypot:suspicious>'
+        };
+
+        // Show UA string in input when clicking preset buttons
+        function showUaInInput(mode) {
+            var input = document.getElementById('customUaInput');
+            if (input && uaStrings[mode]) {
+                input.value = uaStrings[mode];
+            }
+        }
+
+        // ==========================================
+        // Custom User-Agent testing
+        // ==========================================
+
+        function testCustomUa() {
+            var input = document.getElementById('customUaInput');
+            var ua = input.value.trim();
+
+            if (!ua) {
+                input.focus();
+                input.style.borderColor = '#da3633';
+                setTimeout(function() { input.style.borderColor = '#30363d'; }, 1000);
+                return;
+            }
+
+            var mode = getSelectedMode();
+
+            // Use HTMX to make the request with custom UA header
+            htmx.ajax('GET', '/bot-test', {
+                target: 'body',
+                swap: 'outerHTML',
+                headers: {
+                    'ml-bot-test-ua': ua,
+                    'X-Bot-Policy': mode
+                }
+            });
+        }
+
+        // ==========================================
         // Detection Mode selector functionality
         // ==========================================
 
@@ -606,15 +796,15 @@
 
         // Initialize mode selector from localStorage and attach event listeners
         (function initModeSelector() {
-            var savedMode = localStorage.getItem('botDetectionMode') || 'demo';
+            var savedMode = localStorage.getItem('botDetectionMode') || 'realfast';
 
             // Set the saved mode as checked
             var radio = document.getElementById('mode-' + savedMode);
             if (radio) {
                 radio.checked = true;
             } else {
-                // Fallback to demo if invalid mode
-                document.getElementById('mode-demo').checked = true;
+                // Fallback to realfast if invalid mode
+                document.getElementById('mode-realfast').checked = true;
             }
 
             // Attach change listeners to all radio buttons
@@ -692,9 +882,11 @@
                 .then(r => r.json())
                 .then(data => {
                     renderHighlightedJson(document.getElementById('apiResponse'), data);
-                    // Update timing display from API response
+                    // Update timing displays from API response
                     if (data.processingTimeMs !== undefined) {
-                        document.getElementById('timingDisplay').textContent = data.processingTimeMs.toFixed(2) + 'ms';
+                        var timeStr = data.processingTimeMs.toFixed(1) + 'ms';
+                        document.getElementById('timingDisplay').textContent = timeStr;
+                        document.getElementById('processingTimeDisplay').textContent = timeStr;
                     }
                 })
                 .catch(e => {

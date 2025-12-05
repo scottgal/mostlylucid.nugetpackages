@@ -6,11 +6,13 @@ Mostlylucid.BotDetection uses multiple detection strategies that work together t
 2. **Header Detection** – HTTP header anomaly analysis
 3. **IP Detection** – Datacenter/cloud IP identification
 4. **Version Age Detection** – Browser/OS version staleness and impossible combinations
-5. **Behavioral Analysis** – Request pattern monitoring
-6. **Client-Side Fingerprinting** – Browser integrity checking (optional)
-7. **Inconsistency Detection** – Cross-signal contradiction detection
-8. **Risk Assessment** – Signal aggregation into risk bands
-9. **AI Detection** – ML-based classification (optional)
+5. **Security Tools Detection** – Penetration testing tool identification (Nikto, sqlmap, etc.)
+6. **Project Honeypot** – HTTP:BL IP reputation checking via DNS
+7. **Behavioral Analysis** – Request pattern monitoring
+8. **Client-Side Fingerprinting** – Browser integrity checking (optional)
+9. **Inconsistency Detection** – Cross-signal contradiction detection
+10. **Risk Assessment** – Signal aggregation into risk bands
+11. **AI Detection** – ML-based classification (optional)
 
 > **How it works:** Strategies 1–7 generate raw signals; strategies 8–9 combine those signals into risk bands and AI-assisted decisions.
 
@@ -632,9 +634,11 @@ services.AddSingleton<ILearnedPatternStore, RedisLearnedPatternStore>();
 - [Header Detection](header-detection.md) - HTTP header anomaly analysis
 - [IP Detection](ip-detection.md) - Datacenter and cloud IP detection
 - [Version Age Detection](version-age-detection.md) - Browser/OS version staleness
+- [Security Tools Detection](security-tools-detection.md) - Penetration testing tool detection
+- [Project Honeypot](project-honeypot.md) - HTTP:BL IP reputation checking
 - [Behavioral Analysis](behavioral-analysis.md) - Request pattern monitoring
 - [Client-Side Fingerprinting](client-side-fingerprinting.md) - Browser integrity checks
-- [AI Detection](ai-detection.md) - ONNX and Ollama AI classification
+- [AI Detection](ai-detection.md) - Heuristic and Ollama AI classification
 - [Learning and Reputation](learning-and-reputation.md) - Pattern learning, forgetting, and blackboard architecture
 - [YARP Integration](yarp-integration.md) - Reverse proxy integration
 - [Configuration](configuration.md) - Full configuration reference

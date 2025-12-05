@@ -1,167 +1,352 @@
 # Bot Detection Demo
 
-This is a demo application showcasing the mostlylucid.botdetection library.
+Interactive demonstration of the **mostlylucid.botdetection** library's full detection pipeline.
 
-## Features
-
-- **User-Agent Detection**: Identifies bots based on known patterns in User-Agent strings
-- **Header Analysis**: Detects missing or suspicious HTTP headers
-- **IP Detection**: Identifies traffic from datacenters and cloud providers
-- **Behavioral Analysis**: Monitors request rates and patterns
-- **LLM Detection** (Optional): Uses a small language model (Ollama) for advanced analysis with learning capabilities
-
-## Running the Demo
-
-1. **Basic Usage**:
-   ```bash
-   dotnet run
-   ```
-
-2. **With LLM Detection** (requires Ollama):
-   ```bash
-   # First, start Ollama with a small model
-   ollama pull qwen2.5:1.5b
-   ollama serve
-
-   # Then run the demo with LLM enabled
-   # Edit appsettings.json and set "EnableLlmDetection": true
-   dotnet run
-   ```
-
-## Testing
-
-### Test with Different User-Agents
+## Quick Start
 
 ```bash
-# Test as a real browser
-curl http://localhost:5000/ -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" -H "Accept-Language: en-US,en;q=0.9" -H "Accept: text/html,application/xhtml+xml"
-
-# Test as curl (will be detected as bot)
-curl http://localhost:5000/
-
-# Test as Python (will be detected as bot)
-curl http://localhost:5000/ -H "User-Agent: python-requests/2.28.0"
-
-# Test as Googlebot (will be recognized as verified bot)
-curl http://localhost:5000/ -H "User-Agent: Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
-
-# Test with missing User-Agent (high bot score)
-curl http://localhost:5000/ -H "User-Agent:"
+dotnet run
+# Visit http://localhost:5000/bot-test
 ```
 
-### API Endpoints
+## Production vs Demo Mode
 
-- `GET /` - Main endpoint with bot detection info
-- `GET /api/bot-check` - Detailed bot detection results
-- `GET /api/stats` - Bot detection statistics
-- `GET /api/test-bot` - Testing instructions
+**IMPORTANT**: This demo exposes detailed detection info for learning purposes. In production:
 
-### View Statistics
+| Setting | Demo | Production |
+|---------|------|------------|
+| `ResponseHeaders.Enabled` | `true` | **`false`** - Never leak detection details to clients |
+| `/bot-detection/check` endpoint | Enabled | **Disabled** - Use `HttpContext.Items` for internal checks |
+| Test mode headers | Enabled | **Disabled** - Set `EnableTestMode: false` |
+| Full JSON responses | Enabled | **Blocked** - Detection flows downstream only |
 
-```bash
-curl http://localhost:5000/api/stats
-```
+Detection results are stored in `HttpContext.Items["BotDetectionResult"]` for your application to consume internally without exposing to clients.
 
-## Configuration
+## Detection Pipeline
 
-Edit `appsettings.json` to customize bot detection:
+The demo showcases a multi-layered detection system:
+
+| Detector | Speed | Description |
+|----------|-------|-------------|
+| **FastPathReputation** | <1ms | Cached known-good/bad classifications |
+| **UserAgent** | <1ms | Pattern matching against known bot signatures |
+| **Header** | <1ms | Missing/suspicious HTTP header analysis |
+| **Ip** | <1ms | Datacenter/cloud provider IP detection |
+| **SecurityTool** | <1ms | Vulnerability scanner detection (Nikto, Nmap, etc.) |
+| **ProjectHoneypot** | ~100ms | IP reputation via HTTP:BL DNS lookup |
+| **Behavioral** | <1ms | Rate limiting & request pattern anomalies |
+| **ClientSide** | <1ms | Browser fingerprint verification |
+| **Inconsistency** | <1ms | Cross-signal contradiction detection |
+| **VersionAge** | <1ms | Browser/OS version freshness check |
+| **ReputationBias** | <1ms | Applies cached reputation to scoring |
+| **Heuristic** | ~1ms | ML-trained weighted feature model |
+| **LLM** | ~500ms | Language model reasoning (optional) |
+| **HeuristicLate** | <1ms | Post-LLM heuristic refinement |
+
+## Interactive Demo UI
+
+Visit **http://localhost:5000/bot-test** for the full interactive demo:
+
+### Bot Simulator Buttons
+
+Test the detection pipeline with various bot signatures:
+
+| Category | Simulations |
+|----------|-------------|
+| **Browsers** | Real Browser (human-like Chrome UA) |
+| **Search Engines** | Googlebot, Bingbot |
+| **Scrapers** | Scrapy, cURL, Puppeteer/Headless Chrome |
+| **AI Crawlers** | GPTBot (OpenAI), ClaudeBot (Anthropic) |
+| **Social Bots** | TwitterBot, FacebookBot |
+| **Monitoring** | UptimeRobot |
+| **Security Scanners** | Nikto, Nessus, Nmap, Burp Suite, Acunetix |
+| **Malicious** | sqlmap (SQL injection tool) |
+| **Honeypot Tests** | Harvester, Spammer, Suspicious (simulated Project Honeypot responses) |
+
+### Custom User-Agent Testing
+
+Enter any User-Agent string directly to test detection:
+- Clicking simulator buttons populates the UA input field
+- Press Enter or click "Test UA" to analyze any string
+
+### Detection Modes
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| **Real Experience** | Fast detection with actual blocking/challenges | What users see in production |
+| **UA Only** | Just User-Agent analysis (~5ms) | Testing UA string patterns |
+| **Fast (No Block)** | All static detectors + Heuristic (~50ms) | Debug without blocking |
+| **Full Pipeline** | All detectors + Heuristic + LLM (~500ms) | Complete analysis with AI |
+| **Learning** | Full pipeline, never blocks, saves patterns | Training weight model |
+
+## Test Mode Headers
+
+Control detection behavior via HTTP headers:
+
+| Header | Purpose | Example |
+|--------|---------|---------|
+| `ml-bot-test-mode` | Simulate a predefined bot type | `googlebot`, `nikto`, `honeypot-harvester` |
+| `ml-bot-test-ua` | Test with a custom UA string | Any User-Agent string |
+| `X-Bot-Policy` | Override detection policy | `realfast`, `uaonly`, `demo` |
+
+### Test Mode Simulations (appsettings.json)
 
 ```json
+"TestModeSimulations": {
+  "human": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36...",
+  "googlebot": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+  "nikto": "Mozilla/5.00 (Nikto/2.1.6) (Evasions:None) (Test:Port Check)",
+  "honeypot-harvester": "<test-honeypot:harvester>",
+  "honeypot-spammer": "<test-honeypot:spammer>",
+  "honeypot-suspicious": "<test-honeypot:suspicious>"
+}
+```
+
+## Detection Policies
+
+Policies define which detectors run and how results are processed:
+
+### realfast (Default)
+```json
 {
-  "BotDetection": {
-    "BotThreshold": 0.7,                    // Confidence threshold (0.0-1.0)
-    "EnableUserAgentDetection": true,       // Enable User-Agent analysis
-    "EnableHeaderAnalysis": true,           // Enable header analysis
-    "EnableIpDetection": true,              // Enable IP-based detection
-    "EnableBehavioralAnalysis": true,       // Enable behavioral patterns
-    "EnableLlmDetection": false,            // Enable AI-powered detection
-    "MaxRequestsPerMinute": 60,
-    "CacheDurationSeconds": 300,
+  "Description": "Production mode that BLOCKS bots",
+  "FastPath": ["FastPathReputation", "UserAgent", "Header", "Ip", "SecurityTool",
+               "ProjectHoneypot", "Behavioral", "ClientSide", "Inconsistency",
+               "VersionAge", "ReputationBias", "Heuristic"],
+  "ImmediateBlockThreshold": 0.70,
+  "DefaultBlockAction": "Challenge"
+}
+```
 
-    // Session/identity-level behavioral analysis
-    "Behavioral": {
-      "ApiKeyHeader": "X-Api-Key",          // Track by API key
-      "ApiKeyRateLimit": 120,               // Rate limit per API key
-      "UserIdHeader": "X-User-Id",          // Track by user ID header
-      "UserIdClaim": "sub",                 // Track by JWT claim
-      "UserRateLimit": 180,                 // Rate limit per user
-      "EnableAnomalyDetection": true,       // Detect behavior changes
-      "SpikeThresholdMultiplier": 5.0,      // 5x normal = spike
-      "NewPathAnomalyThreshold": 0.8        // 80% new paths = anomaly
-    },
+### uaonly (Fastest)
+```json
+{
+  "Description": "UA-based detection only",
+  "FastPath": ["UserAgent", "SecurityTool", "VersionAge", "Heuristic"]
+}
+```
 
-    // Client-side browser fingerprinting
-    "ClientSide": {
-      "Enabled": true,
-      "TokenSecret": "your-secret-key",
-      "TokenLifetimeSeconds": 300,
-      "CollectWebGL": true,
-      "CollectCanvas": true,
-      "MinIntegrityScore": 70,
-      "HeadlessThreshold": 0.5
-    }
+### demo (Full Analysis)
+```json
+{
+  "Description": "Full pipeline sync for demonstration",
+  "BypassTriggerConditions": true,
+  "ForceSlowPath": true
+}
+```
+
+### Policy Transitions
+
+Policies can escalate uncertain results:
+```json
+"Transitions": [
+  { "WhenRiskExceeds": 0.5, "WhenRiskBelow": 0.85, "GoTo": "default",
+    "Description": "Uncertain zone - escalate to LLM" }
+]
+```
+
+## API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /bot-test` | Interactive demo UI |
+| `GET /bot-detection/check` | JSON detection result |
+| `POST /bot-detection/fingerprint` | Submit client fingerprint |
+
+### curl Examples
+
+```bash
+# Basic detection
+curl http://localhost:5000/bot-detection/check
+
+# Test as Googlebot
+curl http://localhost:5000/bot-detection/check \
+  -H "ml-bot-test-mode: googlebot"
+
+# Test custom UA
+curl http://localhost:5000/bot-detection/check \
+  -H "ml-bot-test-ua: MyBot/1.0"
+
+# Test with specific policy
+curl http://localhost:5000/bot-detection/check \
+  -H "X-Bot-Policy: uaonly"
+
+# Test security scanner
+curl http://localhost:5000/bot-detection/check \
+  -H "ml-bot-test-mode: nikto"
+
+# Test honeypot response (harvester)
+curl http://localhost:5000/bot-detection/check \
+  -H "ml-bot-test-mode: honeypot-harvester"
+```
+
+## Security Tool Detection
+
+Detects vulnerability scanners using patterns from external sources:
+- [digininja/scanner_user_agents](https://github.com/digininja/scanner_user_agents)
+- [OWASP CoreRuleSet](https://github.com/coreruleset/coreruleset)
+
+```json
+"SecurityTools": {
+  "Enabled": true,
+  "BlockSecurityTools": true,
+  "LogDetections": true
+}
+```
+
+Detected categories: Nikto, Nessus, Nmap, Burp Suite, Acunetix, sqlmap, ZAP, Metasploit, etc.
+
+## Project Honeypot Integration
+
+IP reputation checking via HTTP:BL DNS lookup:
+
+```json
+"ProjectHoneypot": {
+  "Enabled": true,
+  "AccessKey": null,  // Set via user-secrets
+  "HighThreatThreshold": 25,
+  "MaxDaysAge": 90,
+  "TreatHarvestersAsMalicious": true,
+  "TreatCommentSpammersAsMalicious": true
+}
+```
+
+Get a free API key: https://www.projecthoneypot.org/httpbl_configure.php
+
+```bash
+dotnet user-secrets set "BotDetection:ProjectHoneypot:AccessKey" "your12charkey"
+```
+
+### Testing Honeypot Detection
+
+Use the special `<test-honeypot:type>` markers to simulate honeypot responses:
+- `<test-honeypot:harvester>` - Email address harvester
+- `<test-honeypot:spammer>` - Comment spammer
+- `<test-honeypot:suspicious>` - Suspicious activity
+
+## Heuristic Detection (ML Model)
+
+Weighted feature extraction with learning capabilities:
+
+```json
+"AiDetection": {
+  "Heuristic": {
+    "Enabled": true,
+    "LoadLearnedWeights": true,
+    "EnableWeightLearning": true,
+    "MinConfidenceForLearning": 0.8,
+    "LearningRate": 0.01
   }
 }
 ```
 
-### Testing Behavioral Analysis
+Features extracted:
+- UA bot probability, header completeness, IP datacenter signals
+- Behavioral anomalies, fingerprint scores, request timing
+- Cross-detector inconsistencies
 
-```bash
-# Test API key rate limiting
-for i in {1..150}; do curl -s http://localhost:5000/api/bot-check -H "X-Api-Key: test-key" > /dev/null; done
+## LLM Detection (Optional)
 
-# Test user-based rate limiting
-for i in {1..200}; do curl -s http://localhost:5000/api/bot-check -H "X-User-Id: user-123" > /dev/null; done
-
-# Check detection results
-curl http://localhost:5000/api/bot-check -H "X-Api-Key: test-key"
-```
-
-### Client-Side Fingerprinting
-
-The demo includes a test page at `/bot-test` that demonstrates client-side detection:
-- Shows server-side detection results
-- Shows client-side fingerprint data
-- Detects headless browsers (Puppeteer, Selenium, etc.)
-- Visit http://localhost:5000/bot-test to test
-
-## LLM Learning Feature
-
-When LLM detection is enabled, the system automatically learns new bot patterns:
-
-- Detected patterns are saved to `learned_bot_patterns.json`
-- The file is updated in real-time as new patterns are discovered
-- Patterns include: signature, bot type, confidence, occurrence count
-- Useful for building custom bot detection rules over time
-
-Example learned pattern:
+Uses Ollama for natural language reasoning:
 
 ```json
-{
-  "Pattern": "missing Accept-Language header",
-  "BotType": "Scraper",
-  "Confidence": 0.85,
-  "FirstSeen": "2025-01-15T10:30:00Z",
-  "LastSeen": "2025-01-15T14:20:00Z",
-  "OccurrenceCount": 47,
-  "ExampleRequest": "User-Agent: CustomBot/1.0..."
+"AiDetection": {
+  "Ollama": {
+    "Endpoint": "http://localhost:11434",
+    "Model": "gemma3:4b",
+    "UseJsonMode": true
+  }
 }
 ```
 
-## Understanding Results
+Setup:
+```bash
+ollama pull gemma3:4b
+ollama serve
+```
 
-The detection result includes:
+## Client-Side Fingerprinting
 
-- `isBot`: Boolean indicating if request is classified as bot
-- `confidence`: Confidence score (0.0 to 1.0)
-- `botType`: Type of bot detected (Scraper, SearchEngine, etc.)
-- `botName`: Name of identified bot (e.g., "Googlebot")
-- `processingTime`: Detection time in milliseconds
-- `reasons`: List of detection reasons with confidence impact
+Browser fingerprint collection and validation:
+
+```json
+"ClientSide": {
+  "Enabled": true,
+  "TokenSecret": "change-in-production",
+  "CollectWebGL": true,
+  "CollectCanvas": true,
+  "MinIntegrityScore": 70,
+  "HeadlessThreshold": 0.5
+}
+```
+
+Detects:
+- WebDriver (navigator.webdriver)
+- PhantomJS, Selenium, Puppeteer markers
+- Chrome DevTools Protocol traces
+- Missing plugins in Chrome
+- Zero window dimensions
+
+## Response Headers
+
+**IMPORTANT: Production vs Debug**
+
+By default, detection results flow **downstream only** (to your application code via HttpContext.Items). Response headers exposing detection info to clients are **disabled by default** in production.
+
+Only enable response headers for debugging/demo purposes:
+
+```json
+"ResponseHeaders": {
+  "Enabled": false,  // KEEP FALSE IN PRODUCTION
+  "HeaderPrefix": "X-Bot-",
+  "IncludePolicyName": true,
+  "IncludeConfidence": true,
+  "IncludeDetectors": true,
+  "IncludeProcessingTime": true,
+  "IncludeBotName": true
+}
+```
+
+When enabled for debugging:
+```
+X-Bot-Policy: realfast
+X-Bot-Confidence: 0.85
+X-Bot-Detectors: UserAgent,Header,SecurityTool
+X-Bot-ProcessingTime: 12.5ms
+X-Bot-Name: Nikto
+```
+
+**Security Note**: Never expose detailed detection signals to untrusted clients in production. This information helps attackers evade detection.
+
+## Data Sources
+
+Bot patterns are fetched from external sources (no hardcoded lists):
+
+```json
+"DataSources": {
+  "IsBot": { "Enabled": true, "Url": "https://raw.githubusercontent.com/omrilotan/isbot/main/src/patterns.json" },
+  "ScannerUserAgents": { "Enabled": true, "Url": "https://raw.githubusercontent.com/digininja/scanner_user_agents/main/list.json" },
+  "CoreRuleSetScanners": { "Enabled": true, "Url": "https://raw.githubusercontent.com/coreruleset/coreruleset/main/rules/scanners-user-agents.data" },
+  "AwsIpRanges": { "Enabled": true, "Url": "https://ip-ranges.amazonaws.com/ip-ranges.json" },
+  "GcpIpRanges": { "Enabled": true, "Url": "https://www.gstatic.com/ipranges/cloud.json" },
+  "CloudflareIpv4": { "Enabled": true, "Url": "https://www.cloudflare.com/ips-v4" },
+  "CloudflareIpv6": { "Enabled": true, "Url": "https://www.cloudflare.com/ips-v6" }
+}
+```
+
+Background updates run every 24 hours by default.
 
 ## Performance
 
-- Typical detection time: 1-5ms without LLM
-- With LLM: 50-200ms (depends on model size and system)
-- Results are cached for 5 minutes by default
-- Minimal overhead for normal traffic
+| Mode | Typical Latency | Notes |
+|------|-----------------|-------|
+| **realfast** | 5-20ms | Production recommended |
+| **uaonly** | 2-5ms | Fastest, UA patterns only |
+| **fastpath** | 20-50ms | All static detectors |
+| **demo** | 200-800ms | Includes LLM if available |
+
+## Configuration Reference
+
+See the docs folder for complete configuration examples:
+- `docs/appsettings.typical.json` - Balanced production config
+- `docs/appsettings.full.json` - All options documented

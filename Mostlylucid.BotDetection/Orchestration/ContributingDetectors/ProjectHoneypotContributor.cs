@@ -50,11 +50,23 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
         BlackboardState state,
         CancellationToken cancellationToken = default)
     {
+        // Check for test mode simulation via User-Agent
+        // Read directly from request headers since this may run before UserAgentContributor sets the signal
+        var userAgent = state.HttpContext?.Request.Headers["User-Agent"].FirstOrDefault() ?? "";
+        var testResult = CheckTestModeSimulation(userAgent);
+        if (testResult != null)
+        {
+            return testResult;
+        }
+
         // Check if Project Honeypot is enabled and configured
         if (!_options.ProjectHoneypot.Enabled ||
             string.IsNullOrWhiteSpace(_options.ProjectHoneypot.AccessKey))
         {
-            return Single(DetectionContribution.Neutral(Name, "Skipped: not configured"));
+            var reason = !_options.ProjectHoneypot.Enabled
+                ? "Skipped: ProjectHoneypot is disabled in configuration"
+                : "Skipped: ProjectHoneypot AccessKey not configured (get free key at projecthoneypot.org)";
+            return Single(DetectionContribution.Neutral(Name, reason));
         }
 
         var clientIp = state.GetSignal<string>(SignalKeys.ClientIp);
@@ -308,6 +320,108 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
 
         var typeStr = types.Count > 0 ? string.Join(", ", types) : "Unknown";
         return $"IP listed in Project Honeypot: {typeStr} (Threat: {result.ThreatScore}, Last seen: {result.DaysSinceLastActivity} days ago)";
+    }
+
+    /// <summary>
+    ///     Check for test mode simulation markers in User-Agent.
+    ///     Format: &lt;test-honeypot:type&gt; where type is harvester, spammer, or suspicious
+    /// </summary>
+    private IReadOnlyList<DetectionContribution>? CheckTestModeSimulation(string userAgent)
+    {
+        if (string.IsNullOrEmpty(userAgent))
+            return null;
+
+        // Check for test-honeypot markers
+        const string prefix = "<test-honeypot:";
+        var startIdx = userAgent.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+        if (startIdx < 0)
+            return null;
+
+        var typeStart = startIdx + prefix.Length;
+        var endIdx = userAgent.IndexOf('>', typeStart);
+        if (endIdx < 0)
+            return null;
+
+        var testType = userAgent.Substring(typeStart, endIdx - typeStart).ToLowerInvariant();
+
+        _logger.LogInformation("Project Honeypot test mode simulation: {Type}", testType);
+
+        // Create simulated honeypot result based on test type
+        var result = testType switch
+        {
+            "harvester" => new HoneypotResult
+            {
+                IsListed = true,
+                DaysSinceLastActivity = 3,
+                ThreatScore = 75,
+                VisitorType = HoneypotVisitorType.Harvester
+            },
+            "spammer" => new HoneypotResult
+            {
+                IsListed = true,
+                DaysSinceLastActivity = 1,
+                ThreatScore = 100,
+                VisitorType = HoneypotVisitorType.CommentSpammer
+            },
+            "suspicious" => new HoneypotResult
+            {
+                IsListed = true,
+                DaysSinceLastActivity = 14,
+                ThreatScore = 35,
+                VisitorType = HoneypotVisitorType.Suspicious
+            },
+            _ => null
+        };
+
+        if (result == null)
+        {
+            _logger.LogWarning("Unknown honeypot test type: {Type}", testType);
+            return null;
+        }
+
+        // Generate contributions using the same logic as real lookups
+        var contributions = new List<DetectionContribution>();
+        var signals = ImmutableDictionary.CreateBuilder<string, object>();
+
+        signals.Add(SignalKeys.HoneypotChecked, true);
+        signals.Add(SignalKeys.HoneypotListed, true);
+        signals.Add(SignalKeys.HoneypotThreatScore, result.ThreatScore);
+        signals.Add(SignalKeys.HoneypotVisitorType, result.VisitorType.ToString());
+        signals.Add(SignalKeys.HoneypotDaysSinceLastActivity, result.DaysSinceLastActivity);
+        signals.Add("HoneypotTestMode", true);
+
+        var confidence = CalculateConfidence(result);
+        var botType = DetermineBoType(result);
+        var reason = $"[TEST MODE] {BuildReason(result)}";
+
+        // High threat scores trigger verified bad bot
+        if (result.ThreatScore >= _options.ProjectHoneypot.HighThreatThreshold)
+        {
+            contributions.Add(DetectionContribution.VerifiedBadBot(
+                Name,
+                $"Honeypot Threat ({result.VisitorType})",
+                reason,
+                botType)
+                with
+                {
+                    ConfidenceDelta = confidence,
+                    Weight = 1.8,
+                    Signals = signals.ToImmutable()
+                });
+        }
+        else
+        {
+            contributions.Add(DetectionContribution.Bot(
+                Name,
+                "ProjectHoneypot",
+                confidence,
+                reason,
+                botType,
+                weight: 1.5)
+                with { Signals = signals.ToImmutable() });
+        }
+
+        return contributions;
     }
 }
 

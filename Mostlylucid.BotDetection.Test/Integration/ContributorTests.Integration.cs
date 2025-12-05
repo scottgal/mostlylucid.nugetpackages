@@ -141,6 +141,49 @@ public class ContributorIntegrationTests
         Assert.True(result.First().ConfidenceDelta > 0, "curl should have bot signal");
     }
 
+    [Theory]
+    [InlineData("<test-honeypot:harvester>", "Harvester", 75)]
+    [InlineData("<test-honeypot:spammer>", "CommentSpammer", 100)]
+    [InlineData("<test-honeypot:suspicious>", "Suspicious", 35)]
+    public async Task ProjectHoneypotContributor_SimulatesHoneypotFromTestMarker(
+        string testUserAgent, string expectedType, int expectedThreatScore)
+    {
+        var c = GetContributor("ProjectHoneypot");
+        var ctx = new DefaultHttpContext();
+        ctx.Request.Headers.UserAgent = testUserAgent;
+        ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("192.168.1.1");
+
+        var state = new BlackboardState
+        {
+            HttpContext = ctx,
+            Signals = new Dictionary<string, object>
+            {
+                [SignalKeys.ClientIp] = "192.168.1.1",
+                [SignalKeys.IpIsLocal] = false
+            }.ToImmutableDictionary(),
+            CurrentRiskScore = 0,
+            CompletedDetectors = ImmutableHashSet<string>.Empty,
+            FailedDetectors = ImmutableHashSet<string>.Empty,
+            Contributions = ImmutableList<DetectionContribution>.Empty,
+            RequestId = Guid.NewGuid().ToString("N"),
+            Elapsed = TimeSpan.Zero
+        };
+
+        var result = await c.ContributeAsync(state);
+        Assert.NotEmpty(result);
+
+        var contribution = result.First();
+        Assert.Equal("ProjectHoneypot", contribution.DetectorName);
+        Assert.True(contribution.ConfidenceDelta > 0, "Honeypot hit should increase bot probability");
+        Assert.Contains("[TEST MODE]", contribution.Reason);
+        Assert.Contains(expectedType, contribution.Reason);
+
+        // Verify signals contain test mode marker
+        Assert.True(contribution.Signals.ContainsKey("HoneypotTestMode"));
+        Assert.Equal(true, contribution.Signals["HoneypotTestMode"]);
+        Assert.Equal(expectedThreatScore, contribution.Signals[SignalKeys.HoneypotThreatScore]);
+    }
+
     [Fact]
     public async Task HeuristicLateContributor_IncorporatesAiSignals()
     {
@@ -186,6 +229,55 @@ public class ContributorIntegrationTests
         var result = await c.ContributeAsync(state);
         Assert.NotEmpty(result);
         Assert.Contains(result, r => r.DetectorName == "HeuristicLate");
+    }
+
+    /// <summary>
+    ///     Verifies that production-recommended defaults are secure
+    ///     (test mode disabled, response headers disabled, etc.)
+    /// </summary>
+    [Fact]
+    public void ProductionDefaults_ShouldBeSecure()
+    {
+        // Create options with NO configuration (pure defaults)
+        var options = new BotDetectionOptions();
+
+        // Test mode MUST be disabled by default
+        Assert.False(options.EnableTestMode, "Test mode must be disabled by default in production");
+
+        // Response headers MUST be disabled by default (don't leak detection info to clients)
+        Assert.False(options.ResponseHeaders.Enabled, "Response headers must be disabled by default");
+
+        // Even if enabled, IncludeFullJson should be false
+        Assert.False(options.ResponseHeaders.IncludeFullJson, "Full JSON should never be exposed by default");
+
+        // Detection should be enabled by default
+        Assert.True(options.EnableUserAgentDetection, "UA detection should be enabled by default");
+        Assert.True(options.EnableHeaderAnalysis, "Header analysis should be enabled by default");
+        Assert.True(options.EnableIpDetection, "IP detection should be enabled by default");
+        Assert.True(options.EnableBehavioralAnalysis, "Behavioral analysis should be enabled by default");
+
+        // Security tools detection should be enabled by default
+        Assert.True(options.SecurityTools.Enabled, "Security tool detection should be enabled by default");
+        Assert.True(options.SecurityTools.BlockSecurityTools, "Blocking security tools should be enabled by default");
+
+        // Threshold should be reasonable (0.7 is typical)
+        Assert.InRange(options.BotThreshold, 0.5, 0.9);
+    }
+
+    [Fact]
+    public void ProductionDefaults_ProjectHoneypot_ShouldBeConfiguredSecurely()
+    {
+        var options = new BotDetectionOptions();
+
+        // Honeypot should be disabled by default (requires API key)
+        Assert.False(options.ProjectHoneypot.Enabled || !string.IsNullOrEmpty(options.ProjectHoneypot.AccessKey),
+            "Honeypot should not be enabled without an access key");
+
+        // Skip local IPs should be true
+        Assert.True(options.ProjectHoneypot.SkipLocalIps, "Should skip localhost by default");
+
+        // Threat threshold should be reasonable
+        Assert.InRange(options.ProjectHoneypot.HighThreatThreshold, 10, 50);
     }
 
     private IContributingDetector GetContributor(string name) =>

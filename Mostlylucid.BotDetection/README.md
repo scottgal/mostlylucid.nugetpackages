@@ -134,10 +134,13 @@ public IActionResult Index() => View();
 | **Headers** | Suspicious/missing header detection | <1ms |
 | **IP** | Datacenter IP range identification | <1ms |
 | **Version Age** | Browser/OS version staleness detection | <1ms |
+| **Security Tools** | Penetration testing tool detection (Nikto, sqlmap, etc.) | <1ms |
+| **Project Honeypot** | HTTP:BL IP reputation via DNS lookup | ~100ms |
 | **Behavioral** | Rate limiting + anomaly detection | 1-5ms |
 | **Inconsistency** | Cross-signal mismatch detection | 1-5ms |
 | **Heuristic AI** | Feature-weighted classification with learning | <1ms |
 | **LLM** | Full reasoning (escalation only) | 50-500ms |
+| **HeuristicLate** | Post-AI refinement with all evidence | <1ms |
 
 ## AI Detection & Learning (Key Differentiator)
 
@@ -196,6 +199,8 @@ See [action-policies.md](docs/action-policies.md) for full details.
 | **Header Detection** | HTTP header anomaly analysis | [header-detection.md](docs/header-detection.md) |
 | **IP Detection** | Datacenter and cloud IP identification | [ip-detection.md](docs/ip-detection.md) |
 | **Version Age Detection** | Browser/OS version staleness detection | [version-age-detection.md](docs/version-age-detection.md) |
+| **Security Tools Detection** | Penetration testing tool detection | [security-tools-detection.md](docs/security-tools-detection.md) |
+| **Project Honeypot** | HTTP:BL IP reputation checking | [project-honeypot.md](docs/project-honeypot.md) |
 | **Behavioral Analysis** | Rate limiting and anomaly detection | [behavioral-analysis.md](docs/behavioral-analysis.md) |
 | **Client-Side Fingerprinting** | Headless browser detection | [client-side-fingerprinting.md](docs/client-side-fingerprinting.md) |
 | **YARP Integration** | Bot-aware reverse proxy | [yarp-integration.md](docs/yarp-integration.md) |

@@ -797,6 +797,8 @@ public class BotListFetcher : IBotListFetcher
         client.Timeout = TimeSpan.FromSeconds(_options.ListDownloadTimeoutSeconds);
 
         // Fetch digininja/scanner_user_agents (JSON format with metadata)
+        // Note: This source provides full UAs (often spoofed) and scanner names.
+        // We extract scanner names as patterns since full UAs are often indistinguishable from browsers.
         if (sources.ScannerUserAgents.Enabled && !string.IsNullOrEmpty(sources.ScannerUserAgents.Url))
         {
             try
@@ -807,23 +809,30 @@ public class BotListFetcher : IBotListFetcher
                 if (entries != null)
                 {
                     var validCount = 0;
-                    foreach (var entry in entries.Where(e => !string.IsNullOrEmpty(e.Pattern)))
+                    // Extract unique scanner names as patterns (case-insensitive)
+                    var scannerNames = entries
+                        .Where(e => !string.IsNullOrWhiteSpace(e.Name))
+                        .Select(e => e.Name!.Trim())
+                        .Distinct(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var scannerName in scannerNames)
                     {
-                        var pattern = entry.Pattern!.Trim();
+                        // Use scanner name as pattern (lowercase for consistency)
+                        var pattern = scannerName.ToLowerInvariant();
                         if (!allPatterns.ContainsKey(pattern))
                         {
                             allPatterns[pattern] = new SecurityToolPattern
                             {
                                 Pattern = pattern,
-                                Name = entry.Name ?? InferToolName(pattern),
-                                Category = entry.Category ?? "SecurityTool",
-                                IsRegex = ContainsRegexChars(pattern),
+                                Name = scannerName,
+                                Category = "SecurityTool",
+                                IsRegex = false, // Simple substring match
                                 Source = "digininja/scanner_user_agents"
                             };
                             validCount++;
                         }
                     }
-                    _logger.LogInformation("Fetched {Count} security tool patterns from {Url}",
+                    _logger.LogInformation("Extracted {Count} unique scanner names from {Url}",
                         validCount, sources.ScannerUserAgents.Url);
                 }
             }
@@ -952,18 +961,22 @@ public class BotListFetcher : IBotListFetcher
     }
 
     // JSON model for digininja scanner_user_agents
+    // Actual format: {"ua": "...", "scanner": "Nikto", "version": "...", "last seen": "..."}
     private class ScannerUserAgentEntry
     {
-        [JsonPropertyName("pattern")]
+        [JsonPropertyName("ua")]
         public string? Pattern { get; set; }
 
-        [JsonPropertyName("name")]
+        [JsonPropertyName("scanner")]
         public string? Name { get; set; }
 
         [JsonPropertyName("category")]
         public string? Category { get; set; }
 
-        [JsonPropertyName("url")]
-        public string? Url { get; set; }
+        [JsonPropertyName("version")]
+        public string? Version { get; set; }
+
+        [JsonPropertyName("last seen")]
+        public string? LastSeen { get; set; }
     }
 }

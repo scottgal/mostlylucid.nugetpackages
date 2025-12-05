@@ -457,6 +457,98 @@ flowchart LR
 
 ---
 
+## HeuristicLate Contributor (Post-AI Refinement)
+
+The `HeuristicLateContributor` runs **after** the AI/LLM detectors to provide a final classification layer that incorporates all prior evidence, including AI results.
+
+### Detection Pipeline Flow
+
+```mermaid
+sequenceDiagram
+    participant R as Request
+    participant E as Early Detectors
+    participant H as HeuristicContributor
+    participant AI as LLM Contributor
+    participant HL as HeuristicLateContributor
+    participant F as Final Score
+
+    R->>E: Wave 0-1 (UA, Header, IP, etc.)
+    E->>H: Wave 2 (Priority 50)
+    H->>AI: Wave 3 (if escalation triggered)
+    AI->>HL: Wave 4 (Priority 100)
+    HL->>F: Final aggregation
+```
+
+### How It Works
+
+The late heuristic contributor:
+
+1. **Waits for AI signals** - Triggers when `AiPrediction` or `AiConfidence` signals exist
+2. **Builds complete evidence** - Aggregates all contributions including AI results
+3. **Runs in "full mode"** - Uses the complete 64-feature vector
+4. **Provides final refinement** - Weighted at 2.5 (higher than early heuristic at 2.0)
+
+### Trigger Conditions
+
+```csharp
+public override IReadOnlyList<TriggerCondition> TriggerConditions =>
+[
+    // Option 1: AI prediction is available - run after AI
+    Triggers.AnyOf(
+        Triggers.WhenSignalExists(SignalKeys.AiPrediction),
+        Triggers.WhenSignalExists(SignalKeys.AiConfidence)),
+    // Option 2: Enough static detectors have run (fallback when no AI)
+    Triggers.WhenDetectorCount(5)
+];
+```
+
+### Configuration
+
+The late heuristic is automatically included in policies that use the AI path:
+
+```json
+{
+  "BotDetection": {
+    "Policies": {
+      "default": {
+        "FastPath": ["FastPathReputation", "UserAgent", "Header", "Ip",
+                     "SecurityTool", "ProjectHoneypot", "Behavioral",
+                     "ClientSide", "Inconsistency", "VersionAge",
+                     "ReputationBias", "Heuristic"],
+        "AiPath": ["Llm", "HeuristicLate"],
+        "EscalateToAi": true
+      }
+    }
+  }
+}
+```
+
+### When It Runs
+
+| Scenario | HeuristicLate Behavior |
+|----------|----------------------|
+| AI ran and completed | Runs with AI signals in feature vector |
+| AI escalation disabled | Runs after 5+ detectors complete (fallback) |
+| All detectors skipped | Does not run (no trigger satisfied) |
+
+### Signals Emitted
+
+| Signal Key | Type | Description |
+|------------|------|-------------|
+| `heuristic.prediction` | string | "bot" or "human" |
+| `heuristic.confidence` | double | 0.0 to 1.0 |
+
+### Reason Label
+
+The late heuristic labels its reason with "(late)" to distinguish from early heuristic:
+
+```
+Early: "Heuristic prediction: bot (p=0.85, conf=0.92) (early)"
+Late:  "Heuristic prediction: bot (p=0.88, conf=0.95) (late)"
+```
+
+---
+
 ## Fail-Safe Behavior
 
 AI detection is designed to fail gracefully:
