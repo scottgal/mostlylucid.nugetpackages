@@ -384,6 +384,13 @@ public sealed record PolicyTransition
     /// <summary>Description of this transition for logging/debugging</summary>
     public string? Description { get; init; }
 
+    /// <summary>
+    ///     Name of the action policy to execute when this transition matches.
+    ///     Takes precedence over Action if both are specified.
+    ///     Reference any named action policy (built-in or custom like "holodeck").
+    /// </summary>
+    public string? ActionPolicyName { get; init; }
+
     /// <summary>Creates a transition triggered by a signal</summary>
     public static PolicyTransition OnSignal(string signalKey, string goToPolicy) =>
         new() { WhenSignal = signalKey, GoToPolicy = goToPolicy };

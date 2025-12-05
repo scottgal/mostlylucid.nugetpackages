@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Actions;
 using Mostlylucid.BotDetection.ApiHolodeck.Models;
+using Mostlylucid.BotDetection.ApiHolodeck.Services;
 using Mostlylucid.BotDetection.Orchestration;
 
 namespace Mostlylucid.BotDetection.ApiHolodeck.Actions;
@@ -17,6 +18,10 @@ namespace Mostlylucid.BotDetection.ApiHolodeck.Actions;
 ///         The holodeck maintains a consistent "fake world" per bot fingerprint/IP, so repeated
 ///         requests return coherent (but fake) data. This makes it harder for bots to detect
 ///         they're being sandboxed.
+///     </para>
+///     <para>
+///         Uses ShapeBuilder to intelligently detect API type (REST, GraphQL, OpenAPI) and
+///         sends appropriate headers to MockLLMApi for realistic simulation.
 ///     </para>
 ///     <para>
 ///         Configuration example:
@@ -41,18 +46,24 @@ public class HolodeckActionPolicy : IActionPolicy
     private readonly HttpClient _httpClient;
     private readonly ILogger<HolodeckActionPolicy> _logger;
     private readonly HolodeckOptions _options;
+    private readonly IShapeBuilder? _shapeBuilder;
 
     // Track requests per context for study cutoff
     private static readonly ConcurrentDictionary<string, int> _requestCounts = new();
 
+    // Track context memory names per bot (for consistent fake worlds)
+    private static readonly ConcurrentDictionary<string, string> _contextMemoryNames = new();
+
     public HolodeckActionPolicy(
         IHttpClientFactory httpClientFactory,
         IOptions<HolodeckOptions> options,
-        ILogger<HolodeckActionPolicy> logger)
+        ILogger<HolodeckActionPolicy> logger,
+        IShapeBuilder? shapeBuilder = null)
     {
         _httpClient = httpClientFactory.CreateClient("Holodeck");
         _options = options.Value;
         _logger = logger;
+        _shapeBuilder = shapeBuilder;
 
         // Configure timeout
         _httpClient.Timeout = TimeSpan.FromMilliseconds(_options.MockApiTimeoutMs);
@@ -73,6 +84,9 @@ public class HolodeckActionPolicy : IActionPolicy
         // Generate context key for this bot
         var contextKey = GetContextKey(context, evidence);
 
+        // Get or create a consistent context memory name for this bot
+        var contextMemoryName = GetContextMemoryName(contextKey, evidence);
+
         // Check if we've studied this bot enough
         var requestCount = _requestCounts.AddOrUpdate(contextKey, 1, (_, count) => count + 1);
 
@@ -92,19 +106,39 @@ public class HolodeckActionPolicy : IActionPolicy
             return ActionResult.Blocked(403, $"Holodeck cutoff: {requestCount} requests from {contextKey}");
         }
 
+        // Analyze request shape for intelligent API simulation
+        ShapeAnalysisResult? shapeResult = null;
+        if (_shapeBuilder != null)
+        {
+            try
+            {
+                shapeResult = await _shapeBuilder.AnalyzeAsync(context, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Shape analysis failed, using defaults");
+            }
+        }
+
+        var shape = shapeResult?.Shape ?? "generic";
+        var simulationType = shapeResult?.SimulationType ?? ApiSimulationType.RestJson;
+
         _logger.LogInformation(
-            "Routing to holodeck: {Method} {Path} -> {MockApi} (context={Context}, mode={Mode}, request #{Count})",
+            "Routing to holodeck: {Method} {Path} -> {MockApi} (context={Context}, memory={Memory}, shape={Shape}, type={Type}, mode={Mode}, request #{Count})",
             context.Request.Method,
             context.Request.Path,
             _options.MockApiBaseUrl,
             contextKey,
+            contextMemoryName,
+            shape,
+            simulationType,
             _options.Mode,
             requestCount);
 
         try
         {
-            // Build the mock API URL
-            var mockUrl = BuildMockUrl(context, contextKey);
+            // Build the mock API URL with shape parameter
+            var mockUrl = BuildMockUrl(context, contextKey, shape);
 
             // Forward the request to MockLLMApi
             using var proxyRequest = CreateProxyRequest(context, mockUrl);
@@ -113,6 +147,19 @@ public class HolodeckActionPolicy : IActionPolicy
             proxyRequest.Headers.TryAddWithoutValidation("X-Holodeck-Context", contextKey);
             proxyRequest.Headers.TryAddWithoutValidation("X-Holodeck-Mode", _options.Mode.ToString());
             proxyRequest.Headers.TryAddWithoutValidation("X-Holodeck-Request-Number", requestCount.ToString());
+
+            // Add MockLLMApi context memory name for consistent fake world
+            proxyRequest.Headers.TryAddWithoutValidation("X-Context-Memory", contextMemoryName);
+
+            // Add shape/simulation type headers for MockLLMApi
+            proxyRequest.Headers.TryAddWithoutValidation("X-Response-Shape", shape);
+            proxyRequest.Headers.TryAddWithoutValidation("X-Simulation-Type", simulationType.ToString());
+
+            // Add OpenAPI spec URL if we detected a known pattern
+            if (!string.IsNullOrEmpty(shapeResult?.OpenApiSpecUrl))
+            {
+                proxyRequest.Headers.TryAddWithoutValidation("X-OpenApi-Spec", shapeResult.OpenApiSpecUrl);
+            }
 
             // Add mode-specific configuration
             AddModeHeaders(proxyRequest);
@@ -142,6 +189,9 @@ public class HolodeckActionPolicy : IActionPolicy
             // Add holodeck indicator headers (for debugging)
             context.Response.Headers["X-Holodeck"] = "true";
             context.Response.Headers["X-Holodeck-Context"] = contextKey;
+            context.Response.Headers["X-Holodeck-Memory"] = contextMemoryName;
+            context.Response.Headers["X-Holodeck-Shape"] = shape;
+            context.Response.Headers["X-Holodeck-SimType"] = simulationType.ToString();
 
             // Stream response body
             await response.Content.CopyToAsync(context.Response.Body, cancellationToken);
@@ -150,10 +200,13 @@ public class HolodeckActionPolicy : IActionPolicy
             {
                 Continue = false,
                 StatusCode = (int)response.StatusCode,
-                Description = $"Holodeck response from MockLLMApi (mode={_options.Mode})",
+                Description = $"Holodeck response from MockLLMApi (mode={_options.Mode}, shape={shape})",
                 Metadata = new Dictionary<string, object>
                 {
                     ["context"] = contextKey,
+                    ["contextMemory"] = contextMemoryName,
+                    ["shape"] = shape,
+                    ["simulationType"] = simulationType.ToString(),
                     ["mode"] = _options.Mode.ToString(),
                     ["requestNumber"] = requestCount,
                     ["mockUrl"] = mockUrl
@@ -163,13 +216,35 @@ public class HolodeckActionPolicy : IActionPolicy
         catch (TaskCanceledException)
         {
             _logger.LogWarning("Holodeck request timed out for {Context}", contextKey);
-            return await FallbackResponse(context, "Holodeck timeout", cancellationToken);
+            return await FallbackResponse(context, "Holodeck timeout", shapeResult?.ContentType, cancellationToken);
         }
         catch (HttpRequestException ex)
         {
             _logger.LogError(ex, "Holodeck request failed for {Context}", contextKey);
-            return await FallbackResponse(context, "Holodeck unavailable", cancellationToken);
+            return await FallbackResponse(context, "Holodeck unavailable", shapeResult?.ContentType, cancellationToken);
         }
+    }
+
+    /// <summary>
+    ///     Get or create a consistent context memory name for this bot.
+    ///     This ensures the same bot gets the same "fake world" across requests.
+    /// </summary>
+    private string GetContextMemoryName(string contextKey, AggregatedEvidence evidence)
+    {
+        return _contextMemoryNames.GetOrAdd(contextKey, _ =>
+        {
+            // Generate a memorable fake company/user name based on the bot
+            var botName = evidence.PrimaryBotName ?? "unknown";
+            var hash = Math.Abs(contextKey.GetHashCode());
+            var adjectives = new[] { "swift", "clever", "bold", "quiet", "bright", "dark", "quick", "slow" };
+            var nouns = new[] { "falcon", "spider", "robot", "crawler", "agent", "scraper", "hunter", "seeker" };
+
+            var adj = adjectives[hash % adjectives.Length];
+            var noun = nouns[(hash / adjectives.Length) % nouns.Length];
+            var num = hash % 1000;
+
+            return $"holodeck-{adj}-{noun}-{num}";
+        });
     }
 
     private string GetContextKey(HttpContext context, AggregatedEvidence evidence)
@@ -196,17 +271,18 @@ public class HolodeckActionPolicy : IActionPolicy
         return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
     }
 
-    private string BuildMockUrl(HttpContext context, string contextKey)
+    private string BuildMockUrl(HttpContext context, string contextKey, string shape)
     {
         var baseUrl = _options.MockApiBaseUrl.TrimEnd('/');
         var originalPath = context.Request.Path.ToString();
         var originalQuery = context.Request.QueryString.ToString();
 
-        // Add context to query string for MockLLMApi
+        // Add context and shape to query string for MockLLMApi
         var separator = string.IsNullOrEmpty(originalQuery) ? "?" : "&";
         var contextParam = $"{separator}context={Uri.EscapeDataString(contextKey)}";
+        var shapeParam = $"&shape={Uri.EscapeDataString(shape)}";
 
-        return $"{baseUrl}{originalPath}{originalQuery}{contextParam}";
+        return $"{baseUrl}{originalPath}{originalQuery}{contextParam}{shapeParam}";
     }
 
     private HttpRequestMessage CreateProxyRequest(HttpContext context, string targetUrl)
@@ -308,18 +384,40 @@ public class HolodeckActionPolicy : IActionPolicy
     private async Task<ActionResult> FallbackResponse(
         HttpContext context,
         string reason,
+        string? contentType,
         CancellationToken cancellationToken)
     {
-        // When MockLLMApi is unavailable, return a simple JSON response
+        // When MockLLMApi is unavailable, return an appropriate empty response
         context.Response.StatusCode = 200;
-        context.Response.ContentType = "application/json";
+        context.Response.ContentType = contentType ?? "application/json";
 
-        await context.Response.WriteAsJsonAsync(new
+        // Generate appropriate empty response based on content type
+        if (contentType?.Contains("xml", StringComparison.OrdinalIgnoreCase) == true)
         {
-            data = new object[] { },
-            message = "No results found",
-            timestamp = DateTime.UtcNow
-        }, cancellationToken);
+            await context.Response.WriteAsync(
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?><response><data/><message>No results found</message></response>",
+                cancellationToken);
+        }
+        else if (contentType?.Contains("html", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            await context.Response.WriteAsync(
+                "<!DOCTYPE html><html><head><title>No Results</title></head><body><h1>No Results Found</h1></body></html>",
+                cancellationToken);
+        }
+        else if (contentType?.Contains("text/plain", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            await context.Response.WriteAsync("No results found", cancellationToken);
+        }
+        else
+        {
+            // Default to JSON
+            await context.Response.WriteAsJsonAsync(new
+            {
+                data = new object[] { },
+                message = "No results found",
+                timestamp = DateTime.UtcNow
+            }, cancellationToken);
+        }
 
         return new ActionResult
         {

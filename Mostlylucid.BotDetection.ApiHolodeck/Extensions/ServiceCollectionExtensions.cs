@@ -16,7 +16,7 @@ public static class ServiceCollectionExtensions
 {
     /// <summary>
     ///     Add API Holodeck honeypot services to the service collection.
-    ///     This includes the HolodeckActionPolicy, HoneypotLinkContributor, and HoneypotReporter.
+    ///     This includes the HolodeckActionPolicy, ShapeBuilder, HoneypotLinkContributor, and HoneypotReporter.
     /// </summary>
     /// <param name="services">The service collection</param>
     /// <param name="configure">Optional configuration action</param>
@@ -45,12 +45,25 @@ public static class ServiceCollectionExtensions
             .BindConfiguration(HolodeckOptions.SectionName)
             .Configure(options => configure?.Invoke(options));
 
+        // Configure shape builder options
+        services.AddOptions<ShapeBuilderOptions>()
+            .BindConfiguration("BotDetection:Holodeck:ShapeBuilder");
+
         // Register HTTP client for MockLLMApi
         services.AddHttpClient("Holodeck", client =>
         {
             client.DefaultRequestHeaders.Add("Accept", "application/json");
             client.DefaultRequestHeaders.Add("User-Agent", "Mostlylucid.BotDetection.ApiHolodeck/1.0");
         });
+
+        // Register HTTP client for ShapeBuilder LLM calls
+        services.AddHttpClient("ShapeBuilder", client =>
+        {
+            client.DefaultRequestHeaders.Add("Accept", "application/json");
+        });
+
+        // Register the ShapeBuilder for intelligent API type detection
+        services.AddSingleton<IShapeBuilder, ShapeBuilder>();
 
         // Register the Holodeck action policy
         services.AddSingleton<HolodeckActionPolicy>();
@@ -79,8 +92,25 @@ public static class ServiceCollectionExtensions
         services.AddOptions<HolodeckOptions>()
             .Bind(configuration);
 
-        // Register services
+        // Configure shape builder options from nested section
+        var shapeBuilderSection = configuration.GetSection("ShapeBuilder");
+        if (shapeBuilderSection.Exists())
+        {
+            services.AddOptions<ShapeBuilderOptions>().Bind(shapeBuilderSection);
+        }
+        else
+        {
+            services.AddOptions<ShapeBuilderOptions>();
+        }
+
+        // Register HTTP clients
         services.AddHttpClient("Holodeck");
+        services.AddHttpClient("ShapeBuilder");
+
+        // Register the ShapeBuilder
+        services.AddSingleton<IShapeBuilder, ShapeBuilder>();
+
+        // Register services
         services.AddSingleton<HolodeckActionPolicy>();
         services.AddSingleton<IActionPolicy>(sp => sp.GetRequiredService<HolodeckActionPolicy>());
         services.AddSingleton<HoneypotLinkContributor>();

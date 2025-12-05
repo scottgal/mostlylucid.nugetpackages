@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Mostlylucid.BotDetection.Actions;
 using Mostlylucid.BotDetection.Attributes;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Orchestration;
@@ -116,7 +117,8 @@ public class BotDetectionMiddleware(
     public async Task InvokeAsync(
         HttpContext context,
         BlackboardOrchestrator orchestrator,
-        IPolicyRegistry policyRegistry)
+        IPolicyRegistry policyRegistry,
+        IActionPolicyRegistry actionPolicyRegistry)
     {
         // Check if bot detection is globally enabled
         if (!_options.Enabled)
@@ -150,7 +152,7 @@ public class BotDetectionMiddleware(
             var customUa = context.Request.Headers["ml-bot-test-ua"].FirstOrDefault();
             if (!string.IsNullOrEmpty(customUa))
             {
-                await HandleCustomUaDetection(context, customUa, orchestrator, policyRegistry);
+                await HandleCustomUaDetection(context, customUa, orchestrator, policyRegistry, actionPolicyRegistry);
                 return;
             }
 
@@ -158,7 +160,7 @@ public class BotDetectionMiddleware(
             var testMode = context.Request.Headers["ml-bot-test-mode"].FirstOrDefault();
             if (!string.IsNullOrEmpty(testMode))
             {
-                await HandleTestModeWithRealDetection(context, testMode, orchestrator, policyRegistry);
+                await HandleTestModeWithRealDetection(context, testMode, orchestrator, policyRegistry, actionPolicyRegistry);
                 return;
             }
         }
@@ -178,6 +180,33 @@ public class BotDetectionMiddleware(
         if (_options.ResponseHeaders.Enabled)
         {
             AddResponseHeaders(context, aggregatedResult, policy.Name);
+        }
+
+        // Check for triggered action policy first (takes precedence over built-in actions)
+        if (!string.IsNullOrEmpty(aggregatedResult.TriggeredActionPolicyName))
+        {
+            var actionPolicy = actionPolicyRegistry.GetPolicy(aggregatedResult.TriggeredActionPolicyName);
+            if (actionPolicy != null)
+            {
+                _logger.LogInformation(
+                    "[ACTION] Executing action policy '{ActionPolicy}' for {Path} (risk={Risk:F2})",
+                    aggregatedResult.TriggeredActionPolicyName, context.Request.Path, aggregatedResult.BotProbability);
+
+                var actionResult = await actionPolicy.ExecuteAsync(context, aggregatedResult, context.RequestAborted);
+
+                if (!actionResult.Continue)
+                {
+                    // Action policy handled the response - don't continue pipeline
+                    return;
+                }
+                // Action policy allows continuation - fall through to next middleware
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Action policy '{ActionPolicy}' not found in registry, falling back to default handling",
+                    aggregatedResult.TriggeredActionPolicyName);
+            }
         }
 
         // Determine if we should block/throttle
@@ -534,8 +563,8 @@ public class BotDetectionMiddleware(
     {
         var riskScore = aggregated.BotProbability;
 
-        _logger.LogInformation(
-            "Blocking request to {Path}: policy={Policy}, risk={Risk:F2}, action={Action}",
+        _logger.LogWarning(
+            "[BLOCK] Request blocked: {Path} policy={Policy} risk={Risk:F2} action={Action}",
             context.Request.Path, policy.Name, riskScore, action);
 
         switch (action)
@@ -652,7 +681,8 @@ public class BotDetectionMiddleware(
         HttpContext context,
         string testMode,
         BlackboardOrchestrator orchestrator,
-        IPolicyRegistry policyRegistry)
+        IPolicyRegistry policyRegistry,
+        IActionPolicyRegistry actionPolicyRegistry)
     {
         _logger.LogInformation("Test mode: Running real detection with simulated UA for '{Mode}'", testMode);
 
@@ -682,14 +712,17 @@ public class BotDetectionMiddleware(
             context.Request.Headers.UserAgent = simulatedUserAgent;
         }
 
+        AggregatedEvidence? aggregatedResult = null;
+        DetectionPolicy? policy = null;
+
         try
         {
             // Resolve policy (respecting X-Bot-Policy header)
             var endpoint = context.GetEndpoint();
-            var policy = ResolvePolicy(context, endpoint, policyRegistry);
+            policy = ResolvePolicy(context, endpoint, policyRegistry);
 
             // Run the REAL detection pipeline
-            var aggregatedResult = await orchestrator.DetectWithPolicyAsync(context, policy, context.RequestAborted);
+            aggregatedResult = await orchestrator.DetectWithPolicyAsync(context, policy, context.RequestAborted);
             PopulateContextFromAggregated(context, aggregatedResult, policy.Name);
 
             // Add response headers
@@ -702,15 +735,56 @@ public class BotDetectionMiddleware(
             }
 
             _logger.LogInformation(
-                "Test mode result: BotProbability={Probability:P0}, Detectors={Count}, Processing={Ms:F1}ms",
+                "Test mode result: BotProbability={Probability:P0}, Detectors={Count}, Processing={Ms:F1}ms, ActionPolicy={ActionPolicy}",
                 aggregatedResult.BotProbability,
                 aggregatedResult.ContributingDetectors.Count,
-                aggregatedResult.TotalProcessingTimeMs);
+                aggregatedResult.TotalProcessingTimeMs,
+                aggregatedResult.TriggeredActionPolicyName ?? "none");
         }
         finally
         {
             // Restore original User-Agent
             context.Request.Headers.UserAgent = originalUserAgent;
+        }
+
+        // Execute action policy if triggered (same as main flow)
+        if (aggregatedResult != null && !string.IsNullOrEmpty(aggregatedResult.TriggeredActionPolicyName))
+        {
+            var actionPolicy = actionPolicyRegistry.GetPolicy(aggregatedResult.TriggeredActionPolicyName);
+            if (actionPolicy != null)
+            {
+                _logger.LogInformation(
+                    "[ACTION] Test mode executing action policy '{ActionPolicy}' for {Path} (risk={Risk:F2})",
+                    aggregatedResult.TriggeredActionPolicyName, context.Request.Path, aggregatedResult.BotProbability);
+
+                var actionResult = await actionPolicy.ExecuteAsync(context, aggregatedResult, context.RequestAborted);
+
+                if (!actionResult.Continue)
+                {
+                    // Action policy handled the response - don't continue pipeline
+                    return;
+                }
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Action policy '{ActionPolicy}' not found in registry (test mode)",
+                    aggregatedResult.TriggeredActionPolicyName);
+            }
+        }
+
+        // Check for blocking (same as main flow)
+        if (aggregatedResult != null && policy != null)
+        {
+            var endpoint = context.GetEndpoint();
+            var policyAttr = endpoint?.Metadata.GetMetadata<BotPolicyAttribute>();
+            var shouldBlock = ShouldBlockRequest(aggregatedResult, policy, policyAttr);
+
+            if (shouldBlock.Block)
+            {
+                await HandleBlockedRequest(context, aggregatedResult, policy, policyAttr, shouldBlock.Action);
+                return;
+            }
         }
 
         await _next(context);
@@ -724,7 +798,8 @@ public class BotDetectionMiddleware(
         HttpContext context,
         string customUa,
         BlackboardOrchestrator orchestrator,
-        IPolicyRegistry policyRegistry)
+        IPolicyRegistry policyRegistry,
+        IActionPolicyRegistry actionPolicyRegistry)
     {
         _logger.LogInformation("Custom UA test: Running real detection with '{UA}'", customUa);
 
@@ -732,14 +807,17 @@ public class BotDetectionMiddleware(
         var originalUserAgent = context.Request.Headers.UserAgent.ToString();
         context.Request.Headers.UserAgent = customUa;
 
+        AggregatedEvidence? aggregatedResult = null;
+        DetectionPolicy? policy = null;
+
         try
         {
             // Resolve policy (respecting X-Bot-Policy header)
             var endpoint = context.GetEndpoint();
-            var policy = ResolvePolicy(context, endpoint, policyRegistry);
+            policy = ResolvePolicy(context, endpoint, policyRegistry);
 
             // Run the REAL detection pipeline
-            var aggregatedResult = await orchestrator.DetectWithPolicyAsync(context, policy, context.RequestAborted);
+            aggregatedResult = await orchestrator.DetectWithPolicyAsync(context, policy, context.RequestAborted);
             PopulateContextFromAggregated(context, aggregatedResult, policy.Name);
 
             // Add response headers
@@ -752,15 +830,56 @@ public class BotDetectionMiddleware(
             }
 
             _logger.LogInformation(
-                "Custom UA test result: BotProbability={Probability:P0}, Detectors={Count}, Processing={Ms:F1}ms",
+                "Custom UA test result: BotProbability={Probability:P0}, Detectors={Count}, Processing={Ms:F1}ms, ActionPolicy={ActionPolicy}",
                 aggregatedResult.BotProbability,
                 aggregatedResult.ContributingDetectors.Count,
-                aggregatedResult.TotalProcessingTimeMs);
+                aggregatedResult.TotalProcessingTimeMs,
+                aggregatedResult.TriggeredActionPolicyName ?? "none");
         }
         finally
         {
             // Restore original User-Agent
             context.Request.Headers.UserAgent = originalUserAgent;
+        }
+
+        // Execute action policy if triggered (same as main flow)
+        if (aggregatedResult != null && !string.IsNullOrEmpty(aggregatedResult.TriggeredActionPolicyName))
+        {
+            var actionPolicy = actionPolicyRegistry.GetPolicy(aggregatedResult.TriggeredActionPolicyName);
+            if (actionPolicy != null)
+            {
+                _logger.LogInformation(
+                    "[ACTION] Custom UA test executing action policy '{ActionPolicy}' for {Path} (risk={Risk:F2})",
+                    aggregatedResult.TriggeredActionPolicyName, context.Request.Path, aggregatedResult.BotProbability);
+
+                var actionResult = await actionPolicy.ExecuteAsync(context, aggregatedResult, context.RequestAborted);
+
+                if (!actionResult.Continue)
+                {
+                    // Action policy handled the response - don't continue pipeline
+                    return;
+                }
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Action policy '{ActionPolicy}' not found in registry (custom UA test)",
+                    aggregatedResult.TriggeredActionPolicyName);
+            }
+        }
+
+        // Check for blocking (same as main flow)
+        if (aggregatedResult != null && policy != null)
+        {
+            var endpoint = context.GetEndpoint();
+            var policyAttr = endpoint?.Metadata.GetMetadata<BotPolicyAttribute>();
+            var shouldBlock = ShouldBlockRequest(aggregatedResult, policy, policyAttr);
+
+            if (shouldBlock.Block)
+            {
+                await HandleBlockedRequest(context, aggregatedResult, policy, policyAttr, shouldBlock.Action);
+                return;
+            }
         }
 
         await _next(context);

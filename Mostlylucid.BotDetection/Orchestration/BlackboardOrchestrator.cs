@@ -157,6 +157,7 @@ public class BlackboardOrchestrator
         var failedDetectors = new ConcurrentDictionary<string, bool>();
         var ranDetectors = new HashSet<string>();
         PolicyAction? finalAction = null;
+        string? triggeredActionPolicyName = null;
 
         // Build detector lists based on policy
         var allPolicyDetectors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -228,7 +229,8 @@ public class BlackboardOrchestrator
                     failedDetectors,
                     cts.Token);
 
-                // Check for early exit
+                // Check for early exit - but still run policy evaluation for transitions
+                var earlyExitTriggered = false;
                 if (aggregator.ShouldEarlyExit)
                 {
                     var exitContrib = aggregator.EarlyExitContribution!;
@@ -237,10 +239,11 @@ public class BlackboardOrchestrator
                         exitContrib.DetectorName,
                         exitContrib.EarlyExitVerdict,
                         exitContrib.Reason);
-                    break;
+                    earlyExitTriggered = true;
+                    // Don't break yet - fall through to policy evaluation for transitions
                 }
 
-                // Update system signals for next wave
+                // Update system signals for next wave (or for policy evaluation on early exit)
                 signals[DetectorCountTrigger.CompletedDetectorsSignal] = completedDetectors.Count;
                 signals[RiskThresholdTrigger.CurrentRiskSignal] = aggregator.Aggregate().BotProbability;
 
@@ -260,6 +263,16 @@ public class BlackboardOrchestrator
 
                     if (!evalResult.ShouldContinue)
                     {
+                        // Check for action policy name first (takes precedence)
+                        if (!string.IsNullOrEmpty(evalResult.ActionPolicyName))
+                        {
+                            triggeredActionPolicyName = evalResult.ActionPolicyName;
+                            _logger.LogDebug(
+                                "Policy {Policy} triggered action policy {ActionPolicy}: {Reason}",
+                                policy.Name, evalResult.ActionPolicyName, evalResult.Reason);
+                            break;
+                        }
+
                         if (evalResult.Action.HasValue)
                         {
                             // Handle EscalateToAi specially - run AI detectors then continue
@@ -336,6 +349,12 @@ public class BlackboardOrchestrator
                     }
                 }
 
+                // If early exit was triggered, stop the wave loop (but after policy evaluation)
+                if (earlyExitTriggered)
+                {
+                    break;
+                }
+
                 waveNumber++;
 
                 // Small delay between waves to allow signals to propagate
@@ -363,11 +382,12 @@ public class BlackboardOrchestrator
                            (finalAction.Value == PolicyAction.Allow || finalAction.Value == PolicyAction.Block) &&
                            result.ContributingDetectors.Count < 9; // Less than full detector count
 
-        if (finalAction.HasValue)
+        if (finalAction.HasValue || !string.IsNullOrEmpty(triggeredActionPolicyName))
         {
             result = result with
             {
-                PolicyAction = finalAction.Value,
+                PolicyAction = finalAction,
+                TriggeredActionPolicyName = triggeredActionPolicyName,
                 PolicyName = policy.Name,
                 TotalProcessingTimeMs = actualProcessingTimeMs,
                 EarlyExit = wasEarlyExit || result.EarlyExit,

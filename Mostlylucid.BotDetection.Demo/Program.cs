@@ -4,6 +4,7 @@ using Mostlylucid.BotDetection.ClientSide;
 using Mostlylucid.BotDetection.Extensions;
 using Mostlylucid.BotDetection.Filters;
 using Mostlylucid.BotDetection.Middleware;
+using mostlylucid.mockllmapi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +15,11 @@ builder.Services.AddBotDetection();
 // Add ApiHolodeck for honeypot detection and bot redirection
 // Configuration from BotDetection:Holodeck section in appsettings.json
 builder.Services.AddApiHolodeck();
+
+// Add MockLLMApi for generating fake API responses to detected bots
+// This powers the holodeck - bots get redirected here and receive LLM-generated fake data
+builder.Services.AddLLMockApi(builder.Configuration);
+builder.Services.AddLLMockOpenApi(builder.Configuration); // Also needed for OpenApiContextManager
 
 builder.Services.AddControllers();
 builder.Services.AddRazorPages(); // For TagHelper support
@@ -39,6 +45,7 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapRazorPages();
 
+
 // ==========================================
 // Built-in diagnostic endpoints
 // ==========================================
@@ -47,6 +54,10 @@ app.MapBotDetectionEndpoints();
 
 // Map the fingerprint endpoint for client-side JS to POST data to
 app.MapBotDetectionFingerprintEndpoint();
+
+// Map MockLLMApi endpoints - this is where the holodeck redirects bots
+// Generates LLM-powered fake API responses that look real but contain useless data
+app.MapLLMockApi("/api/mock");
 
 // ==========================================
 // Demo endpoints using extension methods

@@ -8,12 +8,16 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0"/>
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Mostlylucid.BotDetection\Mostlylucid.BotDetection.csproj"/>
-        <ProjectReference Include="..\Mostlylucid.BotDetection.ApiHolodeck\Mostlylucid.BotDetection.ApiHolodeck.csproj"/>
+        <ProjectReference Include="..\..\LLMApi\mostlylucid.mockllmapi\mostlylucid.mockllmapi.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Mostlylucid.BotDetection\Mostlylucid.BotDetection.csproj" />
+        <ProjectReference Include="..\Mostlylucid.BotDetection.ApiHolodeck\Mostlylucid.BotDetection.ApiHolodeck.csproj" />
     </ItemGroup>
 
 </Project>

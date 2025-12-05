@@ -36,6 +36,12 @@ public sealed record PolicyEvaluationResult
     /// <summary>Action to take (if not continuing or transitioning)</summary>
     public PolicyAction? Action { get; init; }
 
+    /// <summary>
+    ///     Name of the action policy to execute (if specified in transition).
+    ///     Takes precedence over Action for determining response behavior.
+    /// </summary>
+    public string? ActionPolicyName { get; init; }
+
     /// <summary>The transition that triggered this result</summary>
     public PolicyTransition? TriggeredBy { get; init; }
 
@@ -63,6 +69,16 @@ public sealed record PolicyEvaluationResult
             Action = action,
             TriggeredBy = triggeredBy,
             Reason = $"Action: {action}"
+        };
+
+    /// <summary>Execute a named action policy</summary>
+    public static PolicyEvaluationResult ExecuteActionPolicy(string actionPolicyName, PolicyTransition triggeredBy) =>
+        new()
+        {
+            ShouldContinue = false,
+            ActionPolicyName = actionPolicyName,
+            TriggeredBy = triggeredBy,
+            Reason = $"ActionPolicy: {actionPolicyName}"
         };
 }
 
@@ -103,6 +119,12 @@ public class PolicyEvaluator : IPolicyEvaluator
                     "Policy {PolicyName} triggered transition: {Description}",
                     policy.Name,
                     transition.Description ?? GetTransitionDescription(transition));
+
+                // ActionPolicyName takes precedence over Action
+                if (!string.IsNullOrEmpty(transition.ActionPolicyName))
+                {
+                    return PolicyEvaluationResult.ExecuteActionPolicy(transition.ActionPolicyName, transition);
+                }
 
                 if (transition.Action.HasValue)
                 {
