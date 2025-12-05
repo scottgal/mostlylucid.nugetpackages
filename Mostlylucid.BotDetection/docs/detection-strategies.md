@@ -29,7 +29,7 @@ Low-latency detectors that run inline with the request:
 
 ### Slow Path (Asynchronous)
 Background processing for heavier analysis:
-- ONNX/LLM AI classification
+- Heuristic/LLM AI classification
 - Learning and pattern discovery
 - Runs via inter-request event bus (non-blocking)
 
@@ -44,7 +44,7 @@ Background processing for heavier analysis:
 │   └─ Consensus check → Early exit if high confidence                │
 ├─────────────────────────────────────────────────────────────────────┤
 │ SLOW PATH (async, background)                                        │
-│   ├─ ONNX/LLM inference (if enabled)                                │
+│   ├─ Heuristic/LLM inference (if enabled)                           │
 │   ├─ Pattern learning                                                │
 │   └─ Training data collection                                        │
 └─────────────────────────────────────────────────────────────────────┘
@@ -70,7 +70,7 @@ Background processing for heavier analysis:
         { "Name": "Inconsistency Detector", "Signal": "InconsistencyUpdated" }
       ],
       "SlowPathDetectors": [
-        { "Name": "ONNX Detector", "Signal": "AiClassificationCompleted" }
+        { "Name": "Heuristic Detector", "Signal": "AiClassificationCompleted" }
       ]
     }
   }
@@ -268,7 +268,7 @@ var inconsistencyScore = context.GetInconsistencyScore(); // 0-100
 
 Use AI Detection when you need to catch sophisticated or evolving bots that evade pure pattern and heuristic-based methods.
 
-See [ai-detection.md](ai-detection.md) for details on ONNX and Ollama-based AI detection.
+See [ai-detection.md](ai-detection.md) for details on Heuristic and Ollama-based AI detection.
 
 ---
 

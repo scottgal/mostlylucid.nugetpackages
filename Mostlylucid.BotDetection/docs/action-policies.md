@@ -119,7 +119,7 @@ sequenceDiagram
     participant A as Action Policy
     participant L as Learning Bus
     participant Rep as Reputation Store
-    participant ONNX as ONNX Model
+    participant WS as Weight Store
 
     R->>D: Incoming request
     D->>D: Run detectors (waves 1-3)
@@ -127,10 +127,10 @@ sequenceDiagram
     A->>A: Execute action (block/throttle/etc)
     A->>L: Publish LearningEvent
     L->>Rep: Update pattern reputation
-    L->>ONNX: Collect training data
+    L->>WS: Update learned weights
 
     Note over Rep: Pattern reputation<br/>affects future detections
-    Note over ONNX: Training data improves<br/>ML model accuracy
+    Note over WS: Weight updates improve<br/>Heuristic model accuracy
 ```
 
 ### How Actions Feed Learning

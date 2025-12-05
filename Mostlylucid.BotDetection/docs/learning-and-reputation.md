@@ -480,7 +480,7 @@ The inter-request learning bus handles async pattern learning:
 | `PatternDiscovered` | AI found new pattern | Pattern store update |
 | `InconsistencyDetected` | Cross-signal mismatch | Reputation adjustment |
 | `UserFeedback` | Admin confirmed/denied | Strong reputation update |
-| `InferenceRequest` | Request async AI analysis | ONNX/LLM inference |
+| `InferenceRequest` | Request async AI analysis | Heuristic/LLM inference |
 | `DriftDetected` | Pattern behavior changed | Alert/relearn |
 
 ### Publishing Events
@@ -765,21 +765,21 @@ Or via configuration:
 }
 ```
 
-## Integration with ONNX Feature Extraction
+## Integration with Heuristic Feature Extraction
 
-The Weight Store integrates with the ONNX feature extractor to provide learned weights as input features:
+The Weight Store integrates with the Heuristic detector to provide learned weights as input features:
 
 ```
 Request → Detectors → Evidence → Feature Extractor
                                        ↓
                               Weight Store Lookup
                                        ↓
-                              64-feature vector
+                              Feature vector with learned weights
                                        ↓
-                                 ONNX Model
+                               Heuristic Model
 ```
 
-The feature extractor pulls top contribution weights (sorted by impact) into the feature vector, allowing the ML model to incorporate learned patterns.
+The feature extractor pulls top contribution weights (sorted by impact) into the feature vector, allowing the Heuristic model to incorporate learned patterns.
 
 ## Monitoring the Learning System
 

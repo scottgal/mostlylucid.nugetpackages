@@ -390,6 +390,32 @@ Complete reference with all available options:
     "MaxDownloadRetries": 3,
 
     // ==========================================
+    // THROTTLING
+    // ==========================================
+    "Throttling": {
+      "Enabled": false,
+      "MinConfidenceToThrottle": 0.5,
+      "BaseDelayMs": 1000,
+      "MaxDelayMs": 10000,
+      "EnableJitter": true,
+      "JitterPercentage": 0.2
+    },
+
+    // ==========================================
+    // DATABASE
+    // ==========================================
+    "DatabasePath": null,
+    "EnableDatabaseWalMode": true,
+
+    // ==========================================
+    // PATTERN LEARNING (EXPERIMENTAL)
+    // ==========================================
+    "EnablePatternLearning": false,
+    "MinConfidenceToLearn": 0.9,
+    "MaxLearnedPatterns": 1000,
+    "PatternConsolidationIntervalHours": 24,
+
+    // ==========================================
     // LOGGING
     // ==========================================
     "LogAllRequests": false,
@@ -761,15 +787,281 @@ Add detection results to response headers for debugging and integration.
 
 ---
 
-## Logging Settings
+## Throttling Settings
+
+Adds artificial delay to slow down detected bots.
+
+```json
+{
+  "BotDetection": {
+    "Throttling": {
+      "Enabled": true,
+      "MinConfidenceToThrottle": 0.5,
+      "BaseDelayMs": 1000,
+      "MaxDelayMs": 10000,
+      "EnableJitter": true,
+      "JitterPercentage": 0.2
+    }
+  }
+}
+```
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `LogAllRequests` | bool | `false` | Log all requests (verbose) |
-| `LogDetailedReasons` | bool | `true` | Log detection reasons |
-| `LogPerformanceMetrics` | bool | `false` | Log timing/cache stats |
-| `LogIpAddresses` | bool | `true` | Include IPs (disable for privacy) |
-| `LogUserAgents` | bool | `true` | Include UAs (disable for privacy) |
+| `Enabled` | bool | `false` | Enable throttling for detected bots |
+| `MinConfidenceToThrottle` | double | `0.5` | Minimum confidence to apply throttling |
+| `BaseDelayMs` | int | `1000` | Base delay in milliseconds |
+| `MaxDelayMs` | int | `10000` | Maximum delay in milliseconds |
+| `EnableJitter` | bool | `true` | Add random jitter (less detectable) |
+| `JitterPercentage` | double | `0.2` | Jitter amount (0.0-1.0) |
+
+---
+
+## SQLite Database
+
+BotDetection uses SQLite to store bot patterns, datacenter IP ranges, learned weights, and reputation data. The database is automatically created and initialized on first use.
+
+### What's Stored in the Database
+
+| Table | Purpose |
+|-------|---------|
+| `bot_patterns` | User-Agent regex patterns from configured sources |
+| `datacenter_ips` | Cloud provider IP ranges (AWS, GCP, Azure, Oracle) |
+| `list_updates` | Last update timestamps for each data source |
+| `learned_weights` | Heuristic model weights from continuous learning |
+| `reputation_patterns` | Pattern reputation scores and states |
+
+### Default Behavior
+
+By default, the database is created at:
+```
+{AppContext.BaseDirectory}/botdetection.db
+```
+
+For ASP.NET applications, this is typically in the application's root directory.
+
+### Configuration
+
+```json
+{
+  "BotDetection": {
+    "DatabasePath": "/app/data/botdetection.db",
+    "EnableDatabaseWalMode": true
+  }
+}
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `DatabasePath` | string | `null` | Custom path to SQLite database |
+| `EnableDatabaseWalMode` | bool | `true` | Enable WAL mode for better concurrency |
+
+### Docker / Container Deployments
+
+For persistent data across container restarts, mount a volume:
+
+```bash
+# Create a volume for bot detection data
+docker run -d \
+  -v botdetection-data:/app/data \
+  -e BotDetection__DatabasePath=/app/data/botdetection.db \
+  your-app
+```
+
+Or with docker-compose:
+
+```yaml
+services:
+  app:
+    volumes:
+      - botdetection-data:/app/data
+    environment:
+      - BotDetection__DatabasePath=/app/data/botdetection.db
+
+volumes:
+  botdetection-data:
+```
+
+### Multi-Instance Deployments
+
+SQLite with WAL mode supports multiple readers but only one writer. For high-availability setups:
+
+1. **Single-instance**: Default SQLite works well
+2. **Read replicas**: Each instance can have its own database; they sync via background updates
+3. **Shared storage**: Mount the same volume across instances (WAL mode handles contention)
+4. **Redis/External**: For true multi-writer scenarios, consider implementing a custom `IWeightStore`
+
+### Database Maintenance
+
+The database is self-maintaining:
+- **Auto-updates**: Bot lists refresh every 24 hours (configurable via `UpdateIntervalHours`)
+- **Stale data check**: On startup, if data is >24 hours old, it refreshes automatically
+- **Learned weights**: Periodic consolidation removes low-impact patterns (configurable via `PatternConsolidationIntervalHours`)
+- **WAL checkpointing**: SQLite handles this automatically
+
+### Troubleshooting
+
+```bash
+# Check database size and tables
+sqlite3 botdetection.db ".tables"
+sqlite3 botdetection.db "SELECT list_type, last_update, record_count FROM list_updates"
+
+# Count patterns and IPs
+sqlite3 botdetection.db "SELECT COUNT(*) FROM bot_patterns"
+sqlite3 botdetection.db "SELECT COUNT(*) FROM datacenter_ips"
+
+# Force refresh (delete and restart app)
+rm botdetection.db
+```
+
+---
+
+## Pattern Learning Settings (Experimental)
+
+```json
+{
+  "BotDetection": {
+    "EnablePatternLearning": true,
+    "MinConfidenceToLearn": 0.9,
+    "MaxLearnedPatterns": 1000,
+    "PatternConsolidationIntervalHours": 24
+  }
+}
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `EnablePatternLearning` | bool | `false` | Enable automatic pattern learning |
+| `MinConfidenceToLearn` | double | `0.9` | Minimum confidence to learn a pattern |
+| `MaxLearnedPatterns` | int | `1000` | Maximum patterns to store |
+| `PatternConsolidationIntervalHours` | int | `24` | Cleanup interval |
+
+---
+
+## Logging Settings
+
+BotDetection uses standard ASP.NET Core `ILogger`. Logs go to wherever your application is configured to send them (console, file, etc.).
+
+### Recommended Configuration (Default)
+
+Information-level to console for visibility, Warning-level to files for persistence:
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning",
+      "Mostlylucid.BotDetection": "Information"
+    },
+    "Console": {
+      "LogLevel": {
+        "Default": "Information",
+        "Mostlylucid.BotDetection": "Information"
+      }
+    },
+    "File": {
+      "LogLevel": {
+        "Default": "Warning",
+        "Mostlylucid.BotDetection": "Warning"
+      }
+    }
+  }
+}
+```
+
+### With Serilog (Recommended for Production)
+
+```json
+{
+  "Serilog": {
+    "MinimumLevel": {
+      "Default": "Information",
+      "Override": {
+        "Microsoft.AspNetCore": "Warning",
+        "Mostlylucid.BotDetection": "Information"
+      }
+    },
+    "WriteTo": [
+      {
+        "Name": "Console",
+        "Args": {
+          "restrictedToMinimumLevel": "Information"
+        }
+      },
+      {
+        "Name": "File",
+        "Args": {
+          "path": "logs/botdetection-.log",
+          "rollingInterval": "Day",
+          "restrictedToMinimumLevel": "Warning"
+        }
+      }
+    ]
+  }
+}
+```
+
+### Suppress All BotDetection Logging
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning",
+      "Mostlylucid.BotDetection": "None"
+    }
+  }
+}
+```
+
+### Enable Verbose Logging (Development/Debugging)
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning",
+      "Mostlylucid.BotDetection": "Debug",
+      "Mostlylucid.BotDetection.Services.BotListUpdateService": "Information"
+    }
+  }
+}
+```
+
+### Fine-Grained Logging Control
+
+Control specific components:
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning",
+      "Mostlylucid.BotDetection": "Information",
+      "Mostlylucid.BotDetection.Services.BotDetectionService": "Debug",
+      "Mostlylucid.BotDetection.Services.BotListUpdateService": "Information",
+      "Mostlylucid.BotDetection.Data.BotListDatabase": "Warning",
+      "Mostlylucid.BotDetection.Middleware": "Information"
+    }
+  }
+}
+```
+
+### BotDetection-Specific Logging Options
+
+These options control what data is included in log messages:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `LogAllRequests` | bool | `false` | Log all requests (verbose, not recommended for production) |
+| `LogDetailedReasons` | bool | `true` | Include detection reasons in logs |
+| `LogPerformanceMetrics` | bool | `false` | Include timing and cache statistics |
+| `LogIpAddresses` | bool | `true` | Include IP addresses (disable for GDPR compliance) |
+| `LogUserAgents` | bool | `true` | Include User-Agent strings (disable for privacy) |
 
 ---
 

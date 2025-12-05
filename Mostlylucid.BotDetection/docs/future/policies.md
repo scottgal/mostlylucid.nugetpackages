@@ -239,7 +239,7 @@ This is incredibly important for production deployments.
 
 This is subtle but powerful:
 
-If a user installs a local ONNX GPU model, or an Ollama 70B model, they can raise the weight of the AI detector to make use of it.
+If a user installs a large Ollama model (like 70B), they can raise the weight of the AI detector to make use of it.
 
 If they run on a Raspberry Pi, they can set that weight lower or leave it at default.
 
