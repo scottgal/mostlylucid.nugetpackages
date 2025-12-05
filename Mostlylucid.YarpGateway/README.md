@@ -8,21 +8,35 @@ A lightweight, Docker-first YARP reverse proxy gateway.
 
 ### Zero-Config Mode
 
-Just point to an upstream:
+Just point to an upstream and bot detection works immediately:
 
 ```bash
-docker run -p 8080:8080 -e DEFAULT_UPSTREAM=http://your-backend:3000 scottgal/mostlylucid.yarpgateway
+# Proxy to BBC (canonical example)
+docker run -p 8080:8080 -e DEFAULT_UPSTREAM=https://www.bbc.co.uk scottgal/mostlylucid.yarpgateway
+
+# View bot detection in action
+curl -I http://localhost:8080/
+# Look for X-Bot-* headers in response
 ```
+
+Output:
+```
+[11:23:16 INF] Gateway started on port 8080
+[11:23:20 INF] Bot detection: GET / -> risk=0.74 (High), bot=unknown, policy=default, reasons=[UserAgent:+0.90, Behavioral:+0.25, Header:-0.15], time=1.0ms
+```
+
+Every request is analyzed and logged with a risk score. Use `docker logs -f <container>` to watch in real-time.
 
 ### File-Based Configuration
 
 Mount your YARP config:
 
 ```bash
-docker run -p 8080:8080 \
-  -v ./config:/app/config:ro \
-  -e ADMIN_SECRET=your-secret \
-  scottgal/mostlylucid.yarpgateway
+# Linux/macOS:
+docker run -p 8080:8080 -v ./config:/app/config:ro -e ADMIN_SECRET=your-secret scottgal/mostlylucid.yarpgateway
+
+# Windows PowerShell:
+docker run -p 8080:8080 -v ${PWD}/config:/app/config:ro -e ADMIN_SECRET=your-secret scottgal/mostlylucid.yarpgateway
 ```
 
 ## Configuration
@@ -325,18 +339,150 @@ Configure these in your GitHub repository settings:
 
 ## Bot Detection Integration
 
-YarpGateway uses [Mostlylucid.BotDetection](../Mostlylucid.BotDetection/) for intelligent bot filtering at the edge.
+YarpGateway uses [Mostlylucid.BotDetection](../Mostlylucid.BotDetection/) for intelligent bot filtering at the edge. **Bot detection is enabled by default** and logs all requests with their risk scores.
 
-### Quick Setup
+### What You'll See
 
-Add bot detection with a single line in your configuration:
+When running, the gateway logs bot detection results for every request:
+
+```
+[11:30:00 INF] Bot detection: GET / -> risk=0.37 (Medium), bot=unknown, policy=default, detectors=[FastPathReputation,SecurityTool,UserAgent,Ip,Header,Behavioral], reasons=[UserAgent:-0.20, Header:-0.15, IP:-0.10], time=4.5ms
+[11:30:01 INF] Bot detection: GET / -> risk=0.74 (High), bot=unknown, policy=default, detectors=[FastPathReputation,SecurityTool,UserAgent,Ip,Header,Behavioral], reasons=[UserAgent:+0.90, Behavioral:+0.25, Header:-0.15], time=1.0ms
+```
+
+Response headers provide detailed detection results:
+
+```
+X-Bot-Policy: default
+X-Bot-Risk-Score: 0.736
+X-Bot-Risk-Band: High
+X-Bot-Confidence: 0.330
+X-Bot-Processing-Ms: 0.8
+X-Bot-Action: Allow
+X-Bot-Early-Exit: true
+X-Bot-Verdict: PolicyAllowed
+X-Bot-Ai-Ran: false
+```
+
+### Sample Detection Output
+
+These are real examples from testing with different User-Agents:
+
+**curl (detected as bot):**
+```
+[11:32:21 INF] Bot detection: GET / -> risk=0.63 (High), bot=unknown, policy=default,
+    detectors=[FastPathReputation,SecurityTool,UserAgent,Ip,Header,Behavioral],
+    reasons=[UserAgent:+0.90, Header:-0.15, IP:-0.10], time=2.0ms
+```
+
+**Googlebot (verified crawler):**
+```
+[11:32:51 INF] Bot detection: GET / -> risk=1.00 (Verified), bot=Googlebot, policy=default,
+    detectors=[FastPathReputation,SecurityTool,UserAgent,Ip,Header,Behavioral],
+    reasons=[Behavioral:+0.25, Header:-0.15, IP:-0.10], time=1.7ms
+```
+
+**Scrapy spider:**
+```
+[11:32:58 INF] Bot detection: GET / -> risk=0.74 (High), bot=unknown, policy=default,
+    detectors=[FastPathReputation,SecurityTool,UserAgent,Ip,Header,Behavioral],
+    reasons=[UserAgent:+0.90, Behavioral:+0.25, Header:-0.15], time=2.7ms
+```
+
+**Real browser request (lower risk):**
+```
+[11:32:44 INF] Bot detection: GET / -> risk=0.64 (High), bot=unknown, policy=default,
+    detectors=[FastPathReputation,SecurityTool,UserAgent,Ip,Header,Behavioral],
+    reasons=[Header:+0.50, Behavioral:+0.25, UserAgent:-0.20], time=1.3ms
+```
+
+> Note: Automated tools like curl get flagged because they're missing typical browser headers and behaviors. Real browsers sending all headers will show lower risk scores.
+
+### Risk Bands
+
+| Risk Score | Band | Interpretation |
+|------------|------|----------------|
+| 0.0 - 0.3 | Low | Likely human |
+| 0.3 - 0.5 | Medium | Uncertain, probably human |
+| 0.5 - 0.7 | High | Suspicious, likely bot |
+| 0.7 - 1.0 | VeryHigh | Almost certainly a bot |
+| 1.0 | Verified | Known bot (Googlebot, Bingbot, etc.) |
+
+### Default Configuration
+
+The gateway ships with sensible defaults:
 
 ```json
 {
   "BotDetection": {
-    "Enabled": true,
     "BotThreshold": 0.7,
-    "BlockDetectedBots": true
+    "BlockDetectedBots": false,
+    "LogDetailedReasons": true,
+    "LogAllRequests": true,
+
+    "AiDetection": {
+      "Provider": "Heuristic",
+      "Heuristic": {
+        "Enabled": true,
+        "EnableWeightLearning": true
+      }
+    },
+
+    "ResponseHeaders": {
+      "Enabled": true,
+      "HeaderPrefix": "X-Bot-",
+      "IncludePolicyName": true,
+      "IncludeConfidence": true,
+      "IncludeProcessingTime": true,
+      "IncludeBotName": true
+    },
+
+    "Policies": {
+      "default": {
+        "Description": "Gateway default - fast detection with heuristic",
+        "FastPath": ["FastPathReputation", "UserAgent", "Header", "Ip", "SecurityTool", "Behavioral", "Inconsistency", "VersionAge", "ReputationBias", "Heuristic"],
+        "EarlyExitThreshold": 0.85,
+        "ImmediateBlockThreshold": 0.95
+      }
+    }
+  }
+}
+```
+
+### Quiet Mode (Log Bots Only)
+
+To only log requests that exceed the bot threshold (default 0.7), set:
+
+```json
+{
+  "BotDetection": {
+    "LogAllRequests": false
+  }
+}
+```
+
+Or via environment variable:
+```bash
+# Linux/macOS:
+docker run -p 8080:8080 -e DEFAULT_UPSTREAM=https://www.bbc.co.uk -e BOTDETECTION__LOGALLREQUESTS=false scottgal/mostlylucid.yarpgateway
+
+# Windows PowerShell (use backtick for line continuation):
+docker run -p 8080:8080 `
+  -e DEFAULT_UPSTREAM=https://www.bbc.co.uk `
+  -e BOTDETECTION__LOGALLREQUESTS=false `
+  scottgal/mostlylucid.yarpgateway
+```
+
+### Disable Response Headers
+
+To remove the X-Bot-* headers from responses:
+
+```json
+{
+  "BotDetection": {
+    "ResponseHeaders": {
+      "Enabled": false
+    }
   }
 }
 ```
@@ -460,6 +606,21 @@ Add IP reputation checking (requires free API key from [projecthoneypot.org](htt
 }
 ```
 
+Pass the API key via environment variable (recommended for Docker):
+
+```bash
+# Linux/macOS:
+docker run -p 8080:8080 -e DEFAULT_UPSTREAM=https://www.bbc.co.uk -e BOTDETECTION__PROJECTHONEYPOT__ACCESSKEY=abcdefg12345 scottgal/mostlylucid.yarpgateway
+
+# Windows PowerShell:
+docker run -p 8080:8080 `
+  -e DEFAULT_UPSTREAM=https://www.bbc.co.uk `
+  -e BOTDETECTION__PROJECTHONEYPOT__ACCESSKEY=abcdefg12345 `
+  scottgal/mostlylucid.yarpgateway
+```
+
+Get your free access key at [Project Honeypot API](https://www.projecthoneypot.org/httpbl_api.php).
+
 #### LLM-Powered Detection
 
 For complex cases, escalate to an LLM (requires [Ollama](https://ollama.ai/)):
@@ -501,6 +662,49 @@ For complex cases, escalate to an LLM (requires [Ollama](https://ollama.ai/)):
 | Heuristic AI | <1ms | Weighted feature classification with learning |
 | Project Honeypot | ~100ms | IP reputation via DNS lookup |
 | LLM Escalation | 50-500ms | Full reasoning for edge cases |
+
+### Client-Side Detection (Optional)
+
+For enhanced detection, add the BotDetection JavaScript to your pages. This collects browser fingerprints that the gateway uses for better classification.
+
+**Step 1: Add the JavaScript to your HTML pages:**
+
+```html
+<!-- Add before </body> -->
+<script src="/_botdetection/botdetection.js"></script>
+<script>
+  BotDetection.init({
+    endpoint: '/_botdetection/collect',
+    autoSubmit: true
+  });
+</script>
+```
+
+**Step 2: Enable client-side collection in the gateway:**
+
+```json
+{
+  "BotDetection": {
+    "ClientSide": {
+      "Enabled": true,
+      "CollectBrowserFingerprint": true,
+      "RequireJsProbe": false
+    }
+  }
+}
+```
+
+The JavaScript collects:
+- Canvas fingerprint
+- WebGL renderer
+- Screen resolution and color depth
+- Timezone and language
+- Touch support
+- Plugin list
+
+Requests with valid client-side probes receive a lower risk score (up to -0.3).
+
+**Note:** The gateway serves the JavaScript automatically at `/_botdetection/botdetection.js` when ClientSide detection is enabled.
 
 ### Full Documentation
 

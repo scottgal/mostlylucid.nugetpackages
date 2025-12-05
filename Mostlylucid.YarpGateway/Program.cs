@@ -48,7 +48,8 @@ try
     builder.Services.AddGatewayDatabase(builder.Configuration);
 
     // Add Bot Detection - the core feature of this gateway!
-    builder.Services.AddBotDetection(builder.Configuration);
+    // Uses appsettings.json "BotDetection" section automatically
+    builder.Services.AddBotDetection();
 
     // Add YARP reverse proxy
     builder.Services.AddYarpServices(builder.Configuration);
@@ -63,6 +64,9 @@ try
 
     // Apply database migrations if enabled
     await app.ApplyMigrationsAsync();
+
+    // Routing must be enabled for Bot Detection middleware to resolve endpoints
+    app.UseRouting();
 
     // Admin secret middleware (if configured)
     app.UseAdminSecretMiddleware();

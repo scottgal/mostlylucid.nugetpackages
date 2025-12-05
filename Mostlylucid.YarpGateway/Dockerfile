@@ -5,6 +5,8 @@ WORKDIR /src
 # Copy project files and restore (layer cached if csproj unchanged)
 COPY Mostlylucid.YarpGateway/Mostlylucid.YarpGateway.csproj Mostlylucid.YarpGateway/
 COPY Mostlylucid.BotDetection/Mostlylucid.BotDetection.csproj Mostlylucid.BotDetection/
+# BotDetection.csproj reads ReleaseNotes.txt during restore for PackageReleaseNotes
+COPY Mostlylucid.BotDetection/ReleaseNotes.txt Mostlylucid.BotDetection/
 RUN dotnet restore Mostlylucid.YarpGateway/Mostlylucid.YarpGateway.csproj
 
 # Copy source and publish with optimizations

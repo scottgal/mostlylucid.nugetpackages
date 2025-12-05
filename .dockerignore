@@ -35,9 +35,10 @@ Mostlylucid.LlmSeoMetadata.Test/
 Mostlylucid.SentimentAnalysis/
 Mostlylucid.SentimentAnalysis.Tests/
 
-# Documentation
-**/*.md
+# Documentation (keep README.md at project root for NuGet packages)
 **/docs/
+**/CHANGELOG.md
+**/CONTRIBUTING.md
 
 # Misc
 **/.DS_Store
