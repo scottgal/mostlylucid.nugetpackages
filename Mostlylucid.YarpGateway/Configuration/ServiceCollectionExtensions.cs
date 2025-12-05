@@ -89,6 +89,10 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// Add YARP reverse proxy services.
+    /// Configuration precedence (highest to lowest):
+    /// 1. DEFAULT_UPSTREAM environment variable (zero-config mode)
+    /// 2. YARP config file (yarp.json)
+    /// 3. Empty config (no routes) - logs warning
     /// </summary>
     public static IServiceCollection AddYarpServices(
         this IServiceCollection services,
@@ -96,10 +100,22 @@ public static class ServiceCollectionExtensions
     {
         var proxyBuilder = services.AddReverseProxy();
 
+        // Check for DEFAULT_UPSTREAM first (highest priority - zero-config mode)
+        var defaultUpstream = Environment.GetEnvironmentVariable("DEFAULT_UPSTREAM");
+        if (!string.IsNullOrWhiteSpace(defaultUpstream))
+        {
+            Console.WriteLine($"[YarpGateway] Using DEFAULT_UPSTREAM: {defaultUpstream}");
+            // Create in-memory config provider for catch-all routing
+            services.AddSingleton<IProxyConfigProvider>(sp =>
+                new DefaultUpstreamConfigProvider(defaultUpstream));
+            return services;
+        }
+
         // Try to load from YARP config file
         var yarpConfigPath = GatewayPaths.YarpConfig;
         if (File.Exists(yarpConfigPath))
         {
+            Console.WriteLine($"[YarpGateway] Loading routes from config file: {yarpConfigPath}");
             var yarpConfig = new ConfigurationBuilder()
                 .AddJsonFile(yarpConfigPath, optional: true, reloadOnChange: true)
                 .Build();
@@ -108,19 +124,20 @@ public static class ServiceCollectionExtensions
         }
         else
         {
-            // Check for default upstream
-            var defaultUpstream = Environment.GetEnvironmentVariable("DEFAULT_UPSTREAM");
-            if (!string.IsNullOrWhiteSpace(defaultUpstream))
-            {
-                // Create in-memory config provider
-                services.AddSingleton<IProxyConfigProvider>(sp =>
-                    new DefaultUpstreamConfigProvider(defaultUpstream));
-            }
-            else
-            {
-                // No config - use empty provider
-                services.AddSingleton<IProxyConfigProvider, EmptyConfigProvider>();
-            }
+            // No config - log warning and use empty provider
+            Console.WriteLine("┌─────────────────────────────────────────────────────────────────┐");
+            Console.WriteLine("│ WARNING: No proxy routes configured!                            │");
+            Console.WriteLine("│                                                                 │");
+            Console.WriteLine("│ To configure routes, either:                                    │");
+            Console.WriteLine("│   1. Set DEFAULT_UPSTREAM env var for catch-all routing:       │");
+            Console.WriteLine("│      -e DEFAULT_UPSTREAM=http://your-backend:3000              │");
+            Console.WriteLine("│                                                                 │");
+            Console.WriteLine("│   2. Mount a YARP config file:                                  │");
+            Console.WriteLine("│      -v ./config:/app/config:ro                                 │");
+            Console.WriteLine("│                                                                 │");
+            Console.WriteLine("│ The gateway will respond with 404 for all requests.            │");
+            Console.WriteLine("└─────────────────────────────────────────────────────────────────┘");
+            services.AddSingleton<IProxyConfigProvider, EmptyConfigProvider>();
         }
 
         return services;

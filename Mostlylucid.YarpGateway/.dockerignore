@@ -14,3 +14,5 @@
 **/*.md
 **/logs
 **/data
+# Exclude example config - users should mount their own or use DEFAULT_UPSTREAM
+config/
