@@ -333,7 +333,16 @@ public static class ServiceCollectionExtensions
 
         // Register pattern reputation system (learning + forgetting)
         services.TryAddSingleton<PatternReputationUpdater>();
-        services.TryAddSingleton<IPatternReputationCache, InMemoryPatternReputationCache>();
+
+        // Use ephemeral-based reputation cache for better observability and hot-key tracking
+        // Falls back to InMemoryPatternReputationCache if ephemeral is not available
+        services.TryAddSingleton<IPatternReputationCache>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<EphemeralPatternReputationCache>>();
+            var updater = sp.GetRequiredService<PatternReputationUpdater>();
+            return new EphemeralPatternReputationCache(logger, updater);
+        });
+
         services.AddSingleton<ILearningEventHandler, ReputationMaintenanceService>();
         services.AddHostedService<ReputationMaintenanceService>();
 
@@ -341,8 +350,9 @@ public static class ServiceCollectionExtensions
         // Blackboard Orchestrator (event-driven, parallel detection)
         // ==========================================
 
-        // Register the blackboard orchestrator
+        // Register both orchestrators - ephemeral for new architecture, blackboard for compatibility
         services.TryAddSingleton<BlackboardOrchestrator>();
+        services.TryAddSingleton<EphemeralDetectionOrchestrator>();
 
         // Register contributing detectors (new architecture)
         // These emit evidence, not verdicts - the orchestrator aggregates

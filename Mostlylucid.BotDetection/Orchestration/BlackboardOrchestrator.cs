@@ -63,6 +63,137 @@ public class OrchestratorOptions
     ///     Default: 10
     /// </summary>
     public int MaxParallelDetectors { get; set; } = 10;
+
+    // ==========================================
+    // Quorum Settings (for early exit optimization)
+    // ==========================================
+
+    /// <summary>
+    ///     Enable quorum-based early exit.
+    ///     When enabled, detection can exit early if enough detectors agree on a verdict.
+    ///     Default: true
+    /// </summary>
+    public bool EnableQuorumExit { get; set; } = true;
+
+    /// <summary>
+    ///     Minimum number of detectors that must complete before making a verdict.
+    ///     Prevents false positives from a single detector.
+    ///     Default: 3
+    /// </summary>
+    public int MinDetectorsForVerdict { get; set; } = 3;
+
+    /// <summary>
+    ///     Quorum timeout - maximum time to wait for MinDetectorsForVerdict.
+    ///     After this, use whatever evidence is available.
+    ///     Default: 100ms
+    /// </summary>
+    public TimeSpan QuorumTimeout { get; set; } = TimeSpan.FromMilliseconds(100);
+
+    /// <summary>
+    ///     Bot probability threshold for quorum "definitely bot" consensus.
+    ///     If average score across quorum exceeds this, exit early as bot.
+    ///     Default: 0.75
+    /// </summary>
+    public double QuorumBotThreshold { get; set; } = 0.75;
+
+    /// <summary>
+    ///     Bot probability threshold for quorum "definitely human" consensus.
+    ///     If average score across quorum is below this, exit early as human.
+    ///     Default: 0.25
+    /// </summary>
+    public double QuorumHumanThreshold { get; set; } = 0.25;
+
+    /// <summary>
+    ///     Number of detectors that must agree on "uncertain" (0.4-0.6) to escalate to AI.
+    ///     Default: 3
+    /// </summary>
+    public int UncertainQuorumForAiEscalation { get; set; } = 3;
+
+    // ==========================================
+    // Ephemeral Signal Sink Settings
+    // ==========================================
+
+    /// <summary>
+    ///     Maximum signals to retain in the global signal sink.
+    ///     Higher values = more observability, more memory.
+    ///     Default: 5000
+    /// </summary>
+    public int SignalSinkMaxCapacity { get; set; } = 5000;
+
+    /// <summary>
+    ///     Maximum age for signals in the global sink before eviction.
+    ///     Default: 5 minutes
+    /// </summary>
+    public TimeSpan SignalSinkMaxAge { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    ///     Maximum capacity for contribution (typed payload) signal sink.
+    ///     Default: 1000
+    /// </summary>
+    public int ContributionSignalSinkMaxCapacity { get; set; } = 1000;
+
+    /// <summary>
+    ///     Maximum age for contribution signals.
+    ///     Default: 5 minutes
+    /// </summary>
+    public TimeSpan ContributionSignalSinkMaxAge { get; set; } = TimeSpan.FromMinutes(5);
+
+    // ==========================================
+    // Ephemeral Circuit Breaker Settings (Decaying)
+    // ==========================================
+
+    /// <summary>
+    ///     Maximum entries in the circuit breaker decay window.
+    ///     Default: 100 (one per detector)
+    /// </summary>
+    public int CircuitBreakerMaxEntries { get; set; } = 100;
+
+    /// <summary>
+    ///     Score reduction on success (negative = heals faster).
+    ///     Default: -2.0
+    /// </summary>
+    public double CircuitBreakerSuccessHealAmount { get; set; } = -2.0;
+
+    /// <summary>
+    ///     Score increase on failure.
+    ///     Default: 1.0
+    /// </summary>
+    public double CircuitBreakerFailurePenalty { get; set; } = 1.0;
+
+    /// <summary>
+    ///     Half-open threshold multiplier. Circuit transitions to half-open
+    ///     when score is between Threshold and Threshold * this value.
+    ///     Default: 1.5
+    /// </summary>
+    public double CircuitBreakerHalfOpenMultiplier { get; set; } = 1.5;
+
+    // ==========================================
+    // Ephemeral Work Coordinator Settings
+    // ==========================================
+
+    /// <summary>
+    ///     Maximum tracked operations per wave (operations * this multiplier).
+    ///     Default: 2
+    /// </summary>
+    public int EphemeralTrackedOperationsMultiplier { get; set; } = 2;
+
+    /// <summary>
+    ///     Maximum operation lifetime in ephemeral coordinator.
+    ///     Default: 30 seconds
+    /// </summary>
+    public TimeSpan EphemeralMaxOperationLifetime { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    ///     Per-request signal sink capacity.
+    ///     Default: 200
+    /// </summary>
+    public int RequestSignalSinkCapacity { get; set; } = 200;
+
+    /// <summary>
+    ///     Per-request signal sink max age.
+    ///     Default: 30 seconds
+    /// </summary>
+    public TimeSpan RequestSignalSinkMaxAge { get; set; } = TimeSpan.FromSeconds(30);
 }
 
 /// <summary>

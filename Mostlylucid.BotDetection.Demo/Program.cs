@@ -4,13 +4,30 @@ using Mostlylucid.BotDetection.ClientSide;
 using Mostlylucid.BotDetection.Extensions;
 using Mostlylucid.BotDetection.Filters;
 using Mostlylucid.BotDetection.Middleware;
+using Mostlylucid.GeoDetection.Contributor.Extensions;
+using Mostlylucid.GeoDetection.Extensions;
 using mostlylucid.mockllmapi;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add geo-location services for geo-based bot detection
+// Uses simple service by default - can configure MaxMind or other providers
+builder.Services.AddGeoRoutingSimple();
+
 // Add bot detection - configuration from appsettings.json
 // Full detection mode is enabled via the "full-log" ActionPolicy in config
 builder.Services.AddBotDetection();
+
+// Add geo-detection contributor for geo-based bot signals
+// Enables bot origin verification (e.g., Googlebot should come from US)
+// and geo-inconsistency detection (e.g., browser locale vs IP location)
+builder.Services.AddGeoDetectionContributor(options =>
+{
+    options.EnableBotVerification = true;
+    options.EnableInconsistencyDetection = true;
+    options.FlagHostingIps = true;
+    options.FlagVpnIps = false; // Don't flag VPNs by default
+});
 
 // Add ApiHolodeck for honeypot detection and bot redirection
 // Configuration from BotDetection:Holodeck section in appsettings.json

@@ -86,7 +86,48 @@ public class ShapeBuilder : IShapeBuilder
     {
         ["petstore"] = "https://petstore.swagger.io/v2/swagger.json",
         ["github"] = "https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json",
-        ["stripe"] = "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json"
+        ["stripe"] = "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json",
+        // Built-in holodeck schemas (embedded resources)
+        ["inventory"] = "embedded:inventory-openapi.json",
+        ["ecommerce"] = "embedded:ecommerce-openapi.json",
+        ["crm"] = "embedded:crm-openapi.json"
+    };
+
+    // API domain patterns for detection
+    private static readonly Dictionary<string, (string schemaKey, ApiSimulationType type)> DomainPatterns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Inventory/Warehouse patterns
+        ["inventory"] = ("inventory", ApiSimulationType.OpenApi),
+        ["warehouse"] = ("inventory", ApiSimulationType.OpenApi),
+        ["stock"] = ("inventory", ApiSimulationType.OpenApi),
+        ["sku"] = ("inventory", ApiSimulationType.OpenApi),
+        ["transfers"] = ("inventory", ApiSimulationType.OpenApi),
+
+        // E-commerce patterns
+        ["products"] = ("ecommerce", ApiSimulationType.OpenApi),
+        ["cart"] = ("ecommerce", ApiSimulationType.OpenApi),
+        ["checkout"] = ("ecommerce", ApiSimulationType.OpenApi),
+        ["orders"] = ("ecommerce", ApiSimulationType.OpenApi),
+        ["shop"] = ("ecommerce", ApiSimulationType.OpenApi),
+        ["catalog"] = ("ecommerce", ApiSimulationType.OpenApi),
+
+        // CRM patterns
+        ["contacts"] = ("crm", ApiSimulationType.OpenApi),
+        ["deals"] = ("crm", ApiSimulationType.OpenApi),
+        ["leads"] = ("crm", ApiSimulationType.OpenApi),
+        ["pipeline"] = ("crm", ApiSimulationType.OpenApi),
+        ["companies"] = ("crm", ApiSimulationType.OpenApi),
+        ["activities"] = ("crm", ApiSimulationType.OpenApi),
+
+        // HR/Employee patterns (GraphQL)
+        ["employees"] = ("employee-graphql", ApiSimulationType.GraphQL),
+        ["employee"] = ("employee-graphql", ApiSimulationType.GraphQL),
+        ["hr"] = ("employee-graphql", ApiSimulationType.GraphQL),
+        ["departments"] = ("employee-graphql", ApiSimulationType.GraphQL),
+        ["payroll"] = ("employee-graphql", ApiSimulationType.GraphQL),
+        ["leave"] = ("employee-graphql", ApiSimulationType.GraphQL),
+        ["timesheet"] = ("employee-graphql", ApiSimulationType.GraphQL),
+        ["performance"] = ("employee-graphql", ApiSimulationType.GraphQL)
     };
 
     public ShapeBuilder(
@@ -181,18 +222,18 @@ public class ShapeBuilder : IShapeBuilder
             };
         }
 
-        // Check for known API patterns to suggest OpenAPI specs
-        var openApiMatch = MatchKnownApiPattern(path);
-        if (openApiMatch != null)
+        // Check for known API patterns to suggest OpenAPI/GraphQL specs
+        var apiMatch = MatchKnownApiPattern(path);
+        if (apiMatch != null)
         {
             return new ShapeAnalysisResult
             {
-                SimulationType = ApiSimulationType.OpenApi,
-                Shape = openApiMatch.Value.shape,
-                OpenApiSpecUrl = openApiMatch.Value.specUrl,
-                ContentType = "application/json",
-                Confidence = 0.8,
-                Reasoning = $"Matched known API pattern: {openApiMatch.Value.shape}"
+                SimulationType = apiMatch.Value.type,
+                Shape = apiMatch.Value.shape,
+                OpenApiSpecUrl = apiMatch.Value.specUrl,
+                ContentType = apiMatch.Value.type == ApiSimulationType.GraphQL ? "application/json" : "application/json",
+                Confidence = 0.85,
+                Reasoning = $"Matched {apiMatch.Value.type} pattern: {apiMatch.Value.shape}"
             };
         }
 
@@ -209,28 +250,41 @@ public class ShapeBuilder : IShapeBuilder
         };
     }
 
-    private (string shape, string specUrl)? MatchKnownApiPattern(string path)
+    private (string shape, string specUrl, ApiSimulationType type)? MatchKnownApiPattern(string path)
     {
         // Check configured custom OpenAPI specs first
         foreach (var (pattern, specUrl) in _options.OpenApiSpecs)
         {
             if (path.Contains(pattern, StringComparison.OrdinalIgnoreCase))
             {
-                return (pattern, specUrl);
+                return (pattern, specUrl, ApiSimulationType.OpenApi);
             }
         }
 
-        // Check well-known patterns
+        // Check domain patterns for built-in schemas
+        var pathLower = path.ToLowerInvariant();
+        foreach (var (keyword, (schemaKey, simType)) in DomainPatterns)
+        {
+            if (pathLower.Contains(keyword))
+            {
+                var specUrl = KnownOpenApiSpecs.TryGetValue(schemaKey, out var url)
+                    ? url
+                    : $"embedded:{schemaKey}.json";
+                return (schemaKey, specUrl, simType);
+            }
+        }
+
+        // Check well-known external patterns
         if (path.Contains("/pets", StringComparison.OrdinalIgnoreCase) ||
             path.Contains("/pet/", StringComparison.OrdinalIgnoreCase))
         {
-            return ("petstore", KnownOpenApiSpecs["petstore"]);
+            return ("petstore", KnownOpenApiSpecs["petstore"], ApiSimulationType.OpenApi);
         }
 
         if (path.Contains("/repos/", StringComparison.OrdinalIgnoreCase) ||
-            path.Contains("/users/", StringComparison.OrdinalIgnoreCase) && path.Contains("github"))
+            (path.Contains("/users/", StringComparison.OrdinalIgnoreCase) && path.Contains("github")))
         {
-            return ("github", KnownOpenApiSpecs["github"]);
+            return ("github", KnownOpenApiSpecs["github"], ApiSimulationType.OpenApi);
         }
 
         return null;
