@@ -350,6 +350,9 @@ public static class ServiceCollectionExtensions
         // Blackboard Orchestrator (event-driven, parallel detection)
         // ==========================================
 
+        // Register cross-request signature coordinator (singleton - tracks across all requests)
+        services.TryAddSingleton<SignatureCoordinator>();
+
         // Register both orchestrators - ephemeral for new architecture, blackboard for compatibility
         services.TryAddSingleton<BlackboardOrchestrator>();
         services.TryAddSingleton<EphemeralDetectionOrchestrator>();
@@ -369,6 +372,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IContributingDetector, ClientSideContributor>();
         // Security tool detection - runs early with UA analysis
         services.AddSingleton<IContributingDetector, SecurityToolContributor>();
+        // Cache behavior analysis - runs early alongside behavioral
+        services.AddSingleton<IContributingDetector, CacheBehaviorContributor>();
+        // Advanced behavioral pattern detection - runs after basic behavioral
+        services.AddSingleton<IContributingDetector, AdvancedBehavioralContributor>();
         // Wave 1+ detectors (triggered by signals from Wave 0)
         services.AddSingleton<IContributingDetector, VersionAgeContributor>();
         services.AddSingleton<IContributingDetector, InconsistencyContributor>();
@@ -383,6 +390,13 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IContributingDetector, LlmContributor>();
         // Heuristic late - runs AFTER AI (or after all static if no AI), consumes all evidence
         services.AddSingleton<IContributingDetector, HeuristicLateContributor>();
+
+        // ==========================================
+        // Background Services
+        // ==========================================
+
+        // Anomaly saver - writes detection events to rolling JSON files (opt-in)
+        services.AddHostedService<Persistence.AnomalySaverService>();
 
         // ==========================================
         // Policy System (path-based detection workflows)

@@ -298,4 +298,21 @@ public static partial class SignalKeys
 
     /// <summary>Boolean: true if fast-path reputation check found a confirmed pattern (good or bad)</summary>
     public const string ReputationFastPathHit = "reputation.fastpath_hit";
+
+    // ==========================================
+    // Cache behavior signals
+    // Set by CacheBehaviorContributor when analyzing caching patterns
+    // ==========================================
+
+    /// <summary>Boolean: true if cache validation headers (If-None-Match, If-Modified-Since) are missing</summary>
+    public const string CacheValidationMissing = "cache.validation_missing";
+
+    /// <summary>Boolean: true if client supports compression (gzip, br)</summary>
+    public const string CompressionSupported = "cache.compression_supported";
+
+    /// <summary>Boolean: true if rapid repeated requests for same resource detected</summary>
+    public const string RapidRepeatedRequest = "cache.rapid_repeated";
+
+    /// <summary>Boolean: true if overall cache behavior patterns are anomalous</summary>
+    public const string CacheBehaviorAnomaly = "cache.behavior_anomaly";
 }

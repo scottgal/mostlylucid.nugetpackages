@@ -43,7 +43,8 @@
       "Bash(cd:*)",
       "Bash(dotnet add:*)",
       "WebFetch(domain:www.nuget.org)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(dotnet nuget:*)"
     ],
     "deny": [],
     "ask": []

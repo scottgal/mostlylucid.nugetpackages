@@ -58,18 +58,31 @@ public class BehavioralDetector : IDetector
         var identities = GetIdentityKeys(context, ipAddress);
         var currentTime = DateTime.UtcNow;
 
+        // ===== Session warmup tracking (avoid false positives on first load) =====
+        var sessionKey = $"bot_detect_session_{ipAddress}";
+        var sessionAge = GetOrCreateSessionAge(sessionKey);
+        var isWarmingUp = sessionAge.TotalMinutes < 2; // First 2 minutes is warmup
+
         // ===== Rate Limiting (per-IP) =====
         var requestCount = IncrementRequestCount(ipAddress);
-        if (requestCount > _options.MaxRequestsPerMinute)
+
+        // Apply lenient threshold during warmup (normal browser startup)
+        // Browsers often make 5-15 rapid requests on initial page load (HTML + CSS + JS + images)
+        var effectiveLimit = isWarmingUp
+            ? _options.MaxRequestsPerMinute * 2
+            : _options.MaxRequestsPerMinute;
+
+        if (requestCount > effectiveLimit)
         {
-            var excess = requestCount - _options.MaxRequestsPerMinute;
+            var excess = requestCount - effectiveLimit;
             var impact = Math.Min(0.3 + excess * 0.05, 0.9);
             confidence += impact;
             reasons.Add(new DetectionReason
             {
                 Category = "Behavioral",
-                Detail =
-                    $"Excessive request rate: {requestCount} requests/min (limit: {_options.MaxRequestsPerMinute})",
+                Detail = isWarmingUp
+                    ? $"Excessive request rate during warmup: {requestCount} requests/min (warmup limit: {effectiveLimit})"
+                    : $"Excessive request rate: {requestCount} requests/min (limit: {effectiveLimit})",
                 ConfidenceImpact = impact
             });
         }
@@ -181,14 +194,22 @@ public class BehavioralDetector : IDetector
         if (lastRequestTime.HasValue)
         {
             var timeSinceLastRequest = (currentTime - lastRequestTime.Value).TotalMilliseconds;
-            if (timeSinceLastRequest < 100) // Less than 100ms between requests
+
+            // During warmup, allow rapid parallel requests (browser loading resources)
+            // But still flag sub-50ms as suspicious (likely automated)
+            var rapidThreshold = isWarmingUp ? 50.0 : 100.0;
+
+            if (timeSinceLastRequest < rapidThreshold)
             {
-                confidence += 0.4;
+                var impact = timeSinceLastRequest < 50 ? 0.4 : 0.25;
+                confidence += impact;
                 reasons.Add(new DetectionReason
                 {
                     Category = "Behavioral",
-                    Detail = $"Extremely fast requests: {timeSinceLastRequest:F0}ms between requests",
-                    ConfidenceImpact = 0.4
+                    Detail = isWarmingUp
+                        ? $"Extremely fast requests during warmup: {timeSinceLastRequest:F0}ms between requests"
+                        : $"Extremely fast requests: {timeSinceLastRequest:F0}ms between requests",
+                    ConfidenceImpact = impact
                 });
             }
         }
@@ -198,9 +219,11 @@ public class BehavioralDetector : IDetector
         // ===== Session Consistency Checks =====
 
         // Check for no referrer on non-initial requests
-        if (!context.Request.Headers.ContainsKey("Referer") &&
+        // Skip during warmup as initial page load doesn't have referrer
+        if (!isWarmingUp &&
+            !context.Request.Headers.ContainsKey("Referer") &&
             context.Request.Path != "/" &&
-            requestCount > 1)
+            requestCount > 3) // Increased threshold
         {
             confidence += 0.15;
             reasons.Add(new DetectionReason
@@ -212,7 +235,8 @@ public class BehavioralDetector : IDetector
         }
 
         // Check for missing cookies (bots often don't maintain sessions)
-        if (!context.Request.Cookies.Any() && requestCount > 2)
+        // Skip during warmup - cookies are set after first response
+        if (!isWarmingUp && !context.Request.Cookies.Any() && requestCount > 5)
         {
             confidence += 0.25;
             reasons.Add(new DetectionReason
@@ -448,5 +472,20 @@ public class BehavioralDetector : IDetector
         }
 
         return (false, string.Empty);
+    }
+
+    /// <summary>
+    ///     Get or create session age to track warmup period.
+    ///     Returns how long ago this session started.
+    /// </summary>
+    private TimeSpan GetOrCreateSessionAge(string sessionKey)
+    {
+        var sessionStart = _cache.GetOrCreate(sessionKey, entry =>
+        {
+            entry.SlidingExpiration = TimeSpan.FromMinutes(30); // Keep session tracking for 30 min
+            return DateTime.UtcNow;
+        });
+
+        return DateTime.UtcNow - sessionStart;
     }
 }

@@ -193,6 +193,12 @@ public class BotDetectionOptions
     public BehavioralOptions Behavioral { get; set; } = new();
 
     /// <summary>
+    ///     Anomaly saver configuration - writes bot detection events to rolling JSON files.
+    ///     Disabled by default for privacy/storage reasons.
+    /// </summary>
+    public AnomalySaverOptions AnomalySaver { get; set; } = new();
+
+    /// <summary>
     ///     Browser and OS version age detection configuration.
     ///     Detects bots using outdated or impossible browser/OS combinations.
     /// </summary>
@@ -296,6 +302,12 @@ public class BotDetectionOptions
     ///     Controls wave-based parallel execution, circuit breakers, and resilience.
     /// </summary>
     public OrchestratorOptions Orchestrator { get; set; } = new();
+
+    /// <summary>
+    ///     Configuration for the cross-request signature coordinator.
+    ///     Tracks signatures across multiple requests to detect aberrant behavior patterns.
+    /// </summary>
+    public SignatureCoordinatorOptions SignatureCoordinator { get; set; } = new();
 
     // ==========================================
     // Pattern Learning Settings (Legacy - use Reputation instead)
@@ -1293,6 +1305,237 @@ public class BehavioralOptions
     ///     Default: 0.8
     /// </summary>
     public double NewPathAnomalyThreshold { get; set; } = 0.8;
+
+    /// <summary>
+    ///     Analysis window length for behavioral pattern detection.
+    ///     Determines how far back to look when analyzing request patterns, entropy, and sequences.
+    ///     This translates to the ephemeral tracking length for pattern analysis.
+    ///     Default: 15 minutes
+    /// </summary>
+    public TimeSpan AnalysisWindow { get; set; } = TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    ///     Enable advanced pattern detection (entropy analysis, Markov chains, time-series anomaly detection).
+    ///     Requires MathNet.Numerics for statistical analysis.
+    ///     Default: true
+    /// </summary>
+    public bool EnableAdvancedPatternDetection { get; set; } = true;
+
+    /// <summary>
+    ///     Minimum number of requests required before performing statistical pattern analysis.
+    ///     Default: 10
+    /// </summary>
+    public int MinRequestsForPatternAnalysis { get; set; } = 10;
+
+    /// <summary>
+    ///     Salt for identity hashing in pattern analysis.
+    ///     This allows sharing hashed behavioral data across deployments using the same salt.
+    ///     IMPORTANT: Keep this secret! Changing it will reset all behavioral tracking.
+    ///     Default: Random GUID (generated per deployment)
+    /// </summary>
+    public string IdentityHashSalt { get; set; } = Guid.NewGuid().ToString();
+}
+
+// ==========================================
+// Anomaly Saver Configuration
+// ==========================================
+
+/// <summary>
+///     Configuration for the anomaly saver - writes bot detection events to rolling JSON files.
+///     Uses ephemeral batching atoms for efficient I/O and automatic backpressure handling.
+/// </summary>
+/// <remarks>
+///     <para>
+///         The anomaly saver is a background service that captures bot detection events
+///         and writes them to timestamped JSON files for auditing, analysis, and ML training.
+///     </para>
+///     <para>
+///         <b>Output Format:</b> Each line is a complete JSON object (newline-delimited JSON).
+///         This format is easy to parse, stream-friendly, and compatible with most log analysis tools.
+///     </para>
+///     <para>
+///         <b>Rolling Strategy:</b> Files are automatically rolled based on time interval or size.
+///         Old files are automatically cleaned up based on retention policy.
+///     </para>
+///     <para>
+///         <b>Performance:</b> Uses BatchingAtom to buffer events in memory and write in batches,
+///         minimizing I/O overhead and preventing disk contention.
+///     </para>
+/// </remarks>
+/// <example>
+/// Example configuration in appsettings.json:
+/// <code>
+/// {
+///   "BotDetection": {
+///     "AnomalySaver": {
+///       "Enabled": true,
+///       "OutputPath": "./logs/bot-detections.jsonl",
+///       "MinBotProbabilityThreshold": 0.7,
+///       "BatchSize": 50,
+///       "FlushInterval": "00:00:05",
+///       "RollingInterval": "01:00:00",
+///       "MaxFileSizeBytes": 10485760,
+///       "RetentionDays": 30
+///     }
+///   }
+/// }
+/// </code>
+///
+/// Example output (one JSON object per line):
+/// <code>
+/// {"timestamp":"2025-12-08T20:00:00Z","requestId":"abc123","botProbability":0.85,"isBot":true,"riskBand":"High","userAgent":"curl/7.68.0","ipAddress":"192.168.1.100","path":"/api/data","processingTimeMs":123.45,"contributingDetectors":["UserAgent","Behavioral"],"categoryBreakdown":{...}}
+/// {"timestamp":"2025-12-08T20:00:01Z","requestId":"def456","botProbability":0.92,"isBot":true,"riskBand":"VeryHigh","userAgent":"python-requests/2.28.0","ipAddress":"10.0.0.50","path":"/scrape","processingTimeMs":89.12,"contributingDetectors":["UserAgent","IP","Behavioral"],"categoryBreakdown":{...}}
+/// </code>
+/// </example>
+public class AnomalySaverOptions
+{
+    /// <summary>
+    ///     Enable or disable the anomaly saver background service.
+    ///     When disabled, no detection events are written to files.
+    ///     Default: false (opt-in for privacy/storage reasons)
+    /// </summary>
+    /// <remarks>
+    ///     Enable this only when you need audit logs, analysis data, or ML training datasets.
+    ///     Be aware that this will write request metadata (IP, User-Agent, paths) to disk.
+    /// </remarks>
+    public bool Enabled { get; set; } = false;
+
+    /// <summary>
+    ///     Output file path for detection events.
+    ///     Supports absolute or relative paths. Parent directory will be created if it doesn't exist.
+    ///     Files are automatically timestamped when rolled (e.g., "bot-detections-20251208-143022.jsonl").
+    ///     Default: "./logs/bot-detections.jsonl"
+    /// </summary>
+    /// <remarks>
+    ///     <b>File Format:</b> .jsonl extension is recommended (newline-delimited JSON).
+    ///     Each line is a complete, valid JSON object for easy streaming and parsing.
+    ///
+    ///     <b>Recommended Paths:</b>
+    ///     - Development: "./logs/bot-detections.jsonl"
+    ///     - Production: "/var/log/botdetection/detections.jsonl" (Linux)
+    ///     - Production: "C:\\Logs\\BotDetection\\detections.jsonl" (Windows)
+    ///     - Docker: "/app/logs/bot-detections.jsonl" (mount volume)
+    /// </remarks>
+    public string OutputPath { get; set; } = "./logs/bot-detections.jsonl";
+
+    /// <summary>
+    ///     Minimum bot probability threshold for saving events.
+    ///     Only detections with botProbability >= this value are written to file.
+    ///     Range: 0.0 to 1.0
+    ///     Default: 0.5 (save medium-confidence and above)
+    /// </summary>
+    /// <remarks>
+    ///     <b>Recommended Values:</b>
+    ///     - 0.0 = Save all detections (including likely humans) - useful for ML training with balanced dataset
+    ///     - 0.5 = Save medium-confidence and above - good for auditing borderline cases
+    ///     - 0.7 = Save high-confidence bots only - reduces file size, focuses on clear bot traffic
+    ///     - 0.9 = Save very-high-confidence only - minimal storage, captures only obvious bots
+    ///
+    ///     Lower thresholds = more data for ML training, higher storage costs.
+    ///     Higher thresholds = focused audit trail, lower storage costs.
+    /// </remarks>
+    public double MinBotProbabilityThreshold { get; set; } = 0.5;
+
+    /// <summary>
+    ///     Number of detection events to batch before writing to file.
+    ///     Uses ephemeral BatchingAtom for efficient I/O.
+    ///     Default: 50 events
+    /// </summary>
+    /// <remarks>
+    ///     <b>Performance Tradeoff:</b>
+    ///     - Larger batches = fewer file writes, better throughput, but longer delay before flush
+    ///     - Smaller batches = more file writes, lower throughput, but near-realtime logging
+    ///
+    ///     <b>Recommended Values:</b>
+    ///     - Low traffic (&lt;100 req/min): 10-25 events
+    ///     - Medium traffic (100-1000 req/min): 50-100 events
+    ///     - High traffic (&gt;1000 req/min): 100-500 events
+    ///
+    ///     Events are also flushed on FlushInterval timeout, so batch size is a maximum, not a requirement.
+    /// </remarks>
+    public int BatchSize { get; set; } = 50;
+
+    /// <summary>
+    ///     Maximum time to wait before flushing batched events to file, even if batch is not full.
+    ///     Ensures events don't sit in memory indefinitely during low traffic.
+    ///     Default: 5 seconds
+    /// </summary>
+    /// <remarks>
+    ///     <b>Use Cases:</b>
+    ///     - Short interval (1-5s): Near-realtime logging, good for debugging and monitoring
+    ///     - Medium interval (10-30s): Balanced approach for production
+    ///     - Long interval (60s+): Maximize batching efficiency, acceptable for background analysis
+    ///
+    ///     Events are guaranteed to be written within this interval OR when batch size is reached,
+    ///     whichever comes first.
+    /// </remarks>
+    public TimeSpan FlushInterval { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    ///     Time interval after which to roll (create new) file.
+    ///     Files are timestamped when rolled (e.g., "bot-detections-20251208-143022.jsonl").
+    ///     Default: 1 hour
+    /// </summary>
+    /// <remarks>
+    ///     <b>Rolling Strategy:</b>
+    ///     Files roll when EITHER the time interval elapses OR max file size is reached.
+    ///
+    ///     <b>Recommended Values:</b>
+    ///     - Hourly (01:00:00): Good for high-traffic sites, manageable file sizes
+    ///     - Daily (1.00:00:00): Common for production, aligns with log rotation tools
+    ///     - Weekly (7.00:00:00): Low-traffic sites, reduces file proliferation
+    ///
+    ///     <b>File Naming:</b>
+    ///     Original: "bot-detections.jsonl"
+    ///     Rolled: "bot-detections-20251208-143022.jsonl" (timestamp = UTC)
+    /// </remarks>
+    public TimeSpan RollingInterval { get; set; } = TimeSpan.FromHours(1);
+
+    /// <summary>
+    ///     Maximum file size in bytes before rolling to a new file.
+    ///     Set to 0 to disable size-based rolling (time-based only).
+    ///     Default: 10 MB (10485760 bytes)
+    /// </summary>
+    /// <remarks>
+    ///     <b>Size Guidelines:</b>
+    ///     - 1 MB = ~5,000-10,000 detection events (depends on metadata size)
+    ///     - 10 MB = ~50,000-100,000 detection events (Default)
+    ///     - 100 MB = ~500,000-1,000,000 detection events
+    ///     - 1 GB = ~5-10 million detection events
+    ///
+    ///     <b>Recommended Values:</b>
+    ///     - Development: 1-10 MB (small, easy to inspect)
+    ///     - Production: 10-100 MB (balance between file count and individual file size)
+    ///     - High-traffic: 100 MB - 1 GB (minimize file proliferation)
+    ///     - Disabled (0): Only roll on time interval
+    ///
+    ///     Files are rolled when size is exceeded, even if RollingInterval hasn't elapsed.
+    /// </remarks>
+    public long MaxFileSizeBytes { get; set; } = 10 * 1024 * 1024; // 10 MB
+
+    /// <summary>
+    ///     Number of days to retain old rolled files before automatic deletion.
+    ///     Set to 0 or negative to disable automatic cleanup (files kept indefinitely).
+    ///     Default: 30 days
+    /// </summary>
+    /// <remarks>
+    ///     <b>Storage Management:</b>
+    ///     Old files are automatically deleted when a new file is rolled.
+    ///     Files older than (DateTime.UtcNow - RetentionDays) are removed.
+    ///
+    ///     <b>Recommended Values:</b>
+    ///     - 7 days: Short-term audit trail, minimal storage
+    ///     - 30 days: Standard retention for compliance/debugging
+    ///     - 90 days: Extended retention for trend analysis
+    ///     - 365 days: Long-term retention for ML training datasets
+    ///     - 0 or -1: No automatic cleanup (manual management required)
+    ///
+    ///     <b>WARNING:</b> Ensure sufficient disk space for the retention period.
+    ///     Estimate: (events/day) * (avg_event_size_bytes) * RetentionDays
+    ///
+    ///     Example: 100K events/day * 200 bytes/event * 30 days ≈ 600 MB
+    /// </remarks>
+    public int RetentionDays { get; set; } = 30;
 }
 
 // ==========================================

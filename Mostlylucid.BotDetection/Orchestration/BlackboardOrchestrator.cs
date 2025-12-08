@@ -59,10 +59,22 @@ public class OrchestratorOptions
     public bool EnableParallelExecution { get; set; } = true;
 
     /// <summary>
-    ///     Maximum parallel detectors per wave.
+    ///     Maximum parallel detectors per wave (global limit across all waves).
+    ///     This acts as a global ceiling - individual waves can't exceed this.
+    ///     Set to 1 for fully sequential execution.
     ///     Default: 10
     /// </summary>
     public int MaxParallelDetectors { get; set; } = 10;
+
+    /// <summary>
+    ///     Per-wave parallelism overrides. Allows fine-tuning parallelism by wave number.
+    ///     Key: Wave number (0-based), Value: Max parallelism for that wave.
+    ///     Example: { [0] = 8, [1] = 4, [2] = 2 } means Wave 0 uses 8 parallel, Wave 1 uses 4, Wave 2 uses 2.
+    ///     If not specified for a wave, uses MaxParallelDetectors as default.
+    ///     Useful for: High parallelism for fast detectors (Wave 0), low parallelism for AI/LLM (Wave 2+).
+    ///     Default: empty (all waves use MaxParallelDetectors)
+    /// </summary>
+    public Dictionary<int, int> ParallelismPerWave { get; set; } = new();
 
     // ==========================================
     // Quorum Settings (for early exit optimization)

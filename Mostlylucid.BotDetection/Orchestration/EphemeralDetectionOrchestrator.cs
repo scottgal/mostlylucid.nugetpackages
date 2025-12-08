@@ -322,6 +322,7 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
                     requestSignals,
                     requestId,
                     stopwatch,
+                    waveNumber,
                     cts.Token);
 
                 foreach (var d in readyDetectors)
@@ -375,6 +376,7 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
                                         requestSignals,
                                         requestId,
                                         stopwatch,
+                                        waveNumber,
                                         cts.Token);
 
                                     foreach (var d in aiDetectors)
@@ -498,7 +500,7 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
             // Not enough detectors for quorum - run all and wait
             await ExecuteWaveWithTrackerAsync(
                 detectors, httpContext, aggregator, signals, tracker,
-                requestSignals, requestId, pipelineStopwatch, cancellationToken);
+                requestSignals, requestId, pipelineStopwatch, 0, cancellationToken);
             return null;
         }
 
@@ -609,6 +611,7 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
         SignalSink requestSignals,
         string requestId,
         Stopwatch pipelineStopwatch,
+        int waveNumber,
         CancellationToken cancellationToken)
     {
         if (!_options.EnableParallelExecution || detectors.Count == 1)
@@ -626,10 +629,15 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
             return;
         }
 
-        // Parallel execution with ephemeral (configurable)
+        // Parallel execution with ephemeral (configurable per-wave)
+        // Get parallelism for this wave - use wave-specific if configured, otherwise global max
+        var waveParallelism = _options.ParallelismPerWave.TryGetValue(waveNumber, out var waveMax)
+            ? Math.Min(waveMax, _options.MaxParallelDetectors) // Respect global ceiling
+            : _options.MaxParallelDetectors;
+
         var ephemeralOptions = new EphemeralOptions
         {
-            MaxConcurrency = _options.MaxParallelDetectors,
+            MaxConcurrency = waveParallelism,
             MaxTrackedOperations = detectors.Count * _options.EphemeralTrackedOperationsMultiplier,
             MaxOperationLifetime = _options.EphemeralMaxOperationLifetime,
             Signals = requestSignals,
