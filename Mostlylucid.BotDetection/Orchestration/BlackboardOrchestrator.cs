@@ -231,6 +231,7 @@ public class BlackboardOrchestrator
     private readonly ILearningEventBus? _learningBus;
     private readonly IPolicyRegistry? _policyRegistry;
     private readonly IPolicyEvaluator? _policyEvaluator;
+    private readonly SignatureCoordinator? _signatureCoordinator;
 
     // Circuit breaker state per detector
     private readonly ConcurrentDictionary<string, CircuitState> _circuitStates = new();
@@ -241,7 +242,8 @@ public class BlackboardOrchestrator
         IEnumerable<IContributingDetector> detectors,
         ILearningEventBus? learningBus = null,
         IPolicyRegistry? policyRegistry = null,
-        IPolicyEvaluator? policyEvaluator = null)
+        IPolicyEvaluator? policyEvaluator = null,
+        SignatureCoordinator? signatureCoordinator = null)
     {
         _logger = logger;
         _options = options.Value.Orchestrator;
@@ -249,6 +251,7 @@ public class BlackboardOrchestrator
         _learningBus = learningBus;
         _policyRegistry = policyRegistry;
         _policyEvaluator = policyEvaluator;
+        _signatureCoordinator = signatureCoordinator;
     }
 
     /// <summary>
@@ -549,6 +552,31 @@ public class BlackboardOrchestrator
         // Publish learning event
         PublishLearningEvent(result, requestId, stopwatch.Elapsed);
 
+        // Record request in cross-request signature coordinator
+        if (_signatureCoordinator != null)
+        {
+            try
+            {
+                var signature = ComputeSignatureHash(httpContext);
+                var path = httpContext.Request.Path.ToString();
+
+                // Fire-and-forget (don't await to avoid blocking request)
+                _ = _signatureCoordinator.RecordRequestAsync(
+                    signature,
+                    requestId,
+                    path,
+                    result.BotProbability,
+                    signals.ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
+                    result.ContributingDetectors.ToHashSet(),
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                // Log but don't fail request if signature recording fails
+                _logger.LogWarning(ex, "Failed to record request in SignatureCoordinator for {RequestId}", requestId);
+            }
+        }
+
         _logger.LogDebug(
             "Detection complete for {RequestId}: {RiskBand} (prob={Probability:F2}, conf={Confidence:F2}) in {Elapsed}ms, {Waves} waves, {Detectors} detectors",
             requestId,
@@ -822,6 +850,21 @@ public class BlackboardOrchestrator
             RequestId = requestId,
             Metadata = metadata
         });
+    }
+
+    /// <summary>
+    ///     Compute privacy-preserving signature hash from client IP.
+    ///     Uses XxHash64 for fast non-cryptographic hashing.
+    /// </summary>
+    private static string ComputeSignatureHash(HttpContext httpContext)
+    {
+        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+        // Use XxHash64 for fast, deterministic hashing
+        var hash = System.IO.Hashing.XxHash64.Hash(System.Text.Encoding.UTF8.GetBytes(clientIp));
+
+        // Convert to hex string (16 characters)
+        return Convert.ToHexString(hash);
     }
 
     #endregion
