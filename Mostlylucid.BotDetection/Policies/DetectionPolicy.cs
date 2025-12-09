@@ -285,6 +285,51 @@ public sealed record DetectionPolicy
     };
 
     /// <summary>
+    ///     Creates the YARP LEARNING policy - optimized for gateway learning mode.
+    ///     Runs ALL detectors EXCEPT LLM (for performance in high-traffic scenarios).
+    ///     Collects comprehensive signatures including all signals and detector outputs.
+    ///     Does NOT block - shadow mode for training data collection.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Differences from standard Learning policy:
+    ///         <list type="bullet">
+    ///             <item>EXCLUDES LLM detector for better gateway performance</item>
+    ///             <item>Includes ONNX for ML-based signals</item>
+    ///             <item>Shorter timeout (5s vs 10s) for high-traffic scenarios</item>
+    ///             <item>Designed for YARP reverse proxy use cases</item>
+    ///         </list>
+    ///     </para>
+    ///     <para>
+    ///         Enable via configuration:
+    ///         <code>
+    ///         "YarpLearningMode": {
+    ///           "Enabled": true,
+    ///           "OutputPath": "./yarp-learning-data",
+    ///           "LogToConsole": true,
+    ///           "IncludeLlmDetector": false
+    ///         }
+    ///         </code>
+    ///     </para>
+    /// </remarks>
+    public static DetectionPolicy YarpLearning => new()
+    {
+        Name = "yarp-learning",
+        Description = "YARP gateway learning - full pipeline without LLM for training data collection",
+        FastPathDetectors = [], // Empty = run ALL registered fast detectors
+        SlowPathDetectors = [], // Empty = run ALL registered slow detectors
+        AiPathDetectors = ["Onnx"], // Only ONNX, skip LLM for performance
+        UseFastPath = false, // Don't use fast path shortcuts
+        ForceSlowPath = true, // Always run slow path
+        EscalateToAi = true, // Run ONNX
+        AiEscalationThreshold = 0.0, // Always escalate - learn from everything
+        EarlyExitThreshold = 0.0, // Never early exit - always get full picture
+        ImmediateBlockThreshold = 1.0, // Never block - learning mode
+        BypassTriggerConditions = true, // Run all detectors regardless of triggers
+        Timeout = TimeSpan.FromSeconds(5) // Shorter timeout for gateway performance
+    };
+
+    /// <summary>
     ///     Creates a monitor policy that runs silently without blocking.
     ///     Use this to observe traffic patterns before enabling enforcement.
     ///     Fast path runs, escalates to AI for uncertain cases, but never blocks.

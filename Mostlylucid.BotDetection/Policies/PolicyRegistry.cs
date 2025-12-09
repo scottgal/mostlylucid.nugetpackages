@@ -75,6 +75,7 @@ public class PolicyRegistry : IPolicyRegistry
         RegisterPolicy(DetectionPolicy.Static);
         RegisterPolicy(DetectionPolicy.AllowVerifiedBots);
         RegisterPolicy(DetectionPolicy.Learning);
+        RegisterPolicy(DetectionPolicy.YarpLearning);
         RegisterPolicy(DetectionPolicy.Monitor);
         RegisterPolicy(DetectionPolicy.Api);
         RegisterPolicy(DetectionPolicy.FastWithOnnx);
