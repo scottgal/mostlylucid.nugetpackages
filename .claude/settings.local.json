@@ -58,7 +58,9 @@
       "Bash(git fetch:*)",
       "Bash(powershell -Command \"$input | Select-String -Pattern ''''Failed:'''',''''FAIL\\]'''',''''Error Message:''''\")",
       "Bash(powershell -Command \"$input | Measure-Object -Line\")",
-      "Bash(Select-String \"error|Build succeeded|Build FAILED\")"
+      "Bash(Select-String \"error|Build succeeded|Build FAILED\")",
+      "Bash(powershell -Command:*)",
+      "Bash(Select-Object -Last 20)"
     ],
     "deny": [],
     "ask": []

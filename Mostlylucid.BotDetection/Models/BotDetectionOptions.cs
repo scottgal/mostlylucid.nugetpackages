@@ -3,6 +3,7 @@ using Mostlylucid.BotDetection.Actions;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Orchestration;
 using Mostlylucid.BotDetection.Policies;
+using Mostlylucid.BotDetection.Yarp;
 
 namespace Mostlylucid.BotDetection.Models;
 
@@ -486,6 +487,44 @@ public class BotDetectionOptions
     ///     Useful for debugging and client-side JavaScript integration.
     /// </summary>
     public ResponseHeadersOptions ResponseHeaders { get; set; } = new();
+
+    // ==========================================
+    // YARP Learning Mode Configuration
+    // ==========================================
+
+    /// <summary>
+    ///     Configuration for YARP learning mode - collects training data in gateway scenarios.
+    ///     Runs full detection pipeline (except LLM) and outputs comprehensive signatures.
+    ///     WARNING: This is a TRAINING/DEBUGGING mode - NOT for production blocking!
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         YARP Learning Mode captures comprehensive bot signatures including:
+    ///         <list type="bullet">
+    ///             <item>All detector outputs with timing and contributions</item>
+    ///             <item>Blackboard signals collected during detection</item>
+    ///             <item>HTTP context (optional - may contain PII)</item>
+    ///             <item>YARP routing information (cluster, destination)</item>
+    ///         </list>
+    ///     </para>
+    ///     <para>
+    ///         Enable via configuration to collect training data:
+    ///         <code>
+    ///         "BotDetection": {
+    ///           "DefaultPolicyName": "yarp-learning"
+    ///         },
+    ///         "YarpLearningMode": {
+    ///           "Enabled": true,
+    ///           "OutputPath": "./yarp-learning-data",
+    ///           "SamplingRate": 0.1
+    ///         }
+    ///         </code>
+    ///     </para>
+    ///     <para>
+    ///         See YARP_LEARNING_MODE.md for comprehensive documentation.
+    ///     </para>
+    /// </remarks>
+    public YarpLearningModeOptions YarpLearningMode { get; set; } = new();
 
     // ==========================================
     // Throttling Configuration
