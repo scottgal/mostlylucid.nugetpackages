@@ -223,7 +223,7 @@ public class BehavioralDetector : IDetector
         if (!isWarmingUp &&
             !context.Request.Headers.ContainsKey("Referer") &&
             context.Request.Path != "/" &&
-            requestCount > 3) // Increased threshold
+            requestCount > 1) // After first request
         {
             confidence += 0.15;
             reasons.Add(new DetectionReason
@@ -236,7 +236,7 @@ public class BehavioralDetector : IDetector
 
         // Check for missing cookies (bots often don't maintain sessions)
         // Skip during warmup - cookies are set after first response
-        if (!isWarmingUp && !context.Request.Cookies.Any() && requestCount > 5)
+        if (!isWarmingUp && !context.Request.Cookies.Any() && requestCount > 2)
         {
             confidence += 0.25;
             reasons.Add(new DetectionReason

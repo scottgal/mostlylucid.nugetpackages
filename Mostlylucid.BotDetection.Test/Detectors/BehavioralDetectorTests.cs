@@ -36,6 +36,16 @@ public class BehavioralDetectorTests
         return new MemoryCache(new MemoryCacheOptions());
     }
 
+    private IMemoryCache CreateCacheWithOldSession(string ipAddress)
+    {
+        var cache = new MemoryCache(new MemoryCacheOptions());
+        // Pre-seed with session that's > 2 minutes old to skip warmup
+        var sessionKey = $"bot_detect_session_{ipAddress}";
+        var oldSessionStart = DateTime.UtcNow.AddMinutes(-3);
+        cache.Set(sessionKey, oldSessionStart, TimeSpan.FromHours(24));
+        return cache;
+    }
+
     #region Missing IP Tests
 
     [Fact]
@@ -234,9 +244,9 @@ public class BehavioralDetectorTests
         var detector = new BehavioralDetector(_logger, Options.Create(options), cache);
         var context = MockHttpContext.CreateWithIpAddress("192.168.1.1");
 
-        // Act - Simulate many requests
+        // Act - Simulate many requests (21+ to exceed warmup limit of 20)
         DetectorResult result = null!;
-        for (var i = 0; i < 20; i++) result = await detector.DetectAsync(context);
+        for (var i = 0; i < 21; i++) result = await detector.DetectAsync(context);
 
         // Assert
         Assert.True(result.Confidence >= 0.3, "Excessive requests should increase confidence");
@@ -269,10 +279,11 @@ public class BehavioralDetectorTests
     public async Task DetectAsync_NoReferrerOnSubsequentRequest_AddsReason()
     {
         // Arrange
-        var cache = CreateFreshCache();
+        var ipAddress = "192.168.1.1";
+        var cache = CreateCacheWithOldSession(ipAddress); // Use old session to skip warmup
         var detector = new BehavioralDetector(_logger, Options.Create(new BotDetectionOptions()), cache);
         var context = new DefaultHttpContext();
-        context.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.1");
+        context.Connection.RemoteIpAddress = IPAddress.Parse(ipAddress);
         context.Request.Path = "/some/path"; // Not root
         // No Referer header
 
@@ -334,10 +345,11 @@ public class BehavioralDetectorTests
     public async Task DetectAsync_NoCookiesAfterMultipleRequests_AddsReason()
     {
         // Arrange
-        var cache = CreateFreshCache();
+        var ipAddress = "192.168.1.1";
+        var cache = CreateCacheWithOldSession(ipAddress); // Use old session to skip warmup
         var detector = new BehavioralDetector(_logger, Options.Create(new BotDetectionOptions()), cache);
         var context = new DefaultHttpContext();
-        context.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.1");
+        context.Connection.RemoteIpAddress = IPAddress.Parse(ipAddress);
         // No cookies
 
         // Act - Make 3+ requests

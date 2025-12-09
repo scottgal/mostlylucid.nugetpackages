@@ -53,7 +53,9 @@
       "Bash(if [ -f NuGet.config ])",
       "Bash(then cat NuGet.config)",
       "Bash(else echo \"No NuGet.config found\")",
-      "Bash(fi)"
+      "Bash(fi)",
+      "Bash(git ls-tree:*)",
+      "Bash(git fetch:*)"
     ],
     "deny": [],
     "ask": []

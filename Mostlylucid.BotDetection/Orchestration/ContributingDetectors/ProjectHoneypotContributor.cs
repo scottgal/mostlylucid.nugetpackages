@@ -316,7 +316,7 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
         if (result.VisitorType.HasFlag(HoneypotVisitorType.Harvester))
             types.Add("Harvester");
         if (result.VisitorType.HasFlag(HoneypotVisitorType.CommentSpammer))
-            types.Add("Comment Spammer");
+            types.Add("CommentSpammer");
 
         var typeStr = types.Count > 0 ? string.Join(", ", types) : "Unknown";
         return $"IP listed in Project Honeypot: {typeStr} (Threat: {result.ThreatScore}, Last seen: {result.DaysSinceLastActivity} days ago)";
