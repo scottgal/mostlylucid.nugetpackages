@@ -241,6 +241,12 @@ public static class Triggers
 /// <summary>
 ///     Immutable snapshot of the blackboard state passed to detectors.
 ///     Contains all signals from prior detectors.
+///
+///     CRITICAL PII HANDLING RULES:
+///     - PII (IP, UA, location, etc.) is accessed ONLY via direct properties (ClientIp, UserAgent, etc.)
+///     - PII must NEVER be placed in signal payloads
+///     - Signals contain ONLY boolean indicators (ip.available) or hashed values (ip.detected)
+///     - Raw PII exists in memory only as long as detectors need it
 /// </summary>
 public sealed class BlackboardState
 {
@@ -250,7 +256,9 @@ public sealed class BlackboardState
     public required HttpContext HttpContext { get; init; }
 
     /// <summary>
-    ///     All signals collected so far
+    ///     All signals collected so far.
+    ///     IMPORTANT: Signals must NEVER contain raw PII.
+    ///     Use PiiSignalHelper to emit privacy-safe signals.
     /// </summary>
     public required IReadOnlyDictionary<string, object> Signals { get; init; }
 
@@ -285,7 +293,8 @@ public sealed class BlackboardState
     public TimeSpan Elapsed { get; init; }
 
     /// <summary>
-    ///     Get a typed signal value
+    ///     Get a typed signal value.
+    ///     IMPORTANT: Signals should NEVER contain raw PII.
     /// </summary>
     public T? GetSignal<T>(string key) =>
         Signals.TryGetValue(key, out var value) && value is T typed ? typed : default;
@@ -295,20 +304,46 @@ public sealed class BlackboardState
     /// </summary>
     public bool HasSignal(string key) => Signals.ContainsKey(key);
 
+    // ===== PII Properties (Direct Access ONLY) =====
+    //
+    // CRITICAL: These properties provide direct access to PII.
+    // Detectors needing raw PII MUST access it via these properties, NEVER from signals.
+    // After detection completes, PII is cleared from memory.
+
     /// <summary>
-    ///     Get the raw user agent
+    ///     Get the raw user agent (PII).
+    ///     IMPORTANT: Access directly from state, NEVER put in signal payload.
     /// </summary>
     public string UserAgent => HttpContext.Request.Headers.UserAgent.ToString();
 
     /// <summary>
-    ///     Get the client IP
+    ///     Get the client IP address (PII).
+    ///     IMPORTANT: Access directly from state, NEVER put in signal payload.
     /// </summary>
     public string? ClientIp => HttpContext.Connection.RemoteIpAddress?.ToString();
 
     /// <summary>
-    ///     Get the request path
+    ///     Get the request path.
     /// </summary>
     public string Path => HttpContext.Request.Path.Value ?? "/";
+
+    /// <summary>
+    ///     Get the referer header (PII).
+    ///     IMPORTANT: Access directly from state, NEVER put in signal payload.
+    /// </summary>
+    public string? Referer => HttpContext.Request.Headers.Referer.ToString();
+
+    /// <summary>
+    ///     Get the Accept-Language header (can be fingerprinting data).
+    ///     IMPORTANT: Access directly from state, NEVER put in signal payload.
+    /// </summary>
+    public string? AcceptLanguage => HttpContext.Request.Headers.AcceptLanguage.ToString();
+
+    /// <summary>
+    ///     Get session ID if available (PII).
+    ///     IMPORTANT: Access directly from state, NEVER put in signal payload.
+    /// </summary>
+    public string? SessionId => HttpContext.TraceIdentifier;
 }
 
 /// <summary>
