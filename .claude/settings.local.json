@@ -44,7 +44,16 @@
       "Bash(dotnet add:*)",
       "WebFetch(domain:www.nuget.org)",
       "Bash(find:*)",
-      "Bash(dotnet nuget:*)"
+      "Bash(dotnet nuget:*)",
+      "Bash(del nul 2)",
+      "Bash(NUL)",
+      "Bash(git push:*)",
+      "Bash(dotnet list:*)",
+      "Bash(git describe:*)",
+      "Bash(if [ -f NuGet.config ])",
+      "Bash(then cat NuGet.config)",
+      "Bash(else echo \"No NuGet.config found\")",
+      "Bash(fi)"
     ],
     "deny": [],
     "ask": []
