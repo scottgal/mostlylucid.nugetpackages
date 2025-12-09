@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Mostlylucid.BotDetection.Actions;
 using Mostlylucid.BotDetection.Middleware;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Orchestration;
@@ -87,6 +88,12 @@ public class BotDetectionMiddlewareTests
         return mock;
     }
 
+    private static Mock<IActionPolicyRegistry> CreateMockActionPolicyRegistry()
+    {
+        var mock = new Mock<IActionPolicyRegistry>();
+        return mock;
+    }
+
     #region Normal Detection Flow Tests
 
     [Fact]
@@ -105,12 +112,13 @@ public class BotDetectionMiddlewareTests
             confidence: 0.9,
             riskBand: RiskBand.Low));
         var mockPolicyRegistry = CreateMockPolicyRegistry();
+        var mockActionPolicyRegistry = CreateMockActionPolicyRegistry();
 
         var middleware = CreateMiddleware(next);
         var context = MockHttpContext.CreateRealisticBrowser();
 
         // Act
-        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object);
+        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object, mockActionPolicyRegistry.Object);
 
         // Assert
         Assert.True(nextCalled, "Next middleware should be called");
@@ -130,6 +138,7 @@ public class BotDetectionMiddlewareTests
             botType: BotType.Scraper,
             botName: "TestBot"));
         var mockPolicyRegistry = CreateMockPolicyRegistry();
+        var mockActionPolicyRegistry = CreateMockActionPolicyRegistry();
 
         // Enable response headers to verify they are added
         var options = new BotDetectionOptions
@@ -140,7 +149,7 @@ public class BotDetectionMiddlewareTests
         var context = MockHttpContext.CreateWithUserAgent("TestBot/1.0");
 
         // Act
-        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object);
+        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object, mockActionPolicyRegistry.Object);
 
         // Assert - Response headers should be added when ResponseHeaders.Enabled = true
         Assert.True(context.Response.Headers.ContainsKey("X-Bot-Risk-Score"));
@@ -160,12 +169,13 @@ public class BotDetectionMiddlewareTests
             confidence: 0.9,
             riskBand: RiskBand.Low));
         var mockPolicyRegistry = CreateMockPolicyRegistry();
+        var mockActionPolicyRegistry = CreateMockActionPolicyRegistry();
 
         var middleware = CreateMiddleware(next);
         var context = MockHttpContext.CreateRealisticBrowser();
 
         // Act
-        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object);
+        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object, mockActionPolicyRegistry.Object);
 
         // Assert - no blocking headers, but result should be stored
         Assert.False(context.Response.Headers.ContainsKey("X-Bot-Detected"));
@@ -187,12 +197,13 @@ public class BotDetectionMiddlewareTests
 
         var mockOrchestrator = CreateMockOrchestrator(expectedEvidence);
         var mockPolicyRegistry = CreateMockPolicyRegistry();
+        var mockActionPolicyRegistry = CreateMockActionPolicyRegistry();
 
         var middleware = CreateMiddleware(next);
         var context = MockHttpContext.CreateGooglebot();
 
         // Act
-        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object);
+        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object, mockActionPolicyRegistry.Object);
 
         // Assert - legacy result created from aggregated evidence
         var storedResult = context.Items[BotDetectionMiddleware.BotDetectionResultKey] as BotDetectionResult;
@@ -222,6 +233,7 @@ public class BotDetectionMiddlewareTests
             confidence: 0.9,
             riskBand: RiskBand.Low));
         var mockPolicyRegistry = CreateMockPolicyRegistry();
+        var mockActionPolicyRegistry = CreateMockActionPolicyRegistry();
 
         var options = new BotDetectionOptions { EnableTestMode = false };
         var middleware = CreateMiddleware(next, options);
@@ -231,7 +243,7 @@ public class BotDetectionMiddlewareTests
         });
 
         // Act
-        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object);
+        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object, mockActionPolicyRegistry.Object);
 
         // Assert - orchestrator should be called (test header ignored)
         mockOrchestrator.Verify(o => o.DetectWithPolicyAsync(context, It.IsAny<DetectionPolicy>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -251,6 +263,7 @@ public class BotDetectionMiddlewareTests
 
         var mockOrchestrator = CreateMockOrchestrator();
         var mockPolicyRegistry = CreateMockPolicyRegistry();
+        var mockActionPolicyRegistry = CreateMockActionPolicyRegistry();
         var options = new BotDetectionOptions { EnableTestMode = true };
         var middleware = CreateMiddleware(next, options);
         var context = MockHttpContext.CreateWithHeaders(new Dictionary<string, string>
@@ -259,7 +272,7 @@ public class BotDetectionMiddlewareTests
         });
 
         // Act
-        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object);
+        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object, mockActionPolicyRegistry.Object);
 
         // Assert - "disable" mode skips detection entirely, no result stored
         mockOrchestrator.Verify(o => o.DetectWithPolicyAsync(It.IsAny<HttpContext>(), It.IsAny<DetectionPolicy>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -279,6 +292,7 @@ public class BotDetectionMiddlewareTests
         RequestDelegate next = _ => Task.CompletedTask;
         var mockOrchestrator = CreateMockOrchestrator();
         var mockPolicyRegistry = CreateMockPolicyRegistry();
+        var mockActionPolicyRegistry = CreateMockActionPolicyRegistry();
         var options = new BotDetectionOptions
         {
             EnableTestMode = true,
@@ -296,7 +310,7 @@ public class BotDetectionMiddlewareTests
         });
 
         // Act
-        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object);
+        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object, mockActionPolicyRegistry.Object);
 
         // Assert - real orchestrator should be called (test mode now runs real detection)
         mockOrchestrator.Verify(o => o.DetectWithPolicyAsync(It.IsAny<HttpContext>(), It.IsAny<DetectionPolicy>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -310,6 +324,7 @@ public class BotDetectionMiddlewareTests
         RequestDelegate next = _ => Task.CompletedTask;
         var mockOrchestrator = CreateMockOrchestrator();
         var mockPolicyRegistry = CreateMockPolicyRegistry();
+        var mockActionPolicyRegistry = CreateMockActionPolicyRegistry();
         var options = new BotDetectionOptions { EnableTestMode = true };
         var middleware = CreateMiddleware(next, options);
         var context = MockHttpContext.CreateWithHeaders(new Dictionary<string, string>
@@ -318,7 +333,7 @@ public class BotDetectionMiddlewareTests
         });
 
         // Act
-        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object);
+        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object, mockActionPolicyRegistry.Object);
 
         // Assert - unknown test mode still runs real detection (no UA override if not configured)
         mockOrchestrator.Verify(o => o.DetectWithPolicyAsync(It.IsAny<HttpContext>(), It.IsAny<DetectionPolicy>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -332,6 +347,7 @@ public class BotDetectionMiddlewareTests
         RequestDelegate next = _ => Task.CompletedTask;
         var mockOrchestrator = CreateMockOrchestrator();
         var mockPolicyRegistry = CreateMockPolicyRegistry();
+        var mockActionPolicyRegistry = CreateMockActionPolicyRegistry();
         var options = new BotDetectionOptions
         {
             EnableTestMode = true,
@@ -347,7 +363,7 @@ public class BotDetectionMiddlewareTests
         });
 
         // Act
-        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object);
+        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object, mockActionPolicyRegistry.Object);
 
         // Assert - test mode header and simulated UA header are set
         Assert.Equal("true", context.Response.Headers["X-Test-Mode"]);
@@ -364,13 +380,14 @@ public class BotDetectionMiddlewareTests
             confidence: 0.8,
             riskBand: RiskBand.Low));
         var mockPolicyRegistry = CreateMockPolicyRegistry();
+        var mockActionPolicyRegistry = CreateMockActionPolicyRegistry();
 
         var options = new BotDetectionOptions { EnableTestMode = true };
         var middleware = CreateMiddleware(next, options);
         var context = MockHttpContext.CreateRealisticBrowser();
 
         // Act
-        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object);
+        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object, mockActionPolicyRegistry.Object);
 
         // Assert - should use normal detection via orchestrator
         mockOrchestrator.Verify(o => o.DetectWithPolicyAsync(context, It.IsAny<DetectionPolicy>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -391,6 +408,7 @@ public class BotDetectionMiddlewareTests
             confidence: 0.9,
             riskBand: RiskBand.Low));
         var mockPolicyRegistry = CreateMockPolicyRegistry();
+        var mockActionPolicyRegistry = CreateMockActionPolicyRegistry();
 
         var options = new BotDetectionOptions { EnableTestMode = false };
         var middleware = CreateMiddleware(next, options);
@@ -406,7 +424,7 @@ public class BotDetectionMiddlewareTests
             });
 
             // Act
-            await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object);
+            await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object, mockActionPolicyRegistry.Object);
 
             // Assert - no test mode info should be leaked
             Assert.False(context.Response.Headers.ContainsKey("X-Test-Mode"),
@@ -435,12 +453,13 @@ public class BotDetectionMiddlewareTests
             confidence: 0.8,
             riskBand: RiskBand.Low));
         var mockPolicyRegistry = CreateMockPolicyRegistry();
+        var mockActionPolicyRegistry = CreateMockActionPolicyRegistry();
 
         var middleware = CreateMiddleware(next);
         var context = MockHttpContext.CreateSuspiciousBot();
 
         // Act
-        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object);
+        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object, mockActionPolicyRegistry.Object);
 
         // Assert - next should be called when bot probability is low
         Assert.Equal(1, nextCallCount);
@@ -464,12 +483,13 @@ public class BotDetectionMiddlewareTests
             riskBand: RiskBand.VeryHigh,
             policyAction: PolicyAction.Block));
         var mockPolicyRegistry = CreateMockPolicyRegistry();
+        var mockActionPolicyRegistry = CreateMockActionPolicyRegistry();
 
         var middleware = CreateMiddleware(next);
         var context = MockHttpContext.CreateSuspiciousBot();
 
         // Act
-        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object);
+        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object, mockActionPolicyRegistry.Object);
 
         // Assert - next should NOT be called when bot is blocked
         Assert.Equal(0, nextCallCount);
@@ -504,6 +524,7 @@ public class BotDetectionMiddlewareTests
                 riskBand: RiskBand.Low));
 
         var mockPolicyRegistry = CreateMockPolicyRegistry();
+        var mockActionPolicyRegistry = CreateMockActionPolicyRegistry();
 
         var middleware = CreateMiddleware(next);
         var context = MockHttpContext.CreateRealisticBrowser();
@@ -512,7 +533,7 @@ public class BotDetectionMiddlewareTests
         context.RequestAborted = cts.Token;
 
         // Act
-        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object);
+        await middleware.InvokeAsync(context, mockOrchestrator.Object, mockPolicyRegistry.Object, mockActionPolicyRegistry.Object);
 
         // Assert
         Assert.Equal(cts.Token, capturedToken);
