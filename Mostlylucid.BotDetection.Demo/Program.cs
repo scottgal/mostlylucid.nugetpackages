@@ -18,6 +18,9 @@ builder.Services.AddGeoRoutingSimple();
 // Full detection mode is enabled via the "full-log" ActionPolicy in config
 builder.Services.AddBotDetection();
 
+// Add YARP learning mode - captures training data from bot detection
+builder.Services.AddYarpLearningMode();
+
 // Add geo-detection contributor for geo-based bot signals
 // Enables bot origin verification (e.g., Googlebot should come from US)
 // and geo-inconsistency detection (e.g., browser locale vs IP location)
@@ -58,6 +61,10 @@ app.UseStaticFiles();
 
 // Add bot detection middleware
 app.UseBotDetection();
+
+// Add YARP learning mode middleware (MUST be after UseBotDetection)
+app.UseYarpLearningMode();
+
 app.UseAuthorization();
 app.MapControllers();
 app.MapRazorPages();
@@ -493,6 +500,44 @@ app.MapGet("/api/v1/security-check", (HttpContext context) =>
 .WithName("ApiSecurityCheck")
 .WithTags("Load Testing")
 .WithSummary("Endpoint that reports security tool detection");
+
+// YARP Learning Mode endpoint - full pipeline for training data collection
+app.MapGet("/api/v1/yarp-learning", (HttpContext context) =>
+{
+    var result = context.GetBotDetectionResult();
+    return Results.Ok(new
+    {
+        policy = "yarp-learning",
+        timestamp = DateTimeOffset.UtcNow,
+        message = "This endpoint uses YARP learning mode - full detection pipeline without blocking",
+        note = "Check ./yarp-learning-data/ for JSONL signature files and console for real-time logging",
+        detection = new
+        {
+            isBot = result?.IsBot ?? false,
+            confidence = context.GetBotConfidence(),
+            botType = result?.BotType?.ToString(),
+            botName = result?.BotName,
+            riskBand = context.GetRiskBand().ToString(),
+            reasonCount = result?.Reasons?.Count ?? 0,
+            reasons = result?.Reasons?.Take(5).Select(r => new
+            {
+                category = r.Category,
+                detail = r.Detail,
+                confidence = r.ConfidenceImpact
+            }).ToArray()
+        },
+        learningInfo = new
+        {
+            signaturesCaptured = "Check ./yarp-learning-data/ directory",
+            consoleLogging = "Enabled - watch console for real-time signatures",
+            detectorOutputs = "Captured with timing and contributions",
+            blackboardSignals = "All signals logged"
+        }
+    });
+})
+.WithName("ApiYarpLearning")
+.WithTags("YARP Learning")
+.WithSummary("YARP learning mode endpoint - captures comprehensive training data");
 
 // Batch endpoint for load testing multiple detections
 app.MapPost("/api/v1/batch-check", (HttpContext context, BatchCheckRequest request) =>
