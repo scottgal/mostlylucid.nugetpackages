@@ -246,12 +246,12 @@ public class YarpLearningMiddleware
     private void CaptureYarpRouting(HttpContext context, YarpBotSignature signature)
     {
         // Try to get YARP routing info from context
-        if (context.Items.TryGetValue("Yarp.Cluster", out var cluster))
+        if (context.Items.TryGetValue("Yarp.Cluster", out var cluster) && cluster != null)
         {
             signature.Cluster = cluster.ToString();
         }
 
-        if (context.Items.TryGetValue("Yarp.Destination", out var destination))
+        if (context.Items.TryGetValue("Yarp.Destination", out var destination) && destination != null)
         {
             signature.Destination = destination.ToString();
         }
@@ -259,7 +259,7 @@ public class YarpLearningMiddleware
 
     private string DetermineAction(HttpContext context)
     {
-        if (context.Items.TryGetValue("BotDetection.Action", out var action))
+        if (context.Items.TryGetValue("BotDetection.Action", out var action) && action != null)
         {
             return action.ToString() ?? "unknown";
         }

@@ -278,7 +278,7 @@ public class AnomalySaverService : BackgroundService
         try
         {
             // Extract bot probability from metadata
-            if (!evt.Metadata.TryGetValue("botProbability", out var probObj))
+            if (evt.Metadata == null || !evt.Metadata.TryGetValue("botProbability", out var probObj) || probObj == null)
                 return;
 
             var botProbability = Convert.ToDouble(probObj);
