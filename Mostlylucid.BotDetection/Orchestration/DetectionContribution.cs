@@ -304,6 +304,13 @@ public sealed record AggregatedEvidence
     public PolicyAction? PolicyAction { get; init; }
 
     /// <summary>
+    ///     Name of the action policy to execute (if specified by a transition).
+    ///     Takes precedence over PolicyAction for determining response behavior.
+    ///     Example: "holodeck", "block-hard", "throttle-gentle"
+    /// </summary>
+    public string? TriggeredActionPolicyName { get; init; }
+
+    /// <summary>
     ///     Whether AI detectors (ONNX, LLM) contributed to this decision.
     ///     When false, probability/risk are clamped to avoid overconfidence.
     /// </summary>

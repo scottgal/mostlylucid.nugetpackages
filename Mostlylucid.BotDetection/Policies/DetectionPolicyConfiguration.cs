@@ -354,6 +354,7 @@ public class TransitionConfig
             WhenReputationState = WhenReputationState,
             GoToPolicy = GoTo,
             Action = action,
+            ActionPolicyName = ActionPolicyName,
             Description = Description
         };
     }

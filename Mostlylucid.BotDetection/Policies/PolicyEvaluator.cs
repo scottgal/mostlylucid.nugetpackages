@@ -1,3 +1,4 @@
+using System.Linq;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Orchestration;
 
@@ -36,6 +37,12 @@ public sealed record PolicyEvaluationResult
     /// <summary>Action to take (if not continuing or transitioning)</summary>
     public PolicyAction? Action { get; init; }
 
+    /// <summary>
+    ///     Name of the action policy to execute (if specified in transition).
+    ///     Takes precedence over Action for determining response behavior.
+    /// </summary>
+    public string? ActionPolicyName { get; init; }
+
     /// <summary>The transition that triggered this result</summary>
     public PolicyTransition? TriggeredBy { get; init; }
 
@@ -63,6 +70,16 @@ public sealed record PolicyEvaluationResult
             Action = action,
             TriggeredBy = triggeredBy,
             Reason = $"Action: {action}"
+        };
+
+    /// <summary>Execute a named action policy</summary>
+    public static PolicyEvaluationResult ExecuteActionPolicy(string actionPolicyName, PolicyTransition triggeredBy) =>
+        new()
+        {
+            ShouldContinue = false,
+            ActionPolicyName = actionPolicyName,
+            TriggeredBy = triggeredBy,
+            Reason = $"ActionPolicy: {actionPolicyName}"
         };
 }
 
@@ -95,6 +112,30 @@ public class PolicyEvaluator : IPolicyEvaluator
 
     public PolicyEvaluationResult Evaluate(DetectionPolicy policy, BlackboardState state)
     {
+        // Honor detector-driven early exits before running policy transitions or thresholds.
+        var earlyExit = GetEarlyExitContribution(state);
+        if (earlyExit != null)
+        {
+            var earlyExitAction = MapEarlyExitVerdictToAction(earlyExit.EarlyExitVerdict!.Value);
+            if (earlyExitAction.HasValue)
+            {
+                _logger.LogDebug(
+                    "Policy {PolicyName} honoring early exit verdict {Verdict} from detector {Detector}",
+                    policy.Name,
+                    earlyExit.EarlyExitVerdict,
+                    earlyExit.DetectorName);
+
+                return PolicyEvaluationResult.TakeAction(
+                    earlyExitAction.Value,
+                    new PolicyTransition
+                    {
+                        WhenSignal = $"early-exit:{earlyExit.EarlyExitVerdict}",
+                        Action = earlyExitAction.Value,
+                        Description = $"Early exit verdict {earlyExit.EarlyExitVerdict}"
+                    });
+            }
+        }
+
         foreach (var transition in policy.Transitions)
         {
             if (ShouldTransition(transition, state))
@@ -103,6 +144,12 @@ public class PolicyEvaluator : IPolicyEvaluator
                     "Policy {PolicyName} triggered transition: {Description}",
                     policy.Name,
                     transition.Description ?? GetTransitionDescription(transition));
+
+                // ActionPolicyName takes precedence over Action
+                if (!string.IsNullOrEmpty(transition.ActionPolicyName))
+                {
+                    return PolicyEvaluationResult.ExecuteActionPolicy(transition.ActionPolicyName, transition);
+                }
 
                 if (transition.Action.HasValue)
                 {
@@ -195,6 +242,24 @@ public class PolicyEvaluator : IPolicyEvaluator
         // Default weight
         return 1.0;
     }
+
+    private static DetectionContribution? GetEarlyExitContribution(BlackboardState state) =>
+        state.Contributions.FirstOrDefault(
+            c => c.TriggerEarlyExit && c.EarlyExitVerdict.HasValue);
+
+    private static PolicyAction? MapEarlyExitVerdictToAction(EarlyExitVerdict verdict) =>
+        verdict switch
+        {
+            EarlyExitVerdict.VerifiedGoodBot or
+            EarlyExitVerdict.Whitelisted or
+            EarlyExitVerdict.PolicyAllowed => PolicyAction.Allow,
+
+            EarlyExitVerdict.VerifiedBadBot or
+            EarlyExitVerdict.Blacklisted or
+            EarlyExitVerdict.PolicyBlocked => PolicyAction.Block,
+
+            _ => null
+        };
 
     private bool ShouldTransition(PolicyTransition transition, BlackboardState state)
     {

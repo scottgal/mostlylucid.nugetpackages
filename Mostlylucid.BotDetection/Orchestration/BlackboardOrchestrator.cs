@@ -59,10 +59,153 @@ public class OrchestratorOptions
     public bool EnableParallelExecution { get; set; } = true;
 
     /// <summary>
-    ///     Maximum parallel detectors per wave.
+    ///     Maximum parallel detectors per wave (global limit across all waves).
+    ///     This acts as a global ceiling - individual waves can't exceed this.
+    ///     Set to 1 for fully sequential execution.
     ///     Default: 10
     /// </summary>
     public int MaxParallelDetectors { get; set; } = 10;
+
+    /// <summary>
+    ///     Per-wave parallelism overrides. Allows fine-tuning parallelism by wave number.
+    ///     Key: Wave number (0-based), Value: Max parallelism for that wave.
+    ///     Example: { [0] = 8, [1] = 4, [2] = 2 } means Wave 0 uses 8 parallel, Wave 1 uses 4, Wave 2 uses 2.
+    ///     If not specified for a wave, uses MaxParallelDetectors as default.
+    ///     Useful for: High parallelism for fast detectors (Wave 0), low parallelism for AI/LLM (Wave 2+).
+    ///     Default: empty (all waves use MaxParallelDetectors)
+    /// </summary>
+    public Dictionary<int, int> ParallelismPerWave { get; set; } = new();
+
+    // ==========================================
+    // Quorum Settings (for early exit optimization)
+    // ==========================================
+
+    /// <summary>
+    ///     Enable quorum-based early exit.
+    ///     When enabled, detection can exit early if enough detectors agree on a verdict.
+    ///     Default: true
+    /// </summary>
+    public bool EnableQuorumExit { get; set; } = true;
+
+    /// <summary>
+    ///     Minimum number of detectors that must complete before making a verdict.
+    ///     Prevents false positives from a single detector.
+    ///     Default: 3
+    /// </summary>
+    public int MinDetectorsForVerdict { get; set; } = 3;
+
+    /// <summary>
+    ///     Quorum timeout - maximum time to wait for MinDetectorsForVerdict.
+    ///     After this, use whatever evidence is available.
+    ///     Default: 100ms
+    /// </summary>
+    public TimeSpan QuorumTimeout { get; set; } = TimeSpan.FromMilliseconds(100);
+
+    /// <summary>
+    ///     Bot probability threshold for quorum "definitely bot" consensus.
+    ///     If average score across quorum exceeds this, exit early as bot.
+    ///     Default: 0.75
+    /// </summary>
+    public double QuorumBotThreshold { get; set; } = 0.75;
+
+    /// <summary>
+    ///     Bot probability threshold for quorum "definitely human" consensus.
+    ///     If average score across quorum is below this, exit early as human.
+    ///     Default: 0.25
+    /// </summary>
+    public double QuorumHumanThreshold { get; set; } = 0.25;
+
+    /// <summary>
+    ///     Number of detectors that must agree on "uncertain" (0.4-0.6) to escalate to AI.
+    ///     Default: 3
+    /// </summary>
+    public int UncertainQuorumForAiEscalation { get; set; } = 3;
+
+    // ==========================================
+    // Ephemeral Signal Sink Settings
+    // ==========================================
+
+    /// <summary>
+    ///     Maximum signals to retain in the global signal sink.
+    ///     Higher values = more observability, more memory.
+    ///     Default: 5000
+    /// </summary>
+    public int SignalSinkMaxCapacity { get; set; } = 5000;
+
+    /// <summary>
+    ///     Maximum age for signals in the global sink before eviction.
+    ///     Default: 5 minutes
+    /// </summary>
+    public TimeSpan SignalSinkMaxAge { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    ///     Maximum capacity for contribution (typed payload) signal sink.
+    ///     Default: 1000
+    /// </summary>
+    public int ContributionSignalSinkMaxCapacity { get; set; } = 1000;
+
+    /// <summary>
+    ///     Maximum age for contribution signals.
+    ///     Default: 5 minutes
+    /// </summary>
+    public TimeSpan ContributionSignalSinkMaxAge { get; set; } = TimeSpan.FromMinutes(5);
+
+    // ==========================================
+    // Ephemeral Circuit Breaker Settings (Decaying)
+    // ==========================================
+
+    /// <summary>
+    ///     Maximum entries in the circuit breaker decay window.
+    ///     Default: 100 (one per detector)
+    /// </summary>
+    public int CircuitBreakerMaxEntries { get; set; } = 100;
+
+    /// <summary>
+    ///     Score reduction on success (negative = heals faster).
+    ///     Default: -2.0
+    /// </summary>
+    public double CircuitBreakerSuccessHealAmount { get; set; } = -2.0;
+
+    /// <summary>
+    ///     Score increase on failure.
+    ///     Default: 1.0
+    /// </summary>
+    public double CircuitBreakerFailurePenalty { get; set; } = 1.0;
+
+    /// <summary>
+    ///     Half-open threshold multiplier. Circuit transitions to half-open
+    ///     when score is between Threshold and Threshold * this value.
+    ///     Default: 1.5
+    /// </summary>
+    public double CircuitBreakerHalfOpenMultiplier { get; set; } = 1.5;
+
+    // ==========================================
+    // Ephemeral Work Coordinator Settings
+    // ==========================================
+
+    /// <summary>
+    ///     Maximum tracked operations per wave (operations * this multiplier).
+    ///     Default: 2
+    /// </summary>
+    public int EphemeralTrackedOperationsMultiplier { get; set; } = 2;
+
+    /// <summary>
+    ///     Maximum operation lifetime in ephemeral coordinator.
+    ///     Default: 30 seconds
+    /// </summary>
+    public TimeSpan EphemeralMaxOperationLifetime { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    ///     Per-request signal sink capacity.
+    ///     Default: 200
+    /// </summary>
+    public int RequestSignalSinkCapacity { get; set; } = 200;
+
+    /// <summary>
+    ///     Per-request signal sink max age.
+    ///     Default: 30 seconds
+    /// </summary>
+    public TimeSpan RequestSignalSinkMaxAge { get; set; } = TimeSpan.FromSeconds(30);
 }
 
 /// <summary>
@@ -88,6 +231,7 @@ public class BlackboardOrchestrator
     private readonly ILearningEventBus? _learningBus;
     private readonly IPolicyRegistry? _policyRegistry;
     private readonly IPolicyEvaluator? _policyEvaluator;
+    private readonly SignatureCoordinator? _signatureCoordinator;
 
     // Circuit breaker state per detector
     private readonly ConcurrentDictionary<string, CircuitState> _circuitStates = new();
@@ -98,7 +242,8 @@ public class BlackboardOrchestrator
         IEnumerable<IContributingDetector> detectors,
         ILearningEventBus? learningBus = null,
         IPolicyRegistry? policyRegistry = null,
-        IPolicyEvaluator? policyEvaluator = null)
+        IPolicyEvaluator? policyEvaluator = null,
+        SignatureCoordinator? signatureCoordinator = null)
     {
         _logger = logger;
         _options = options.Value.Orchestrator;
@@ -106,6 +251,7 @@ public class BlackboardOrchestrator
         _learningBus = learningBus;
         _policyRegistry = policyRegistry;
         _policyEvaluator = policyEvaluator;
+        _signatureCoordinator = signatureCoordinator;
     }
 
     /// <summary>
@@ -157,6 +303,7 @@ public class BlackboardOrchestrator
         var failedDetectors = new ConcurrentDictionary<string, bool>();
         var ranDetectors = new HashSet<string>();
         PolicyAction? finalAction = null;
+        string? triggeredActionPolicyName = null;
 
         // Build detector lists based on policy
         var allPolicyDetectors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -228,7 +375,8 @@ public class BlackboardOrchestrator
                     failedDetectors,
                     cts.Token);
 
-                // Check for early exit
+                // Check for early exit - but still run policy evaluation for transitions
+                var earlyExitTriggered = false;
                 if (aggregator.ShouldEarlyExit)
                 {
                     var exitContrib = aggregator.EarlyExitContribution!;
@@ -237,10 +385,11 @@ public class BlackboardOrchestrator
                         exitContrib.DetectorName,
                         exitContrib.EarlyExitVerdict,
                         exitContrib.Reason);
-                    break;
+                    earlyExitTriggered = true;
+                    // Don't break yet - fall through to policy evaluation for transitions
                 }
 
-                // Update system signals for next wave
+                // Update system signals for next wave (or for policy evaluation on early exit)
                 signals[DetectorCountTrigger.CompletedDetectorsSignal] = completedDetectors.Count;
                 signals[RiskThresholdTrigger.CurrentRiskSignal] = aggregator.Aggregate().BotProbability;
 
@@ -260,6 +409,16 @@ public class BlackboardOrchestrator
 
                     if (!evalResult.ShouldContinue)
                     {
+                        // Check for action policy name first (takes precedence)
+                        if (!string.IsNullOrEmpty(evalResult.ActionPolicyName))
+                        {
+                            triggeredActionPolicyName = evalResult.ActionPolicyName;
+                            _logger.LogDebug(
+                                "Policy {Policy} triggered action policy {ActionPolicy}: {Reason}",
+                                policy.Name, evalResult.ActionPolicyName, evalResult.Reason);
+                            break;
+                        }
+
                         if (evalResult.Action.HasValue)
                         {
                             // Handle EscalateToAi specially - run AI detectors then continue
@@ -336,6 +495,12 @@ public class BlackboardOrchestrator
                     }
                 }
 
+                // If early exit was triggered, stop the wave loop (but after policy evaluation)
+                if (earlyExitTriggered)
+                {
+                    break;
+                }
+
                 waveNumber++;
 
                 // Small delay between waves to allow signals to propagate
@@ -363,11 +528,12 @@ public class BlackboardOrchestrator
                            (finalAction.Value == PolicyAction.Allow || finalAction.Value == PolicyAction.Block) &&
                            result.ContributingDetectors.Count < 9; // Less than full detector count
 
-        if (finalAction.HasValue)
+        if (finalAction.HasValue || !string.IsNullOrEmpty(triggeredActionPolicyName))
         {
             result = result with
             {
-                PolicyAction = finalAction.Value,
+                PolicyAction = finalAction,
+                TriggeredActionPolicyName = triggeredActionPolicyName,
                 PolicyName = policy.Name,
                 TotalProcessingTimeMs = actualProcessingTimeMs,
                 EarlyExit = wasEarlyExit || result.EarlyExit,
@@ -385,6 +551,31 @@ public class BlackboardOrchestrator
 
         // Publish learning event
         PublishLearningEvent(result, requestId, stopwatch.Elapsed);
+
+        // Record request in cross-request signature coordinator
+        if (_signatureCoordinator != null)
+        {
+            try
+            {
+                var signature = ComputeSignatureHash(httpContext);
+                var path = httpContext.Request.Path.ToString();
+
+                // Fire-and-forget (don't await to avoid blocking request)
+                _ = _signatureCoordinator.RecordRequestAsync(
+                    signature,
+                    requestId,
+                    path,
+                    result.BotProbability,
+                    signals.ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
+                    result.ContributingDetectors.ToHashSet(),
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                // Log but don't fail request if signature recording fails
+                _logger.LogWarning(ex, "Failed to record request in SignatureCoordinator for {RequestId}", requestId);
+            }
+        }
 
         _logger.LogDebug(
             "Detection complete for {RequestId}: {RiskBand} (prob={Probability:F2}, conf={Confidence:F2}) in {Elapsed}ms, {Waves} waves, {Detectors} detectors",
@@ -659,6 +850,21 @@ public class BlackboardOrchestrator
             RequestId = requestId,
             Metadata = metadata
         });
+    }
+
+    /// <summary>
+    ///     Compute privacy-preserving signature hash from client IP.
+    ///     Uses XxHash64 for fast non-cryptographic hashing.
+    /// </summary>
+    private static string ComputeSignatureHash(HttpContext httpContext)
+    {
+        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+        // Use XxHash64 for fast, deterministic hashing
+        var hash = System.IO.Hashing.XxHash64.Hash(System.Text.Encoding.UTF8.GetBytes(clientIp));
+
+        // Convert to hex string (16 characters)
+        return Convert.ToHexString(hash);
     }
 
     #endregion

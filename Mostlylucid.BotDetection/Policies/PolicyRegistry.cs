@@ -53,6 +53,7 @@ public class PolicyRegistry : IPolicyRegistry
         RegisterPolicy(DetectionPolicy.Demo);
         RegisterPolicy(DetectionPolicy.Strict);
         RegisterPolicy(DetectionPolicy.Relaxed);
+        RegisterPolicy(DetectionPolicy.Static);
         RegisterPolicy(DetectionPolicy.AllowVerifiedBots);
         RegisterPolicy(DetectionPolicy.Learning);
         RegisterPolicy(DetectionPolicy.Monitor);
@@ -143,6 +144,15 @@ public class PolicyRegistry : IPolicyRegistry
         lock (_pathLock)
         {
             _pathMappings.Clear();
+
+            // Add default static asset path mappings first (lowest priority)
+            // User-defined mappings will override these due to higher specificity
+            if (options.UseDefaultStaticPathPolicies)
+            {
+                AddDefaultStaticPathMappings();
+            }
+
+            // Add user-defined path mappings (these take precedence)
             foreach (var mapping in options.PathPolicies)
             {
                 _pathMappings.Add(new PathPolicyMapping(mapping.Key, mapping.Value));
@@ -160,6 +170,41 @@ public class PolicyRegistry : IPolicyRegistry
         {
             _defaultPolicy = defaultPolicy;
         }
+    }
+
+    /// <summary>
+    ///     Adds default path mappings for static assets to use the "static" policy.
+    ///     These are added at lowest priority so user-defined mappings take precedence.
+    /// </summary>
+    private void AddDefaultStaticPathMappings()
+    {
+        // Common static asset paths - map to "static" policy
+        // The "static" policy uses FastPathReputation + UserAgent + Header only
+        // (excludes Behavioral to avoid false positives from rapid parallel requests)
+        var staticPaths = new[]
+        {
+            "/js/**",       // JavaScript bundles (webpack, etc.)
+            "/css/**",      // CSS stylesheets
+            "/lib/**",      // Library files (wwwroot/lib)
+            "/fonts/**",    // Web fonts
+            "/images/**",   // Image assets
+            "/img/**",      // Image assets (alternate)
+            "/assets/**",   // General assets folder
+            "/static/**",   // Static files folder
+            "/_content/**", // Blazor/Razor component content
+            "/dist/**",     // Distribution/build output
+            "/bundle/**",   // Bundled assets
+            "/vendor/**"    // Vendor libraries
+        };
+
+        foreach (var path in staticPaths)
+        {
+            _pathMappings.Add(new PathPolicyMapping(path, "static"));
+        }
+
+        _logger.LogDebug(
+            "Added {Count} default static path mappings to 'static' policy",
+            staticPaths.Length);
     }
 
     private static DetectionPolicy CreatePolicyFromConfig(string name, DetectionPolicyConfig config)

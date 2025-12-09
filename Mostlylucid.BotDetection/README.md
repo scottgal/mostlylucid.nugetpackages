@@ -1,6 +1,8 @@
-# Mostlylucid.BotDetection
+# StyloBot: Mostlylucid.BotDetection
 
 **DESTROY ALL ROBOTS!** (politely, with HTTP 403s)
+
+Built on **StyloFlow**, the ephemeral workflow engine.
 
 Bot detection middleware for ASP.NET Core with multi-signal detection, **AI-powered classification with continuous learning**, auto-updated blocklists, YARP integration, and full observability.
 
