@@ -41,12 +41,31 @@ public class PolicyRegistry : IPolicyRegistry
     private readonly List<PathPolicyMapping> _pathMappings = [];
     private readonly object _pathLock = new();
     private DetectionPolicy _defaultPolicy;
+    private readonly BotDetectionOptions _options;
+
+    // Default static asset file extensions
+    private static readonly HashSet<string> DefaultStaticExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".js", ".mjs", ".cjs",          // JavaScript
+        ".css", ".scss", ".sass",        // Stylesheets
+        ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp", ".avif", ".bmp", // Images
+        ".woff", ".woff2", ".ttf", ".eot", ".otf", // Fonts
+        ".map",                          // Source maps
+        ".json",                         // Manifests (may be static assets)
+        ".xml",                          // Sitemaps, etc.
+        ".txt",                          // robots.txt, etc.
+        ".pdf",                          // Documents
+        ".zip", ".tar", ".gz",           // Archives
+        ".mp4", ".webm", ".ogg", ".mp3", ".wav", // Media
+        ".wasm"                          // WebAssembly
+    };
 
     public PolicyRegistry(
         ILogger<PolicyRegistry> logger,
         IOptions<BotDetectionOptions> options)
     {
         _logger = logger;
+        _options = options.Value;
 
         // Register built-in policies
         RegisterPolicy(DetectionPolicy.Default);

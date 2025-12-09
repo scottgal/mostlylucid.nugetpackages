@@ -187,47 +187,60 @@ public sealed record DetectionPolicy
     };
 
     /// <summary>
-    ///     Creates a static asset policy - very permissive for JS/CSS/images/fonts.
+    ///     Creates a static asset policy - EXTREMELY permissive for JS/CSS/images/fonts.
     ///     Static assets are often requested rapidly by browsers (webpack bundles, etc.)
     ///     which can trigger false positives in behavioral detection.
     /// </summary>
     /// <remarks>
     ///     <para>
-    ///         This policy uses minimal detection to avoid false positives:
+    ///         This policy uses absolute minimal detection to avoid false positives:
     ///         <list type="bullet">
-    ///             <item><b>FastPathReputation</b> - IP reputation lookup (blocks known bad actors fast)</item>
-    ///             <item><b>UserAgent</b> - Basic user agent analysis</item>
-    ///             <item><b>Header</b> - HTTP header validation</item>
+    ///             <item><b>FastPathReputation</b> - Only IP reputation (blocks known malicious IPs)</item>
     ///         </list>
     ///     </para>
     ///     <para>
-    ///         Notably EXCLUDES <b>Behavioral</b> detection which causes false positives
-    ///         due to rapid parallel requests for webpack bundles, CSS sprites, etc.
+    ///         EXCLUDES all other detectors:
+    ///         <list type="bullet">
+    ///             <item><b>UserAgent</b> - Excluded (legitimate tools/CDNs may use custom UAs)</item>
+    ///             <item><b>Header</b> - Excluded (CDNs/proxies modify headers)</item>
+    ///             <item><b>Behavioral</b> - Excluded (rapid parallel requests are normal)</item>
+    ///         </list>
     ///     </para>
     ///     <para>
-    ///         Thresholds are very permissive - only blocks verified bad actors (0.99).
-    ///         Early exit at 0.7 means most requests pass quickly.
+    ///         Thresholds are EXTREMELY permissive - essentially never blocks except known malicious IPs.
+    ///         Early exit at 0.95 means almost all requests pass immediately.
+    ///         Block threshold is 0.999 (99.9%) - only blocks absolutely confirmed threats.
+    ///     </para>
+    ///     <para>
+    ///         Philosophy: Static assets should be freely accessible like a CDN. Only block
+    ///         IPs that are known to be malicious (DDoS sources, compromised hosts, etc.).
     ///     </para>
     /// </remarks>
     public static DetectionPolicy Static => new()
     {
         Name = "static",
-        Description = "Very permissive policy for static assets (JS, CSS, images, fonts)",
-        // FastPathReputation for IP reputation + basic UA/Header checks
-        // Explicitly EXCLUDES Behavioral to avoid false positives from rapid parallel requests
-        FastPathDetectors = ["FastPathReputation", "UserAgent", "Header"],
+        Description = "Extremely permissive policy for static assets - CDN-like behavior",
+        // ONLY FastPathReputation - just check if IP is known malicious
+        // No UA, no headers, no behavioral analysis
+        FastPathDetectors = ["FastPathReputation"],
         SlowPathDetectors = [],
         AiPathDetectors = [],
         UseFastPath = true,
         ForceSlowPath = false,
         EscalateToAi = false,
-        EarlyExitThreshold = 0.7,  // Exit early - assume good for static assets
-        ImmediateBlockThreshold = 0.99, // Only block verified bad actors
+        EarlyExitThreshold = 0.95,  // Almost always exit early (95%+ confidence required to continue)
+        ImmediateBlockThreshold = 0.999, // 99.9% confidence required to block
         WeightOverrides = new Dictionary<string, double>
         {
-            // If Behavioral somehow runs, reduce its weight significantly
-            // Static asset requests (webpack bundles, etc.) trigger false positives
-            ["Behavioral"] = 0.1
+            // If any detector somehow runs, reduce all weights to near-zero
+            ["UserAgent"] = 0.01,
+            ["Header"] = 0.01,
+            ["Behavioral"] = 0.01,
+            ["Ip"] = 0.01,
+            ["ClientSide"] = 0.01,
+            ["Inconsistency"] = 0.01,
+            // Only FastPathReputation at full weight
+            ["FastPathReputation"] = 1.0
         }.ToImmutableDictionary()
     };
 

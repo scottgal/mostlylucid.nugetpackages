@@ -589,6 +589,71 @@ public class BotDetectionOptions
     public bool UseDefaultStaticPathPolicies { get; set; } = true;
 
     /// <summary>
+    ///     Enable automatic static asset detection based on file extensions.
+    ///     When true, requests with static asset extensions (like .js, .css, .png, .jpg)
+    ///     automatically use the "static" policy regardless of path.
+    ///     This is MORE comprehensive than path-based detection.
+    ///     Default: true
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This is the RECOMMENDED approach for static asset detection because:
+    ///         <list type="bullet">
+    ///             <item>Works regardless of URL structure (handles CDN URLs, hash-based names)</item>
+    ///             <item>Catches all static assets even if not in conventional /static/ paths</item>
+    ///             <item>More reliable than path patterns alone</item>
+    ///         </list>
+    ///     </para>
+    ///     <para>
+    ///         Default extensions: .js, .css, .png, .jpg, .jpeg, .gif, .svg, .ico, .woff, .woff2,
+    ///         .ttf, .eot, .otf, .webp, .avif, .map, .json (for source maps/manifests)
+    ///     </para>
+    /// </remarks>
+    public bool UseFileExtensionStaticDetection { get; set; } = true;
+
+    /// <summary>
+    ///     Custom file extensions to treat as static assets (in addition to defaults).
+    ///     Include the dot (e.g., ".pdf", ".mp4", ".webm").
+    ///     Case-insensitive matching.
+    /// </summary>
+    /// <example>
+    ///     <code>
+    ///     "StaticAssetExtensions": [".pdf", ".mp4", ".webm", ".zip"]
+    ///     </code>
+    /// </example>
+    public List<string> StaticAssetExtensions { get; set; } = new();
+
+    /// <summary>
+    ///     Enable automatic static asset detection based on Content-Type header.
+    ///     When true, responses with static asset MIME types automatically apply "static" policy.
+    ///     This is a fallback for cases where file extension isn't available.
+    ///     Default: false (disabled by default as Content-Type is only available after response)
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         IMPORTANT: This only works if middleware can read response Content-Type.
+    ///         Most effective when combined with UseFileExtensionStaticDetection.
+    ///     </para>
+    ///     <para>
+    ///         Default MIME types: image/*, font/*, text/css, text/javascript,
+    ///         application/javascript, application/json (source maps)
+    ///     </para>
+    /// </remarks>
+    public bool UseContentTypeStaticDetection { get; set; } = false;
+
+    /// <summary>
+    ///     Custom MIME type prefixes to treat as static assets (in addition to defaults).
+    ///     Use prefixes for pattern matching (e.g., "video/" matches all video types).
+    ///     Case-insensitive matching.
+    /// </summary>
+    /// <example>
+    ///     <code>
+    ///     "StaticAssetMimeTypes": ["video/", "audio/", "application/pdf"]
+    ///     </code>
+    /// </example>
+    public List<string> StaticAssetMimeTypes { get; set; } = new();
+
+    /// <summary>
     ///     Global detector weight overrides.
     ///     Applied to all policies unless overridden at policy level.
     ///     Key = detector name, Value = weight multiplier.
