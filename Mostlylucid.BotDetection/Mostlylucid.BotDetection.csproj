@@ -40,7 +40,7 @@
         <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0"/>
         <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.0"/>
         <PackageReference Include="System.IO.Hashing" Version="9.0.0"/>
-        <PackageReference Include="mostlylucid.ephemeral.complete" Version="1.6.0"/>
+        <PackageReference Include="mostlylucid.ephemeral.complete" Version="1.7.0"/>
         <PackageReference Include="MathNet.Numerics" Version="5.0.0"/>
         <PackageReference Include="MinVer" Version="6.0.0">
             <PrivateAssets>all</PrivateAssets>
