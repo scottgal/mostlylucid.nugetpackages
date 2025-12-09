@@ -46,6 +46,10 @@ builder.Services.AddRazorPages(); // For TagHelper support
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Add YARP reverse proxy for transparent bot detection proxy demo
+builder.Services.AddReverseProxy()
+    .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
+
 var app = builder.Build();
 
 // Enable Swagger for testing
@@ -539,6 +543,56 @@ app.MapGet("/api/v1/yarp-learning", (HttpContext context) =>
 .WithTags("YARP Learning")
 .WithSummary("YARP learning mode endpoint - captures comprehensive training data");
 
+// Signature lookup endpoint - get all data for a signature ID
+app.MapGet("/api/v1/signature/{signatureId}", async (
+    string signatureId,
+    Mostlylucid.BotDetection.Orchestration.SignatureCoordinator coordinator) =>
+{
+    var behavior = await coordinator.GetSignatureBehaviorAsync(signatureId);
+
+    if (behavior == null)
+    {
+        return Results.NotFound(new
+        {
+            error = "Signature not found",
+            signatureId,
+            message = "This signature ID was not found in the cache. It may have expired (TTL: 30 minutes) or never existed."
+        });
+    }
+
+    return Results.Ok(new
+    {
+        signatureId,
+        behavior = new
+        {
+            signature = behavior.Signature,
+            requestCount = behavior.RequestCount,
+            firstSeen = behavior.FirstSeen,
+            lastSeen = behavior.LastSeen,
+            averageInterval = behavior.AverageInterval,
+            pathEntropy = behavior.PathEntropy,
+            timingCoefficient = behavior.TimingCoefficient,
+            averageBotProbability = behavior.AverageBotProbability,
+            aberrationScore = behavior.AberrationScore,
+            isAberrant = behavior.IsAberrant,
+            // Request details
+            requests = behavior.Requests?.Select(r => new
+            {
+                requestId = r.RequestId,
+                path = r.Path,
+                botProbability = r.BotProbability,
+                timestamp = r.Timestamp,
+                detectorsRan = r.DetectorsRan.ToArray(),
+                escalated = r.Escalated,
+                signals = r.Signals
+            }).ToArray()
+        }
+    });
+})
+.WithName("GetSignature")
+.WithTags("Bot Detection", "YARP Proxy")
+.WithSummary("Get all bot detection data for a signature ID (from SignatureCoordinator)");
+
 // Batch endpoint for load testing multiple detections
 app.MapPost("/api/v1/batch-check", (HttpContext context, BatchCheckRequest request) =>
 {
@@ -627,6 +681,9 @@ Write-Host ""n=== TESTS COMPLETE ==="" -ForegroundColor Cyan
 ";
     return Results.Text(script, "text/plain");
 });
+
+// Map YARP reverse proxy - MUST be after bot detection middleware
+app.MapReverseProxy();
 
 app.Run();
 
