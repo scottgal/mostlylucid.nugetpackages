@@ -55,7 +55,9 @@
       "Bash(else echo \"No NuGet.config found\")",
       "Bash(fi)",
       "Bash(git ls-tree:*)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "Bash(powershell -Command \"$input | Select-String -Pattern ''''Failed:'''',''''FAIL\\]'''',''''Error Message:''''\")",
+      "Bash(powershell -Command \"$input | Measure-Object -Line\")"
     ],
     "deny": [],
     "ask": []

@@ -155,13 +155,20 @@ public class PolicyRegistry : IPolicyRegistry
             // Add user-defined path mappings (these take precedence)
             foreach (var mapping in options.PathPolicies)
             {
-                _pathMappings.Add(new PathPolicyMapping(mapping.Key, mapping.Value));
+                _pathMappings.Add(new PathPolicyMapping(mapping.Key, mapping.Value, isUserDefined: true));
                 _logger.LogDebug("Registered path mapping: {Pattern} -> {Policy}",
                     mapping.Key, mapping.Value);
             }
 
-            // Sort by specificity (more specific patterns first)
-            _pathMappings.Sort((a, b) => b.Specificity.CompareTo(a.Specificity));
+            // Sort by priority: user-defined first, then by specificity (more specific patterns first)
+            _pathMappings.Sort((a, b) =>
+            {
+                // User-defined mappings always win over defaults
+                if (a.IsUserDefined != b.IsUserDefined)
+                    return a.IsUserDefined ? -1 : 1;
+                // Within same priority level, sort by specificity
+                return b.Specificity.CompareTo(a.Specificity);
+            });
         }
 
         // Set default policy if configured
@@ -235,10 +242,11 @@ internal class PathPolicyMapping
     private readonly bool _isPrefix;
     private readonly string _normalizedPattern;
 
-    public PathPolicyMapping(string pattern, string policyName)
+    public PathPolicyMapping(string pattern, string policyName, bool isUserDefined = false)
     {
         _pattern = pattern;
         PolicyName = policyName;
+        IsUserDefined = isUserDefined;
 
         // Normalize pattern
         _normalizedPattern = pattern.TrimEnd('/');
@@ -255,6 +263,7 @@ internal class PathPolicyMapping
     public string PathPattern => _pattern;
     public string PolicyName { get; }
     public int Specificity { get; }
+    public bool IsUserDefined { get; }
 
     public bool Matches(string path)
     {
