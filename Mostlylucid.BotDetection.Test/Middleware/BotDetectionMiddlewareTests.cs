@@ -57,14 +57,15 @@ public class BotDetectionMiddlewareTests
 
     private static Mock<BlackboardOrchestrator> CreateMockOrchestrator(AggregatedEvidence? result = null)
     {
-        // Constructor: logger, options, detectors, learningBus?, policyRegistry?, policyEvaluator?
+        // Constructor: logger, options, detectors, learningBus?, policyRegistry?, policyEvaluator?, signatureCoordinator?
         var mock = new Mock<BlackboardOrchestrator>(
             Mock.Of<ILogger<BlackboardOrchestrator>>(),
             Options.Create(new BotDetectionOptions()),
             Enumerable.Empty<IContributingDetector>(),
             null, // learningBus
             null, // policyRegistry
-            null  // policyEvaluator
+            null, // policyEvaluator
+            null  // signatureCoordinator
         );
 
         var evidence = result ?? CreateEvidence();
@@ -503,14 +504,15 @@ public class BotDetectionMiddlewareTests
         RequestDelegate next = _ => Task.CompletedTask;
         CancellationToken capturedToken = default;
 
-        // Constructor: logger, options, detectors, learningBus?, policyRegistry?, policyEvaluator?
+        // Constructor: logger, options, detectors, learningBus?, policyRegistry?, policyEvaluator?, signatureCoordinator?
         var mockOrchestrator = new Mock<BlackboardOrchestrator>(
             Mock.Of<ILogger<BlackboardOrchestrator>>(),
             Options.Create(new BotDetectionOptions()),
             Enumerable.Empty<IContributingDetector>(),
             null, // learningBus
             null, // policyRegistry
-            null  // policyEvaluator
+            null, // policyEvaluator
+            null  // signatureCoordinator
         );
 
         mockOrchestrator.Setup(o => o.DetectWithPolicyAsync(
