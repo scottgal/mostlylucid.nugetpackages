@@ -6,6 +6,9 @@
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
 
+        <!-- Static web assets -->
+        <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+
         <!-- NuGet package metadata -->
         <PackageId>Mostlylucid.GeoDetection.Contributor</PackageId>
         <Version>1.0.0</Version>
@@ -21,6 +24,10 @@
 
     <ItemGroup>
         <None Include="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Include="wwwroot\**\*" Pack="true" PackagePath="staticwebassets\" />
     </ItemGroup>
 
     <ItemGroup>

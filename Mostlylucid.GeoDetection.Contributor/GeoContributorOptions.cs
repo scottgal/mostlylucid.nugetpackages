@@ -66,4 +66,11 @@ public class GeoContributorOptions
     ///     Default: 15 (run after IP contributor but before inconsistency checks)
     /// </summary>
     public int Priority { get; set; } = 15;
+
+    /// <summary>
+    ///     Enable client-side geo collection via <client-geo /> tag helper.
+    ///     Collects browser timezone, locale, and optionally GPS coordinates.
+    ///     Default: true
+    /// </summary>
+    public bool EnableClientGeo { get; set; } = true;
 }

@@ -314,6 +314,175 @@
             .category-scores { grid-template-columns: repeat(2, 1fr); }
             .mode-options { grid-template-columns: 1fr; }
         }
+
+        /* YARP Proxy Modal */
+        .proxy-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 1000;
+            overflow: auto;
+        }
+        .proxy-modal.active {
+            display: flex;
+            flex-direction: column;
+        }
+        .proxy-modal-header {
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .proxy-modal-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #c9d1d9;
+        }
+        .proxy-modal-close {
+            background: #da3633;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .proxy-modal-close:hover {
+            background: #f85149;
+        }
+        .proxy-session-info {
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            padding: 15px 20px;
+        }
+        .proxy-session-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .proxy-session-id {
+            font-family: 'Courier New', monospace;
+            color: #58a6ff;
+            font-size: 0.85em;
+        }
+        .proxy-bot-score {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .proxy-score-label {
+            font-size: 0.9em;
+            color: #8b949e;
+        }
+        .proxy-score-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            padding: 4px 12px;
+            border-radius: 4px;
+        }
+        .proxy-score-human {
+            background: #238636;
+            color: white;
+        }
+        .proxy-score-bot {
+            background: #da3633;
+            color: white;
+        }
+        .proxy-score-suspicious {
+            background: #f0883e;
+            color: white;
+        }
+        .proxy-stats {
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+        }
+        .proxy-stat {
+            display: flex;
+            flex-direction: column;
+        }
+        .proxy-stat-label {
+            font-size: 0.75em;
+            color: #8b949e;
+            text-transform: uppercase;
+        }
+        .proxy-stat-value {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #58a6ff;
+        }
+        .proxy-requests-list {
+            max-height: 120px;
+            overflow-y: auto;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .proxy-request-item {
+            padding: 6px 10px;
+            border-bottom: 1px solid #30363d;
+            font-size: 0.8em;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .proxy-request-item:last-child {
+            border-bottom: none;
+        }
+        .proxy-request-path {
+            color: #58a6ff;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .proxy-request-confidence {
+            color: #f0883e;
+            margin-left: 10px;
+        }
+        .proxy-request-type {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.75em;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+        .proxy-type-html {
+            background: #238636;
+            color: white;
+        }
+        .proxy-type-static {
+            background: #30363d;
+            color: #8b949e;
+        }
+        .proxy-modal-content {
+            flex: 1;
+            background: white;
+            overflow: hidden;
+        }
+        .proxy-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .proxy-loading {
+            display: none;
+            color: #58a6ff;
+            font-size: 0.9em;
+            margin-left: 15px;
+        }
+        .proxy-loading.active {
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
@@ -451,6 +620,21 @@
                        placeholder="Enter any User-Agent string to test... e.g. MyBot/1.0 or curl/7.68.0"
                        onkeypress="if(event.key==='Enter') testCustomUa()">
                 <button onclick="testCustomUa()">Test UA</button>
+            </div>
+        </div>
+
+        <!-- YARP Proxy URL Input -->
+        <div class="custom-ua-section">
+            <div style="font-size: 0.85em; color: #8b949e; margin-bottom: 8px;">
+                Test URL through YARP proxy with bot detection
+            </div>
+            <div class="custom-ua-input">
+                <input type="text"
+                       id="proxyUrlInput"
+                       placeholder="Enter URL to proxy... e.g. www.mostlylucid.net or https://example.com"
+                       value="www.mostlylucid.net"
+                       onkeypress="if(event.key==='Enter') openProxyModal()">
+                <button onclick="openProxyModal()">Test URL</button>
             </div>
         </div>
 
@@ -670,6 +854,56 @@
     <!-- Bot Detection Script - fingerprint collection -->
     <!-- Note: Fingerprint endpoint uses path mapping to demo policy for consistent collection -->
     <bot-detection-script endpoint="/bot-detection/fingerprint" />
+
+    <!-- YARP Proxy Modal -->
+    <div class="proxy-modal" id="proxyModal">
+        <div class="proxy-modal-header">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <span class="proxy-modal-title">YARP Proxy - Bot Detection</span>
+                <span class="proxy-loading" id="proxyLoading">Loading...</span>
+            </div>
+            <button class="proxy-modal-close" onclick="closeProxyModal()">Close</button>
+        </div>
+        <div class="proxy-session-info">
+            <div class="proxy-session-row">
+                <div>
+                    <div class="proxy-session-id">Session: <span id="proxySessionId">--</span></div>
+                </div>
+                <div class="proxy-bot-score">
+                    <span class="proxy-score-label">Bot Score:</span>
+                    <div class="proxy-score-value proxy-score-human" id="proxyBotScore">0.00</div>
+                </div>
+            </div>
+            <div class="proxy-stats">
+                <div class="proxy-stat">
+                    <div class="proxy-stat-label">Total Requests</div>
+                    <div class="proxy-stat-value" id="proxyTotalRequests">0</div>
+                </div>
+                <div class="proxy-stat">
+                    <div class="proxy-stat-label">HTML Docs</div>
+                    <div class="proxy-stat-value" id="proxyHtmlCount">0</div>
+                </div>
+                <div class="proxy-stat">
+                    <div class="proxy-stat-label">Static Assets</div>
+                    <div class="proxy-stat-value" id="proxyStaticCount">0</div>
+                </div>
+                <div class="proxy-stat">
+                    <div class="proxy-stat-label">Bot Type</div>
+                    <div class="proxy-stat-value" id="proxyBotType">Human</div>
+                </div>
+                <div class="proxy-stat">
+                    <div class="proxy-stat-label">Duration</div>
+                    <div class="proxy-stat-value" id="proxySessionDuration">0ms</div>
+                </div>
+            </div>
+            <div class="proxy-requests-list">
+                <div id="proxyRequestsList"></div>
+            </div>
+        </div>
+        <div class="proxy-modal-content">
+            <iframe class="proxy-iframe" id="proxyIframe"></iframe>
+        </div>
+    </div>
 
     <script>
         // ==========================================
@@ -921,6 +1155,175 @@
 
         // Auto-fetch on load
         setTimeout(fetchDetectionCheck, 500);
+
+        // ==========================================
+        // YARP Proxy Modal Functions
+        // ==========================================
+
+        let proxySessionId = null;
+        let proxySessionRequests = [];
+        let proxySessionStartTime = null;
+        let proxyPollingInterval = null;
+
+        function generateProxySessionId() {
+            return 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        function openProxyModal() {
+            const urlInput = document.getElementById('proxyUrlInput');
+            const modal = document.getElementById('proxyModal');
+            const loading = document.getElementById('proxyLoading');
+            const iframe = document.getElementById('proxyIframe');
+            const requestsList = document.getElementById('proxyRequestsList');
+
+            let url = urlInput.value.trim();
+            if (!url) {
+                urlInput.focus();
+                urlInput.style.borderColor = '#da3633';
+                setTimeout(() => { urlInput.style.borderColor = '#30363d'; }, 1000);
+                return;
+            }
+
+            // Normalize URL
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                url = 'https://' + url;
+            }
+
+            // CLEAR ALL STATE
+            proxySessionId = generateProxySessionId();
+            proxySessionRequests = [];
+            proxySessionStartTime = Date.now();
+
+            // Clear previous polling
+            if (proxyPollingInterval) {
+                clearInterval(proxyPollingInterval);
+                proxyPollingInterval = null;
+            }
+
+            // Reset UI
+            document.getElementById('proxySessionId').textContent = proxySessionId;
+            document.getElementById('proxyBotScore').textContent = '0.00';
+            document.getElementById('proxyBotScore').className = 'proxy-score-value proxy-score-human';
+            document.getElementById('proxyTotalRequests').textContent = '0';
+            document.getElementById('proxyHtmlCount').textContent = '0';
+            document.getElementById('proxyStaticCount').textContent = '0';
+            document.getElementById('proxyBotType').textContent = 'Human';
+            document.getElementById('proxySessionDuration').textContent = '0ms';
+            requestsList.innerHTML = '';
+
+            // Show modal and loading
+            modal.classList.add('active');
+            loading.classList.add('active');
+
+            // Load URL through proxy - keep the full URL with protocol
+            const proxyUrl = `/proxy/${url}`;
+            iframe.src = proxyUrl;
+
+            // Wait for sub-requests to complete
+            setTimeout(() => {
+                pollProxySessionData();
+                // Poll for 5 seconds to catch all sub-requests
+                let pollCount = 0;
+                proxyPollingInterval = setInterval(() => {
+                    pollProxySessionData();
+                    pollCount++;
+                    if (pollCount >= 10) {
+                        clearInterval(proxyPollingInterval);
+                        loading.classList.remove('active');
+                    }
+                }, 500);
+            }, 1000);
+        }
+
+        function closeProxyModal() {
+            const modal = document.getElementById('proxyModal');
+            modal.classList.remove('active');
+
+            // Clear polling
+            if (proxyPollingInterval) {
+                clearInterval(proxyPollingInterval);
+                proxyPollingInterval = null;
+            }
+
+            // Clear iframe
+            document.getElementById('proxyIframe').src = '';
+        }
+
+        async function pollProxySessionData() {
+            if (!proxySessionId) return;
+
+            try {
+                const response = await fetch(`/api/v1/signature/${proxySessionId}`);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    updateProxyDisplayFromSignature(data);
+                }
+            } catch (error) {
+                console.error('Failed to fetch proxy session data:', error);
+            }
+        }
+
+        function updateProxyDisplayFromSignature(data) {
+            if (!data.behavior) return;
+
+            const behavior = data.behavior;
+
+            // Update bot score
+            const probability = behavior.averageBotProbability || 0;
+            const scoreEl = document.getElementById('proxyBotScore');
+            scoreEl.textContent = probability.toFixed(2);
+            scoreEl.className = 'proxy-score-value ' +
+                (probability > 0.7 ? 'proxy-score-bot' :
+                 probability > 0.3 ? 'proxy-score-suspicious' :
+                 'proxy-score-human');
+
+            // Update stats
+            document.getElementById('proxyTotalRequests').textContent = behavior.requestCount || 0;
+            document.getElementById('proxyHtmlCount').textContent =
+                (behavior.requests?.filter(r => r.path.endsWith('.html') || !r.path.includes('.')).length || 0);
+            document.getElementById('proxyStaticCount').textContent =
+                (behavior.requests?.filter(r => r.path.includes('.') && !r.path.endsWith('.html')).length || 0);
+
+            // Determine bot type
+            const botType = behavior.isAberrant ? 'Aberrant Bot' :
+                           (behavior.aberrationScore > 0.5 ? 'Suspicious' : 'Human');
+            document.getElementById('proxyBotType').textContent = botType;
+
+            // Update duration
+            const firstSeen = new Date(behavior.firstSeen);
+            const lastSeen = new Date(behavior.lastSeen);
+            const duration = lastSeen - firstSeen;
+            document.getElementById('proxySessionDuration').textContent = Math.round(duration) + 'ms';
+
+            // Update requests list
+            if (behavior.requests) {
+                proxySessionRequests = behavior.requests.map(r => ({
+                    path: r.path,
+                    type: r.path.includes('.') && !r.path.endsWith('.html') ? 'static' : 'html',
+                    confidence: r.botProbability
+                }));
+                updateProxyRequestsList();
+            }
+        }
+
+        function updateProxyRequestsList() {
+            const requestsList = document.getElementById('proxyRequestsList');
+            requestsList.innerHTML = proxySessionRequests.map(req => `
+                <div class="proxy-request-item">
+                    <div class="proxy-request-path" title="${req.path}">${req.path}</div>
+                    <span class="proxy-request-type proxy-type-${req.type}">${req.type.toUpperCase()}</span>
+                    <span class="proxy-request-confidence">${req.confidence.toFixed(2)}</span>
+                </div>
+            `).join('');
+        }
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeProxyModal();
+            }
+        });
     </script>
 </body>
 </html>

@@ -61,7 +61,11 @@
       "Bash(Select-String \"error|Build succeeded|Build FAILED\")",
       "Bash(powershell -Command:*)",
       "Bash(Select-Object -Last 20)",
-      "Bash(powershell -ExecutionPolicy Bypass -File \"D:\\Source\\mostlylucid.nugetpackages\\test-mostlylucid-net.ps1\":*)"
+      "Bash(powershell -ExecutionPolicy Bypass -File \"D:\\Source\\mostlylucid.nugetpackages\\test-mostlylucid-net.ps1\":*)",
+      "Bash(powershell.exe:*)",
+      "Bash(dotnet clean:*)",
+      "Bash(node test-proxy.js:*)",
+      "Bash(npm install:*)"
     ],
     "deny": [],
     "ask": []

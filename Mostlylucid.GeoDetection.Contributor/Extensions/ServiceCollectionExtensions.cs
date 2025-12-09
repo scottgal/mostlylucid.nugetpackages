@@ -31,9 +31,13 @@ public static class ServiceCollectionExtensions
                 .BindConfiguration("BotDetection:Geo");
         }
 
-        // Register the contributor
+        // Register the server-side geo contributor
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IContributingDetector, GeoContributor>());
+
+        // Register the client-side geo contributor (if enabled)
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IContributingDetector, GeoClientContributor>());
 
         return services;
     }
