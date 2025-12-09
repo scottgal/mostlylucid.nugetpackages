@@ -60,7 +60,8 @@
       "Bash(powershell -Command \"$input | Measure-Object -Line\")",
       "Bash(Select-String \"error|Build succeeded|Build FAILED\")",
       "Bash(powershell -Command:*)",
-      "Bash(Select-Object -Last 20)"
+      "Bash(Select-Object -Last 20)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"D:\\Source\\mostlylucid.nugetpackages\\test-mostlylucid-net.ps1\":*)"
     ],
     "deny": [],
     "ask": []
