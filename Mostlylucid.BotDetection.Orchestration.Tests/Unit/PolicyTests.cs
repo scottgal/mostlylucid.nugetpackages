@@ -148,6 +148,7 @@ public class PolicyTests
     {
         var options = Options.Create(new BotDetectionOptions
         {
+            UseFileExtensionStaticDetection = false, // Disable to test path-based matching only
             PathPolicies = new Dictionary<string, string>
             {
                 ["/api/login"] = "strict",
@@ -435,6 +436,7 @@ public class PolicyTests
     {
         var options = Options.Create(new BotDetectionOptions
         {
+            UseFileExtensionStaticDetection = false, // Disable to test path-based matching only
             PathPolicies = new Dictionary<string, string>
             {
                 ["/static/*"] = "relaxed"
@@ -465,6 +467,56 @@ public class PolicyTests
         Assert.Equal("strict", registry.GetPolicyForPath("/api").Name);
         Assert.Equal("strict", registry.GetPolicyForPath("/api/users").Name);
         Assert.Equal("strict", registry.GetPolicyForPath("/api/users/123/posts").Name);
+    }
+
+    [Fact]
+    public void PolicyRegistry_FileExtensionDetection_ReturnsStaticPolicy()
+    {
+        var options = Options.Create(new BotDetectionOptions
+        {
+            UseFileExtensionStaticDetection = true, // Enable file extension detection (default)
+            PathPolicies = new Dictionary<string, string>
+            {
+                ["/api/**"] = "strict"
+            }
+        });
+        var registry = new PolicyRegistry(
+            NullLogger<PolicyRegistry>.Instance,
+            options);
+
+        // File extension detection should take priority
+        Assert.Equal("static", registry.GetPolicyForPath("/anywhere/image.png").Name);
+        Assert.Equal("static", registry.GetPolicyForPath("/api/data/styles.css").Name);
+        Assert.Equal("static", registry.GetPolicyForPath("/bundle.js").Name);
+        Assert.Equal("static", registry.GetPolicyForPath("/fonts/arial.woff2").Name);
+        Assert.Equal("static", registry.GetPolicyForPath("/img/logo.svg").Name);
+
+        // Query strings should be ignored
+        Assert.Equal("static", registry.GetPolicyForPath("/image.png?v=123").Name);
+
+        // Non-static files should use path matching or default
+        Assert.Equal("strict", registry.GetPolicyForPath("/api/users").Name);
+        Assert.Equal("default", registry.GetPolicyForPath("/page.html").Name);
+    }
+
+    [Fact]
+    public void PolicyRegistry_CustomStaticExtensions_Works()
+    {
+        var options = Options.Create(new BotDetectionOptions
+        {
+            UseFileExtensionStaticDetection = true,
+            StaticAssetExtensions = new List<string> { ".custom", ".xyz" }
+        });
+        var registry = new PolicyRegistry(
+            NullLogger<PolicyRegistry>.Instance,
+            options);
+
+        // Default extensions still work
+        Assert.Equal("static", registry.GetPolicyForPath("/file.png").Name);
+
+        // Custom extensions work
+        Assert.Equal("static", registry.GetPolicyForPath("/file.custom").Name);
+        Assert.Equal("static", registry.GetPolicyForPath("/file.xyz").Name);
     }
 
     [Fact]

@@ -95,6 +95,17 @@ public class PolicyRegistry : IPolicyRegistry
 
     public DetectionPolicy GetPolicyForPath(string path)
     {
+        // Check file extension FIRST (if enabled) - most reliable for static assets
+        if (_options.UseFileExtensionStaticDetection && IsStaticAssetByExtension(path))
+        {
+            if (_policies.TryGetValue("static", out var staticPolicy))
+            {
+                _logger.LogDebug("Path {Path} identified as static asset by file extension", path);
+                return staticPolicy;
+            }
+        }
+
+        // Then check path patterns
         lock (_pathLock)
         {
             foreach (var mapping in _pathMappings)
@@ -115,6 +126,36 @@ public class PolicyRegistry : IPolicyRegistry
         }
 
         return _defaultPolicy;
+    }
+
+    /// <summary>
+    ///     Checks if a path represents a static asset based on file extension.
+    /// </summary>
+    private bool IsStaticAssetByExtension(string path)
+    {
+        // Extract file extension from path (handles query strings and fragments)
+        var pathPart = path.Split('?', '#')[0];
+        var extension = Path.GetExtension(pathPart);
+
+        if (string.IsNullOrEmpty(extension))
+        {
+            return false;
+        }
+
+        // Check default extensions
+        if (DefaultStaticExtensions.Contains(extension))
+        {
+            return true;
+        }
+
+        // Check custom extensions from configuration
+        if (_options.StaticAssetExtensions.Any(ext =>
+            string.Equals(ext, extension, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     public IReadOnlyDictionary<string, DetectionPolicy> GetAllPolicies()

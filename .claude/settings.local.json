@@ -57,7 +57,8 @@
       "Bash(git ls-tree:*)",
       "Bash(git fetch:*)",
       "Bash(powershell -Command \"$input | Select-String -Pattern ''''Failed:'''',''''FAIL\\]'''',''''Error Message:''''\")",
-      "Bash(powershell -Command \"$input | Measure-Object -Line\")"
+      "Bash(powershell -Command \"$input | Measure-Object -Line\")",
+      "Bash(Select-String \"error|Build succeeded|Build FAILED\")"
     ],
     "deny": [],
     "ask": []
