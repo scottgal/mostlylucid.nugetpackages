@@ -65,7 +65,16 @@
       "Bash(powershell.exe:*)",
       "Bash(dotnet clean:*)",
       "Bash(node test-proxy.js:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(dotnet new:*)",
+      "Bash(del \"D:\\Source\\mostlylucid.nugetpackages\\Mostlylucid.BotDetection.UI\\Component1.razor.css\" 2)",
+      "Bash(del \"D:\\Source\\mostlylucid.nugetpackages\\Mostlylucid.BotDetection.UI\\Component1.razor\" 2)",
+      "Bash(del \"D:\\Source\\mostlylucid.nugetpackages\\Mostlylucid.BotDetection.UI\\ExampleJsInterop.cs\" 2)",
+      "Bash(del \"D:\\Source\\mostlylucid.nugetpackages\\Mostlylucid.BotDetection.UI\\wwwroot\\background.png\" 2)",
+      "Bash(del \"D:\\Source\\mostlylucid.nugetpackages\\Mostlylucid.BotDetection.UI\\wwwroot\\exampleJsInterop.js\" 2)",
+      "Bash(xargs:*)",
+      "Bash(Select-Object -Last 50)",
+      "WebFetch(domain:threatfox.abuse.ch)"
     ],
     "deny": [],
     "ask": []

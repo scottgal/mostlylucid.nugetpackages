@@ -83,6 +83,100 @@ public static class YarpExtensions
     }
 
     /// <summary>
+    ///     Adds FULL bot detection headers including all metadata for UI display.
+    ///     This includes: results, probabilities, reasons, detector contributions, YARP info, etc.
+    ///
+    ///     USE THIS for comprehensive dashboard display behind YARP proxy.
+    /// </summary>
+    /// <param name="httpContext">The current HttpContext with bot detection results</param>
+    /// <param name="addHeader">Action to add headers</param>
+    public static void AddBotDetectionHeadersFull(this HttpContext httpContext, Action<string, string> addHeader)
+    {
+        // Add basic headers
+        httpContext.AddBotDetectionHeaders(addHeader);
+
+        // Get aggregated evidence from context if available
+        if (httpContext.Items.TryGetValue("BotDetection.Evidence", out var evidenceObj) &&
+            evidenceObj is Orchestration.AggregatedEvidence evidence)
+        {
+            // Core detection results
+            addHeader("X-Bot-Detection-Result", evidence.BotProbability > 0.5 ? "true" : "false");
+            addHeader("X-Bot-Detection-Probability", evidence.BotProbability.ToString("F4"));
+            addHeader("X-Bot-Detection-Confidence", evidence.Confidence.ToString("F4"));
+            addHeader("X-Bot-Detection-RiskBand", evidence.RiskBand.ToString());
+
+            // Bot identification
+            if (evidence.PrimaryBotType.HasValue)
+                addHeader("X-Bot-Detection-BotType", evidence.PrimaryBotType.Value.ToString());
+
+            if (!string.IsNullOrEmpty(evidence.PrimaryBotName))
+                addHeader("X-Bot-Detection-BotName", evidence.PrimaryBotName);
+
+            // Policy and action
+            if (!string.IsNullOrEmpty(evidence.PolicyName))
+                addHeader("X-Bot-Detection-Policy", evidence.PolicyName);
+
+            var action = evidence.PolicyAction?.ToString() ?? evidence.TriggeredActionPolicyName;
+            if (!string.IsNullOrEmpty(action))
+                addHeader("X-Bot-Detection-Action", action);
+
+            // Processing metrics
+            addHeader("X-Bot-Detection-ProcessingMs", evidence.TotalProcessingTimeMs.ToString("F2"));
+
+            // Top reasons (JSON array for easy parsing)
+            var topReasons = evidence.Contributions
+                .Where(c => !string.IsNullOrEmpty(c.Reason))
+                .OrderByDescending(c => Math.Abs(c.ConfidenceDelta * c.Weight))
+                .Take(5)
+                .Select(c => c.Reason)
+                .ToList();
+
+            if (topReasons.Any())
+            {
+                var reasonsJson = System.Text.Json.JsonSerializer.Serialize(topReasons);
+                addHeader("X-Bot-Detection-Reasons", reasonsJson);
+            }
+
+            // Detector contributions (JSON array)
+            var contributionsData = evidence.Contributions
+                .GroupBy(c => c.DetectorName)
+                .Select(g => new
+                {
+                    Name = g.Key,
+                    Category = g.First().Category,
+                    ConfidenceDelta = g.Sum(c => c.ConfidenceDelta),
+                    Weight = g.Sum(c => c.Weight),
+                    Contribution = g.Sum(c => c.ConfidenceDelta * c.Weight),
+                    Reason = string.Join("; ", g.Select(c => c.Reason).Where(r => !string.IsNullOrEmpty(r))),
+                    ExecutionTimeMs = g.Sum(c => c.ProcessingTimeMs),
+                    Priority = g.First().Priority
+                })
+                .OrderByDescending(d => Math.Abs(d.Contribution))
+                .ToList();
+
+            if (contributionsData.Any())
+            {
+                var contributionsJson = System.Text.Json.JsonSerializer.Serialize(contributionsData);
+                addHeader("X-Bot-Detection-Contributions", contributionsJson);
+            }
+
+            // Request metadata
+            addHeader("X-Bot-Detection-RequestId", httpContext.TraceIdentifier);
+        }
+
+        // YARP routing info (if available)
+        if (httpContext.Items.TryGetValue("Yarp.Cluster", out var cluster) && cluster != null)
+        {
+            addHeader("X-Bot-Detection-Cluster", cluster.ToString()!);
+        }
+
+        if (httpContext.Items.TryGetValue("Yarp.Destination", out var dest) && dest != null)
+        {
+            addHeader("X-Bot-Detection-Destination", dest.ToString()!);
+        }
+    }
+
+    /// <summary>
     ///     Determines the YARP cluster to route to based on bot detection results.
     /// </summary>
     /// <param name="httpContext">The current HttpContext</param>

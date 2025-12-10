@@ -836,6 +836,14 @@ public class BotListFetcher : IBotListFetcher
                         validCount, sources.ScannerUserAgents.Url);
                 }
             }
+            catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException || cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogDebug("Scanner user agents fetch timed out or was canceled - using fallback patterns");
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogDebug(ex, "Scanner user agents fetch failed (network error) - using fallback patterns");
+            }
             catch (JsonException ex)
             {
                 _logger.LogWarning(ex, "Invalid JSON in scanner_user_agents from {Url}", sources.ScannerUserAgents.Url);
@@ -878,6 +886,14 @@ public class BotListFetcher : IBotListFetcher
                 }
                 _logger.LogInformation("Fetched {Count} security tool patterns from {Url}",
                     validCount, sources.CoreRuleSetScanners.Url);
+            }
+            catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException || cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogDebug("CoreRuleSet patterns fetch timed out or was canceled - using fallback patterns");
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogDebug(ex, "CoreRuleSet patterns fetch failed (network error) - using fallback patterns");
             }
             catch (Exception ex)
             {

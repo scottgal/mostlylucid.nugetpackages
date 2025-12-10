@@ -376,6 +376,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IContributingDetector, CacheBehaviorContributor>();
         // Advanced behavioral pattern detection - runs after basic behavioral
         services.AddSingleton<IContributingDetector, AdvancedBehavioralContributor>();
+        // Advanced fingerprinting detectors (Wave 0 - network/protocol layer)
+        services.AddSingleton<IContributingDetector, TlsFingerprintContributor>();
+        services.AddSingleton<IContributingDetector, TcpIpFingerprintContributor>();
+        services.AddSingleton<IContributingDetector, Http2FingerprintContributor>();
         // Wave 1+ detectors (triggered by signals from Wave 0)
         services.AddSingleton<IContributingDetector, VersionAgeContributor>();
         services.AddSingleton<IContributingDetector, InconsistencyContributor>();
@@ -386,6 +390,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IContributingDetector, ReputationBiasContributor>();
         // Heuristic early - runs before AI with basic request features
         services.AddSingleton<IContributingDetector, HeuristicContributor>();
+        // Multi-layer correlation - runs after fingerprinting to cross-check consistency
+        services.AddSingleton<IContributingDetector, MultiLayerCorrelationContributor>();
+        // Behavioral waveform analysis - analyzes patterns across multiple requests
+        services.AddSingleton<IContributingDetector, BehavioralWaveformContributor>();
         // AI/LLM detectors (run when escalation triggered or in demo mode)
         services.AddSingleton<IContributingDetector, LlmContributor>();
         // Heuristic late - runs AFTER AI (or after all static if no AI), consumes all evidence

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.ObjectPool;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Events;
 using Mostlylucid.BotDetection.Models;
@@ -236,6 +237,9 @@ public class BlackboardOrchestrator
     // Circuit breaker state per detector
     private readonly ConcurrentDictionary<string, CircuitState> _circuitStates = new();
 
+    // Object pool for reusing state collections
+    private static readonly ObjectPool<PooledDetectionState> StatePool = DetectionStatePoolFactory.Create();
+
     public BlackboardOrchestrator(
         ILogger<BlackboardOrchestrator> logger,
         IOptions<BotDetectionOptions> options,
@@ -297,19 +301,23 @@ public class BlackboardOrchestrator
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(timeout);
 
-        var aggregator = new EvidenceAggregator();
-        var signals = new ConcurrentDictionary<string, object>();
-        var completedDetectors = new ConcurrentDictionary<string, bool>();
-        var failedDetectors = new ConcurrentDictionary<string, bool>();
-        var ranDetectors = new HashSet<string>();
-        PolicyAction? finalAction = null;
-        string? triggeredActionPolicyName = null;
+        // Get pooled state to reuse collections
+        var pooledState = StatePool.Get();
+        try
+        {
+            var aggregator = new EvidenceAggregator();
+            var signals = pooledState.Signals;
+            var completedDetectors = pooledState.CompletedDetectors;
+            var failedDetectors = pooledState.FailedDetectors;
+            var ranDetectors = pooledState.RanDetectors;
+            PolicyAction? finalAction = null;
+            string? triggeredActionPolicyName = null;
 
-        // Build detector lists based on policy
-        var allPolicyDetectors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        allPolicyDetectors.UnionWith(policy.FastPathDetectors);
-        allPolicyDetectors.UnionWith(policy.SlowPathDetectors);
-        allPolicyDetectors.UnionWith(policy.AiPathDetectors);
+            // Build detector lists based on policy
+            var allPolicyDetectors = pooledState.AllPolicyDetectors;
+            allPolicyDetectors.UnionWith(policy.FastPathDetectors);
+            allPolicyDetectors.UnionWith(policy.SlowPathDetectors);
+            allPolicyDetectors.UnionWith(policy.AiPathDetectors);
 
         // Get enabled detectors (respecting circuit breakers and policy)
         var availableDetectors = _detectors
@@ -332,8 +340,8 @@ public class BlackboardOrchestrator
                 var state = BuildState(
                     httpContext,
                     signals,
-                    completedDetectors.Keys.ToHashSet(),
-                    failedDetectors.Keys.ToHashSet(),
+                    completedDetectors.Keys,
+                    failedDetectors.Keys,
                     aggregator,
                     requestId,
                     stopwatch.Elapsed);
@@ -343,9 +351,9 @@ public class BlackboardOrchestrator
                 var readyDetectors = availableDetectors
                     .Where(d => !ranDetectors.Contains(d.Name))
                     .Where(d => policy.BypassTriggerConditions || CanRun(d, state.Signals))
-                    .ToList();
+                    .ToArray(); // ToArray is faster than ToList for iteration
 
-                if (readyDetectors.Count == 0)
+                if (readyDetectors.Length == 0)
                 {
                     _logger.LogDebug(
                         "Wave {Wave}: No more detectors ready, finishing",
@@ -356,7 +364,7 @@ public class BlackboardOrchestrator
                 _logger.LogDebug(
                     "Wave {Wave}: Running {Count} detectors: {Names}",
                     waveNumber,
-                    readyDetectors.Count,
+                    readyDetectors.Length,
                     string.Join(", ", readyDetectors.Select(d => d.Name)));
 
                 // Mark as ran (before execution to prevent re-triggering)
@@ -577,17 +585,23 @@ public class BlackboardOrchestrator
             }
         }
 
-        _logger.LogDebug(
-            "Detection complete for {RequestId}: {RiskBand} (prob={Probability:F2}, conf={Confidence:F2}) in {Elapsed}ms, {Waves} waves, {Detectors} detectors",
-            requestId,
-            result.RiskBand,
-            result.BotProbability,
-            result.Confidence,
-            stopwatch.ElapsedMilliseconds,
-            waveNumber,
-            result.ContributingDetectors.Count);
+            _logger.LogDebug(
+                "Detection complete for {RequestId}: {RiskBand} (prob={Probability:F2}, conf={Confidence:F2}) in {Elapsed}ms, {Waves} waves, {Detectors} detectors",
+                requestId,
+                result.RiskBand,
+                result.BotProbability,
+                result.Confidence,
+                stopwatch.ElapsedMilliseconds,
+                waveNumber,
+                result.ContributingDetectors.Count);
 
-        return result;
+            return result;
+        }
+        finally
+        {
+            // Return pooled state for reuse
+            StatePool.Return(pooledState);
+        }
     }
 
     private async Task ExecuteWaveAsync(
@@ -727,23 +741,22 @@ public class BlackboardOrchestrator
 
     private static BlackboardState BuildState(
         HttpContext httpContext,
-        ConcurrentDictionary<string, object> signals,
-        IReadOnlySet<string> completedDetectors,
-        IReadOnlySet<string> failedDetectors,
+        IReadOnlyDictionary<string, object> signals,
+        ICollection<string> completedDetectors,
+        ICollection<string> failedDetectors,
         EvidenceAggregator aggregator,
         string requestId,
         TimeSpan elapsed)
     {
-        var contributions = new List<DetectionContribution>();
         var aggregated = aggregator.Aggregate();
 
         return new BlackboardState
         {
             HttpContext = httpContext,
-            Signals = new Dictionary<string, object>(signals),
+            Signals = signals, // Pass by reference - no copy
             CurrentRiskScore = aggregated.BotProbability,
-            CompletedDetectors = completedDetectors,
-            FailedDetectors = failedDetectors,
+            CompletedDetectors = completedDetectors as IReadOnlySet<string> ?? completedDetectors.ToHashSet(),
+            FailedDetectors = failedDetectors as IReadOnlySet<string> ?? failedDetectors.ToHashSet(),
             Contributions = aggregated.Contributions,
             RequestId = requestId,
             Elapsed = elapsed

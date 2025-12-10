@@ -310,6 +310,12 @@ public class BotDetectionOptions
     /// </summary>
     public SignatureCoordinatorOptions SignatureCoordinator { get; set; } = new();
 
+    /// <summary>
+    ///     Configuration for response detection and coordination.
+    ///     Enables cross-request response analysis and signature-level learning.
+    /// </summary>
+    public ResponseCoordinatorOptions ResponseCoordinator { get; set; } = new();
+
     // ==========================================
     // Pattern Learning Settings (Legacy - use Reputation instead)
     // ==========================================

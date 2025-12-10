@@ -285,8 +285,24 @@
         .category-fill.medium { background: #f0883e; }
         .category-fill.high { background: #da3633; }
 
-        /* Client Detection */
-        .client-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        /* Client Detection - Compact */
+        .client-grid-compact {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .client-score-compact {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .client-details-compact {
+            flex: 1;
+            font-size: 0.85em;
+            color: #8b949e;
+            min-width: 200px;
+        }
         .fingerprint-data {
             font-family: 'Cascadia Code', 'Fira Code', monospace;
             font-size: 0.8em;
@@ -298,6 +314,18 @@
             white-space: pre-wrap;
             word-break: break-all;
             max-height: 400px;
+        }
+        .fingerprint-data-compact {
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.75em;
+            background: #0d1117;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #30363d;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 120px;
         }
         /* Override highlight.js background for consistency */
         .fingerprint-data pre { margin: 0; background: transparent !important; }
@@ -488,6 +516,12 @@
 <body>
     <h1>Bot Detection Showroom</h1>
     <p class="subtitle">Interactive demonstration of the bot detection pipeline - select a mode to see different behaviors</p>
+
+    <div style="margin-bottom: 20px;">
+        <a href="/tag-helper-demo" style="padding: 8px 14px; background: #1f6feb; color: white; text-decoration: none; border-radius: 6px; font-size: 0.9em; display: inline-block;">
+            View Tag Helper Demo →
+        </a>
+    </div>
 
     <!-- Test Buttons -->
     <div class="card">
@@ -823,32 +857,29 @@
         </div>
     }
 
-    <!-- Client-Side Detection -->
-    <div class="card">
-        <h2>Client-Side Detection</h2>
-        <div class="client-grid">
-            <div>
-                <div style="margin-bottom: 15px;">
-                    <div class="result-header">
-                        <span class="result-badge human" id="clientBadge">Collecting...</span>
-                        <span class="confidence-score" id="clientScore">--</span>
-                        <span style="color: #8b949e; font-size: 0.9em;">integrity</span>
-                    </div>
-                </div>
-                <div id="clientDetails" style="font-size: 0.9em; color: #8b949e;"></div>
-            </div>
-            <div>
-                <div style="font-size: 0.85em; color: #8b949e; margin-bottom: 8px;">Fingerprint Data</div>
-                <div class="fingerprint-data" id="fingerprintData">Waiting for fingerprint collection...</div>
-            </div>
-        </div>
-    </div>
-
     <!-- API Response -->
     <div class="card">
         <h2>Raw API Response</h2>
         <button class="test-btn search" onclick="fetchDetectionCheck()">Refresh Detection</button>
         <div class="fingerprint-data" id="apiResponse" style="margin-top: 15px;">Click button to fetch...</div>
+    </div>
+
+    <!-- Client-Side Detection - Compact -->
+    <div class="card">
+        <h2>Client-Side Detection</h2>
+        <div class="client-grid-compact">
+            <div class="client-score-compact">
+                <span class="result-badge human" id="clientBadge" style="font-size: 0.85em;">Collecting...</span>
+                <span class="confidence-score" id="clientScore" style="font-size: 1.5em;">--</span>
+                <span style="color: #8b949e; font-size: 0.85em;">integrity</span>
+            </div>
+            <div class="client-details-compact" id="clientDetails">Waiting for fingerprint data...</div>
+            <button class="test-btn search" onclick="document.getElementById('fingerprintToggle').style.display = document.getElementById('fingerprintToggle').style.display === 'none' ? 'block' : 'none'" style="white-space: nowrap;">Show Data</button>
+        </div>
+        <div id="fingerprintToggle" style="display: none; margin-top: 10px;">
+            <div style="font-size: 0.85em; color: #8b949e; margin-bottom: 6px;">Fingerprint Data</div>
+            <div class="fingerprint-data-compact" id="fingerprintData">Waiting for fingerprint collection...</div>
+        </div>
     </div>
 
     <!-- Bot Detection Script - fingerprint collection -->

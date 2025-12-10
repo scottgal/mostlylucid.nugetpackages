@@ -28,20 +28,20 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.0"/>
-        <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0"/>
-        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0"/>
-        <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0"/>
-        <PackageReference Include="OllamaSharp" Version="4.0.1"/>
-        <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0"/>
-        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.0"/>
-        <PackageReference Include="System.IO.Hashing" Version="9.0.0"/>
-        <PackageReference Include="mostlylucid.ephemeral.complete" Version="1.6.0"/>
-        <PackageReference Include="MathNet.Numerics" Version="5.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.0" />
+        <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+        <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />
+        <PackageReference Include="OllamaSharp" Version="4.0.1" />
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.0" />
+        <PackageReference Include="System.IO.Hashing" Version="9.0.0" />
+        <PackageReference Include="mostlylucid.ephemeral.complete" Version="1.6.8" />
+        <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
         <PackageReference Include="MinVer" Version="6.0.0">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -49,7 +49,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Remove="ReleaseNotes.txt"/>
+        <None Remove="ReleaseNotes.txt" />
         <Content Include="docs\ai-detection.md" />
         <Content Include="ReleaseNotes.txt">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
