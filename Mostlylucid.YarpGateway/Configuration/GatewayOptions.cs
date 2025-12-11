@@ -32,6 +32,11 @@ public class GatewayOptions
     /// Log level. Default: Information
     /// </summary>
     public string LogLevel { get; set; } = "Information";
+
+    /// <summary>
+    /// Demo mode configuration.
+    /// </summary>
+    public DemoModeOptions DemoMode { get; set; } = new();
 }
 
 /// <summary>

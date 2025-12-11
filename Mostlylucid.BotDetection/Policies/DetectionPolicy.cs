@@ -32,6 +32,14 @@ public sealed record DetectionPolicy
     public ImmutableList<string> AiPathDetectors { get; init; } = [];
 
     /// <summary>
+    ///     Response path detectors - run AFTER the response is generated (post-request analysis).
+    ///     These detectors analyze response patterns, honeypot interactions, error harvesting, etc.
+    ///     Results feed back into future request detections via ResponseBehaviorContributor.
+    ///     Examples: ResponseCoordinator, HoneypotAnalyzer, ErrorPatternDetector
+    /// </summary>
+    public ImmutableList<string> ResponsePathDetectors { get; init; } = [];
+
+    /// <summary>
     ///     Whether to use the fast path at all. Set to false for always-deep analysis.
     /// </summary>
     public bool UseFastPath { get; init; } = true;

@@ -35,10 +35,11 @@ namespace Mostlylucid.BotDetection.Policies;
 ///     <code>
 ///     "Policies": {
 ///       "strict": {
-///         "Description": "High-security detection",
+///         "Description": "High-security detection with response analysis",
 ///         "FastPath": ["UserAgent", "Header", "Ip"],
 ///         "SlowPath": ["Behavioral", "Inconsistency", "ClientSide"],
 ///         "AiPath": ["Onnx", "Llm"],
+///         "ResponsePath": ["ResponseCoordinator", "HoneypotAnalyzer"],
 ///         "ForceSlowPath": true,
 ///         "EscalateToAi": true,
 ///         "AiEscalationThreshold": 0.4,
@@ -52,7 +53,7 @@ namespace Mostlylucid.BotDetection.Policies;
 ///           { "WhenRiskExceeds": 0.9, "ActionPolicyName": "block-hard" },
 ///           { "WhenSignal": "VerifiedGoodBot", "Action": "Allow" }
 ///         ],
-///         "Tags": ["high-security", "payments"]
+///         "Tags": ["high-security", "payments", "response-tracking"]
 ///       },
 ///       "relaxed": {
 ///         "Description": "Minimal detection for public content",
@@ -109,6 +110,24 @@ public class DetectionPolicyConfig : BaseComponentConfig
     ///     Default: [] (empty = run ALL registered AI detectors when EscalateToAi=true)
     /// </summary>
     public List<string> AiPath { get; set; } = [];
+
+    /// <summary>
+    ///     Response path detector names to run AFTER response is generated (post-request analysis).
+    ///     These detectors analyze response patterns, honeypot interactions, error harvesting, etc.
+    ///     Results feed back into future request detections via ResponseBehaviorContributor.
+    ///     Examples: "ResponseCoordinator", "HoneypotAnalyzer", "ErrorPatternDetector"
+    ///     Default: [] (empty = no response-path analysis)
+    /// </summary>
+    /// <remarks>
+    ///     Response path detectors run asynchronously AFTER the response has been sent to the client.
+    ///     They do not block the response. They are used for:
+    ///     - Tracking honeypot path access
+    ///     - Analyzing 404 scanning patterns
+    ///     - Detecting error message harvesting
+    ///     - Building historical behavior profiles
+    ///     Results are available to future requests via ResponseBehaviorContributor.
+    /// </remarks>
+    public List<string> ResponsePath { get; set; } = [];
 
     // ==========================================
     // Detection Flow Control

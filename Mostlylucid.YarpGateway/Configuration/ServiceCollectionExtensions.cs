@@ -26,6 +26,13 @@ public static class ServiceCollectionExtensions
             opts.AdminBasePath = Environment.GetEnvironmentVariable("ADMIN_BASE_PATH") ?? "/admin";
             opts.AdminSecret = Environment.GetEnvironmentVariable("ADMIN_SECRET");
             opts.LogLevel = Environment.GetEnvironmentVariable("LOG_LEVEL") ?? "Information";
+
+            // Demo mode can be enabled via environment variable
+            var demoModeEnv = Environment.GetEnvironmentVariable("GATEWAY_DEMO_MODE");
+            if (bool.TryParse(demoModeEnv, out var demoEnabled))
+            {
+                opts.DemoMode.Enabled = demoEnabled;
+            }
         });
 
         services.Configure<DatabaseOptions>(opts =>
@@ -110,6 +117,9 @@ public static class ServiceCollectionExtensions
                 // - TcpIpFingerprintContributor
                 // - Http2FingerprintContributor
                 builderContext.AddTlsFingerprintingHeaders();
+
+                // Add bot detection headers transform based on demo mode
+                builderContext.AddDemoModeTransform(configuration);
             });
 
         // Check for DEFAULT_UPSTREAM first (highest priority - zero-config mode)
