@@ -118,7 +118,8 @@ public class BotDetectionMiddleware(
         HttpContext context,
         BlackboardOrchestrator orchestrator,
         IPolicyRegistry policyRegistry,
-        IActionPolicyRegistry actionPolicyRegistry)
+        IActionPolicyRegistry actionPolicyRegistry,
+        ResponseCoordinator responseCoordinator)
     {
         // Check if bot detection is globally enabled
         if (!_options.Enabled)
@@ -217,6 +218,13 @@ public class BotDetectionMiddleware(
             await HandleBlockedRequest(context, aggregatedResult, policy, policyAttr, shouldBlock.Action);
             return;
         }
+
+        // Register response recording callback (fires after response is sent)
+        var requestStartTime = DateTime.UtcNow;
+        context.Response.OnCompleted(async () =>
+        {
+            await RecordResponseAsync(context, aggregatedResult, responseCoordinator, requestStartTime);
+        });
 
         // Continue pipeline
         await _next(context);
@@ -997,6 +1005,66 @@ public class BotDetectionMiddleware(
             var primaryReason = result.Reasons.OrderByDescending(r => r.ConfidenceImpact).First();
             context.Items[BotCategoryKey] = primaryReason.Category;
         }
+    }
+
+    #endregion
+
+    #region Response Recording
+
+    /// <summary>
+    ///     Records response signal for behavioral analysis.
+    ///     Called asynchronously after response is sent (zero request latency impact).
+    /// </summary>
+    private async Task RecordResponseAsync(
+        HttpContext context,
+        AggregatedEvidence evidence,
+        ResponseCoordinator coordinator,
+        DateTime requestStartTime)
+    {
+        try
+        {
+            // Build client ID (same as ResponseBehaviorContributor)
+            var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var ua = context.Request.Headers.UserAgent.ToString();
+            var clientId = $"{ip}:{GetHash(ua)}";
+
+            // Calculate processing time
+            var processingTimeMs = (DateTime.UtcNow - requestStartTime).TotalMilliseconds;
+
+            // Build response signal
+            var signal = new ResponseSignal
+            {
+                RequestId = context.TraceIdentifier,
+                ClientId = clientId,
+                Timestamp = DateTimeOffset.UtcNow,
+                StatusCode = context.Response.StatusCode,
+                ResponseBytes = context.Response.ContentLength ?? 0,
+                Path = context.Request.Path.Value ?? "/",
+                Method = context.Request.Method,
+                ProcessingTimeMs = processingTimeMs,
+                RequestBotProbability = evidence.BotProbability,
+                InlineAnalysis = false,
+                BodySummary = new ResponseBodySummary
+                {
+                    IsPresent = context.Response.ContentLength > 0,
+                    Length = (int)(context.Response.ContentLength ?? 0),
+                    ContentType = context.Response.ContentType
+                }
+            };
+
+            // Record response (async, fire-and-forget style)
+            await coordinator.RecordResponseAsync(signal, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            // Never throw from OnCompleted callback - just log
+            _logger.LogWarning(ex, "Failed to record response signal for {Path}", context.Request.Path);
+        }
+    }
+
+    private static string GetHash(string input)
+    {
+        return input.Length > 0 ? input.GetHashCode().ToString("X8") : "empty";
     }
 
     #endregion

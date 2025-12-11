@@ -237,7 +237,9 @@ public class BotListFetcher : IBotListFetcher
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        // Use source generator context for AOT/NativeAOT support
+        TypeInfoResolver = BotDetectionJsonSerializerContext.Default
     };
 
     /// <summary>
@@ -655,7 +657,9 @@ public class BotListFetcher : IBotListFetcher
     // JSON models for parsing API responses
     // ==========================================
 
-    private class CrawlerEntry
+    // JSON models for parsing API responses (internal for source generator access)
+
+    internal class CrawlerEntry
     {
         public string? Pattern { get; set; }
         public string? Url { get; set; }
@@ -663,7 +667,7 @@ public class BotListFetcher : IBotListFetcher
     }
 
     // AWS IP ranges format: https://docs.aws.amazon.com/general/latest/gr/aws-ip-ranges.html
-    private class AwsIpRangesResponse
+    internal class AwsIpRangesResponse
     {
         [JsonPropertyName("syncToken")]
         public string? SyncToken { get; set; }
@@ -678,7 +682,7 @@ public class BotListFetcher : IBotListFetcher
         public List<AwsIpv6Prefix>? Ipv6Prefixes { get; set; }
     }
 
-    private class AwsPrefix
+    internal class AwsPrefix
     {
         [JsonPropertyName("ip_prefix")]
         public string? IpPrefix { get; set; }
@@ -693,7 +697,7 @@ public class BotListFetcher : IBotListFetcher
         public string? NetworkBorderGroup { get; set; }
     }
 
-    private class AwsIpv6Prefix
+    internal class AwsIpv6Prefix
     {
         [JsonPropertyName("ipv6_prefix")]
         public string? Ipv6Prefix { get; set; }
@@ -706,7 +710,7 @@ public class BotListFetcher : IBotListFetcher
     }
 
     // GCP IP ranges format: https://cloud.google.com/compute/docs/faq#find_ip_range
-    private class GcpIpRangesResponse
+    internal class GcpIpRangesResponse
     {
         [JsonPropertyName("syncToken")]
         public string? SyncToken { get; set; }
@@ -718,7 +722,7 @@ public class BotListFetcher : IBotListFetcher
         public List<GcpPrefix>? Prefixes { get; set; }
     }
 
-    private class GcpPrefix
+    internal class GcpPrefix
     {
         [JsonPropertyName("ipv4Prefix")]
         public string? Ipv4Prefix { get; set; }
@@ -734,7 +738,7 @@ public class BotListFetcher : IBotListFetcher
     }
 
     // Azure IP ranges format (simplified - actual format is more complex)
-    private class AzureIpRangesResponse
+    internal class AzureIpRangesResponse
     {
         [JsonPropertyName("changeNumber")]
         public int? ChangeNumber { get; set; }
@@ -746,7 +750,7 @@ public class BotListFetcher : IBotListFetcher
         public List<AzureServiceTag>? Values { get; set; }
     }
 
-    private class AzureServiceTag
+    internal class AzureServiceTag
     {
         [JsonPropertyName("name")]
         public string? Name { get; set; }
@@ -758,7 +762,7 @@ public class BotListFetcher : IBotListFetcher
         public AzureServiceTagProperties? Properties { get; set; }
     }
 
-    private class AzureServiceTagProperties
+    internal class AzureServiceTagProperties
     {
         [JsonPropertyName("changeNumber")]
         public int? ChangeNumber { get; set; }
@@ -987,7 +991,7 @@ public class BotListFetcher : IBotListFetcher
 
     // JSON model for digininja scanner_user_agents
     // Actual format: {"ua": "...", "scanner": "Nikto", "version": "...", "last seen": "..."}
-    private class ScannerUserAgentEntry
+    internal class ScannerUserAgentEntry
     {
         [JsonPropertyName("ua")]
         public string? Pattern { get; set; }

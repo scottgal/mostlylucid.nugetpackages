@@ -1425,6 +1425,68 @@ public class FastPathOptions
         "PatternDiscovered",
         "InconsistencyDetected"
     ];
+
+    // ==========================================
+    // Signature Matching Configuration
+    // ==========================================
+
+    /// <summary>
+    ///     Configuration for multi-factor signature matching weights.
+    ///     Used by FastPathSignatureMatcher for first-hit detection with false positive prevention.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Signature factors (server-side only, available immediately):
+    ///         <list type="bullet">
+    ///             <item><b>Primary</b>: HMAC(IP + UA) - exact match required</item>
+    ///             <item><b>IP</b>: HMAC(IP) - handles UA changes (browser updates)</item>
+    ///             <item><b>UA</b>: HMAC(User-Agent) - handles IP changes (mobile, dynamic ISP)</item>
+    ///             <item><b>IP Subnet</b>: HMAC(IP /24) - network-level grouping</item>
+    ///         </list>
+    ///     </para>
+    ///     <para>
+    ///         Client-side factors (via postback, not used for first-hit):
+    ///         <list type="bullet">
+    ///             <item><b>ClientSide</b>: HMAC(Canvas+WebGL+AudioContext) - browser fingerprint</item>
+    ///             <item><b>Plugin</b>: HMAC(Plugins+Extensions+Fonts) - browser configuration</item>
+    ///         </list>
+    ///     </para>
+    ///     <para>
+    ///         Matching rules (priority order):
+    ///         <list type="number">
+    ///             <item>Primary match → 100% confidence (exact same IP+UA)</item>
+    ///             <item>IP + UA both match → 100% confidence (equivalent to Primary)</item>
+    ///             <item>2+ factors with combined weight ≥100% → MATCH</item>
+    ///             <item>3+ factors with combined weight ≥80% → WEAK MATCH</item>
+    ///             <item>Otherwise → NO MATCH (avoid false positives)</item>
+    ///         </list>
+    ///     </para>
+    /// </remarks>
+    /// <example>
+    ///     JSON configuration (appsettings.json):
+    ///     <code>
+    ///     "FastPath": {
+    ///       "SignatureMatching": {
+    ///         "WeightPrimary": 100.0,
+    ///         "WeightIp": 50.0,
+    ///         "WeightUa": 50.0,
+    ///         "WeightIpSubnet": 30.0,
+    ///         "WeightClientSide": 80.0,
+    ///         "WeightPlugin": 60.0,
+    ///         "MinWeightForMatch": 100.0,
+    ///         "MinWeightForWeakMatch": 80.0,
+    ///         "MinFactorsForWeakMatch": 3
+    ///       }
+    ///     }
+    ///     </code>
+    ///
+    ///     Code configuration:
+    ///     <code>
+    ///     options.FastPath.SignatureMatching.WeightIp = 60.0;  // Increase IP weight
+    ///     options.FastPath.SignatureMatching.MinWeightForMatch = 120.0;  // Stricter matching
+    ///     </code>
+    /// </example>
+    public SignatureMatchingOptions SignatureMatching { get; set; } = new();
 }
 
 /// <summary>
@@ -1502,6 +1564,191 @@ public class DetectorConfig : BaseComponentConfig
     ///     If not set, uses the policy timeout.
     /// </summary>
     public int? TimeoutMs { get; set; }
+}
+
+// ==========================================
+// Signature Matching Configuration
+// ==========================================
+
+/// <summary>
+///     Configuration for multi-factor signature matching weights.
+///     Controls how different signature factors contribute to matching confidence
+///     and prevents false positives through weighted scoring.
+/// </summary>
+/// <remarks>
+///     <para>
+///         Signature matching uses multi-factor weighted scoring to identify returning clients
+///         while guarding against false positives (e.g., different users in same office).
+///     </para>
+///     <para>
+///         <b>Server-Side Factors</b> (available immediately on first request):
+///         <list type="bullet">
+///             <item><b>Primary</b>: HMAC(IP + UA) - 100% weight - exact composite match</item>
+///             <item><b>IP</b>: HMAC(IP) - 50% weight - handles UA changes (browser updates)</item>
+///             <item><b>UA</b>: HMAC(User-Agent) - 50% weight - handles IP changes (mobile, dynamic ISP)</item>
+///             <item><b>IP Subnet</b>: HMAC(IP /24) - 30% weight - network-level grouping</item>
+///         </list>
+///     </para>
+///     <para>
+///         <b>Client-Side Factors</b> (via postback after response, future matching):
+///         <list type="bullet">
+///             <item><b>ClientSide</b>: HMAC(Canvas+WebGL+AudioContext) - 80% weight - hardware fingerprint</item>
+///             <item><b>Plugin</b>: HMAC(Plugins+Extensions+Fonts) - 60% weight - browser config</item>
+///         </list>
+///     </para>
+///     <para>
+///         <b>False Positive Prevention Rules</b>:
+///         <list type="number">
+///             <item>Primary match → 100% confidence (instant match)</item>
+///             <item>IP + UA both match → 100% confidence (equivalent to Primary)</item>
+///             <item>2+ factors with combined weight ≥MinWeightForMatch → MATCH</item>
+///             <item>MinFactorsForWeakMatch+ factors with weight ≥MinWeightForWeakMatch → WEAK MATCH</item>
+///             <item>Otherwise → NO MATCH (insufficient confidence, avoid false positives)</item>
+///         </list>
+///     </para>
+/// </remarks>
+/// <example>
+///     <b>Example 1: Corporate Network (False Positive Prevention)</b>
+///     <code>
+///     Employee A (first request):
+///       Primary: ABC123... (HMAC of 192.168.1.10 + Chrome/120)
+///       IP: DEF456...
+///       UA: GHI789...
+///
+///     Employee B (same office, same browser version):
+///       Primary: ABC456... ← DIFFERENT (subtle UA variations)
+///       IP: DEF456... ← SAME
+///       UA: GHI789... ← SAME
+///
+///     Matching:
+///       IP matches → +50% weight
+///       UA matches → +50% weight
+///       Total: 100% (2 factors)
+///
+///     BUT Primary is DIFFERENT → This means IP+UA composite differs
+///     Decision: ⚠️ WEAK MATCH (require client-side postback to confirm)
+///     </code>
+///
+///     <b>Example 2: Mobile User (IP Changes, Legitimate)</b>
+///     <code>
+///     Initial Request (WiFi):
+///       Primary: ABC123...
+///       IP: WiFi456...
+///       UA: Mobile789...
+///
+///     Later Request (Cellular):
+///       Primary: XYZ999... ← CHANGED
+///       IP: Cell123... ← CHANGED
+///       UA: Mobile789... ← SAME
+///
+///     Matching:
+///       UA matches → +50% weight
+///       Total: 50% (1 factor)
+///
+///     Decision: ❌ NO MATCH (insufficient confidence)
+///     → Wait for client-side postback
+///     → ClientSide fingerprint (Canvas) will be SAME
+///     → Next request: UA + ClientSide = 130% weight → MATCH ✅
+///     </code>
+///
+///     <b>JSON Configuration</b>:
+///     <code>
+///     "FastPath": {
+///       "SignatureMatching": {
+///         "WeightPrimary": 100.0,
+///         "WeightIp": 50.0,
+///         "WeightUa": 50.0,
+///         "WeightIpSubnet": 30.0,
+///         "WeightClientSide": 80.0,
+///         "WeightPlugin": 60.0,
+///         "MinWeightForMatch": 100.0,
+///         "MinWeightForWeakMatch": 80.0,
+///         "MinFactorsForWeakMatch": 3
+///       }
+///     }
+///     </code>
+/// </example>
+public class SignatureMatchingOptions
+{
+    // ==========================================
+    // Server-Side Factor Weights
+    // ==========================================
+
+    /// <summary>
+    ///     Weight for Primary signature match (HMAC of IP + UA composite).
+    ///     This is the strongest signal - exact match means same device, same network, same browser.
+    ///     Default: 100.0 (instant 100% confidence match)
+    /// </summary>
+    public double WeightPrimary { get; set; } = 100.0;
+
+    /// <summary>
+    ///     Weight for IP signature match (HMAC of IP address only).
+    ///     Handles scenarios where User-Agent changes (browser updates, version bumps).
+    ///     Default: 50.0 (moderate weight)
+    /// </summary>
+    public double WeightIp { get; set; } = 50.0;
+
+    /// <summary>
+    ///     Weight for User-Agent signature match (HMAC of UA string only).
+    ///     Handles scenarios where IP changes (mobile networks, dynamic ISP, VPN switching).
+    ///     Default: 50.0 (moderate weight)
+    /// </summary>
+    public double WeightUa { get; set; } = 50.0;
+
+    /// <summary>
+    ///     Weight for IP Subnet signature match (HMAC of IP /24 subnet).
+    ///     Provides network-level grouping for datacenter detection and organizational patterns.
+    ///     Default: 30.0 (weak weight, used for confirmation not primary matching)
+    /// </summary>
+    public double WeightIpSubnet { get; set; } = 30.0;
+
+    // ==========================================
+    // Client-Side Factor Weights (Postback Only)
+    // ==========================================
+
+    /// <summary>
+    ///     Weight for client-side browser fingerprint (HMAC of Canvas+WebGL+AudioContext).
+    ///     This is hardware-level fingerprint, very stable across IP/UA changes.
+    ///     Only available AFTER client-side postback completes.
+    ///     Default: 80.0 (high weight, very stable signal)
+    /// </summary>
+    public double WeightClientSide { get; set; } = 80.0;
+
+    /// <summary>
+    ///     Weight for plugin/font signature (HMAC of installed plugins, extensions, fonts).
+    ///     Browser configuration fingerprint, moderately stable.
+    ///     Only available AFTER client-side postback completes.
+    ///     Default: 60.0 (moderate-high weight)
+    /// </summary>
+    public double WeightPlugin { get; set; } = 60.0;
+
+    // ==========================================
+    // Matching Thresholds (False Positive Prevention)
+    // ==========================================
+
+    /// <summary>
+    ///     Minimum combined weight required for a confident match.
+    ///     Requires Primary match (100%) OR IP+UA both match (50%+50%=100%) OR
+    ///     any combination of factors that sum to this threshold.
+    ///     Default: 100.0 (require full confidence)
+    /// </summary>
+    public double MinWeightForMatch { get; set; } = 100.0;
+
+    /// <summary>
+    ///     Minimum combined weight for a weak match (requires MinFactorsForWeakMatch+ factors).
+    ///     Used when multiple weaker signals align (e.g., IP + UA + Subnet = 130%, but Primary differs).
+    ///     Guards against false positives by requiring multiple confirming factors.
+    ///     Default: 80.0 (80% confidence with 3+ factors)
+    /// </summary>
+    public double MinWeightForWeakMatch { get; set; } = 80.0;
+
+    /// <summary>
+    ///     Minimum number of matching factors required to use MinWeightForWeakMatch threshold.
+    ///     Prevents single weak factor from triggering a match (e.g., Subnet alone at 30%).
+    ///     Requires multiple signals to align before accepting lower confidence.
+    ///     Default: 3 (need at least 3 factors for weak match)
+    /// </summary>
+    public int MinFactorsForWeakMatch { get; set; } = 3;
 }
 
 // ==========================================
@@ -2135,8 +2382,8 @@ public class DataSourcesOptions
     public DataSourceConfig BrowserVersions { get; set; } = new()
     {
         Enabled = true,
-        Url = "https://www.useragents.me/api",
-        Description = "Browser versions from useragents.me - current browser versions (JSON)"
+        Url = "https://www.browsers.fyi/api",
+        Description = "Browser versions from browsers.fyi - current browser versions (JSON)"
     };
 
     // ==========================================
@@ -2283,12 +2530,12 @@ public class VersionAgeOptions
     /// </summary>
     public Dictionary<string, int> FallbackBrowserVersions { get; set; } = new()
     {
-        ["Chrome"] = 130,
-        ["Firefox"] = 133,
-        ["Safari"] = 18,
-        ["Edge"] = 130,
+        ["Chrome"] = 143,
+        ["Firefox"] = 146,
+        ["Safari"] = 26,
+        ["Edge"] = 143,
         ["Opera"] = 115,
-        ["Brave"] = 130,
+        ["Brave"] = 143,
         ["Vivaldi"] = 7
     };
 
@@ -2366,6 +2613,23 @@ public class VersionAgeOptions
 /// <summary>
 ///     Configuration for a single external data source.
 /// </summary>
+/// <example>
+///     JSON configuration with per-source update schedule:
+///     <code>
+///     "DataSources": {
+///       "IsBot": {
+///         "Enabled": true,
+///         "Url": "https://raw.githubusercontent.com/omrilotan/isbot/main/src/patterns.json",
+///         "Description": "IsBot patterns",
+///         "UpdateSchedule": {
+///           "cron": "0 3 * * *",
+///           "timezone": "UTC",
+///           "runOnStartup": true
+///         }
+///       }
+///     }
+///     </code>
+/// </example>
 public class DataSourceConfig
 {
     /// <summary>
@@ -2385,6 +2649,46 @@ public class DataSourceConfig
     ///     For documentation purposes.
     /// </summary>
     public string Description { get; set; } = "";
+
+    /// <summary>
+    ///     Optional per-source update schedule.
+    ///     If null, uses the global UpdateSchedule configuration.
+    ///     If set, overrides global schedule for this specific data source.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         <b>Use Cases for Per-Source Schedules:</b>
+    ///         <list type="bullet">
+    ///             <item><b>Different update frequencies</b>: AWS IP ranges change more often than bot patterns</item>
+    ///             <item><b>Different timezones</b>: Update European sources during EU off-peak hours</item>
+    ///             <item><b>Reduced load</b>: Stagger updates across different times to avoid spikes</item>
+    ///             <item><b>Critical sources</b>: Update security tool patterns more frequently</item>
+    ///         </list>
+    ///     </para>
+    ///     <para>
+    ///         <b>Example Schedules:</b>
+    ///         <code>
+    ///         // Global: Daily at 2 AM UTC
+    ///         "UpdateSchedule": { "cron": "0 2 * * *" }
+    ///
+    ///         // AWS IPs: Every 6 hours (changes frequently)
+    ///         "AwsIpRanges": {
+    ///           "UpdateSchedule": { "cron": "0 */6 * * *" }
+    ///         }
+    ///
+    ///         // Security tools: Every 2 hours (critical)
+    ///         "ScannerUserAgents": {
+    ///           "UpdateSchedule": { "cron": "0 */2 * * *" }
+    ///         }
+    ///
+    ///         // Browser versions: Weekly (changes slowly)
+    ///         "BrowserVersions": {
+    ///           "UpdateSchedule": { "cron": "0 2 * * 0" }
+    ///         }
+    ///         </code>
+    ///     </para>
+    /// </remarks>
+    public ListUpdateScheduleOptions? UpdateSchedule { get; set; }
 }
 
 /// <summary>

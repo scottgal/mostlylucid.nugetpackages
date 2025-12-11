@@ -336,6 +336,52 @@
         .htmx-request .htmx-indicator { display: inline-block; }
         .htmx-indicator { display: none; margin-left: 8px; }
 
+        /* Loading Modal */
+        .loading-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        .loading-modal.active {
+            display: flex;
+        }
+        .loading-content {
+            background: #161b22;
+            border: 2px solid #58a6ff;
+            border-radius: 12px;
+            padding: 40px 60px;
+            text-align: center;
+        }
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid #30363d;
+            border-top-color: #58a6ff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @@keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loading-text {
+            color: #c9d1d9;
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+        .loading-subtext {
+            color: #8b949e;
+            font-size: 0.9em;
+            margin-top: 8px;
+        }
+
         @@media (max-width: 768px) {
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
             .client-grid { grid-template-columns: 1fr; }
@@ -752,6 +798,18 @@
             <span class="result-badge @(Model.IsBot ? (Model.BotProbability > 0.7 ? "bot" : "suspicious") : "human")">
                 @(Model.IsBot ? (Model.BotProbability > 0.7 ? "Bot Detected" : "Suspicious") : "Human")
             </span>
+            @if (Model.RecommendedAction == "Block" || Model.RecommendedAction == "Deny")
+            {
+                <span class="result-badge bot" style="background: #da3633; margin-left: 10px;">
+                    🛑 BLOCKED
+                </span>
+            }
+            else if (Model.RecommendedAction == "Challenge")
+            {
+                <span class="result-badge suspicious" style="background: #f0883e; margin-left: 10px;">
+                    ⚠️ CHALLENGED
+                </span>
+            }
         </div>
         <!-- Dual probability display -->
         <div style="display: flex; gap: 24px; margin-top: 12px; justify-content: center;">
@@ -885,6 +943,15 @@
     <!-- Bot Detection Script - fingerprint collection -->
     <!-- Note: Fingerprint endpoint uses path mapping to demo policy for consistent collection -->
     <bot-detection-script endpoint="/bot-detection/fingerprint" />
+
+    <!-- Loading Modal -->
+    <div class="loading-modal" id="loadingModal">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Analyzing Request...</div>
+            <div class="loading-subtext">Running bot detection pipeline</div>
+        </div>
+    </div>
 
     <!-- YARP Proxy Modal -->
     <div class="proxy-modal" id="proxyModal">
@@ -1191,7 +1258,7 @@
         // YARP Proxy Modal Functions
         // ==========================================
 
-        let proxySessionId = null;
+        let proxySession_Id = null;
         let proxySessionRequests = [];
         let proxySessionStartTime = null;
         let proxyPollingInterval = null;
@@ -1221,7 +1288,7 @@
             }
 
             // CLEAR ALL STATE
-            proxySessionId = generateProxySessionId();
+            proxySession_Id = generateProxySessionId();
             proxySessionRequests = [];
             proxySessionStartTime = Date.now();
 
@@ -1232,7 +1299,7 @@
             }
 
             // Reset UI
-            document.getElementById('proxySessionId').textContent = proxySessionId;
+            document.getElementById('proxySessionId').textContent = proxySession_Id;
             document.getElementById('proxyBotScore').textContent = '0.00';
             document.getElementById('proxyBotScore').className = 'proxy-score-value proxy-score-human';
             document.getElementById('proxyTotalRequests').textContent = '0';
@@ -1281,10 +1348,10 @@
         }
 
         async function pollProxySessionData() {
-            if (!proxySessionId) return;
+            if (!proxySession_Id) return;
 
             try {
-                const response = await fetch(`/api/v1/signature/${proxySessionId}`);
+                const response = await fetch(`/api/v1/signature/${proxySession_Id}`);
 
                 if (response.ok) {
                     const data = await response.json();
@@ -1355,6 +1422,52 @@
                 closeProxyModal();
             }
         });
+
+        // ==========================================
+        // Loading Modal - HTMX Integration
+        // ==========================================
+
+        // Show loading modal when any HTMX request starts
+        document.body.addEventListener('htmx:beforeRequest', function(evt) {
+            // Create or show loading modal (recreate if body was swapped)
+            let loadingModal = document.getElementById('loadingModal');
+            if (!loadingModal) {
+                loadingModal = createLoadingModal();
+                document.body.appendChild(loadingModal);
+            }
+            loadingModal.classList.add('active');
+        });
+
+        // Hide loading modal when HTMX request completes
+        document.body.addEventListener('htmx:afterSwap', function(evt) {
+            const loadingModal = document.getElementById('loadingModal');
+            if (loadingModal) {
+                loadingModal.classList.remove('active');
+            }
+        });
+
+        // Hide loading modal if request fails
+        document.body.addEventListener('htmx:responseError', function(evt) {
+            const loadingModal = document.getElementById('loadingModal');
+            if (loadingModal) {
+                loadingModal.classList.remove('active');
+            }
+        });
+
+        // Helper to create loading modal dynamically if needed
+        function createLoadingModal() {
+            const modal = document.createElement('div');
+            modal.id = 'loadingModal';
+            modal.className = 'loading-modal';
+            modal.innerHTML = `
+                <div class="loading-content">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Analyzing Request...</div>
+                    <div class="loading-subtext">Running bot detection pipeline</div>
+                </div>
+            `;
+            return modal;
+        }
     </script>
 </body>
 </html>

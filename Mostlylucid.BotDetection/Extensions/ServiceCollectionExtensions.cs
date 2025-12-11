@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Actions;
+using Mostlylucid.BotDetection.Behavioral;
 using Mostlylucid.BotDetection.ClientSide;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Detectors;
@@ -323,9 +324,10 @@ public static class ServiceCollectionExtensions
         // Register signature feedback handler (feeds learned patterns back to detectors)
         services.AddSingleton<ILearningEventHandler, SignatureFeedbackHandler>();
 
-        // Register browser version service (fetches current browser versions)
-        services.TryAddSingleton<IBrowserVersionService, BrowserVersionService>();
-        services.AddHostedService(sp => (BrowserVersionService)sp.GetRequiredService<IBrowserVersionService>());
+        // Register common user agent service (scrapes useragents.me for browser versions and common UAs)
+        services.TryAddSingleton<ICommonUserAgentService, CommonUserAgentService>();
+        services.TryAddSingleton<IBrowserVersionService>(sp => (CommonUserAgentService)sp.GetRequiredService<ICommonUserAgentService>());
+        services.AddHostedService(sp => (CommonUserAgentService)sp.GetRequiredService<ICommonUserAgentService>());
 
         // Register version age detector
         services.TryAddSingleton<VersionAgeDetector>();
@@ -352,6 +354,9 @@ public static class ServiceCollectionExtensions
 
         // Register cross-request signature coordinator (singleton - tracks across all requests)
         services.TryAddSingleton<SignatureCoordinator>();
+
+        // Register response coordinator (tracks response patterns for behavioral feedback)
+        services.TryAddSingleton<ResponseCoordinator>();
 
         // Register both orchestrators - ephemeral for new architecture, blackboard for compatibility
         services.TryAddSingleton<BlackboardOrchestrator>();
@@ -400,6 +405,24 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IContributingDetector, LlmContributor>();
         // Heuristic late - runs AFTER AI (or after all static if no AI), consumes all evidence
         services.AddSingleton<IContributingDetector, HeuristicLateContributor>();
+
+        // ==========================================
+        // Behavioral Signature / BDF System (closed-loop testing)
+        // ==========================================
+
+        // Configure BDF mapper options (thresholds for mapping behavior → scenarios)
+        services.AddOptions<SignatureToBdfMapperOptions>()
+            .BindConfiguration("BotDetection:BdfMapper")
+            .ValidateOnStart();
+
+        // Register BDF mapper (maps observed behavior to synthetic test scenarios)
+        services.TryAddSingleton<SignatureToBdfMapper>();
+
+        // Register explanation formatter (human-readable dashboard explanations)
+        services.TryAddSingleton<ISignatureExplanationFormatter, SignatureExplanationFormatter>();
+
+        // Register BDF runner (executes BDF scenarios for closed-loop testing)
+        services.TryAddSingleton<IBdfRunner, BdfRunner>();
 
         // ==========================================
         // Background Services

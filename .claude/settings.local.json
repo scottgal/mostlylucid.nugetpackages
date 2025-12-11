@@ -80,7 +80,11 @@
       "Bash(move Mostlylucid.BotDetection.MinimalGateway.csproj Mostlylucid.BotDetection.Console.csproj)",
       "Bash(chmod:*)",
       "Bash(Select-String -Pattern \"SignatureEscalatorAtom|EscalationRule|SignalPatternMatcher|error\" -Context 0,1)",
-      "Bash(2)"
+      "Bash(2)",
+      "Bash(Select-String \"No bot detection data available\")",
+      "WebFetch(domain:www.useragents.me)",
+      "WebFetch(domain:www.browsers.fyi)",
+      "WebFetch(domain:www.useragentstring.com)"
     ],
     "deny": [],
     "ask": []

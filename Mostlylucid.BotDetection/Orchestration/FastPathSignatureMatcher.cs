@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Dashboard;
+using Mostlylucid.BotDetection.Models;
 using MatchType = Mostlylucid.BotDetection.Dashboard.MatchType;
 
 namespace Mostlylucid.BotDetection.Orchestration;
@@ -43,26 +44,18 @@ public sealed class FastPathSignatureMatcher
     private readonly MultiFactorSignatureService _signatureService;
     private readonly ILogger<FastPathSignatureMatcher> _logger;
     private readonly Func<string, CancellationToken, Task<StoredSignature?>>? _signatureLookup;
-
-    // Weights for each signature factor (server-side only)
-    private const double WeightPrimary = 100.0;      // Exact match - full confidence
-    private const double WeightIp = 50.0;            // IP alone - moderate (handles UA changes)
-    private const double WeightUa = 50.0;            // UA alone - moderate (handles IP changes)
-    private const double WeightIpSubnet = 30.0;      // Subnet - weak (network grouping)
-
-    // Thresholds for match confidence
-    private const double MinWeightForMatch = 100.0;   // Require 100% combined weight
-    private const double MinWeightForWeakMatch = 80.0; // OR 80% if 3+ factors
-    private const int MinFactorsForWeakMatch = 3;     // Need 3+ factors for weak match
+    private readonly SignatureMatchingOptions _options;
 
     public FastPathSignatureMatcher(
         MultiFactorSignatureService signatureService,
         ILogger<FastPathSignatureMatcher> logger,
+        BotDetectionOptions botOptions,
         Func<string, CancellationToken, Task<StoredSignature?>>? signatureLookup = null)
     {
         _signatureService = signatureService;
         _logger = logger;
         _signatureLookup = signatureLookup;
+        _options = botOptions.FastPath.SignatureMatching;
     }
 
     /// <summary>
@@ -122,7 +115,7 @@ public sealed class FastPathSignatureMatcher
             if (!matchResult.IsMatch)
             {
                 _logger.LogDebug("Signature match rejected - insufficient confidence: {Confidence:F1}% (need {MinConfidence:F1}%)",
-                    matchResult.Confidence * 100, MinWeightForMatch);
+                    matchResult.Confidence * 100, _options.MinWeightForMatch);
                 return null;
             }
 
@@ -163,7 +156,7 @@ public sealed class FastPathSignatureMatcher
         if (current.PrimarySignature == stored.PrimarySignature)
         {
             matchedFactors.Add("Primary");
-            totalWeight += WeightPrimary;
+            totalWeight += _options.WeightPrimary;
 
             // Primary match is instant 100% confidence
             return new SignatureMatchResult
@@ -183,21 +176,21 @@ public sealed class FastPathSignatureMatcher
         if (current.IpSignature != null && current.IpSignature == stored.IpSignature)
         {
             matchedFactors.Add("IP");
-            totalWeight += WeightIp;
+            totalWeight += _options.WeightIp;
         }
 
         // Check UA (handles IP changes - dynamic ISPs, mobile networks)
         if (current.UaSignature != null && current.UaSignature == stored.UaSignature)
         {
             matchedFactors.Add("UA");
-            totalWeight += WeightUa;
+            totalWeight += _options.WeightUa;
         }
 
         // Check IP Subnet (network-level grouping)
         if (current.IpSubnetSignature != null && current.IpSubnetSignature == stored.IpSubnetSignature)
         {
             matchedFactors.Add("IpSubnet");
-            totalWeight += WeightIpSubnet;
+            totalWeight += _options.WeightIpSubnet;
         }
 
         // Decision: Do we have enough confidence for a match?
@@ -214,15 +207,15 @@ public sealed class FastPathSignatureMatcher
             confidence = 1.0;
             explanation = "IP and UA both match (equivalent to primary signature)";
         }
-        // Rule 2: 2 factors with combined weight ≥100%
-        else if (matchedFactors.Count >= 2 && totalWeight >= MinWeightForMatch)
+        // Rule 2: 2 factors with combined weight ≥MinWeightForMatch
+        else if (matchedFactors.Count >= 2 && totalWeight >= _options.MinWeightForMatch)
         {
             isMatch = true;
             matchType = MatchType.Partial;
             explanation = $"{matchedFactors.Count} factors matched with {totalWeight:F0}% confidence";
         }
-        // Rule 3: 3+ factors with combined weight ≥80% (weak match)
-        else if (matchedFactors.Count >= MinFactorsForWeakMatch && totalWeight >= MinWeightForWeakMatch)
+        // Rule 3: MinFactorsForWeakMatch+ factors with combined weight ≥MinWeightForWeakMatch (weak match)
+        else if (matchedFactors.Count >= _options.MinFactorsForWeakMatch && totalWeight >= _options.MinWeightForWeakMatch)
         {
             isMatch = true;
             matchType = MatchType.Partial;
@@ -235,7 +228,7 @@ public sealed class FastPathSignatureMatcher
             isMatch = false;
             matchType = MatchType.Weak;
             explanation = matchedFactors.Count > 0
-                ? $"Only {matchedFactors.Count} factor(s) matched with {totalWeight:F0}% confidence (insufficient)"
+                ? $"Only {matchedFactors.Count} factor(s) matched with {totalWeight:F0}% confidence (insufficient, need {_options.MinWeightForMatch}%)"
                 : "No matching factors found";
         }
 

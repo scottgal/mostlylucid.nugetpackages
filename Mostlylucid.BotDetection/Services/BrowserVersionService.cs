@@ -180,55 +180,61 @@ public class BrowserVersionService : BackgroundService, IBrowserVersionService
             var response = await client.GetAsync(_options.DataSources.BrowserVersions.Url, ct);
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("useragents.me API returned {StatusCode}", response.StatusCode);
+                _logger.LogWarning("Browser version API returned {StatusCode}", response.StatusCode);
                 return false;
             }
 
             var json = await response.Content.ReadAsStringAsync(ct);
 
-            // Parse the response - format varies by API
-            // useragents.me returns data like: {"data": [{"ua": "...", "pct": 0.5}, ...]}
+            // Parse browsers.fyi format: {"chrome": {"version": "143", ...}, "firefox": {...}, ...}
             using var doc = JsonDocument.Parse(json);
 
-            if (doc.RootElement.TryGetProperty("data", out var dataArray))
+            var updated = false;
+
+            // Iterate through all browsers in the response
+            foreach (var browserProp in doc.RootElement.EnumerateObject())
             {
-                foreach (var item in dataArray.EnumerateArray())
+                var browserKey = browserProp.Name.ToLowerInvariant();
+                var browserData = browserProp.Value;
+
+                // Extract version number
+                if (browserData.TryGetProperty("version", out var versionElement))
                 {
-                    if (item.TryGetProperty("ua", out var uaElement))
+                    var versionStr = versionElement.GetString();
+                    if (!string.IsNullOrEmpty(versionStr))
                     {
-                        var ua = uaElement.GetString();
-                        if (!string.IsNullOrEmpty(ua))
+                        // Parse major version (e.g., "143.0.6351.0" -> 143)
+                        var parts = versionStr.Split('.');
+                        if (parts.Length > 0 && int.TryParse(parts[0], out var majorVersion))
                         {
-                            ExtractAndUpdateVersion(ua);
+                            // Map browser key to normalized name
+                            var browserName = browserKey switch
+                            {
+                                "chrome" => "Chrome",
+                                "firefox" => "Firefox",
+                                "safari" => "Safari",
+                                "edge" => "Edge",
+                                "opera" => "Opera",
+                                "brave" => "Brave",
+                                "vivaldi" => "Vivaldi",
+                                _ => null
+                            };
+
+                            if (browserName != null)
+                            {
+                                UpdateIfNewer(browserName, majorVersion);
+                                updated = true;
+                            }
                         }
                     }
                 }
-                return true;
             }
 
-            // Try alternative format - array of user agents directly
-            if (doc.RootElement.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in doc.RootElement.EnumerateArray())
-                {
-                    var ua = item.ValueKind == JsonValueKind.String
-                        ? item.GetString()
-                        : item.TryGetProperty("useragent", out var uaProp) ? uaProp.GetString() : null;
-
-                    if (!string.IsNullOrEmpty(ua))
-                    {
-                        ExtractAndUpdateVersion(ua);
-                    }
-                }
-                return true;
-            }
-
-            _logger.LogWarning("Unexpected format from useragents.me API");
-            return false;
+            return updated;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error fetching from useragents.me");
+            _logger.LogWarning(ex, "Error fetching from browser version API");
             return false;
         }
     }

@@ -56,7 +56,8 @@ public class BotDetectionDetailsViewComponent : ViewComponent
     private DetectionDisplayModel TryExtractFromContextItems(HttpContext context)
     {
         // Check if we have AggregatedEvidence in context items
-        if (context.Items.TryGetValue("BotDetection.Evidence", out var evidenceObj) &&
+        // Note: The middleware stores this under "BotDetection.AggregatedEvidence"
+        if (context.Items.TryGetValue("BotDetection.AggregatedEvidence", out var evidenceObj) &&
             evidenceObj is AggregatedEvidence evidence)
         {
             return new DetectionDisplayModel
