@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Detectors;
+using Mostlylucid.BotDetection.Models;
 using Xunit;
 
 namespace Mostlylucid.BotDetection.Test.Detectors;
@@ -13,7 +15,10 @@ public class InconsistencyDetectorTests
     public InconsistencyDetectorTests()
     {
         _context = new DefaultHttpContext();
-        _detector = new InconsistencyDetector(NullLogger<InconsistencyDetector>.Instance);
+        var options = Options.Create(new BotDetectionOptions());
+        _detector = new InconsistencyDetector(
+            NullLogger<InconsistencyDetector>.Instance,
+            options);
     }
 
     [Fact]
@@ -45,7 +50,7 @@ public class InconsistencyDetectorTests
         // May or may not detect - depends on implementation
         if (result != null)
         {
-            Assert.True(result.BotProbability > 0);
+            Assert.True(result.Confidence > 0);
             Assert.NotEmpty(result.Reasons);
         }
     }
@@ -63,8 +68,8 @@ public class InconsistencyDetectorTests
         // Assert
         if (result != null)
         {
-            Assert.True(result.BotProbability > 0.4);
-            Assert.Contains("inconsistency", result.Reasons[0], StringComparison.OrdinalIgnoreCase);
+            Assert.True(result.Confidence > 0.4);
+            Assert.Contains(result.Reasons, r => r.Detail.Contains("inconsistency", StringComparison.OrdinalIgnoreCase));
         }
     }
 
@@ -81,7 +86,7 @@ public class InconsistencyDetectorTests
         // Assert
         if (result != null)
         {
-            Assert.True(result.BotProbability > 0);
+            Assert.True(result.Confidence > 0);
         }
     }
 
@@ -98,8 +103,8 @@ public class InconsistencyDetectorTests
         // Assert
         if (result != null)
         {
-            Assert.True(result.BotProbability > 0.5);
-            Assert.Contains("inconsistent", result.Reasons[0], StringComparison.OrdinalIgnoreCase);
+            Assert.True(result.Confidence > 0.5);
+            Assert.Contains(result.Reasons, r => r.Detail.Contains("inconsistent", StringComparison.OrdinalIgnoreCase));
         }
     }
 
@@ -114,7 +119,7 @@ public class InconsistencyDetectorTests
 
         // Assert
         // Should handle gracefully, may or may not detect
-        Assert.True(result == null || result.BotProbability >= 0);
+        Assert.True(result == null || result.Confidence >= 0);
     }
 
     [Fact]
@@ -130,7 +135,7 @@ public class InconsistencyDetectorTests
         // Assert
         if (result != null)
         {
-            Assert.True(result.BotProbability > 0.3);
+            Assert.True(result.Confidence > 0.3);
         }
     }
 

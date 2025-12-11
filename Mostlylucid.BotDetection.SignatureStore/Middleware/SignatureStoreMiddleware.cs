@@ -74,8 +74,8 @@ public class SignatureStoreMiddleware
                 Confidence = entity.Confidence,
                 RiskBand = entity.RiskBand,
                 RequestPath = entity.RequestPath,
-                RemoteIp = entity.RemoteIp,
-                UserAgent = entity.UserAgent,
+                RemoteIp = null,  // Never expose raw PII
+                UserAgent = null, // Never expose raw PII
                 BotName = entity.BotName,
                 DetectorCount = entity.DetectorCount,
                 SignatureJson = entity.SignatureJson
@@ -133,8 +133,9 @@ public class SignatureStoreMiddleware
             RiskBand = signature.Detection.IsMalicious ? "VeryHigh" : (signature.Detection.IsBot ? "Medium" : "Low"),
             RequestPath = signature.Path,
             RequestMethod = signature.Method,
-            RemoteIp = signature.ClientIp,
-            UserAgent = signature.UserAgent,
+            // DO NOT STORE RAW PII - these fields are obsolete
+            RemoteIp = null,  // CRITICAL: Never store raw IP
+            UserAgent = null, // CRITICAL: Never store raw UA
             BotName = signature.Detection.BotName,
             PolicyName = signature.Detection.Policy,
             DetectorCount = signature.DetectorOutputs?.Count ?? 0,

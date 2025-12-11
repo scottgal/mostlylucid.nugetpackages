@@ -1,6 +1,10 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Moq;
 using Mostlylucid.BotDetection.Detectors;
+using Mostlylucid.BotDetection.ClientSide;
+using Mostlylucid.BotDetection.Models;
 using Xunit;
 
 namespace Mostlylucid.BotDetection.Test.Detectors;
@@ -13,7 +17,14 @@ public class ClientSideDetectorTests
     public ClientSideDetectorTests()
     {
         _context = new DefaultHttpContext();
-        _detector = new ClientSideDetector(NullLogger<ClientSideDetector>.Instance);
+
+        var options = Options.Create(new BotDetectionOptions());
+        var mockFingerprintStore = new Mock<IBrowserFingerprintStore>();
+
+        _detector = new ClientSideDetector(
+            NullLogger<ClientSideDetector>.Instance,
+            options,
+            mockFingerprintStore.Object);
     }
 
     [Fact]
@@ -29,7 +40,7 @@ public class ClientSideDetectorTests
         // Assert
         if (result != null)
         {
-            Assert.True(result.BotProbability >= 0);
+            Assert.True(result.Confidence >= 0);
             Assert.NotEmpty(result.Reasons);
         }
     }
@@ -46,7 +57,7 @@ public class ClientSideDetectorTests
 
         // Assert
         // With valid fingerprint, should reduce bot probability or return null
-        Assert.True(result == null || result.BotProbability < 0.5);
+        Assert.True(result == null || result.Confidence < 0.5);
     }
 
     [Fact]
@@ -63,7 +74,7 @@ public class ClientSideDetectorTests
         // Should detect absence of client-side indicators
         if (result != null)
         {
-            Assert.True(result.BotProbability > 0);
+            Assert.True(result.Confidence > 0);
         }
     }
 
@@ -82,7 +93,7 @@ public class ClientSideDetectorTests
         // Assert
         if (result != null)
         {
-            Assert.True(result.BotProbability > 0.3);
+            Assert.True(result.Confidence > 0.3);
         }
     }
 
@@ -99,7 +110,7 @@ public class ClientSideDetectorTests
 
         // Assert
         // With proper browser headers, should have lower bot probability
-        Assert.True(result == null || result.BotProbability < 0.5);
+        Assert.True(result == null || result.Confidence < 0.5);
     }
 
     [Fact]

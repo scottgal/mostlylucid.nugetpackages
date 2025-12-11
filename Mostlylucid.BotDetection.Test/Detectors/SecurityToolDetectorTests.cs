@@ -1,6 +1,10 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Moq;
+using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Detectors;
+using Mostlylucid.BotDetection.Models;
 using Xunit;
 
 namespace Mostlylucid.BotDetection.Test.Detectors;
@@ -13,7 +17,19 @@ public class SecurityToolDetectorTests
     public SecurityToolDetectorTests()
     {
         _context = new DefaultHttpContext();
-        _detector = new SecurityToolDetector(NullLogger<SecurityToolDetector>.Instance);
+
+        var options = Options.Create(new BotDetectionOptions
+        {
+            SecurityTools = new SecurityToolOptions { Enabled = true }
+        });
+
+        var mockFetcher = new Mock<IBotListFetcher>();
+        // No setup needed - detector will use its own pattern fetching logic
+
+        _detector = new SecurityToolDetector(
+            NullLogger<SecurityToolDetector>.Instance,
+            options,
+            mockFetcher.Object);
     }
 
     [Theory]
@@ -33,8 +49,8 @@ public class SecurityToolDetectorTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.True(result.BotProbability > 0.8);
-        Assert.Contains("security", result.Reasons[0], StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Confidence > 0.8);
+        Assert.Contains(result.Reasons, r => r.Detail.Contains("security", StringComparison.OrdinalIgnoreCase));
     }
 
     [Theory]
@@ -71,7 +87,7 @@ public class SecurityToolDetectorTests
         // Assert
         if (result != null)
         {
-            Assert.True(result.BotProbability > 0.5);
+            Assert.True(result.Confidence > 0.5);
             Assert.NotEmpty(result.Reasons);
         }
     }
@@ -93,8 +109,8 @@ public class SecurityToolDetectorTests
         // Assert
         if (result != null)
         {
-            Assert.True(result.BotProbability > 0.7);
-            Assert.Contains("injection", result.Reasons[0], StringComparison.OrdinalIgnoreCase);
+            Assert.True(result.Confidence > 0.7);
+            Assert.Contains(result.Reasons, r => r.Detail.Contains("injection", StringComparison.OrdinalIgnoreCase));
         }
     }
 
@@ -111,7 +127,7 @@ public class SecurityToolDetectorTests
         // Assert
         if (result != null)
         {
-            Assert.True(result.BotProbability > 0.8);
+            Assert.True(result.Confidence > 0.8);
         }
     }
 
@@ -129,7 +145,7 @@ public class SecurityToolDetectorTests
         // May or may not detect depending on implementation
         if (result != null)
         {
-            Assert.True(result.BotProbability > 0);
+            Assert.True(result.Confidence > 0);
         }
     }
 
@@ -145,7 +161,7 @@ public class SecurityToolDetectorTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.True(result.BotProbability > 0.8);
+        Assert.True(result.Confidence > 0.8);
     }
 
     [Fact]
@@ -158,7 +174,7 @@ public class SecurityToolDetectorTests
         var result = await _detector.DetectAsync(_context);
 
         // Assert
-        Assert.True(result == null || result.BotProbability >= 0);
+        Assert.True(result == null || result.Confidence >= 0);
     }
 
     [Fact]

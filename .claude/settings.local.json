@@ -76,7 +76,11 @@
       "Bash(Select-Object -Last 50)",
       "WebFetch(domain:threatfox.abuse.ch)",
       "Bash(Select-String -Pattern \"error|Build succeeded|Build FAILED\")",
-      "Bash(del UnitTest1.cs 2)"
+      "Bash(del UnitTest1.cs 2)",
+      "Bash(move Mostlylucid.BotDetection.MinimalGateway.csproj Mostlylucid.BotDetection.Console.csproj)",
+      "Bash(chmod:*)",
+      "Bash(Select-String -Pattern \"SignatureEscalatorAtom|EscalationRule|SignalPatternMatcher|error\" -Context 0,1)",
+      "Bash(2)"
     ],
     "deny": [],
     "ask": []

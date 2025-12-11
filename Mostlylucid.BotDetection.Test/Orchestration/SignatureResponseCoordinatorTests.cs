@@ -107,9 +107,13 @@ public class SignatureResponseCoordinatorTests
         Assert.NotNull(coordinator);
     }
 
-    [Fact]
+    [Fact(Skip = "Obsolete: RequestCompleteSignal removed in blackboard architecture")]
     public async Task ReceiveRequestAsync_AcceptsEarlyEscalation()
     {
+        // RequestCompleteSignal type was removed - signals now written to blackboard
+        // See BLACKBOARD_ARCHITECTURE.md for details
+        await Task.CompletedTask;
+        /*
         // Arrange
         var logger = NullLogger.Instance;
         var coordinator = new SignatureResponseCoordinator("test-sig", logger);
@@ -131,11 +135,14 @@ public class SignatureResponseCoordinatorTests
 
         // Act & Assert - should not throw
         await coordinator.ReceiveRequestAsync(signal, CancellationToken.None);
+        */
     }
 
-    [Fact]
+    [Fact(Skip = "Obsolete: RequestCompleteSignal removed in blackboard architecture")]
     public async Task ReceiveRequestAsync_HandlesHighRiskSignal()
     {
+        await Task.CompletedTask;
+        /*
         // Arrange
         var logger = NullLogger.Instance;
         var coordinator = new SignatureResponseCoordinator("test-sig", logger);
@@ -158,11 +165,14 @@ public class SignatureResponseCoordinatorTests
 
         // Act & Assert - should not throw
         await coordinator.ReceiveRequestAsync(signal, CancellationToken.None);
+        */
     }
 
-    [Fact]
+    [Fact(Skip = "Obsolete: OperationCompleteSignal removed in blackboard architecture")]
     public async Task ReceiveOperationAsync_AcceptsOperationComplete()
     {
+        await Task.CompletedTask;
+        /*
         // Arrange
         var logger = NullLogger.Instance;
         var coordinator = new SignatureResponseCoordinator("test-sig", logger);
@@ -189,11 +199,14 @@ public class SignatureResponseCoordinatorTests
 
         // Act & Assert - should not throw
         await coordinator.ReceiveOperationAsync(signal, CancellationToken.None);
+        */
     }
 
-    [Fact]
+    [Fact(Skip = "Obsolete: OperationCompleteSignal removed in blackboard architecture")]
     public async Task ReceiveOperationAsync_MaintainsWindowOf100Operations()
     {
+        await Task.CompletedTask;
+        /*
         // Arrange
         var logger = NullLogger.Instance;
         var coordinator = new SignatureResponseCoordinator("test-sig", logger);
@@ -225,11 +238,14 @@ public class SignatureResponseCoordinatorTests
         // Assert - window should be capped at 100
         // Note: Can't directly verify window size without exposing internal state
         Assert.True(true);
+        */
     }
 
-    [Fact]
+    [Fact(Skip = "Obsolete: OperationCompleteSignal removed in blackboard architecture")]
     public async Task ReceiveOperationAsync_RunsLanesInParallel()
     {
+        await Task.CompletedTask;
+        /*
         // Arrange
         var logger = NullLogger.Instance;
         var coordinator = new SignatureResponseCoordinator("test-sig", logger);
@@ -260,6 +276,7 @@ public class SignatureResponseCoordinatorTests
 
         // Assert - lanes should run without errors
         Assert.True(true);
+        */
     }
 
     [Fact]
@@ -274,6 +291,11 @@ public class SignatureResponseCoordinatorTests
     }
 }
 
+/*
+/// <summary>
+/// OBSOLETE TESTS - SignatureResponseBehavior removed in blackboard architecture migration
+/// See BLACKBOARD_ARCHITECTURE.md for details
+/// </summary>
 public class SignatureResponseBehaviorTests
 {
     [Fact]
@@ -328,89 +350,37 @@ public class SignatureResponseBehaviorTests
 
 public class LaneTests
 {
-    [Fact]
+    [Fact(Skip = "Obsolete: Lane-based architecture replaced with blackboard pattern")]
     public void BehavioralLane_EmitsDefaultScore()
     {
-        // Arrange
-        var sink = new Mostlylucid.Ephemeral.SignalSink(
-            maxCapacity: 100,
-            maxAge: TimeSpan.FromMinutes(1));
-        var lane = new BehavioralLane(sink);
-        var window = new List<OperationCompleteSignal>();
-
-        // Act
-        var task = lane.AnalyzeAsync(window);
-
-        // Assert
-        Assert.True(task.IsCompleted);
+        // This test used BehavioralLane and OperationCompleteSignal which no longer exist
+        // The lane-based architecture was replaced with blackboard pattern
+        // See BLACKBOARD_ARCHITECTURE.md for details
     }
 
-    [Fact]
+    [Fact(Skip = "Obsolete: Lane-based architecture replaced with blackboard pattern")]
     public void SpectralLane_EmitsDefaultScore()
     {
-        // Arrange
-        var sink = new Mostlylucid.Ephemeral.SignalSink(
-            maxCapacity: 100,
-            maxAge: TimeSpan.FromMinutes(1));
-        var lane = new SpectralLane(sink);
-        var window = new List<OperationCompleteSignal>();
-
-        // Act
-        var task = lane.AnalyzeAsync(window);
-
-        // Assert
-        Assert.True(task.IsCompleted);
+        // This test used SpectralLane and OperationCompleteSignal which no longer exist
+        // The lane-based architecture was replaced with blackboard pattern
+        // See BLACKBOARD_ARCHITECTURE.md for details
     }
 
-    [Fact]
+    [Fact(Skip = "Obsolete: Lane-based architecture replaced with blackboard pattern")]
     public void ReputationLane_EmitsDefaultScore()
     {
-        // Arrange
-        var sink = new Mostlylucid.Ephemeral.SignalSink(
-            maxCapacity: 100,
-            maxAge: TimeSpan.FromMinutes(1));
-        var lane = new ReputationLane(sink);
-        var window = new List<OperationCompleteSignal>();
-
-        // Act
-        var task = lane.AnalyzeAsync(window);
-
-        // Assert
-        Assert.True(task.IsCompleted);
+        // This test used ReputationLane and OperationCompleteSignal which no longer exist
+        // The lane-based architecture was replaced with blackboard pattern
+        // See BLACKBOARD_ARCHITECTURE.md for details
     }
 
-    [Fact]
+    [Fact(Skip = "Obsolete: Lane-based architecture replaced with blackboard pattern")]
     public async Task BehavioralLane_HandlesMultipleOperations()
     {
-        // Arrange
-        var sink = new Mostlylucid.Ephemeral.SignalSink(
-            maxCapacity: 100,
-            maxAge: TimeSpan.FromMinutes(1));
-        var lane = new BehavioralLane(sink);
-        var window = new List<OperationCompleteSignal>();
-
-        for (int i = 0; i < 10; i++)
-        {
-            window.Add(new OperationCompleteSignal
-            {
-                Signature = "test-sig",
-                RequestId = $"req-{i}",
-                Timestamp = DateTimeOffset.UtcNow.AddSeconds(i),
-                Priority = 50,
-                RequestRisk = 0.5,
-                Path = $"/path-{i}",
-                Method = "GET",
-                ResponseScore = 0.5,
-                StatusCode = 200,
-                ResponseBytes = 1000,
-                CombinedScore = 0.5,
-                Honeypot = false,
-                Datacenter = null,
-                TriggerSignals = new Dictionary<string, object>()
-            });
-        }
-
-        // Act & Assert - should not throw
-        await lane.AnalyzeAsync(window);
+        // This test used BehavioralLane and OperationCompleteSignal which no longer exist
+        // The lane-based architecture was replaced with blackboard pattern
+        // See BLACKBOARD_ARCHITECTURE.md for details
+        await Task.CompletedTask; // Suppress async warning
     }
 }
+*/

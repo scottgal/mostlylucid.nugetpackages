@@ -58,18 +58,29 @@ public class SignatureEntity
     public string? RequestMethod { get; set; }
 
     /// <summary>
-    /// Remote IP address - indexed for filtering
+    /// REMOVED: Remote IP address - NEVER store raw PII!
+    /// Use IpSignature (HMAC hash) instead.
     /// </summary>
+    [Obsolete("DO NOT USE - Raw IP is PII and must never be stored. Use multi-factor signatures instead.")]
     [Column("remote_ip")]
     [MaxLength(64)]
     public string? RemoteIp { get; set; }
 
     /// <summary>
-    /// User-Agent string - indexed for filtering
+    /// REMOVED: User-Agent string - NEVER store raw PII!
+    /// Use UaSignature (HMAC hash) instead.
     /// </summary>
+    [Obsolete("DO NOT USE - Raw UA is PII and must never be stored. Use multi-factor signatures instead.")]
     [Column("user_agent")]
     [MaxLength(1024)]
     public string? UserAgent { get; set; }
+
+    /// <summary>
+    /// Multi-factor signatures (JSONB) - privacy-safe HMAC hashes
+    /// Format: { "primary": "hash", "ip": "hash", "ua": "hash", "clientSide": "hash", "plugin": "hash" }
+    /// </summary>
+    [Column("signatures", TypeName = "jsonb")]
+    public string? Signatures { get; set; }
 
     /// <summary>
     /// Primary bot name detected (e.g., "Googlebot", "HeadlessChrome")

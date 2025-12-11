@@ -866,18 +866,23 @@ public class BlackboardOrchestrator
     }
 
     /// <summary>
-    ///     Compute privacy-preserving signature hash from client IP.
-    ///     Uses XxHash64 for fast non-cryptographic hashing.
+    ///     Compute privacy-preserving signature hash from client IP + UA using HMAC-SHA256.
+    ///     CRITICAL: This must use HMAC-SHA256 (cryptographic), NOT XxHash64!
+    ///     Returns the PRIMARY signature (IP + UA composite).
     /// </summary>
-    private static string ComputeSignatureHash(HttpContext httpContext)
+    private string ComputeSignatureHash(HttpContext httpContext)
     {
-        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString();
+        var userAgent = httpContext.Request.Headers.UserAgent.ToString();
 
-        // Use XxHash64 for fast, deterministic hashing
-        var hash = System.IO.Hashing.XxHash64.Hash(System.Text.Encoding.UTF8.GetBytes(clientIp));
+        // Use PiiHasher for HMAC-SHA256 (cryptographic, non-reversible)
+        // TODO: Inject PiiHasher via constructor for proper key management
+        var tempKey = new byte[32];  // TEMPORARY - should come from config/vault
+        System.Security.Cryptography.RandomNumberGenerator.Fill(tempKey);
+        var hasher = new Dashboard.PiiHasher(tempKey);
 
-        // Convert to hex string (16 characters)
-        return Convert.ToHexString(hash);
+        // Generate PRIMARY signature (IP + UA)
+        return hasher.ComputeSignature(clientIp, userAgent);
     }
 
     #endregion

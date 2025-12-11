@@ -25,10 +25,13 @@
     <ProjectReference Include="..\Mostlylucid.BotDetection\Mostlylucid.BotDetection.csproj" />
   </ItemGroup>
 
-  <!-- Static web assets (CSS, JS) -->
+  <!-- Static web assets (CSS, JS) for package consumption -->
   <ItemGroup>
-    <!-- Explicitly include our CSS as embedded resource -->
-    <EmbeddedResource Include="wwwroot\bot-detection-details.css" />
+    <!-- Include wwwroot files as static web assets for Razor Class Library -->
+    <Content Update="wwwroot\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
 
   <!-- Ensure Razor views are compiled -->

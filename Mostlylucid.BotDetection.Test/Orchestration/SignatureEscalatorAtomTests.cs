@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Mostlylucid.BotDetection.Orchestration;
+using Mostlylucid.BotDetection.Orchestration.Escalation;
+using Mostlylucid.BotDetection.Orchestration.SignalMatching;
 using Mostlylucid.Ephemeral;
 using Xunit;
 
@@ -74,8 +76,8 @@ public class SignatureEscalatorAtomTests
             _logger);
 
         // Emit low risk signals
-        _operationSink.Raise(new SignalKey("request.detector.risk"), 0.3);
-        _operationSink.Raise(new SignalKey("request.honeypot"), false);
+        _operationSink.Raise(new SignalKey("request.detector.risk"), "0.3");
+        _operationSink.Raise(new SignalKey("request.honeypot"), "false");
 
         // Act
         await escalator.OnRequestAnalysisCompleteAsync();
@@ -113,7 +115,7 @@ public class SignatureEscalatorAtomTests
             config);
 
         // Emit high risk signals
-        _operationSink.Raise(new SignalKey("request.detector.risk"), 0.85);
+        _operationSink.Raise(new SignalKey("request.detector.risk"), "0.85");
 
         // Act
         await escalator.OnRequestAnalysisCompleteAsync();
@@ -151,7 +153,7 @@ public class SignatureEscalatorAtomTests
             config);
 
         // Emit honeypot signal
-        _operationSink.Raise(new SignalKey("request.path.honeypot"), true);
+        _operationSink.Raise(new SignalKey("request.path.honeypot"), "true");
 
         // Act
         await escalator.OnRequestAnalysisCompleteAsync();
@@ -172,12 +174,12 @@ public class SignatureEscalatorAtomTests
             _logger);
 
         // Emit request signals
-        _operationSink.Raise(new SignalKey("request.detector.risk"), 0.6);
+        _operationSink.Raise(new SignalKey("request.detector.risk"), "0.6");
         _operationSink.Raise(new SignalKey("request.path"), "/api/users");
 
         // Emit response signals
-        _operationSink.Raise(new SignalKey("response.detector.score"), 0.7);
-        _operationSink.Raise(new SignalKey("response.status"), 404);
+        _operationSink.Raise(new SignalKey("response.detector.score"), "0.7");
+        _operationSink.Raise(new SignalKey("response.status"), "404");
 
         // Act
         await escalator.OnOperationCompleteAsync();
@@ -217,8 +219,8 @@ public class SignatureEscalatorAtomTests
             config);
 
         // Emit high scores
-        _operationSink.Raise(new SignalKey("request.detector.risk"), 0.85);
-        _operationSink.Raise(new SignalKey("response.detector.score"), 0.80);
+        _operationSink.Raise(new SignalKey("request.detector.risk"), "0.85");
+        _operationSink.Raise(new SignalKey("response.detector.score"), "0.80");
 
         // Act
         await escalator.OnOperationCompleteAsync();
@@ -259,7 +261,7 @@ public class SignalPatternMatcherTests
         var matcher = new SignalPatternMatcher(patterns);
         var sink = new SignalSink(maxCapacity: 100, maxAge: TimeSpan.FromMinutes(1));
 
-        sink.Raise(new SignalKey("request.risk"), 0.75);
+        sink.Raise(new SignalKey("request.risk"), "0.75");
 
         // Act
         var extracted = matcher.ExtractFrom(sink);
@@ -280,7 +282,7 @@ public class SignalPatternMatcherTests
         var matcher = new SignalPatternMatcher(patterns);
         var sink = new SignalSink(maxCapacity: 100, maxAge: TimeSpan.FromMinutes(1));
 
-        sink.Raise(new SignalKey("request.detector.risk"), 0.75);
+        sink.Raise(new SignalKey("request.detector.risk"), "0.75");
 
         // Act
         var extracted = matcher.ExtractFrom(sink);
@@ -301,9 +303,9 @@ public class SignalPatternMatcherTests
         var matcher = new SignalPatternMatcher(patterns);
         var sink = new SignalSink(maxCapacity: 100, maxAge: TimeSpan.FromMinutes(1));
 
-        sink.Raise(new SignalKey("request.risk"), 0.50);
+        sink.Raise(new SignalKey("request.risk"), "0.50");
         Thread.Sleep(10); // Ensure different timestamps
-        sink.Raise(new SignalKey("request.risk"), 0.75);
+        sink.Raise(new SignalKey("request.risk"), "0.75");
 
         // Act
         var extracted = matcher.ExtractFrom(sink);
@@ -329,9 +331,9 @@ public class SignalPatternMatcherTests
         var matcher = new SignalPatternMatcher(patterns);
         var sink = new SignalSink(maxCapacity: 100, maxAge: TimeSpan.FromMinutes(1));
 
-        sink.Raise(new SignalKey("request.risk"), 0.75);
-        sink.Raise(new SignalKey("response.score"), 0.80);
-        sink.Raise(new SignalKey("request.honeypot"), true);
+        sink.Raise(new SignalKey("request.risk"), "0.75");
+        sink.Raise(new SignalKey("response.score"), "0.80");
+        sink.Raise(new SignalKey("request.honeypot"), "true");
 
         // Act
         var extracted = matcher.ExtractFrom(sink);

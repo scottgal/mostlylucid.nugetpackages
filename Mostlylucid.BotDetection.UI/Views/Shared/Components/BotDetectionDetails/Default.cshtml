@@ -90,6 +90,80 @@
         </div>
     }
 
+    <!-- Multi-Factor Signatures -->
+    @if (Model.Signatures != null)
+    {
+        <div class="bot-detection-signatures">
+            <h4 class="signatures-title">🔐 Multi-Factor Signatures</h4>
+
+            <div class="signatures-explanation">
+                @Model.Signatures.Explanation
+            </div>
+
+            @if (Model.Signatures.AvailableFactors.Any())
+            {
+                <div class="signatures-factors">
+                    <div class="factors-label">Available Signature Factors (@Model.Signatures.FactorCount):</div>
+                    <div class="factors-list">
+                        @if (!string.IsNullOrEmpty(Model.Signatures.PrimarySignature))
+                        {
+                            <div class="factor-item">
+                                <span class="factor-name">Primary (IP+UA):</span>
+                                <code class="factor-hash">@Model.Signatures.PrimarySignature</code>
+                                <span class="factor-desc">Main identity - exact same client</span>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(Model.Signatures.IpSignature))
+                        {
+                            <div class="factor-item">
+                                <span class="factor-name">IP:</span>
+                                <code class="factor-hash">@Model.Signatures.IpSignature</code>
+                                <span class="factor-desc">Handles browser updates</span>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(Model.Signatures.UaSignature))
+                        {
+                            <div class="factor-item">
+                                <span class="factor-name">User-Agent:</span>
+                                <code class="factor-hash">@Model.Signatures.UaSignature</code>
+                                <span class="factor-desc">Handles dynamic IPs (mobile)</span>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(Model.Signatures.ClientSideSignature))
+                        {
+                            <div class="factor-item">
+                                <span class="factor-name">Browser Fingerprint:</span>
+                                <code class="factor-hash">@Model.Signatures.ClientSideSignature</code>
+                                <span class="factor-desc">Most stable - hardware-based</span>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(Model.Signatures.PluginSignature))
+                        {
+                            <div class="factor-item">
+                                <span class="factor-name">Browser Config:</span>
+                                <code class="factor-hash">@Model.Signatures.PluginSignature</code>
+                                <span class="factor-desc">Plugins & extensions</span>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(Model.Signatures.IpSubnetSignature))
+                        {
+                            <div class="factor-item">
+                                <span class="factor-name">Network Subnet:</span>
+                                <code class="factor-hash">@Model.Signatures.IpSubnetSignature</code>
+                                <span class="factor-desc">Datacenter/corporate grouping</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="signatures-privacy-note">
+                    <strong>🔒 Privacy:</strong> All signatures are HMAC-SHA256 hashed - non-reversible and privacy-safe.
+                    Raw IPs and user-agents are never stored, only these cryptographic hashes.
+                </div>
+            }
+        </div>
+    }
+
     <!-- Top Reasons -->
     @if (Model.TopReasons.Any())
     {

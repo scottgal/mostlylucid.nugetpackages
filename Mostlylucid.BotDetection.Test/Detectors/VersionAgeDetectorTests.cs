@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Moq;
 using Mostlylucid.BotDetection.Detectors;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.BotDetection.Services;
 using Xunit;
 
 namespace Mostlylucid.BotDetection.Test.Detectors;
@@ -14,7 +17,14 @@ public class VersionAgeDetectorTests
     public VersionAgeDetectorTests()
     {
         _context = new DefaultHttpContext();
-        _detector = new VersionAgeDetector(NullLogger<VersionAgeDetector>.Instance);
+
+        var options = Options.Create(new BotDetectionOptions());
+        var mockVersionService = new Mock<IBrowserVersionService>();
+
+        _detector = new VersionAgeDetector(
+            NullLogger<VersionAgeDetector>.Instance,
+            options,
+            mockVersionService.Object);
     }
 
     [Theory]
@@ -34,8 +44,8 @@ public class VersionAgeDetectorTests
         if (shouldDetect)
         {
             Assert.NotNull(result);
-            Assert.True(result.BotProbability > 0.3);
-            Assert.Contains("old", result.Reasons[0], StringComparison.OrdinalIgnoreCase);
+            Assert.True(result.Confidence > 0.3);
+            Assert.Contains(result.Reasons, r => r.Detail.Contains("old", StringComparison.OrdinalIgnoreCase));
         }
         else
         {
@@ -86,7 +96,7 @@ public class VersionAgeDetectorTests
         // Assert
         if (result != null)
         {
-            Assert.True(result.BotProbability > 0.5);
+            Assert.True(result.Confidence > 0.5);
         }
     }
 

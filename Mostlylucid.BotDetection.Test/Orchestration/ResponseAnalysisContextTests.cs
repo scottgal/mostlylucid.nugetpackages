@@ -9,7 +9,7 @@ public class ResponseAnalysisContextTests
     public void Constructor_InitializesWithDefaults()
     {
         // Arrange & Act
-        var context = new ResponseAnalysisContext();
+        var context = new ResponseAnalysisContext { ClientId = "test-client" };
 
         // Assert
         Assert.False(context.EnableAnalysis);
@@ -24,7 +24,7 @@ public class ResponseAnalysisContextTests
     public void EnableAnalysis_CanBeSet()
     {
         // Arrange
-        var context = new ResponseAnalysisContext();
+        var context = new ResponseAnalysisContext { ClientId = "test-client" };
 
         // Act
         context.EnableAnalysis = true;
@@ -37,20 +37,20 @@ public class ResponseAnalysisContextTests
     public void Mode_CanBeSetToBlocking()
     {
         // Arrange
-        var context = new ResponseAnalysisContext();
+        var context = new ResponseAnalysisContext { ClientId = "test-client" };
 
         // Act
-        context.Mode = ResponseAnalysisMode.Blocking;
+        context.Mode = ResponseAnalysisMode.Inline;
 
         // Assert
-        Assert.Equal(ResponseAnalysisMode.Blocking, context.Mode);
+        Assert.Equal(ResponseAnalysisMode.Inline, context.Mode);
     }
 
     [Fact]
     public void Thoroughness_CanBeSetToDeep()
     {
         // Arrange
-        var context = new ResponseAnalysisContext();
+        var context = new ResponseAnalysisContext { ClientId = "test-client" };
 
         // Act
         context.Thoroughness = ResponseAnalysisThoroughness.Deep;
@@ -63,7 +63,7 @@ public class ResponseAnalysisContextTests
     public void TriggerSignals_CanBePopulated()
     {
         // Arrange
-        var context = new ResponseAnalysisContext();
+        var context = new ResponseAnalysisContext { ClientId = "test-client" };
 
         // Act
         context.TriggerSignals["honeypot"] = true;
@@ -81,7 +81,7 @@ public class ResponseAnalysisContextTests
     public void EnableStreaming_CanBeEnabled()
     {
         // Arrange
-        var context = new ResponseAnalysisContext();
+        var context = new ResponseAnalysisContext { ClientId = "test-client" };
 
         // Act
         context.EnableStreaming = true;
@@ -98,7 +98,7 @@ public class ResponseAnalysisContextTests
     public void Thoroughness_AllLevelsWork(ResponseAnalysisThoroughness level)
     {
         // Arrange
-        var context = new ResponseAnalysisContext();
+        var context = new ResponseAnalysisContext { ClientId = "test-client" };
 
         // Act
         context.Thoroughness = level;
@@ -113,8 +113,9 @@ public class ResponseAnalysisContextTests
         // Arrange & Act
         var context = new ResponseAnalysisContext
         {
+            ClientId = "test-client",
             EnableAnalysis = true,
-            Mode = ResponseAnalysisMode.Blocking,
+            Mode = ResponseAnalysisMode.Inline,
             Thoroughness = ResponseAnalysisThoroughness.Deep,
             TriggerSignals = new Dictionary<string, object>
             {
@@ -125,7 +126,7 @@ public class ResponseAnalysisContextTests
 
         // Assert
         Assert.True(context.EnableAnalysis);
-        Assert.Equal(ResponseAnalysisMode.Blocking, context.Mode);
+        Assert.Equal(ResponseAnalysisMode.Inline, context.Mode);
         Assert.Equal(ResponseAnalysisThoroughness.Deep, context.Thoroughness);
         Assert.True((bool)context.TriggerSignals["honeypot"]);
     }
@@ -136,6 +137,7 @@ public class ResponseAnalysisContextTests
         // Arrange & Act
         var context = new ResponseAnalysisContext
         {
+            ClientId = "test-client",
             EnableAnalysis = true,
             Mode = ResponseAnalysisMode.Async,
             Thoroughness = ResponseAnalysisThoroughness.Thorough,
@@ -154,9 +156,14 @@ public class ResponseAnalysisContextTests
     }
 }
 
+/*
+/// <summary>
+/// OBSOLETE TESTS - These types were removed in blackboard architecture migration
+/// See BLACKBOARD_ARCHITECTURE.md for details
+/// </summary>
 public class ResponseSignalTests
 {
-    [Fact]
+    [Fact(Skip = "Obsolete: ResponseSignal removed in blackboard architecture")]
     public void ResponseSignal_RequiredPropertiesCanBeSet()
     {
         // Arrange & Act
@@ -344,3 +351,4 @@ public class EscalationDecisionTests
         Assert.False(decision.ShouldAlert);
     }
 }
+*/

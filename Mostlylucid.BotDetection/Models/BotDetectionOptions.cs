@@ -233,18 +233,51 @@ public class BotDetectionOptions
     public bool EnableBackgroundUpdates { get; set; } = true;
 
     /// <summary>
+    ///     DEPRECATED: Use UpdateSchedule instead.
     ///     Interval between bot list update checks in hours (default: 24)
     ///     Valid range: 1 to 168 (1 week)
     ///     Lists are only downloaded if they're older than this.
     /// </summary>
+    [Obsolete("Use UpdateSchedule with cron expression instead. This will be removed in v2.0.")]
     public int UpdateIntervalHours { get; set; } = 24;
 
     /// <summary>
+    ///     DEPRECATED: Use UpdateSchedule instead.
     ///     Interval between update check polls in minutes (default: 60)
     ///     The service checks if an update is needed at this interval.
     ///     Valid range: 5 to 1440 (24 hours)
     /// </summary>
+    [Obsolete("Use UpdateSchedule with cron expression instead. This will be removed in v2.0.")]
     public int UpdateCheckIntervalMinutes { get; set; } = 60;
+
+    /// <summary>
+    ///     Schedule configuration for bot list updates using cron expressions.
+    ///     Supports JSON configuration with cron, timezone, signal, key, and runOnStartup.
+    ///
+    ///     Example JSON:
+    ///     {
+    ///       "cron": "0 2 * * *",           // 2 AM daily
+    ///       "timezone": "UTC",              // Optional, defaults to UTC
+    ///       "signal": "botlist.update",     // Signal to emit when update runs
+    ///       "key": "scheduled",             // Optional key for tracking
+    ///       "runOnStartup": true,           // Run immediately on startup
+    ///       "description": "Daily bot list refresh"
+    ///     }
+    ///
+    ///     Common cron patterns:
+    ///     - "0 */6 * * *"  → Every 6 hours
+    ///     - "0 2 * * *"    → Daily at 2 AM
+    ///     - "0 2 * * 0"    → Weekly on Sunday at 2 AM
+    ///     - "0 2 1 * *"    → Monthly on 1st at 2 AM
+    /// </summary>
+    public ListUpdateScheduleOptions? UpdateSchedule { get; set; } = new()
+    {
+        Cron = "0 2 * * *",  // Default: Daily at 2 AM UTC
+        Timezone = "UTC",
+        Signal = "botlist.update",
+        RunOnStartup = true,
+        Description = "Daily bot list update"
+    };
 
     /// <summary>
     ///     Timeout for downloading bot lists in seconds (default: 30)
@@ -815,6 +848,125 @@ public class BotDetectionOptions
     /// </example>
     public Dictionary<string, string> PathOverrides { get; set; } = new();
 
+}
+
+// ==========================================
+// List Update Scheduler Configuration
+// ==========================================
+
+/// <summary>
+///     Schedule configuration for bot list updates using cron expressions.
+///     Follows Ephemeral scheduler pattern with ScheduledTasksAtom integration.
+/// </summary>
+/// <example>
+///     JSON configuration (appsettings.json):
+///     <code>
+///     "BotDetection": {
+///       "UpdateSchedule": {
+///         "cron": "0 2 * * *",
+///         "timezone": "UTC",
+///         "signal": "botlist.update",
+///         "key": "scheduled",
+///         "runOnStartup": true,
+///         "description": "Daily bot list refresh"
+///       }
+///     }
+///     </code>
+///
+///     Code configuration:
+///     <code>
+///     services.Configure&lt;BotDetectionOptions&gt;(options =&gt;
+///     {
+///         options.UpdateSchedule = new ListUpdateScheduleOptions
+///         {
+///             Cron = "0 */6 * * *",  // Every 6 hours
+///             Timezone = "America/New_York",
+///             RunOnStartup = true
+///         };
+///     });
+///     </code>
+/// </example>
+/// <remarks>
+///     Common cron patterns:
+///     - "0 2 * * *"      → Daily at 2 AM
+///     - "0 */6 * * *"    → Every 6 hours
+///     - "0 2 * * 0"      → Weekly on Sunday at 2 AM
+///     - "0 2 1 * *"      → Monthly on 1st at 2 AM
+///     - "*/30 * * * *"   → Every 30 minutes
+///
+///     Integration with Ephemeral:
+///     - Uses ScheduledTasksAtom for cron-based scheduling
+///     - Signals emitted on update completion for coordination
+///     - Supports durable task pattern for long-running updates
+/// </remarks>
+public class ListUpdateScheduleOptions
+{
+    /// <summary>
+    ///     Cron expression for update schedule.
+    ///     Format: minute hour day month weekday
+    ///     Default: "0 2 * * *" (daily at 2 AM UTC)
+    /// </summary>
+    /// <example>
+    ///     "0 2 * * *"      → Daily at 2 AM
+    ///     "0 */6 * * *"    → Every 6 hours
+    ///     "0 2 * * 0"      → Weekly on Sunday at 2 AM
+    ///     "*/30 * * * *"   → Every 30 minutes
+    /// </example>
+    public string Cron { get; set; } = "0 2 * * *";
+
+    /// <summary>
+    ///     Timezone for cron expression evaluation.
+    ///     Default: "UTC"
+    /// </summary>
+    /// <example>
+    ///     "UTC", "America/New_York", "Europe/London", "Asia/Tokyo"
+    /// </example>
+    public string Timezone { get; set; } = "UTC";
+
+    /// <summary>
+    ///     Signal to emit when update completes (for coordination with other atoms).
+    ///     Default: "botlist.update"
+    /// </summary>
+    /// <remarks>
+    ///     Used by Ephemeral's SignalSink pattern to coordinate dependent tasks.
+    ///     Example: Other atoms can subscribe to "botlist.update" signal to refresh caches.
+    /// </remarks>
+    public string Signal { get; set; } = "botlist.update";
+
+    /// <summary>
+    ///     Optional key for tracking this scheduled task.
+    ///     If null, uses the signal as the key.
+    ///     Default: null
+    /// </summary>
+    public string? Key { get; set; }
+
+    /// <summary>
+    ///     Whether to run the update immediately on application startup.
+    ///     If false, waits for first cron trigger.
+    ///     Default: true
+    /// </summary>
+    public bool RunOnStartup { get; set; } = true;
+
+    /// <summary>
+    ///     Human-readable description of this scheduled task.
+    ///     Used for logging and dashboard display.
+    ///     Default: "Daily bot list update"
+    /// </summary>
+    public string Description { get; set; } = "Daily bot list update";
+
+    /// <summary>
+    ///     Maximum execution time for a single update run (in seconds).
+    ///     If update takes longer, it will be cancelled and retried on next schedule.
+    ///     Default: 300 (5 minutes)
+    /// </summary>
+    public int MaxExecutionSeconds { get; set; } = 300;
+
+    /// <summary>
+    ///     Whether to use durable task pattern for update execution.
+    ///     When true, update progress is persisted and can resume after restart.
+    ///     Default: false (updates are fast enough to run fully on each trigger)
+    /// </summary>
+    public bool UseDurableTask { get; set; } = false;
 }
 
 // ==========================================

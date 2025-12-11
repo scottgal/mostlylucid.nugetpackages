@@ -345,6 +345,107 @@
     background: linear-gradient(to bottom, transparent, #fff);
 }
 
+/* Multi-Factor Signatures */
+.bot-detection-signatures {
+    padding: 20px;
+    border-bottom: 1px solid #e1e4e8;
+    background: #f0f7ff;
+}
+
+.signatures-title {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #0366d6;
+}
+
+.signatures-explanation {
+    font-size: 14px;
+    color: #586069;
+    line-height: 1.6;
+    margin-bottom: 16px;
+    padding: 12px;
+    background: #fff;
+    border-left: 3px solid #0366d6;
+    border-radius: 4px;
+}
+
+.signatures-factors {
+    margin-top: 16px;
+}
+
+.factors-label {
+    font-weight: 600;
+    color: #24292e;
+    margin-bottom: 12px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.factors-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.factor-item {
+    display: grid;
+    grid-template-columns: 180px 1fr 200px;
+    gap: 12px;
+    padding: 10px 12px;
+    background: #fff;
+    border: 1px solid #e1e4e8;
+    border-radius: 6px;
+    align-items: center;
+    transition: all 0.2s;
+}
+
+.factor-item:hover {
+    border-color: #0366d6;
+    box-shadow: 0 1px 3px rgba(3, 102, 214, 0.1);
+}
+
+.factor-name {
+    font-weight: 600;
+    color: #0366d6;
+    font-size: 13px;
+}
+
+.factor-hash {
+    font-family: 'Courier New', Monaco, monospace;
+    font-size: 12px;
+    background: #f6f8fa;
+    padding: 4px 8px;
+    border-radius: 3px;
+    color: #6a737d;
+    border: 1px solid #e1e4e8;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.factor-desc {
+    font-size: 12px;
+    color: #586069;
+    font-style: italic;
+}
+
+.signatures-privacy-note {
+    margin-top: 16px;
+    padding: 12px;
+    background: #fff;
+    border: 1px solid #28a745;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #24292e;
+}
+
+.signatures-privacy-note strong {
+    color: #28a745;
+    font-weight: 600;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .bot-detection-header {
@@ -358,5 +459,15 @@
 
     .bot-detection-footer {
         flex-direction: column;
+    }
+
+    .factor-item {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .factor-desc {
+        padding-left: 12px;
+        border-left: 2px solid #e1e4e8;
     }
 }
