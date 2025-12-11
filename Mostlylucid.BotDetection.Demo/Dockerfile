@@ -11,6 +11,11 @@ COPY ["Mostlylucid.GeoDetection/Mostlylucid.GeoDetection.csproj", "Mostlylucid.G
 COPY ["Mostlylucid.GeoDetection.Contributor/Mostlylucid.GeoDetection.Contributor.csproj", "Mostlylucid.GeoDetection.Contributor/"]
 COPY ["Mostlylucid.Common/Mostlylucid.Common.csproj", "Mostlylucid.Common/"]
 
+# Copy ReleaseNotes.txt files (required by .csproj files during restore)
+COPY ["Mostlylucid.BotDetection/ReleaseNotes.txt", "Mostlylucid.BotDetection/"]
+COPY ["Mostlylucid.BotDetection.ApiHolodeck/ReleaseNotes.txt", "Mostlylucid.BotDetection.ApiHolodeck/"]
+COPY ["Mostlylucid.GeoDetection/ReleaseNotes.txt", "Mostlylucid.GeoDetection/"]
+
 # Restore dependencies (ignoring missing mock LLM API - not needed for demo)
 RUN dotnet restore "Mostlylucid.BotDetection.Demo/Mostlylucid.BotDetection.Demo.csproj" --ignore-failed-sources ||  dotnet restore "Mostlylucid.BotDetection.Demo/Mostlylucid.BotDetection.Demo.csproj"
 
