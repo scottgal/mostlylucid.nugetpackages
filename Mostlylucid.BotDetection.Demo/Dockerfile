@@ -28,7 +28,7 @@ RUN dotnet build "Mostlylucid.BotDetection.Demo.csproj" -c Release -o /app/build
 
 # Publish
 FROM build AS publish
-RUN dotnet publish "Mostlylucid.BotDetection.Demo.csproj" -c Release -o /app/publish /p:UseAppHost=false /p:CopyOutputSymbolsToPublishDirectory=false
+RUN dotnet publish "Mostlylucid.BotDetection.Demo.csproj" -c Release -o /app/publish /p:UseAppHost=false /p:CopyOutputSymbolsToPublishDirectory=false /p:GeneratePackageOnBuild=false
 
 # Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final

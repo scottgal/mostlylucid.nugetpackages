@@ -19,6 +19,10 @@
         <PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildProjectDirectory)/ReleaseNotes.txt"))</PackageReleaseNotes>
         <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+
+        <!-- Not AOT/trimming compatible due to Ollama, SQLite, and dynamic JSON usage -->
+        <IsTrimmable>false</IsTrimmable>
+        <NoWarn>$(NoWarn);IL2026;IL3050</NoWarn>
     </PropertyGroup>
     <PropertyGroup>
         <MinVerTagPrefix>botdetection-v</MinVerTagPrefix>
