@@ -46,10 +46,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Remove="ReleaseNotes.txt"/>
-        <Content Include="ReleaseNotes.txt">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </Content>
+        <None Include="ReleaseNotes.txt"/>
     </ItemGroup>
 
     <ItemGroup>

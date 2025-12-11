@@ -54,11 +54,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Remove="ReleaseNotes.txt" />
+        <None Include="ReleaseNotes.txt" />
         <Content Include="docs\ai-detection.md" />
-        <Content Include="ReleaseNotes.txt">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </Content>
     </ItemGroup>
 
     <!-- Embed JS files as resources for TagHelper -->
