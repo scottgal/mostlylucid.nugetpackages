@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  stylobot-demo:
+    image: scottgal/stylobot-demo:latest
+    build:
+      context: .
+      dockerfile: Mostlylucid.BotDetection.Demo/Dockerfile
+    container_name: stylobot-demo
+    ports:
+      - "5000:5000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5000
+    volumes:
+      # Persist bot detection database
+      - stylobot-db:/app/data
+      # Persist YARP learning data (bot signatures)
+      - stylobot-learning:/app/yarp-learning-data
+      # Persist GeoIP database
+      - stylobot-geoip:/app/geoip
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - stylobot-network
+
+volumes:
+  stylobot-db:
+    driver: local
+  stylobot-learning:
+    driver: local
+  stylobot-geoip:
+    driver: local
+
+networks:
+  stylobot-network:
+    driver: bridge

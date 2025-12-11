@@ -1257,11 +1257,13 @@
         // ==========================================
         // YARP Proxy Modal Functions
         // ==========================================
+        // Note: Using 'var' instead of 'let' because HTMX body swaps re-execute this script
+        // and 'let' would throw "already declared" errors on subsequent swaps
 
-        let proxySession_Id = null;
-        let proxySessionRequests = [];
-        let proxySessionStartTime = null;
-        let proxyPollingInterval = null;
+        var proxySession_Id = null;
+        var proxySessionRequests = [];
+        var proxySessionStartTime = null;
+        var proxyPollingInterval = null;
 
         function generateProxySessionId() {
             return 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);

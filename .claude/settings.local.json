@@ -84,7 +84,8 @@
       "Bash(Select-String \"No bot detection data available\")",
       "WebFetch(domain:www.useragents.me)",
       "WebFetch(domain:www.browsers.fyi)",
-      "WebFetch(domain:www.useragentstring.com)"
+      "WebFetch(domain:www.useragentstring.com)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []

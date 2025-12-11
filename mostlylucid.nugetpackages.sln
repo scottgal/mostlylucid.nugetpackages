@@ -98,6 +98,9 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.BotDetection.Benchmarks", "Mostlylucid.BotDetection.Benchmarks\Mostlylucid.BotDetection.Benchmarks.csproj", "{A61D1858-A797-4002-B226-D572067B72EF}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "BotDetection", "BotDetection", "{2E597294-7F62-4772-884E-500B7355CEFE}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\publish-stylobot-demo.yml = .github\workflows\publish-stylobot-demo.yml
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mostlylucid.BotDetection.Console", "Mostlylucid.BotDetection.Console\Mostlylucid.BotDetection.Console.csproj", "{4D65C92A-2F73-4EB8-A4D2-926F7BFEB47A}"
 EndProject

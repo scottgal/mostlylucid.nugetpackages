@@ -1,0 +1,46 @@
+# Build stage
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+# Copy everything for restore and build
+COPY . .
+
+# Restore dependencies (ignoring missing mock LLM API)
+WORKDIR /src/Mostlylucid.BotDetection.Demo
+RUN dotnet restore --ignore-failed-sources || dotnet restore
+
+# Build
+RUN dotnet build "Mostlylucid.BotDetection.Demo.csproj" -c Release -o /app/build
+
+# Publish  
+FROM build AS publish
+RUN dotnet publish "Mostlylucid.BotDetection.Demo.csproj" \ 
+    -c Release \
+    -o /app/publish \
+    /p:UseAppHost=false \
+    /p:CopyOutputSymbolsToPublishDirectory=false \
+    /p:IncludeAllContentForSelfExtract=false
+
+# Runtime stage
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
+WORKDIR /app
+
+# Install curl for healthchecks
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+# Copy published app
+COPY --from=publish /app/publish .
+
+# Expose ports
+EXPOSE 5000
+EXPOSE 5001
+
+# Environment variables
+ENV ASPNETCORE_URLS=http://+:5000
+ENV ASPNETCORE_ENVIRONMENT=Production
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:5000/health || exit 1
+
+ENTRYPOINT ["dotnet", "Mostlylucid.BotDetection.Demo.dll"]
