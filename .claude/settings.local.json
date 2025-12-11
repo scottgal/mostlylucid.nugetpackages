@@ -74,7 +74,9 @@
       "Bash(del \"D:\\Source\\mostlylucid.nugetpackages\\Mostlylucid.BotDetection.UI\\wwwroot\\exampleJsInterop.js\" 2)",
       "Bash(xargs:*)",
       "Bash(Select-Object -Last 50)",
-      "WebFetch(domain:threatfox.abuse.ch)"
+      "WebFetch(domain:threatfox.abuse.ch)",
+      "Bash(Select-String -Pattern \"error|Build succeeded|Build FAILED\")",
+      "Bash(del UnitTest1.cs 2)"
     ],
     "deny": [],
     "ask": []

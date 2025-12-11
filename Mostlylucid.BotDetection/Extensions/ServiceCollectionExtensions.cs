@@ -380,6 +380,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IContributingDetector, TlsFingerprintContributor>();
         services.AddSingleton<IContributingDetector, TcpIpFingerprintContributor>();
         services.AddSingleton<IContributingDetector, Http2FingerprintContributor>();
+        // Response behavior feedback - runs early to provide historical feedback
+        services.AddSingleton<IContributingDetector, ResponseBehaviorContributor>();
         // Wave 1+ detectors (triggered by signals from Wave 0)
         services.AddSingleton<IContributingDetector, VersionAgeContributor>();
         services.AddSingleton<IContributingDetector, InconsistencyContributor>();

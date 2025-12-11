@@ -48,9 +48,9 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
     public override int Priority => 3; // Run late, after individual detectors
 
     // Requires basic detection to have completed
-    public override IReadOnlyList<TriggerCondition> TriggerConditions => new[]
+    public override IReadOnlyList<TriggerCondition> TriggerConditions => new TriggerCondition[]
     {
-        new TriggerCondition("request.path", _ => true)
+        new SignalExistsTrigger("request.path")
     };
 
     public override Task<IReadOnlyList<DetectionContribution>> ContributeAsync(
@@ -163,7 +163,7 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
             contributions.Add(DetectionContribution.Bot(
                 Name, "Waveform", 0.7,
                 $"Highly regular timing pattern (CV={cv:F3}) - typical bot behavior",
-                BotType.ToolAutomation,
+                BotType.Scraper,
                 weight: 1.6));
         }
         // Moderate CV = human-like

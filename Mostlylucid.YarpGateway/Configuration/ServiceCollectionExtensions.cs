@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Mostlylucid.YarpGateway.Data;
 using Mostlylucid.YarpGateway.Services;
+using Mostlylucid.YarpGateway.Transforms;
 using Yarp.ReverseProxy.Configuration;
 
 namespace Mostlylucid.YarpGateway.Configuration;
@@ -88,17 +89,28 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Add YARP reverse proxy services.
+    /// Add YARP reverse proxy services with TLS fingerprinting transforms.
     /// Configuration precedence (highest to lowest):
     /// 1. DEFAULT_UPSTREAM environment variable (zero-config mode)
     /// 2. YARP config file (yarp.json)
     /// 3. Empty config (no routes) - logs warning
+    ///
+    /// Automatically adds TLS/TCP/HTTP2 fingerprinting headers for bot detection.
     /// </summary>
     public static IServiceCollection AddYarpServices(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var proxyBuilder = services.AddReverseProxy();
+        var proxyBuilder = services.AddReverseProxy()
+            .AddTransforms(builderContext =>
+            {
+                // Add TLS/TCP/HTTP2 fingerprinting headers to all proxied requests
+                // These headers are consumed by bot detection contributors:
+                // - TlsFingerprintContributor
+                // - TcpIpFingerprintContributor
+                // - Http2FingerprintContributor
+                builderContext.AddTlsFingerprintingHeaders();
+            });
 
         // Check for DEFAULT_UPSTREAM first (highest priority - zero-config mode)
         var defaultUpstream = Environment.GetEnvironmentVariable("DEFAULT_UPSTREAM");

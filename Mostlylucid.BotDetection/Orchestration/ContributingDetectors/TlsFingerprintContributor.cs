@@ -16,6 +16,10 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 ///     - JA3: TLS client hello fingerprinting (SSLVersion,Ciphers,Extensions,EllipticCurves,EllipticCurvePointFormats)
 ///     - JA4: Modern evolution with better normalization
 ///     - Detects headless browsers, automation frameworks, and custom HTTP clients
+///
+///     IMPORTANT: This contributor relies on reverse proxy (nginx/HAProxy) to extract
+///     TLS handshake data and pass via headers (X-JA3-Hash, X-TLS-Protocol, X-TLS-Cipher).
+///     ASP.NET Core's ITlsConnectionFeature has very limited TLS information available.
 /// </summary>
 public class TlsFingerprintContributor : ContributingDetectorBase
 {
@@ -77,19 +81,21 @@ public class TlsFingerprintContributor : ContributingDetectorBase
 
         try
         {
-            var tlsFeature = state.HttpContext.Features.Get<Microsoft.AspNetCore.Http.Features.ITlsConnectionFeature>();
+            // Check if TLS connection (https://)
+            var isHttps = state.HttpContext.Request.IsHttps;
+            signals.Add("tls.is_https", isHttps);
 
-            if (tlsFeature == null)
+            if (!isHttps)
             {
-                // No TLS info available (could be HTTP, reverse proxy, etc.)
+                // HTTP (not HTTPS) - slight bot indicator
                 signals.Add("tls.available", false);
                 contributions.Add(new DetectionContribution
                 {
                     DetectorName = Name,
                     Category = "TLS",
-                    ConfidenceDelta = 0.05, // Slight bot indicator - many bots use HTTP
+                    ConfidenceDelta = 0.05,
                     Weight = 0.3,
-                    Reason = "No TLS connection info available",
+                    Reason = "Using HTTP instead of HTTPS (uncommon for modern browsers)",
                     Signals = signals.ToImmutable()
                 });
                 return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
@@ -97,40 +103,33 @@ public class TlsFingerprintContributor : ContributingDetectorBase
 
             signals.Add("tls.available", true);
 
-            // Extract TLS protocol version
-            var protocol = tlsFeature.Protocol.ToString();
-            signals.Add("tls.protocol", protocol);
-
-            // Analyze protocol version
-            AnalyzeTlsProtocol(protocol, contributions, signals);
-
-            // Get cipher suite if available
-            var cipherAlgo = tlsFeature.CipherAlgorithm.ToString();
-            var hashAlgo = tlsFeature.HashAlgorithm.ToString();
-            var keyExchange = tlsFeature.KeyExchangeAlgorithm.ToString();
-
-            signals.Add("tls.cipher_algo", cipherAlgo);
-            signals.Add("tls.hash_algo", hashAlgo);
-            signals.Add("tls.key_exchange", keyExchange);
-
-            // Analyze cipher strength
-            AnalyzeCipherSuite(cipherAlgo, hashAlgo, keyExchange, contributions, signals);
-
-            // Generate JA3-style fingerprint from available data
-            var ja3String = GenerateJa3Fingerprint(state.HttpContext);
-            if (!string.IsNullOrEmpty(ja3String))
+            // Get TLS protocol from reverse proxy header (e.g., nginx: $ssl_protocol)
+            if (state.HttpContext.Request.Headers.TryGetValue("X-TLS-Protocol", out var tlsProtoHeader))
             {
-                var ja3Hash = ComputeMd5Hash(ja3String);
-                signals.Add("tls.ja3_hash", ja3Hash);
-                signals.Add("tls.ja3_string", ja3String);
+                var protocol = tlsProtoHeader.ToString();
+                signals.Add("tls.protocol", protocol);
+                AnalyzeTlsProtocol(protocol, contributions, signals);
+            }
 
+            // Get cipher suite from reverse proxy header (e.g., nginx: $ssl_cipher)
+            if (state.HttpContext.Request.Headers.TryGetValue("X-TLS-Cipher", out var cipherHeader))
+            {
+                var cipher = cipherHeader.ToString();
+                signals.Add("tls.cipher_suite", cipher);
+                AnalyzeCipherSuite(cipher, contributions, signals);
+            }
+
+            // Get JA3 fingerprint from reverse proxy
+            var ja3Hash = GetJa3Fingerprint(state.HttpContext, signals);
+            if (!string.IsNullOrEmpty(ja3Hash))
+            {
                 // Check against known fingerprints
                 if (KnownBotFingerprints.Contains(ja3Hash))
                 {
                     contributions.Add(DetectionContribution.Bot(
                         Name, "TLS", 0.85,
-                        $"Known bot TLS fingerprint detected: {ja3Hash[..8]}...",
-                        BotType.ToolAutomation,
+                        $"Known bot TLS fingerprint detected: {ja3Hash[..Math.Min(8, ja3Hash.Length)]}...",
+                        BotType.Scraper,
                         weight: 1.8));
                 }
                 else if (KnownBrowserFingerprints.Contains(ja3Hash))
@@ -141,25 +140,23 @@ public class TlsFingerprintContributor : ContributingDetectorBase
                         Category = "TLS",
                         ConfidenceDelta = -0.15,
                         Weight = 1.5,
-                        Reason = $"Known legitimate browser fingerprint: {ja3Hash[..8]}...",
+                        Reason = $"Known legitimate browser fingerprint: {ja3Hash[..Math.Min(8, ja3Hash.Length)]}...",
                         Signals = signals.ToImmutable()
                     });
                 }
                 else
                 {
-                    // Unknown fingerprint - neutral
                     signals.Add("tls.fingerprint_known", false);
                 }
             }
 
-            // Analyze certificate client auth (if used)
-            var clientCert = tlsFeature.ClientCertificate;
-            if (clientCert != null)
+            // Check for client certificate (uncommon for browsers)
+            var tlsFeature = state.HttpContext.Features.Get<Microsoft.AspNetCore.Http.Features.ITlsConnectionFeature>();
+            if (tlsFeature?.ClientCertificate != null)
             {
                 signals.Add("tls.client_cert_present", true);
-                signals.Add("tls.client_cert_issuer", clientCert.Issuer);
+                signals.Add("tls.client_cert_issuer", tlsFeature.ClientCertificate.Issuer);
 
-                // Client certs are uncommon for browsers, more common for automation
                 contributions.Add(new DetectionContribution
                 {
                     DetectorName = Name,
@@ -195,18 +192,20 @@ public class TlsFingerprintContributor : ContributingDetectorBase
         return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
     }
 
-    private void AnalyzeTlsProtocol(string protocol, List<DetectionContribution> contributions, ImmutableDictionary<string, object>.Builder signals)
+    private void AnalyzeTlsProtocol(string protocol, List<DetectionContribution> contributions,
+        ImmutableDictionary<string, object>.Builder signals)
     {
         // Outdated protocols are suspicious
-        if (protocol.Contains("Ssl2") || protocol.Contains("Ssl3"))
+        if (protocol.Contains("SSL", StringComparison.OrdinalIgnoreCase))
         {
             contributions.Add(DetectionContribution.Bot(
                 Name, "TLS", 0.7,
-                $"Outdated TLS protocol: {protocol}",
-                BotType.ToolAutomation,
+                $"Outdated SSL protocol: {protocol}",
+                BotType.Scraper,
                 weight: 1.5));
         }
-        else if (protocol.Contains("Tls") || protocol.Contains("Tls11"))
+        else if (protocol.Contains("TLSv1.0", StringComparison.OrdinalIgnoreCase) ||
+                 protocol.Contains("TLSv1.1", StringComparison.OrdinalIgnoreCase))
         {
             contributions.Add(new DetectionContribution
             {
@@ -221,12 +220,13 @@ public class TlsFingerprintContributor : ContributingDetectorBase
         // TLS 1.2+ is normal
     }
 
-    private void AnalyzeCipherSuite(string cipher, string hash, string keyExchange,
-        List<DetectionContribution> contributions, ImmutableDictionary<string, object>.Builder signals)
+    private void AnalyzeCipherSuite(string cipherSuite, List<DetectionContribution> contributions,
+        ImmutableDictionary<string, object>.Builder signals)
     {
         // Weak ciphers indicate old/custom clients
-        if (cipher.Contains("Null") || cipher.Contains("None") ||
-            hash.Contains("Md5") || hash.Contains("Sha1"))
+        if (cipherSuite.Contains("NULL", StringComparison.OrdinalIgnoreCase) ||
+            cipherSuite.Contains("NONE", StringComparison.OrdinalIgnoreCase) ||
+            cipherSuite.Contains("MD5", StringComparison.OrdinalIgnoreCase))
         {
             contributions.Add(new DetectionContribution
             {
@@ -234,54 +234,47 @@ public class TlsFingerprintContributor : ContributingDetectorBase
                 Category = "TLS",
                 ConfidenceDelta = 0.4,
                 Weight = 1.3,
-                Reason = $"Weak cipher suite detected: {cipher}/{hash}",
+                Reason = $"Weak cipher suite detected: {cipherSuite}",
                 Signals = signals.ToImmutable()
             });
         }
 
         // Export-grade or DES ciphers
-        if (cipher.Contains("Des") || cipher.Contains("Export"))
+        if (cipherSuite.Contains("DES", StringComparison.OrdinalIgnoreCase) ||
+            cipherSuite.Contains("EXPORT", StringComparison.OrdinalIgnoreCase))
         {
             contributions.Add(DetectionContribution.Bot(
                 Name, "TLS", 0.6,
                 "Export-grade or DES cipher (very outdated)",
-                BotType.ToolAutomation,
+                BotType.Scraper,
                 weight: 1.4));
         }
     }
 
-    /// <summary>
-    ///     Generate a JA3-style fingerprint from HTTP context.
-    ///
-    ///     JA3 Format: SSLVersion,Ciphers,Extensions,EllipticCurves,EllipticCurvePointFormats
-    ///     Note: Full JA3 requires packet capture. We approximate from available data.
-    ///
-    ///     In production, integrate with reverse proxy (nginx/HAProxy) that can
-    ///     extract full TLS handshake and pass via header (X-JA3-Hash).
-    /// </summary>
-    private string GenerateJa3Fingerprint(HttpContext context)
+    private string GetJa3Fingerprint(HttpContext context, ImmutableDictionary<string, object>.Builder signals)
     {
-        var parts = new List<string>();
-
-        var tlsFeature = context.Features.Get<Microsoft.AspNetCore.Http.Features.ITlsConnectionFeature>();
-        if (tlsFeature == null) return string.Empty;
-
-        // SSL Version
-        parts.Add(tlsFeature.Protocol.ToString());
-
-        // Cipher Suite (simplified - full JA3 needs all offered ciphers)
-        parts.Add($"{tlsFeature.CipherAlgorithm}-{tlsFeature.HashAlgorithm}-{tlsFeature.KeyExchangeAlgorithm}");
-
-        // Check for JA3 hash passed from reverse proxy
+        // Check for JA3 hash from reverse proxy (e.g., nginx with ssl_ja3 module)
         if (context.Request.Headers.TryGetValue("X-JA3-Hash", out var ja3Hash))
         {
-            // Reverse proxy (nginx/HAProxy) already calculated it
-            return ja3Hash.ToString();
+            var hash = ja3Hash.ToString();
+            signals.Add("tls.ja3_hash", hash);
+            return hash;
         }
 
-        // For production: implement full packet capture integration
-        // This is a simplified approximation
-        return string.Join(",", parts);
+        // Check for JA3 string if hash not available
+        if (context.Request.Headers.TryGetValue("X-JA3-String", out var ja3String))
+        {
+            var str = ja3String.ToString();
+            signals.Add("tls.ja3_string", str);
+
+            // Compute hash from string
+            var hash = ComputeMd5Hash(str);
+            signals.Add("tls.ja3_hash", hash);
+            return hash;
+        }
+
+        // No JA3 data available
+        return string.Empty;
     }
 
     private static string ComputeMd5Hash(string input)

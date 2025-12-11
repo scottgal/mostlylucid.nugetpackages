@@ -37,12 +37,12 @@ public class MultiLayerCorrelationContributor : ContributingDetectorBase
     public override int Priority => 4; // Run late, after fingerprinting
 
     // Requires signals from fingerprinting contributors
-    public override IReadOnlyList<TriggerCondition> TriggerConditions => new[]
+    public override IReadOnlyList<TriggerCondition> TriggerConditions => new TriggerCondition[]
     {
-        new TriggerCondition("tcp.os_hint", _ => true),
-        new TriggerCondition("tls.protocol", _ => true),
-        new TriggerCondition("h2.protocol", _ => true),
-        new TriggerCondition("user_agent.parsed", _ => true)
+        new SignalExistsTrigger("tcp.os_hint"),
+        new SignalExistsTrigger("tls.protocol"),
+        new SignalExistsTrigger("h2.protocol"),
+        new SignalExistsTrigger("user_agent.parsed")
     };
 
     public override Task<IReadOnlyList<DetectionContribution>> ContributeAsync(
@@ -76,7 +76,7 @@ public class MultiLayerCorrelationContributor : ContributingDetectorBase
                 contributions.Add(DetectionContribution.Bot(
                     Name, "Correlation", 0.65,
                     $"OS mismatch detected: TCP indicates {tcpOsHint ?? tcpWindowOsHint}, UA claims {userAgentOs}",
-                    BotType.ToolAutomation,
+                    BotType.Scraper,
                     weight: 1.7));
             }
 
@@ -90,7 +90,7 @@ public class MultiLayerCorrelationContributor : ContributingDetectorBase
                 contributions.Add(DetectionContribution.Bot(
                     Name, "Correlation", 0.7,
                     $"Browser mismatch: HTTP/2 indicates {h2ClientType}, UA claims {userAgentBrowser}",
-                    BotType.ToolAutomation,
+                    BotType.Scraper,
                     weight: 1.8));
             }
 
@@ -165,7 +165,7 @@ public class MultiLayerCorrelationContributor : ContributingDetectorBase
                 contributions.Add(DetectionContribution.Bot(
                     Name, "Correlation", 0.6,
                     $"Cross-layer inconsistencies: {string.Join(", ", anomalyLayers)}",
-                    BotType.ToolAutomation,
+                    BotType.Scraper,
                     weight: 1.5));
             }
 

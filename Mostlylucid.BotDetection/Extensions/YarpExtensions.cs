@@ -164,6 +164,12 @@ public static class YarpExtensions
             addHeader("X-Bot-Detection-RequestId", httpContext.TraceIdentifier);
         }
 
+        // Add signature ID if available (for demo/debug mode)
+        if (httpContext.Items.TryGetValue("BotDetection.SignatureId", out var signatureId) && signatureId != null)
+        {
+            addHeader("X-Signature-ID", signatureId.ToString()!);
+        }
+
         // YARP routing info (if available)
         if (httpContext.Items.TryGetValue("Yarp.Cluster", out var cluster) && cluster != null)
         {
@@ -234,5 +240,118 @@ public static class YarpExtensions
             return false;
 
         return true;
+    }
+
+    /// <summary>
+    ///     Adds TLS/TCP/HTTP2 fingerprinting headers for advanced bot detection.
+    ///     Extracts network-layer metadata from the connection and adds as headers
+    ///     for downstream analysis by TLS/TCP/HTTP2 fingerprinting contributors.
+    /// </summary>
+    /// <param name="httpContext">The current HttpContext</param>
+    /// <param name="addHeader">Action to add headers</param>
+    /// <example>
+    ///     <code>
+    ///     builder.Services.AddReverseProxy()
+    ///         .LoadFromConfig(configuration.GetSection("ReverseProxy"))
+    ///         .AddTransforms(context =>
+    ///         {
+    ///             context.AddRequestTransform(transformContext =>
+    ///             {
+    ///                 transformContext.HttpContext.AddTlsFingerprintingHeaders(
+    ///                     (name, value) => transformContext.ProxyRequest.Headers.TryAddWithoutValidation(name, value));
+    ///                 return ValueTask.CompletedTask;
+    ///             });
+    ///         });
+    ///     </code>
+    /// </example>
+    public static void AddTlsFingerprintingHeaders(this HttpContext httpContext, Action<string, string> addHeader)
+    {
+        try
+        {
+            // Extract TLS information
+            var tlsFeature = httpContext.Features.Get<Microsoft.AspNetCore.Http.Features.ITlsConnectionFeature>();
+            if (tlsFeature != null)
+            {
+                // TLS protocol version (if available via connection info)
+                // Note: .NET's ITlsConnectionFeature doesn't expose protocol/cipher directly,
+                // but we can get the client certificate
+                if (tlsFeature.ClientCertificate != null)
+                {
+                    addHeader("X-TLS-Client-Cert-Issuer", tlsFeature.ClientCertificate.Issuer);
+                    addHeader("X-TLS-Client-Cert-Subject", tlsFeature.ClientCertificate.Subject);
+                }
+            }
+
+            // HTTP protocol version
+            var protocol = httpContext.Request.Protocol;
+            if (!string.IsNullOrEmpty(protocol))
+            {
+                addHeader("X-HTTP-Protocol", protocol);
+
+                // Set HTTP/2 flag if applicable
+                if (protocol.StartsWith("HTTP/2", StringComparison.OrdinalIgnoreCase))
+                {
+                    addHeader("X-Is-HTTP2", "true");
+                }
+            }
+
+            // TCP/IP information from connection
+            var connection = httpContext.Connection;
+
+            // Client IP (already have this but include for completeness)
+            if (connection.RemoteIpAddress != null)
+            {
+                addHeader("X-Client-IP", connection.RemoteIpAddress.ToString());
+                addHeader("X-Client-Port", connection.RemotePort.ToString());
+            }
+
+            // Local endpoint info
+            if (connection.LocalIpAddress != null)
+            {
+                addHeader("X-Local-IP", connection.LocalIpAddress.ToString());
+                addHeader("X-Local-Port", connection.LocalPort.ToString());
+            }
+
+            // Connection ID for tracking
+            addHeader("X-Connection-ID", connection.Id);
+
+            // Note: Full TCP/IP stack fingerprinting (TTL, window size, options) requires
+            // either packet capture or integration with a reverse proxy that can extract
+            // this data (nginx with custom modules, HAProxy, etc.)
+            //
+            // For full TLS fingerprinting (JA3/JA4), you need:
+            // 1. nginx with ssl_ja3 module: https://github.com/fooinha/nginx-ssl-ja3
+            // 2. HAProxy with custom Lua scripts
+            // 3. Cloudflare Workers (enterprise)
+            // 4. Custom packet capture with libpcap/npcap
+            //
+            // Those would populate these headers:
+            // - X-JA3-Hash: MD5 hash of TLS client hello
+            // - X-JA3-String: Raw JA3 string
+            // - X-TLS-Protocol: TLS version (TLSv1.2, TLSv1.3)
+            // - X-TLS-Cipher: Cipher suite name
+            // - X-TCP-TTL: Time-to-live value
+            // - X-TCP-Window: TCP window size
+            // - X-TCP-Options: TCP options string
+            // - X-TCP-MSS: Maximum segment size
+            // - X-HTTP2-Settings: HTTP/2 SETTINGS frame
+
+        }
+        catch (Exception)
+        {
+            // Silently ignore errors - fingerprinting is best-effort
+        }
+    }
+
+    /// <summary>
+    ///     Adds all bot detection AND fingerprinting headers in one call.
+    ///     Combines bot detection results with TLS/TCP/HTTP2 metadata.
+    /// </summary>
+    /// <param name="httpContext">The current HttpContext</param>
+    /// <param name="addHeader">Action to add headers</param>
+    public static void AddComprehensiveBotHeaders(this HttpContext httpContext, Action<string, string> addHeader)
+    {
+        httpContext.AddBotDetectionHeadersFull(addHeader);
+        httpContext.AddTlsFingerprintingHeaders(addHeader);
     }
 }

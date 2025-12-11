@@ -7,6 +7,9 @@ using Mostlylucid.BotDetection.Middleware;
 using Mostlylucid.GeoDetection.Contributor.Extensions;
 using Mostlylucid.GeoDetection.Extensions;
 using mostlylucid.mockllmapi;
+using Mostlylucid.BotDetection.Demo.Services;
+using Mostlylucid.BotDetection.Demo.Hubs;
+using Mostlylucid.BotDetection.Demo.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -43,8 +46,14 @@ builder.Services.AddLLMockOpenApi(builder.Configuration); // Also needed for Ope
 
 builder.Services.AddControllers();
 builder.Services.AddRazorPages(); // For TagHelper support
+builder.Services.AddHttpContextAccessor(); // Required for TagHelpers
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Add signature capture and streaming services
+builder.Services.AddSingleton<SignatureStore>();
+builder.Services.AddSingleton<SignatureBroadcaster>();
+builder.Services.AddSignalR();
 
 // Add YARP reverse proxy for transparent bot detection proxy demo
 builder.Services.AddReverseProxy()
@@ -66,12 +75,18 @@ app.UseStaticFiles();
 // Add bot detection middleware
 app.UseBotDetection();
 
+// Add signature capture middleware (MUST be after UseBotDetection to capture evidence)
+app.UseSignatureCapture();
+
 // Add YARP learning mode middleware (MUST be after UseBotDetection)
 app.UseYarpLearningMode();
 
 app.UseAuthorization();
 app.MapControllers();
 app.MapRazorPages();
+
+// Map SignalR hub for signature streaming
+app.MapHub<SignatureHub>("/hubs/signatures");
 
 
 // ==========================================
