@@ -216,9 +216,40 @@ Multi-strategy bot detection middleware with behavioral analysis and optional LL
 - **Header Inspection**: Suspicious pattern detection
 - **IP Detection**: Datacenter/cloud provider ranges
 - **Behavioral Analysis**: Request frequency and timing
+- **Response Pattern Analysis**: Zero-latency behavioral learning via ResponseCoordinator
 - **LLM Classification**: Optional Ollama-based detection
 - **Auto-updating Blocklists**: 24-hour refresh cycle
 - **Confidence Scoring**: 0.0-1.0 with detailed reasons
+
+### Response Pattern Analysis (ResponseCoordinator)
+
+The ResponseCoordinator is a zero-latency behavioral analysis component that learns from response patterns:
+
+- **How it Works**: Uses ASP.NET Core's `OnCompleted` callback to analyze responses after they're sent to the client
+- **Zero Request Latency**: Analysis happens outside the request pipeline - no performance impact on users
+- **Behavioral Signals**: Analyzes status codes, response timing, error patterns, and honeypot interactions
+- **Adaptive Learning**: Feeds behavioral data back into the detection pipeline for future requests
+- **Method Injection**: Automatically injected into middleware via method parameter (DI handled by ASP.NET Core)
+
+**What it Detects:**
+- Rapid 404 patterns (directory scanning)
+- Timing anomalies (automated vs. human behavior)
+- Status code sequences (exploit probing)
+- Honeypot triggers (hidden links/forms)
+
+**Implementation:**
+```csharp
+// ResponseCoordinator is automatically registered and injected
+builder.Services.AddBotDetection(options =>
+{
+    options.EnableBehavioralAnalysis = true; // Enables ResponseCoordinator
+});
+
+// Middleware automatically receives ResponseCoordinator via method injection
+// No additional configuration needed!
+```
+
+**Privacy-Safe**: All response analysis is done in-memory with zero PII - only behavioral signals like timing and status codes are analyzed.
 
 ### Quick Start
 

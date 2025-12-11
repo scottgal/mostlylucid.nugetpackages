@@ -314,7 +314,7 @@ public class SignalPatternMatcherTests
         Assert.NotNull(extracted);
         if (extracted.TryGetValue("risk", out var value))
         {
-            Assert.Equal(0.75, value);
+            Assert.Equal(0.75, Convert.ToDouble(value), precision: 10); // Use precision for floating point comparison
         }
     }
 
