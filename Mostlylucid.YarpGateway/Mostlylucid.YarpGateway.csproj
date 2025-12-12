@@ -33,7 +33,7 @@
 
     <ItemGroup>
         <!-- YARP Reverse Proxy -->
-        <PackageReference Include="Yarp.ReverseProxy" Version="2.2.0" />
+        <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
 
         <!-- Database providers (optional) -->
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.2" />
@@ -49,7 +49,7 @@
         <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
 
         <!-- Health checks -->
-        <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="8.0.2" />
+        <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
         <PackageReference Include="AspNetCore.HealthChecks.SqlServer" Version="8.0.2" />
 
         <!-- OpenAPI -->

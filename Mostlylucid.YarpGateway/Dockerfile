@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM mcr.microsoft.com/dotnet/sdk:9.0-alpine AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 WORKDIR /src
 
 # Copy project files and restore (layer cached if csproj unchanged)
@@ -17,7 +17,7 @@ RUN dotnet publish Mostlylucid.YarpGateway/Mostlylucid.YarpGateway.csproj -c Rel
     /p:DebugSymbols=false
 
 # Stage 2: Runtime (Alpine-based, smallest practical image)
-FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
 
 # Create non-root user for security
 RUN addgroup -g 1000 gateway && \
