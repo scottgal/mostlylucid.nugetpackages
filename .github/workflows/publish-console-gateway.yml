@@ -114,6 +114,11 @@ jobs:
         # Copy binary
         cp minigw${{ matrix.file-ext }} ../../dist/
 
+        # Copy all DLL files (including SQLite native libraries)
+        cp *.dll ../../dist/ 2>/dev/null || true
+        cp *.so ../../dist/ 2>/dev/null || true
+        cp *.dylib ../../dist/ 2>/dev/null || true
+
         # Copy config files
         cp ../../Mostlylucid.BotDetection.Console/appsettings.json ../../dist/ || true
         cp ../../Mostlylucid.BotDetection.Console/appsettings.production.json ../../dist/ || true
