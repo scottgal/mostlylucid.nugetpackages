@@ -1,19 +1,21 @@
 # Mostlylucid.BotDetection.Console
 
-Minimal, single-file YARP gateway with bot detection. Optimized for size and performance with AOT compilation and trimming.
+Minimal, single-file YARP gateway with bot detection. Built on .NET 10 with Native AOT compilation and minimal APIs for maximum performance and minimal footprint.
 
 ## Features
 
-- **Single-file executable** - AOT compiled and trimmed
-- **Cross-platform** - Windows, Linux (x64, arm64 including Raspberry Pi 4/5)
+- **Single-file executable** - Native AOT compiled and trimmed
+- **Cross-platform** - Windows (x64, ARM64), Linux (x64, ARM64 including Raspberry Pi 4/5), macOS (x64, ARM64)
+- **Modern .NET 10** - Uses ASP.NET Core minimal APIs and latest runtime optimizations
 - **Signature tracking** - Stores high-confidence detections as HMAC-SHA256 hashed signatures (core feature)
 - **Two modes**:
   - **Demo Mode** (default) - Full verbose logging, all detectors, no blocking
   - **Production Mode** - Blocking, background learning, AI escalation
-- **Tiny footprint** - ~15-30MB single executable
-- **Zero dependencies** - No runtime required
+- **Tiny footprint** - ~10-27MB single executable (varies by platform)
+- **Zero dependencies** - No runtime required, fully self-contained
 - **Console logging** - All detections logged with full details
 - **Zero-PII architecture** - Raw IPs never stored, only privacy-safe HMAC signatures
+- **CSP-safe** - Automatically removes restrictive Content-Security-Policy headers from upstream responses
 
 ## Quick Start
 
@@ -158,10 +160,10 @@ Test cases included:
 
 ### Prerequisites
 
-- .NET 9 SDK
+- .NET 10 SDK (or later)
 - Native AOT compiler toolchain:
-  - **Windows**: Visual Studio 2022 with C++ workload
-  - **Linux**: `build-essential`, `zlib1g-dev`
+  - **Windows**: Visual Studio 2022 (17.8+) with "Desktop development with C++" workload
+  - **Linux**: `build-essential`, `zlib1g-dev`, `clang` (for ARM64: `gcc-aarch64-linux-gnu`)
   - **macOS**: Xcode command-line tools
 
 ### Build for Current Platform
@@ -170,7 +172,7 @@ Test cases included:
 dotnet publish -c Release
 ```
 
-Output: `bin/Release/net9.0/{platform}/publish/minigw` or `minigw.exe`
+Output: `bin/Release/net10.0/{platform}/publish/minigw` or `minigw.exe`
 
 ### Cross-Platform Builds
 
@@ -184,31 +186,42 @@ dotnet publish -c Release -r linux-arm64
 # Windows x64
 dotnet publish -c Release -r win-x64
 
-# macOS ARM64 (M1/M2)
+# Windows ARM64 (Surface Pro X, Windows on ARM)
+dotnet publish -c Release -r win-arm64
+
+# macOS x64 (Intel)
+dotnet publish -c Release -r osx-x64
+
+# macOS ARM64 (Apple Silicon M1/M2/M3)
 dotnet publish -c Release -r osx-arm64
 ```
 
 ### Size Optimization
 
 The project is already configured for maximum size optimization:
-- AOT compilation (`PublishAot=true`)
+- Native AOT compilation (`PublishAot=true`)
 - Full trimming (`TrimMode=full`)
 - Symbol stripping (`StripSymbols=true`)
-- Request delegate generation
-- Configuration binding generation
+- Request delegate generation (source generators)
+- Configuration binding generation (source generators)
+- Minimal APIs (no MVC/Razor overhead)
 
-Typical sizes:
-- Linux x64: ~20MB
-- Linux ARM64: ~18MB
-- Windows x64: ~15MB
+Typical sizes with .NET 10:
+- Windows x64: ~10MB (includes `e_sqlite3.dll`)
+- Windows ARM64: ~10MB (includes `e_sqlite3.dll`)
+- Linux x64: ~12MB
+- Linux ARM64: ~11MB (Raspberry Pi 4/5)
+- macOS ARM64: ~11MB (Apple Silicon)
+- macOS x64: ~13MB (Intel)
 
 ## Deployment
 
 ### Standalone Executable
 
 ```bash
-# Copy single executable to target system
-scp bin/Release/net9.0/linux-x64/publish/minigw user@server:/usr/local/bin/
+# Copy single executable and SQLite library to target system
+scp bin/Release/net10.0/linux-x64/publish/minigw user@server:/usr/local/bin/
+scp bin/Release/net10.0/linux-x64/publish/libe_sqlite3.so user@server:/usr/local/bin/
 
 # Copy configuration
 scp appsettings*.json user@server:/etc/minigw/
@@ -219,12 +232,16 @@ cd /etc/minigw
 /usr/local/bin/minigw --mode production --upstream http://backend:8080 --port 80
 ```
 
+**Note:** On Windows, make sure to include `e_sqlite3.dll` alongside the executable.
+
 ### Docker
 
 ```dockerfile
-FROM mcr.microsoft.com/dotnet/runtime-deps:9.0-alpine
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-alpine
 
-COPY bin/Release/net9.0/linux-x64/publish/minigw /app/minigw
+# Copy executable and native dependencies
+COPY bin/Release/net10.0/linux-x64/publish/minigw /app/minigw
+COPY bin/Release/net10.0/linux-x64/publish/*.so /app/
 COPY appsettings*.json /app/
 
 WORKDIR /app
@@ -291,7 +308,9 @@ dotnet publish -c Release -r linux-arm64
 
 Deploy:
 ```bash
-scp bin/Release/net9.0/linux-arm64/publish/minigw pi@raspberrypi.local:~/
+# Copy executable and SQLite native library
+scp bin/Release/net10.0/linux-arm64/publish/minigw pi@raspberrypi.local:~/
+scp bin/Release/net10.0/linux-arm64/publish/libe_sqlite3.so pi@raspberrypi.local:~/
 scp appsettings*.json pi@raspberrypi.local:~/
 
 ssh pi@raspberrypi.local
@@ -416,6 +435,15 @@ The ViewComponent automatically handles both modes:
 
 ## Troubleshooting
 
+### "Unable to load DLL 'e_sqlite3'"
+
+The SQLite native library is missing. Make sure to copy it alongside the executable:
+- **Windows**: `e_sqlite3.dll`
+- **Linux**: `libe_sqlite3.so`
+- **macOS**: `libe_sqlite3.dylib`
+
+These files are in the publish output directory and must be deployed together with the `minigw` executable.
+
 ### "Permission denied" on Linux
 
 ```bash
@@ -439,7 +467,7 @@ If running on low-memory systems (1GB Pi 4):
 
 ### Slow startup
 
-First run is slower due to JIT. Subsequent runs are fast (~100ms startup).
+With Native AOT, startup is instant (~50-100ms). If you experience slow startup, the executable may not be AOT-compiled.
 
 ## License
 

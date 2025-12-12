@@ -3,7 +3,7 @@
 
 param(
     [Parameter(Mandatory=$false)]
-    [ValidateSet('all', 'win-x64', 'linux-x64', 'linux-arm64', 'osx-x64', 'osx-arm64')]
+    [ValidateSet('all', 'win-x64', 'win-arm64', 'linux-x64', 'linux-arm64', 'osx-x64', 'osx-arm64')]
     [string]$Target = 'all',
 
     [Parameter(Mandatory=$false)]
@@ -71,6 +71,7 @@ switch ($Target) {
         Write-Host "Building all targets..." -ForegroundColor Cyan
         Write-Host ""
         Build-Target "win-x64" "Windows x64"
+        Build-Target "win-arm64" "Windows ARM64 (Surface Pro X)"
         Build-Target "linux-x64" "Linux x64"
         Build-Target "linux-arm64" "Linux ARM64 (Raspberry Pi)"
         Build-Target "osx-x64" "macOS x64 (Intel)"
@@ -79,6 +80,7 @@ switch ($Target) {
     default {
         $platformName = switch ($Target) {
             'win-x64' { "Windows x64" }
+            'win-arm64' { "Windows ARM64 (Surface Pro X)" }
             'linux-x64' { "Linux x64" }
             'linux-arm64' { "Linux ARM64 (Raspberry Pi)" }
             'osx-x64' { "macOS x64 (Intel)" }

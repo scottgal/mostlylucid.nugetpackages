@@ -40,6 +40,12 @@ jobs:
             artifact-name: minigw-win-x64
             file-ext: '.exe'
 
+          # Windows ARM64 (Surface Pro X, Windows on ARM)
+          - os: windows-latest
+            runtime: win-arm64
+            artifact-name: minigw-win-arm64
+            file-ext: '.exe'
+
           # macOS x64 (Intel)
           - os: macos-latest
             runtime: osx-x64
@@ -256,6 +262,7 @@ jobs:
         - **Linux x64**: `minigw-linux-x64.tar.gz` (~12MB)
         - **Linux ARM64**: `minigw-linux-arm64.tar.gz` (~11MB) - For Raspberry Pi 4/5
         - **Windows x64**: `minigw-win-x64.zip` (~10MB)
+        - **Windows ARM64**: `minigw-win-arm64.zip` (~10MB) - For Surface Pro X, Windows on ARM
         - **macOS Intel**: `minigw-osx-x64.tar.gz` (~13MB)
         - **macOS Apple Silicon**: `minigw-osx-arm64.tar.gz` (~11MB)
 

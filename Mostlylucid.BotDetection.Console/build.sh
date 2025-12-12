@@ -63,6 +63,7 @@ case "$TARGET" in
         echo "Building all targets..."
         echo ""
         build_target "win-x64" "Windows x64"
+        build_target "win-arm64" "Windows ARM64 (Surface Pro X)"
         build_target "linux-x64" "Linux x64"
         build_target "linux-arm64" "Linux ARM64 (Raspberry Pi)"
         build_target "osx-x64" "macOS x64 (Intel)"
@@ -70,6 +71,9 @@ case "$TARGET" in
         ;;
     win-x64)
         build_target "win-x64" "Windows x64"
+        ;;
+    win-arm64)
+        build_target "win-arm64" "Windows ARM64 (Surface Pro X)"
         ;;
     linux-x64)
         build_target "linux-x64" "Linux x64"
@@ -85,7 +89,7 @@ case "$TARGET" in
         ;;
     *)
         echo "Unknown target: $TARGET"
-        echo "Valid targets: all, win-x64, linux-x64, linux-arm64, osx-x64, osx-arm64"
+        echo "Valid targets: all, win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64"
         exit 1
         ;;
 esac
