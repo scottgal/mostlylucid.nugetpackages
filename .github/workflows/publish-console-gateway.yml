@@ -63,6 +63,12 @@ jobs:
       with:
         dotnet-version: '9.0.x'
 
+    - name: Install ARM64 cross-compilation tools (Linux ARM64 only)
+      if: matrix.runtime == 'linux-arm64'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang zlib1g-dev gcc-aarch64-linux-gnu
+
     - name: Extract version
       id: get_version
       shell: bash
