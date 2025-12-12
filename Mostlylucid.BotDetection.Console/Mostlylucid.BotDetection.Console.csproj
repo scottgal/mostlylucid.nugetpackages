@@ -38,9 +38,9 @@
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
 
     <!-- SQLitePCLRaw for cross-platform AOT support -->
-    <PackageReference Include="SQLitePCLRaw.core" Version="2.1.10" />
-    <PackageReference Include="SQLitePCLRaw.provider.winsqlite3" Version="2.1.10" />
-    <PackageReference Include="SQLitePCLRaw.provider.e_sqlite3" Version="2.1.10" />
+    <PackageReference Include="SQLitePCLRaw.core" Version="3.0.2" />
+    <PackageReference Include="SQLitePCLRaw.provider.winsqlite3" Version="3.0.2" />
+    <PackageReference Include="SQLitePCLRaw.provider.e_sqlite3" Version="3.0.2" />
   </ItemGroup>
 
   <ItemGroup>
