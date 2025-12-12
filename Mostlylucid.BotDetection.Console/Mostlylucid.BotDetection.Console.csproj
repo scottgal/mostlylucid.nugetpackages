@@ -37,9 +37,10 @@
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
 
-    <!-- Include both SQLite bundles - runtime code will select the right one -->
-    <PackageReference Include="SQLitePCLRaw.bundle_winsqlite3" Version="2.1.11" />
-    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.11" />
+    <!-- SQLitePCLRaw for cross-platform AOT support -->
+    <PackageReference Include="SQLitePCLRaw.core" Version="2.1.10" />
+    <PackageReference Include="SQLitePCLRaw.provider.winsqlite3" Version="2.1.10" />
+    <PackageReference Include="SQLitePCLRaw.provider.e_sqlite3" Version="2.1.10" />
   </ItemGroup>
 
   <ItemGroup>
