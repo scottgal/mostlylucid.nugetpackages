@@ -92,7 +92,8 @@
       "Bash(grep:*)",
       "Bash(gh run watch:*)",
       "Bash(gh release download:*)",
-      "Bash(./minigw.exe:*)"
+      "Bash(./minigw.exe:*)",
+      "Bash(dotnet msbuild:*)"
     ],
     "deny": [],
     "ask": []

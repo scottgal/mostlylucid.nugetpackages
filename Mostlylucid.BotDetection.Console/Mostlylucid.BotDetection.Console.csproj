@@ -36,15 +36,10 @@
     <PackageReference Include="Yarp.ReverseProxy" Version="2.2.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
-  </ItemGroup>
 
-  <!-- SQLite bundles - Windows uses winsqlite3, others use e_sqlite3 -->
-  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x64' or '$(RuntimeIdentifier)' == 'win-arm64'">
-    <PackageReference Include="SQLitePCLRaw.bundle_winsqlite3" Version="2.1.10" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(RuntimeIdentifier)' != 'win-x64' and '$(RuntimeIdentifier)' != 'win-arm64' and '$(RuntimeIdentifier)' != ''">
-    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.10" />
+    <!-- Include both SQLite bundles - runtime code will select the right one -->
+    <PackageReference Include="SQLitePCLRaw.bundle_winsqlite3" Version="2.0.0" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.0.0" />
   </ItemGroup>
 
   <ItemGroup>
