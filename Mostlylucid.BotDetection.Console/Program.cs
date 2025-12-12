@@ -6,6 +6,9 @@ using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Middleware;
 using System.Diagnostics;
 
+// Initialize SQLite for native AOT
+SQLitePCL.Batteries_V2.Init();
+
 // Parse command-line arguments
 var cmdArgs = Environment.GetCommandLineArgs();
 var upstream = GetArg(cmdArgs, "--upstream") ?? Environment.GetEnvironmentVariable("UPSTREAM") ?? "http://localhost:8080";
