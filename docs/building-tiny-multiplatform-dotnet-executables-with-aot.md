@@ -178,19 +178,32 @@ Use `SQLitePCLRaw.bundle_e_sqlite3` which ships cross-platform native SQLite bin
 
 You might see recommendations to use `SQLitePCLRaw.provider.winsqlite3` on Windows to use the OS-provided SQLite. **Don't do this for cross-platform apps**. It only works on Windows and requires manual initialization code. Stick with the bundle.
 
-### Important: No Module Initializer Needed
+### Critical: Initialize the Bundle Early
 
-With the bundle approach, you **don't need** a `ModuleInitializer` to set the SQLite provider. The bundle handles it automatically. If you see code like this:
+With Native AOT, the bundle doesn't always auto-initialize. You **must** call `SQLitePCL.Batteries.Init()` at the very start of your application:
 
 ```csharp
-[ModuleInitializer]
-public static void Initialize()
-{
-    SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_winsqlite3());
-}
+using SQLitePCL;
+
+// FIRST LINE - before any other code
+SQLitePCL.Batteries.Init();
+
+// Now safe to use SQLite
+var builder = WebApplication.CreateBuilder(args);
+// ... rest of your app
 ```
 
-**Delete it.** It's not needed with the bundle and can cause conflicts.
+**Put this before:**
+- Any dependency injection setup
+- Any database connections
+- Any service configuration
+
+Without this call, you'll get runtime errors like:
+```
+DllNotFoundException: Unable to load DLL 'e_sqlite3' or one of its dependencies
+```
+
+Even though the DLL is bundled correctly, AOT doesn't trigger the automatic initialization that works in normal .NET.
 
 <a name="github-actions"></a>
 ## Multi-Platform GitHub Actions Configuration

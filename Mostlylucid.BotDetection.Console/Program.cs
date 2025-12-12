@@ -6,6 +6,9 @@ using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Middleware;
 using System.Diagnostics;
 
+// Initialize SQLite bundle BEFORE anything else
+SQLitePCL.Batteries.Init();
+
 // Parse command-line arguments
 var cmdArgs = Environment.GetCommandLineArgs();
 var upstream = GetArg(cmdArgs, "--upstream") ?? Environment.GetEnvironmentVariable("UPSTREAM") ?? "http://localhost:8080";
