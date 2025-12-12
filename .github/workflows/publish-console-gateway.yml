@@ -67,7 +67,7 @@ jobs:
       if: matrix.runtime == 'linux-arm64'
       run: |
         sudo apt-get update
-        sudo apt-get install -y clang zlib1g-dev gcc-aarch64-linux-gnu
+        sudo apt-get install -y clang zlib1g-dev gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
 
     - name: Extract version
       id: get_version
@@ -101,6 +101,13 @@ jobs:
     - name: Publish ${{ matrix.runtime }} binary
       shell: bash
       run: |
+        # Set objcopy for ARM64 cross-compilation
+        if [ "${{ matrix.runtime }}" = "linux-arm64" ]; then
+          OBJCOPY_PARAM="-p:ObjCopyName=aarch64-linux-gnu-objcopy"
+        else
+          OBJCOPY_PARAM=""
+        fi
+
         dotnet publish Mostlylucid.BotDetection.Console/Mostlylucid.BotDetection.Console.csproj \
           --configuration Release \
           --runtime ${{ matrix.runtime }} \
@@ -110,7 +117,8 @@ jobs:
           -p:PublishTrimmed=true \
           -p:TrimMode=full \
           -p:PublishSingleFile=true \
-          -p:Version=${{ steps.get_version.outputs.VERSION }}
+          -p:Version=${{ steps.get_version.outputs.VERSION }} \
+          $OBJCOPY_PARAM
 
     - name: Create distribution package
       shell: bash
