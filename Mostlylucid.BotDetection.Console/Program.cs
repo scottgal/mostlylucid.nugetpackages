@@ -77,7 +77,7 @@ try
     // Add Bot Detection (configured via appsettings.json)
     builder.Services.AddBotDetection(builder.Configuration);
 
-    // Add YARP transforms for bot detection headers
+    // Add YARP transforms for bot detection headers and CSP fixes
     yarpBuilder.AddTransforms(builderContext =>
     {
         builderContext.AddRequestTransform(async transformContext =>
@@ -116,6 +116,28 @@ try
                     transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-Bot-Type", detection.BotType.Value.ToString());
                 }
             }
+        });
+
+        // Add response transform to remove restrictive CSP and fix CORS
+        builderContext.AddResponseTransform(async transformContext =>
+        {
+            // Remove or replace restrictive Content-Security-Policy headers
+            if (transformContext.ProxyResponse?.Headers.Contains("Content-Security-Policy") == true)
+            {
+                transformContext.ProxyResponse.Headers.Remove("Content-Security-Policy");
+            }
+            if (transformContext.ProxyResponse?.Headers.Contains("Content-Security-Policy-Report-Only") == true)
+            {
+                transformContext.ProxyResponse.Headers.Remove("Content-Security-Policy-Report-Only");
+            }
+
+            // Remove X-Frame-Options to allow embedding
+            if (transformContext.ProxyResponse?.Headers.Contains("X-Frame-Options") == true)
+            {
+                transformContext.ProxyResponse.Headers.Remove("X-Frame-Options");
+            }
+
+            await Task.CompletedTask;
         });
     });
 
