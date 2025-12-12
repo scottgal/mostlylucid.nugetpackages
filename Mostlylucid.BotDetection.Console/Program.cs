@@ -108,7 +108,7 @@ try
             });
 
     // Add Bot Detection (configured via appsettings.json)
-    builder.Services.AddBotDetection(builder.Configuration);
+    builder.Services.AddBotDetection();
 
     // Add YARP transforms for bot detection headers and CSP fixes
     yarpBuilder.AddTransforms(builderContext =>

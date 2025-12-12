@@ -38,38 +38,36 @@ public class ClientSideContributor : ContributingDetectorBase
         {
             var result = await _detector.DetectAsync(state.HttpContext, cancellationToken);
 
+            // Only contribute if we have actual client-side data
+            // Empty result means client-side detection is disabled or no fingerprint available
+            // Don't penalize requests just because client-side data is missing
             if (result.Reasons.Count == 0)
             {
-                // No client-side issues detected
+                // No contribution - client-side detection is disabled or no data available
+                return contributions;
+            }
+
+            // Convert each reason to a contribution
+            foreach (var reason in result.Reasons)
+            {
+                // Skip neutral reasons (ConfidenceImpact = 0)
+                if (Math.Abs(reason.ConfidenceImpact) < 0.001)
+                {
+                    continue;
+                }
+
                 contributions.Add(new DetectionContribution
                 {
                     DetectorName = Name,
-                    Category = "ClientSide",
-                    ConfidenceDelta = -0.05,
-                    Weight = 0.8,
-                    Reason = "Client-side fingerprint appears legitimate",
+                    Category = reason.Category,
+                    ConfidenceDelta = reason.ConfidenceImpact,
+                    Weight = 1.8, // Client-side fingerprint is a very strong signal
+                    Reason = reason.Detail,
+                    BotType = result.BotType,
+                    BotName = result.BotName,
                     Signals = ImmutableDictionary<string, object>.Empty
-                        .Add(SignalKeys.FingerprintIntegrityScore, 1.0)
+                        .Add(SignalKeys.FingerprintHeadlessScore, reason.Detail.Contains("Headless") ? 1.0 : 0.0)
                 });
-            }
-            else
-            {
-                // Convert each reason to a contribution
-                foreach (var reason in result.Reasons)
-                {
-                    contributions.Add(new DetectionContribution
-                    {
-                        DetectorName = Name,
-                        Category = reason.Category,
-                        ConfidenceDelta = reason.ConfidenceImpact,
-                        Weight = 1.8, // Client-side fingerprint is a very strong signal
-                        Reason = reason.Detail,
-                        BotType = result.BotType,
-                        BotName = result.BotName,
-                        Signals = ImmutableDictionary<string, object>.Empty
-                            .Add(SignalKeys.FingerprintHeadlessScore, reason.Detail.Contains("Headless") ? 1.0 : 0.0)
-                    });
-                }
             }
         }
         catch (Exception ex)

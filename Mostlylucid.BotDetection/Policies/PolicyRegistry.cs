@@ -82,9 +82,11 @@ public class PolicyRegistry : IPolicyRegistry
         RegisterPolicy(DetectionPolicy.FastWithAi);
 
         // Load policies from configuration
+        // LoadFromOptions sets _defaultPolicy based on options.DefaultPolicyName
         LoadFromOptions(options.Value);
 
-        _defaultPolicy = _policies.GetValueOrDefault("default") ?? DetectionPolicy.Default;
+        // Fallback to "default" policy if LoadFromOptions didn't set one
+        _defaultPolicy ??= _policies.GetValueOrDefault("default") ?? DetectionPolicy.Default;
     }
 
     public DetectionPolicy DefaultPolicy => _defaultPolicy;
@@ -233,10 +235,24 @@ public class PolicyRegistry : IPolicyRegistry
         }
 
         // Set default policy if configured
-        if (!string.IsNullOrEmpty(options.DefaultPolicyName) &&
-            _policies.TryGetValue(options.DefaultPolicyName, out var defaultPolicy))
+        if (!string.IsNullOrEmpty(options.DefaultPolicyName))
         {
-            _defaultPolicy = defaultPolicy;
+            _logger.LogDebug("DefaultPolicyName configured as '{PolicyName}'", options.DefaultPolicyName);
+
+            if (_policies.TryGetValue(options.DefaultPolicyName, out var defaultPolicy))
+            {
+                _defaultPolicy = defaultPolicy;
+                _logger.LogInformation("Set default policy to '{PolicyName}'", defaultPolicy.Name);
+            }
+            else
+            {
+                _logger.LogWarning("Configured default policy '{PolicyName}' not found in registered policies",
+                    options.DefaultPolicyName);
+            }
+        }
+        else
+        {
+            _logger.LogDebug("No DefaultPolicyName configured, using fallback");
         }
     }
 

@@ -30,7 +30,7 @@ namespace Mostlylucid.BotDetection.Test.Integration;
 public class OllamaGeneratedBotTests : IAsyncLifetime
 {
     private const string OllamaEndpoint = "http://localhost:11434";
-    private const string OllamaModel = "ministral:8b";
+    private const string OllamaModel = "ministral-3:8b";
     private const int GenerationTimeoutMs = 30000;
 
     private OllamaApiClient? _ollama;
@@ -460,39 +460,96 @@ public class OllamaGeneratedBotTests : IAsyncLifetime
 
     private async Task<string?> GenerateBotUserAgentAsync()
     {
-        var prompt = @"Generate a realistic HTTP User-Agent string for a web bot/crawler/scraper.
+        // Randomize bot types for variety
+        var botTypes = new[]
+        {
+            "python-requests/2.31.0",
+            "Scrapy/2.11.0 (+https://scrapy.org)",
+            "curl/8.4.0",
+            "wget/1.21.4",
+            "Go-http-client/2.0",
+            "Apache-HttpClient/4.5.14 (Java/17.0.9)",
+            "axios/1.6.2",
+            "node-fetch/2.7.0",
+            "okhttp/4.12.0",
+            "Googlebot/2.1 (+http://www.google.com/bot.html)",
+            "Mozilla/5.0 (compatible; Bingbot/2.0; +http://www.bing.com/bingbot.htm)",
+            "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+            "Twitterbot/1.0",
+            "LinkedInBot/1.0 (compatible; Mozilla/5.0; +http://www.linkedin.com)",
+            "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)",
+            "Mozilla/5.0 (compatible; Yahoo! Slurp; http://help.yahoo.com/help/us/ysearch/slurp)"
+        };
 
-Examples of valid bot User-Agents:
-- Googlebot/2.1 (+http://www.google.com/bot.html)
-- Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)
-- python-requests/2.31.0
-- Scrapy/2.11.0 (+https://scrapy.org)
-- curl/8.4.0
-- wget/1.21.4
-- Go-http-client/2.0
-- Apache-HttpClient/4.5.14 (Java/17.0.9)
+        var example = botTypes[Random.Shared.Next(botTypes.Length)];
 
-Return ONLY the User-Agent string. Do NOT include any prefix like 'User-Agent:'. Just the raw string.";
+        var prompt = $@"Generate ONE realistic HTTP User-Agent for a {GetBotCategory(example)}.
+Use THIS as inspiration but make it DIFFERENT: {example}
+Vary the version numbers, URLs, and identifiers.
+Return ONLY the User-Agent string, NO prefix or explanation.";
 
         return await GenerateWithOllamaAsync(prompt);
     }
 
+    private static string GetBotCategory(string example)
+    {
+        if (example.Contains("python") || example.Contains("requests")) return "Python HTTP client";
+        if (example.Contains("Scrapy")) return "web scraper";
+        if (example.Contains("curl") || example.Contains("wget")) return "command-line tool";
+        if (example.Contains("Go-") || example.Contains("Apache") || example.Contains("okhttp")) return "HTTP client library";
+        if (example.Contains("axios") || example.Contains("node-fetch")) return "JavaScript HTTP client";
+        if (example.Contains("Googlebot") || example.Contains("Bingbot")) return "search engine crawler";
+        if (example.Contains("facebook") || example.Contains("Twitter") || example.Contains("LinkedIn") || example.Contains("Slack")) return "social media bot";
+        return "web crawler";
+    }
+
     private async Task<string?> GenerateHumanUserAgentAsync()
     {
-        var prompt = @"Generate a realistic HTTP User-Agent string for a real web browser.
+        // Randomize browsers for variety
+        var browsers = new[]
+        {
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0",
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
+            "Mozilla/5.0 (iPad; CPU OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
+            "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Brave/1.61",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Vivaldi/6.5.3206.55"
+        };
 
-IMPORTANT: Follow this EXACT format for Chrome on Windows:
-Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
+        var example = browsers[Random.Shared.Next(browsers.Length)];
 
-Or this format for Firefox:
-Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0
-
-Or this format for Safari on Mac:
-Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15
-
-Return ONLY the User-Agent string. Do NOT include any prefix like 'User-Agent:'. Just the raw string.";
+        var prompt = $@"Generate ONE realistic HTTP User-Agent for a {GetBrowserType(example)}.
+Use THIS as inspiration but make it DIFFERENT: {example}
+Vary the version numbers (slightly newer or older), but keep the same structure and format.
+Return ONLY the User-Agent string, NO prefix or explanation.";
 
         return await GenerateWithOllamaAsync(prompt);
+    }
+
+    private static string GetBrowserType(string example)
+    {
+        if (example.Contains("Firefox")) return "Firefox browser";
+        if (example.Contains("Safari") && example.Contains("Macintosh") && !example.Contains("Chrome")) return "Safari on macOS";
+        if (example.Contains("Safari") && example.Contains("iPhone")) return "Safari on iPhone";
+        if (example.Contains("Safari") && example.Contains("iPad")) return "Safari on iPad";
+        if (example.Contains("Android")) return "Chrome on Android";
+        if (example.Contains("Edg/")) return "Microsoft Edge browser";
+        if (example.Contains("OPR/")) return "Opera browser";
+        if (example.Contains("Brave")) return "Brave browser";
+        if (example.Contains("Vivaldi")) return "Vivaldi browser";
+        if (example.Contains("Linux")) return "Chrome on Linux";
+        if (example.Contains("Macintosh") && example.Contains("Chrome")) return "Chrome on macOS";
+        return "Chrome on Windows";
     }
 
     private async Task<string?> GenerateSpecificBotTypeAsync(string botType)

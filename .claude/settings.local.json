@@ -107,7 +107,14 @@
       "Bash(do curl -A \"curl/8.7.1\" http://localhost:5200/test -s -o /dev/null -w \"Request $i: %{http_code}\\n\")",
       "Bash(done)",
       "Bash(do curl -A \"Scrapy/2.11.0\" http://localhost:5200/api/scrape -s -o /dev/null)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(ollama pull:*)",
+      "Bash(dotnet script:*)",
+      "Bash(do)",
+      "Bash(python -c \"import sys, json; print(json.load(sys.stdin)[''response''].strip())\" echo \"\" done)",
+      "Bash(dotnet:*)",
+      "Bash(dotnet-script:*)",
+      "Bash(ollama list:*)"
     ],
     "deny": [],
     "ask": []

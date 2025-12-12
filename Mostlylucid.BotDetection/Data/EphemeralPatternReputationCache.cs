@@ -209,6 +209,7 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
             {
                 existing.Reputation = reputation;
                 existing.LastAccess = DateTimeOffset.UtcNow;
+                existing.IsDirty = true; // Mark as needing persistence
                 return existing;
             });
 
@@ -266,6 +267,7 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
             if (decayed != entry.Reputation)
             {
                 entry.Reputation = decayed;
+                entry.IsDirty = true; // Mark as needing persistence after decay
                 updated++;
 
                 if (decayed.State != oldState)
@@ -364,12 +366,15 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
 
         try
         {
-            // Queue all patterns for batched persistence
-            var patterns = _cache.Values.Select(e => e.Reputation).ToList();
+            // Only persist patterns that have changed since last persist (dirty patterns)
+            var dirtyPatterns = _cache.Values
+                .Where(e => e.IsDirty)
+                .Select(e => e.Reputation)
+                .ToList();
 
-            if (patterns.Count > 0)
+            if (dirtyPatterns.Count > 0)
             {
-                await _persistCoordinator.EnqueueAsync(new PersistWork(patterns), ct);
+                await _persistCoordinator.EnqueueAsync(new PersistWork(dirtyPatterns), ct);
             }
         }
         catch (Exception ex)
@@ -414,6 +419,13 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
                 };
 
                 await _patternStore!.UpsertAsync(signature, ct);
+
+                // Clear dirty flag after successful persistence
+                if (_cache.TryGetValue(reputation.PatternId, out var entry))
+                {
+                    entry.IsDirty = false;
+                }
+
                 saved++;
             }
 
@@ -471,7 +483,7 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
                     Notes = null
                 };
 
-                _cache[signature.PatternId] = new CacheEntry(reputation);
+                _cache[signature.PatternId] = new CacheEntry(reputation, isDirty: false); // Loaded from DB, no need to persist immediately
                 loaded++;
             }
 
@@ -555,11 +567,13 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
         public DateTimeOffset LastAccess { get; set; }
         public DateTimeOffset HotUntil { get; set; }
         public int AccessCount { get; set; }
+        public bool IsDirty { get; set; }
 
-        public CacheEntry(PatternReputation reputation)
+        public CacheEntry(PatternReputation reputation, bool isDirty = true)
         {
             Reputation = reputation;
             LastAccess = DateTimeOffset.UtcNow;
+            IsDirty = isDirty; // New entries need to be persisted, loaded entries don't
             HotUntil = DateTimeOffset.MinValue;
             AccessCount = 1;
         }
