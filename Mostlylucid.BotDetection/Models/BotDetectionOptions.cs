@@ -1512,13 +1512,13 @@ public class DetectorConfig : BaseComponentConfig
     /// <summary>
     ///     Detector name (must match IDetector.Name).
     /// </summary>
-    public required string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 
     /// <summary>
     ///     Signal emitted when this detector completes.
     ///     Used for event-driven coordination.
     /// </summary>
-    public required string Signal { get; set; }
+    public string Signal { get; set; } = string.Empty;
 
     /// <summary>
     ///     Expected latency in milliseconds.
