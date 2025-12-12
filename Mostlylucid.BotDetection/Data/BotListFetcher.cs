@@ -97,7 +97,9 @@ public class BotListFetcher : IBotListFetcher
         _options = options.Value;
     }
 
+#pragma warning disable CS0618 // Type or member is obsolete
     private TimeSpan CacheDuration => TimeSpan.FromHours(_options.UpdateIntervalHours);
+#pragma warning restore CS0618 // Type or member is obsolete
 
     /// <summary>
     ///     Fetches bot patterns from all enabled sources.

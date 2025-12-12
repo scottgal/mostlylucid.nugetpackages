@@ -266,7 +266,7 @@ __pycache__/
 *.pyc
 
 # Cake - Uncomment if you are using it
-# tools/!/Mostlylucid/Mostlylucid.csproj
+# tools/!/Mostlylucid/Mostlylucid.csprojhttps://github.com/scottgal/LLMApi
 
 Mostlylucid.AltText.Demo/models/
 mlmodels/

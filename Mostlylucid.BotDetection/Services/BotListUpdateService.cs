@@ -45,10 +45,12 @@ public class BotListUpdateService : BackgroundService
             return;
         }
 
+#pragma warning disable CS0618 // Type or member is obsolete
         _logger.LogInformation(
             "Bot list update service started. Update interval: {Hours}h, Check interval: {Minutes}m",
             _options.UpdateIntervalHours,
             _options.UpdateCheckIntervalMinutes);
+#pragma warning restore CS0618 // Type or member is obsolete
 
         // Delay startup to avoid slowing down application startup
         if (_options.StartupDelaySeconds > 0)
@@ -130,9 +132,11 @@ public class BotListUpdateService : BackgroundService
     {
         try
         {
+#pragma warning disable CS0618 // Type or member is obsolete
             // Check if update is needed
             var lastUpdate = await _database.GetLastUpdateTimeAsync("bot_patterns", cancellationToken);
             var updateInterval = TimeSpan.FromHours(_options.UpdateIntervalHours);
+#pragma warning restore CS0618 // Type or member is obsolete
 
             if (lastUpdate == null)
             {
@@ -263,6 +267,7 @@ public class BotListUpdateService : BackgroundService
 
     private TimeSpan CalculateNextCheckDelay()
     {
+#pragma warning disable CS0618 // Type or member is obsolete
         var baseDelay = TimeSpan.FromMinutes(_options.UpdateCheckIntervalMinutes);
 
         // If we've had consecutive failures, use exponential backoff
@@ -272,6 +277,7 @@ public class BotListUpdateService : BackgroundService
                 _options.UpdateCheckIntervalMinutes * Math.Pow(1.5, _consecutiveFailures),
                 _options.UpdateIntervalHours * 60 // Cap at update interval
             );
+#pragma warning restore CS0618 // Type or member is obsolete
 
             var backoffDelay = TimeSpan.FromMinutes(backoffMinutes);
             _logger.LogDebug(
@@ -290,6 +296,7 @@ public class BotListUpdateService : BackgroundService
     /// </summary>
     public BotListUpdateStatus GetStatus()
     {
+#pragma warning disable CS0618 // Type or member is obsolete
         return new BotListUpdateStatus
         {
             IsEnabled = _options.EnableBackgroundUpdates,
@@ -297,6 +304,7 @@ public class BotListUpdateService : BackgroundService
             ConsecutiveFailures = _consecutiveFailures,
             UpdateIntervalHours = _options.UpdateIntervalHours,
             CheckIntervalMinutes = _options.UpdateCheckIntervalMinutes
+#pragma warning restore CS0618 // Type or member is obsolete
         };
     }
 }

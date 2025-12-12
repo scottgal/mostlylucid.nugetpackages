@@ -2715,11 +2715,13 @@ public class BotDetectionOptionsValidator : IValidateOptions<BotDetectionOptions
         if (options.CacheDurationSeconds < 0 || options.CacheDurationSeconds > 86400)
             errors.Add($"CacheDurationSeconds must be between 0 and 86400, got {options.CacheDurationSeconds}");
 
+#pragma warning disable CS0618 // Type or member is obsolete
         if (options.UpdateIntervalHours < 1 || options.UpdateIntervalHours > 168)
             errors.Add($"UpdateIntervalHours must be between 1 and 168, got {options.UpdateIntervalHours}");
 
         if (options.UpdateCheckIntervalMinutes < 5 || options.UpdateCheckIntervalMinutes > 1440)
             errors.Add($"UpdateCheckIntervalMinutes must be between 5 and 1440, got {options.UpdateCheckIntervalMinutes}");
+#pragma warning restore CS0618 // Type or member is obsolete
 
         // Validate Ollama settings only when using Ollama provider
         if (options.EnableLlmDetection && options.AiDetection.Provider == AiProvider.Ollama)

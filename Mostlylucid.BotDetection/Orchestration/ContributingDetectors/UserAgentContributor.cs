@@ -269,7 +269,7 @@ public class InconsistencyContributor : ContributingDetectorBase
         // Check for Chrome UA without sec-ch-ua headers
         // Note: Service worker, fetch API, and some browser configurations may not send Client Hints
         // Only flag if path doesn't suggest legitimate browser request
-        var path = atom.Request.Path.Value?.ToLowerInvariant() ?? "";
+        var path = state.HttpContext.Request.Path.Value?.ToLowerInvariant() ?? "";
         var isLegitimateNoHintsRequest = path.Contains("serviceworker") ||
                                           path.Contains("sw.js") ||
                                           path.Contains("worker");
