@@ -90,7 +90,9 @@
       "Bash(gh run list:*)",
       "Bash(gh run view:*)",
       "Bash(grep:*)",
-      "Bash(gh run watch:*)"
+      "Bash(gh run watch:*)",
+      "Bash(gh release download:*)",
+      "Bash(./minigw.exe:*)"
     ],
     "deny": [],
     "ask": []
