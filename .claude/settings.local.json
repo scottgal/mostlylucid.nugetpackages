@@ -114,7 +114,15 @@
       "Bash(python -c \"import sys, json; print(json.load(sys.stdin)[''response''].strip())\" echo \"\" done)",
       "Bash(dotnet:*)",
       "Bash(dotnet-script:*)",
-      "Bash(ollama list:*)"
+      "Bash(ollama list:*)",
+      "Bash(netstat:*)",
+      "Bash(ASPNETCORE_URLS=\"http://localhost:5555\" dotnet run:*)",
+      "Bash(tail:*)",
+      "Bash(pwsh:*)",
+      "Bash(dotnet-script convert-signatures-to-k6.csx:*)",
+      "Bash(k6 version:*)",
+      "Bash(k6 run:*)",
+      "Bash(pkill:*)"
     ],
     "deny": [],
     "ask": []

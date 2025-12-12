@@ -1,5 +1,6 @@
 #!/usr/bin/env dotnet-script
 #r "nuget: OllamaSharp, 5.4.12"
+#nullable enable
 
 using OllamaSharp;
 using System.Text;
@@ -9,14 +10,14 @@ using System.IO;
 
 Console.WriteLine("=".PadRight(80, '='));
 Console.WriteLine("COMPREHENSIVE BOT DETECTION SIGNATURE GENERATOR");
-Console.WriteLine("Using GPT-OSS:120B-CLOUD for maximum intelligence");
+Console.WriteLine("Using MINISTRAL-3:3B for temporal behavior generation");
 Console.WriteLine("Creating signature repository structure...");
 Console.WriteLine("=".PadRight(80, '='));
 Console.WriteLine();
 
 var ollama = new OllamaApiClient("http://localhost:11434")
 {
-    SelectedModel = "gpt-oss:120b-cloud"
+    SelectedModel = "ministral-3:3b"
 };
 
 // Real datacenter IP prefixes from our IpContributor
@@ -79,12 +80,9 @@ var residentialIpPrefixes = new[]
 
 var random = new Random();
 
-// Create signature repository directory structure
-var repoPath = Path.Combine(AppContext.BaseDirectory, "bot-signatures");
+// Create signature repository directory (in current directory)
+var repoPath = Path.Combine(Directory.GetCurrentDirectory(), "bot-signatures");
 Directory.CreateDirectory(repoPath);
-Directory.CreateDirectory(Path.Combine(repoPath, "human"));
-Directory.CreateDirectory(Path.Combine(repoPath, "bot"));
-Directory.CreateDirectory(Path.Combine(repoPath, "_metadata"));
 
 Console.WriteLine($"📁 Repository path: {repoPath}");
 Console.WriteLine();
@@ -228,67 +226,33 @@ Console.WriteLine($"Total behavior categories: {behaviorCategories.Count}");
 Console.WriteLine($"Total behavior signals: {behaviorCategories.Values.Sum(v => v.Length)}");
 Console.WriteLine();
 
-// Generate metadata index
-var metadataIndex = new
-{
-    Version = "1.0.0",
-    Generated = DateTime.UtcNow,
-    Model = "gpt-oss:120b-cloud",
-    Categories = behaviorCategories.Keys.ToArray(),
-    TotalSignals = behaviorCategories.Values.Sum(v => v.Length),
-    TotalScenarios = behaviorCategories.Count * 2, // human + bot per category
-    Description = "Comprehensive bot detection signature repository with realistic HTTP behavior patterns"
-};
-
-File.WriteAllText(
-    Path.Combine(repoPath, "_metadata", "index.json"),
-    JsonSerializer.Serialize(metadataIndex, new JsonSerializerOptions { WriteIndented = true }));
-
 // Generate README for the repository
 var readme = $@"# Bot Detection Signature Repository
 
 **Generated:** {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
-**Model:** gpt-oss:120b-cloud
+**Model:** ministral-3:3b
 **Version:** 1.0.0
 
 ## Overview
 
-This repository contains {behaviorCategories.Count * 2} comprehensive behavioral signatures for bot detection, covering {behaviorCategories.Values.Sum(v => v.Length)} unique detection signals across {behaviorCategories.Count} categories.
-
-## Structure
-
-```
-bot-signatures/
-├── human/           # Legitimate human behavior patterns
-├── bot/             # Bot/scraper behavior patterns
-├── _metadata/       # Repository metadata and indexes
-└── README.md        # This file
-```
-
-## Categories
-
-{string.Join("\n", behaviorCategories.Select((kvp, i) => $"{i + 1}. **{kvp.Key}** ({kvp.Value.Length} signals)"))}
+Each file in this directory is a complete behavioral signature that can be replayed to test bot detection.
 
 ## File Format
 
-Each signature file contains:
-- **Scenario**: Descriptive title
-- **Category**: Behavior category
-- **Type**: Human or Bot
-- **Pattern**: Detailed behavior description
-- **HTTP Details**: Complete request/response examples
-- **Detection Signals**: Which signals are triggered
-- **Reasoning**: Why this pattern is suspicious or legitimate
-- **Metadata**: Generated timestamp, version, model
+Each scenario file (e.g., `natural-browsing.json`, `rapid-scraper.json`) contains:
+- **scenarioName**: Kebab-case identifier
+- **scenario**: Human-readable description
+- **confidence**: Bot confidence score (0.0-1.0)
+- **requests**: Array of sequential HTTP requests with timing
+- **patterns**: Observable behavioral patterns
+- **reasoning**: Why this is bot/human behavior
 
 ## Usage
 
-These signatures can be used for:
-1. **Training ML models** - Labeled human/bot examples
-2. **Testing detection systems** - Comprehensive test coverage
-3. **Signature matching** - Pattern-based detection
-4. **Documentation** - Understanding bot behaviors
-5. **Research** - Analyzing bot detection techniques
+Use `stylobot.bdfreplay.cli` to replay these signatures:
+```
+stylobot.bdfreplay.cli --signature natural-browsing.json --target http://localhost:5000
+```
 
 ## License
 
@@ -297,97 +261,111 @@ Generated for bot detection research and development.
 
 File.WriteAllText(Path.Combine(repoPath, "README.md"), readme);
 
-// Generate category metadata
-var categoryMetadata = new Dictionary<string, object>();
-foreach (var category in behaviorCategories)
-{
-    categoryMetadata[category.Key] = new
-    {
-        Name = category.Key,
-        SignalCount = category.Value.Length,
-        Signals = category.Value,
-        HumanFile = $"human/{category.Key}.json",
-        BotFile = $"bot/{category.Key}.json"
-    };
-}
-
-File.WriteAllText(
-    Path.Combine(repoPath, "_metadata", "categories.json"),
-    JsonSerializer.Serialize(categoryMetadata, new JsonSerializerOptions { WriteIndented = true }));
-
 Console.WriteLine("✅ Repository structure created");
-Console.WriteLine("✅ Metadata files written");
 Console.WriteLine();
 
-// Generate scenarios for each category
+// Generate multiple scenarios for each category
 var generatedCount = 0;
+var scenariosPerCategory = 10; // Generate 10 human + 10 bot per category = 200 total scenarios
 
 foreach (var category in behaviorCategories)
 {
-    Console.WriteLine($"⚙️  Generating signatures for: {category.Key}");
+    Console.WriteLine($"⚙️  Generating scenarios for: {category.Key}");
     Console.WriteLine();
 
-    // Generate 1 human scenario and 1 bot scenario for this category
-    var humanScenario = await GenerateScenario(ollama, category.Key, category.Value, isBot: false);
-    var botScenario = await GenerateScenario(ollama, category.Key, category.Value, isBot: true);
-
-    // Save human signature
-    var humanFile = Path.Combine(repoPath, "human", $"{category.Key}.json");
-    var humanData = new
+    // Generate multiple human scenarios
+    for (int i = 0; i < scenariosPerCategory; i++)
     {
-        Meta = new
+        var scenarioJson = await GenerateScenario(ollama, category.Key, category.Value, isBot: false);
+        var scenarioData = SaveScenario(scenarioJson, repoPath, category.Key, "human");
+        if (scenarioData != null)
         {
-            Version = "1.0.0",
-            Category = category.Key,
-            Type = "human",
-            Generated = DateTime.UtcNow,
-            Model = "gpt-oss:120b-cloud",
-            SignalCount = category.Value.Length
-        },
-        Signals = category.Value,
-        Scenario = humanScenario
-    };
-    File.WriteAllText(humanFile, JsonSerializer.Serialize(humanData, new JsonSerializerOptions { WriteIndented = true }));
-    Console.WriteLine($"  ✅ Saved: {Path.GetFileName(humanFile)}");
+            Console.WriteLine($"  ✅ Saved: {scenarioData}");
+            generatedCount++;
+        }
+    }
 
-    // Save bot signature
-    var botFile = Path.Combine(repoPath, "bot", $"{category.Key}.json");
-    var botData = new
+    // Generate multiple bot scenarios
+    for (int i = 0; i < scenariosPerCategory; i++)
     {
-        Meta = new
+        var scenarioJson = await GenerateScenario(ollama, category.Key, category.Value, isBot: true);
+        var scenarioData = SaveScenario(scenarioJson, repoPath, category.Key, "bot");
+        if (scenarioData != null)
         {
-            Version = "1.0.0",
-            Category = category.Key,
-            Type = "bot",
-            Generated = DateTime.UtcNow,
-            Model = "gpt-oss:120b-cloud",
-            SignalCount = category.Value.Length
-        },
-        Signals = category.Value,
-        Scenario = botScenario
-    };
-    File.WriteAllText(botFile, JsonSerializer.Serialize(botData, new JsonSerializerOptions { WriteIndented = true }));
-    Console.WriteLine($"  ✅ Saved: {Path.GetFileName(botFile)}");
+            Console.WriteLine($"  ✅ Saved: {scenarioData}");
+            generatedCount++;
+        }
+    }
 
-    Console.WriteLine($"  📝 Preview (human): {humanScenario.Substring(0, Math.Min(80, humanScenario.Length))}...");
-    Console.WriteLine($"  📝 Preview (bot): {botScenario.Substring(0, Math.Min(80, botScenario.Length))}...");
     Console.WriteLine();
+}
 
-    generatedCount += 2;
+string? SaveScenario(string jsonText, string repoPath, string category, string type)
+{
+    try
+    {
+        // Validate it's parseable JSON first
+        JsonDocument doc;
+        try
+        {
+            doc = JsonDocument.Parse(jsonText);
+        }
+        catch (JsonException jex)
+        {
+            Console.WriteLine($"  ❌ Invalid JSON: {jex.Message}");
+            Console.WriteLine($"     First 200 chars: {jsonText.Substring(0, Math.Min(200, jsonText.Length))}");
+            return null;
+        }
+
+        // Extract scenarioName
+        if (!doc.RootElement.TryGetProperty("scenarioName", out var scenarioNameProp))
+        {
+            Console.WriteLine($"  ⚠️  No scenarioName in JSON, skipping");
+            doc.Dispose();
+            return null;
+        }
+
+        var scenarioName = scenarioNameProp.GetString();
+        if (string.IsNullOrEmpty(scenarioName))
+        {
+            Console.WriteLine($"  ⚠️  Empty scenarioName, skipping");
+            doc.Dispose();
+            return null;
+        }
+
+        // Save with pretty formatting
+        var filename = $"{scenarioName}.json";
+        var filepath = Path.Combine(repoPath, filename);
+
+        var options = new JsonSerializerOptions { WriteIndented = true };
+        var prettyJson = JsonSerializer.Serialize(doc.RootElement, options);
+
+        File.WriteAllText(filepath, prettyJson);
+        doc.Dispose();
+        return filename;
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"  ❌ Error saving scenario: {ex.Message}");
+        return null;
+    }
 }
 
 Console.WriteLine();
 Console.WriteLine("=".PadRight(80, '='));
-Console.WriteLine($"✅ Generated {generatedCount} signature files");
+Console.WriteLine($"✅ Generated {generatedCount} scenario files");
 Console.WriteLine($"📁 Repository: {repoPath}");
-Console.WriteLine($"📊 Categories: {behaviorCategories.Count}");
-Console.WriteLine($"🔍 Total signals: {behaviorCategories.Values.Sum(v => v.Length)}");
+Console.WriteLine($"📊 Categories covered: {behaviorCategories.Count}");
+Console.WriteLine($"🎭 Scenarios per category: {scenariosPerCategory} human + {scenariosPerCategory} bot");
+Console.WriteLine();
+Console.WriteLine("Use these signatures for training and testing:");
+Console.WriteLine("  stylobot.bdfreplay.cli --signature <scenario-name>.json --target http://localhost:5000");
 Console.WriteLine("=".PadRight(80, '='));
 
 async Task<string> GenerateScenario(OllamaApiClient client, string category, string[] signals, bool isBot)
 {
     var signalsList = string.Join("\n   - ", signals);
-    var userType = isBot ? "sophisticated bot" : "real human user";
+    var userType = isBot ? "bot/scraper" : "real human user";
 
     // Select random real values for bot scenarios
     var selectedBotUA = botUserAgents[random.Next(botUserAgents.Length)];
@@ -399,62 +377,106 @@ async Task<string> GenerateScenario(OllamaApiClient client, string category, str
     var selectedResidentialPrefix = residentialIpPrefixes[random.Next(residentialIpPrefixes.Length)];
     var selectedResidentialIP = $"{selectedResidentialPrefix}{random.Next(1, 254)}.{random.Next(1, 254)}";
 
-    var realDataInstructions = isBot
-        ? $@"
+    var ua = isBot ? selectedBotUA.Pattern : selectedHumanUA;
+    var ip = isBot ? selectedDcIP : selectedResidentialIP;
 
-IMPORTANT - Use these REAL bot values (from our detection lists):
-- User-Agent: {selectedBotUA.Pattern}
-- IP Address: {selectedDcIP} ({selectedDatacenter.Name} datacenter)
-- These values WILL trigger our detectors - use them!"
-        : $@"
+    var prompt = $@"Generate ONE realistic bot detection signature (BDF v2) for: {userType} - {category}
 
-IMPORTANT - Use these REAL human values:
-- User-Agent: {selectedHumanUA}
-- IP Address: {selectedResidentialIP} (residential ISP)
-- These values WILL NOT trigger our detectors - use them!";
+USER-AGENT (use EXACTLY in clientProfile.userAgent): {ua}
 
-    var prompt = $@"You are a bot detection expert. Generate a realistic, detailed test scenario for {category}.
+Create a realistic {(isBot ? "scraper/bot" : "human")} with:
 
-Signals in this category:
-   - {signalsList}
+BDF v2 Schema:
+{{
+  ""scenarioName"": ""kebab-case-name"",
+  ""scenario"": ""description"",
+  ""confidence"": {(isBot ? "0.85" : "0.15")},
+  ""clientProfile"": {{
+    ""userAgent"": ""{ua}"",
+    ""cookieMode"": ""{(isBot ? "none" : "sticky")}"",
+    ""headerCompleteness"": ""{(isBot ? "minimal" : "full")}"",
+    ""clientHintsPresent"": {(isBot ? "false" : "true")},
+    ""robotsConsulted"": {(isBot ? "false" : "true")}
+  }},
+  ""timingProfile"": {{
+    ""burstRequests"": {(isBot ? "10" : "3")},
+    ""delayAfterMs"": {{ ""min"": {(isBot ? "20" : "2000")}, ""max"": {(isBot ? "150" : "15000")} }},
+    ""pauseAfterBurstMs"": {{ ""min"": {(isBot ? "500" : "5000")}, ""max"": {(isBot ? "2000" : "20000")} }}
+  }},
+  ""requests"": [
+    {{
+      ""method"": ""GET"",
+      ""path"": ""/"",
+      ""headers"": {{""User-Agent"": ""{ua}""{(isBot ? "" : ", \"Accept-Language\": \"en-US,en;q=0.9\"")}}}},
+      ""expectedStatusAny"": [200, 301, 302],
+      ""expectedOutcome"": ""{(isBot ? "indexing" : "browsing")}"",
+      ""successCondition"": ""any 2xx""
+    }}
+  ],
+  ""labels"": [{(isBot ? "\"Scraper\", \"RobotsIgnore\"" : "\"Human\", \"NaturalBrowsing\"")}],
+  ""evidence"": [
+    {{ ""signal"": ""interval_ms_p95"", ""op"": ""{(isBot ? "<" : ">")}"", ""value"": {(isBot ? "200" : "3000")}, ""weight"": 0.35 }}
+  ],
+  ""patterns"": {{""requestInterval"": ""{(isBot ? "burst <150ms" : "variable 2-15s")}""}},
+  ""reasoning"": ""Why {userType}""
+}}
 
-Generate a complete test scenario for a {userType} that would trigger these signals.
-{realDataInstructions}
+CRITICAL for BOTS:
+- Include robots.txt check (or skip it)
+- Hit /admin, /api, sensitive paths
+- Missing Accept-Language, Sec-Fetch-* headers
+- Use HEAD before GET sometimes
+- Enumerate: /api/data?page=1, /api/data?page=2
+- Include 403/404/429 in expectedStatusAny
 
-Requirements:
-1. Be SPECIFIC with exact values, timings, headers
-2. Make it realistic and executable as a test case
-3. Include HTTP request/response details with actual values
-4. Explain WHY this pattern is {(isBot ? "suspicious" : "legitimate")}
-5. Keep it under 300 words
-6. Use the REAL values provided above, not placeholders!
-7. For bot scenarios: combine the bot UA + datacenter IP for maximum detection
-8. For human scenarios: combine the human UA + residential IP for realistic legitimacy
+CRITICAL for HUMANS:
+- Full browser headers
+- Cookie jar (sticky)
+- Natural navigation
+- Referer chains
+- Variable timing 2-30s
 
-Format:
-**Scenario:** [brief title]
-**Pattern:** [specific behavior description]
-**HTTP Details:** [headers, timing, sequences - use the REAL values!]
-**Detection Signals:** [which signals this triggers]
-**Why {(isBot ? "Suspicious" : "Legitimate")}:** [explanation]
-
-Generate ONLY the scenario, no preamble.";
+Return ONLY valid JSON, no markdown.";
 
     try
     {
+        Console.Write($"  ⏳ Calling Ollama ({userType})...");
         var chat = new Chat(client);
         var response = new StringBuilder();
+        var tokenCount = 0;
 
         await foreach (var token in chat.SendAsync(prompt, CancellationToken.None))
         {
             response.Append(token);
+            tokenCount++;
+            if (tokenCount % 50 == 0)
+            {
+                Console.Write(".");
+            }
         }
 
-        return response.ToString().Trim();
+        Console.WriteLine($" ✓ ({tokenCount} tokens)");
+
+        // Clean up response: strip markdown code fences
+        var jsonText = response.ToString().Trim();
+        if (jsonText.StartsWith("```json"))
+        {
+            jsonText = jsonText.Substring(7); // Remove ```json
+        }
+        if (jsonText.StartsWith("```"))
+        {
+            jsonText = jsonText.Substring(3); // Remove ```
+        }
+        if (jsonText.EndsWith("```"))
+        {
+            jsonText = jsonText.Substring(0, jsonText.Length - 3); // Remove ```
+        }
+
+        return jsonText.Trim();
     }
     catch (Exception ex)
     {
         Console.WriteLine($"  ❌ Error generating scenario: {ex.Message}");
-        return $"Error: {ex.Message}";
+        return $"{{\"error\": \"{ex.Message}\"}}";
     }
 }

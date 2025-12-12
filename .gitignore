@@ -279,3 +279,4 @@ mlmodels/
 *.db
 botdetection.db
 learned_bot_patterns.json
+/bot-signatures/

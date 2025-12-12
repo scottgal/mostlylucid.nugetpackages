@@ -43,13 +43,16 @@ try
     Log.Information("Port:     {Port}", port);
     Log.Information("");
 
-    var builder = WebApplication.CreateSlimBuilder();
-
-    // Configure web root path explicitly for static files (SlimBuilder doesn't set this by default)
+    // Configure web root path explicitly for static files
     var webRootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot");
     Log.Information("Configuring web root path: {WebRootPath}", webRootPath);
     Log.Information("Web root exists: {Exists}", Directory.Exists(webRootPath));
-    builder.WebHost.UseWebRoot(webRootPath);
+
+    var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+    {
+        Args = args,
+        WebRootPath = webRootPath
+    });
 
     // Use Serilog
     builder.Host.UseSerilog();
@@ -77,7 +80,8 @@ try
         Enabled = builder.Configuration.GetValue<bool>("SignatureLogging:Enabled", true),
         MinConfidence = builder.Configuration.GetValue<double>("SignatureLogging:MinConfidence", 0.7),
         PrettyPrintJsonLd = builder.Configuration.GetValue<bool>("SignatureLogging:PrettyPrintJsonLd", false),
-        SignatureHashKey = builder.Configuration.GetValue<string>("SignatureLogging:SignatureHashKey") ?? "DEFAULT_INSECURE_KEY_CHANGE_ME"
+        SignatureHashKey = builder.Configuration.GetValue<string>("SignatureLogging:SignatureHashKey") ?? "DEFAULT_INSECURE_KEY_CHANGE_ME",
+        LogRawPii = builder.Configuration.GetValue<bool>("SignatureLogging:LogRawPii", false)  // DEFAULT: zero-PII
     };
 
     // Add YARP
@@ -115,96 +119,120 @@ try
     {
         builderContext.AddRequestTransform(async transformContext =>
         {
-            var httpContext = transformContext.HttpContext;
-            var stopwatch = Stopwatch.StartNew();
-
-            // Get detection result from HttpContext.Items (set by BotDetectionMiddleware)
-            if (httpContext.Items.TryGetValue(BotDetectionMiddleware.BotDetectionResultKey, out var resultObj) &&
-                resultObj is BotDetectionResult detection)
+            try
             {
-                stopwatch.Stop();
+                var httpContext = transformContext.HttpContext;
+                var stopwatch = Stopwatch.StartNew();
 
-                // Log full detection info (mode-dependent verbosity)
-                if (mode.Equals("demo", StringComparison.OrdinalIgnoreCase))
+                // Get detection result from HttpContext.Items (set by BotDetectionMiddleware)
+                if (httpContext.Items.TryGetValue(BotDetectionMiddleware.BotDetectionResultKey, out var resultObj) &&
+                    resultObj is BotDetectionResult detection)
                 {
-                    LogDetectionDemo(httpContext, detection, stopwatch.Elapsed);
-                }
-                else
-                {
-                    LogDetectionProduction(httpContext, detection, stopwatch.Elapsed);
-                }
+                    stopwatch.Stop();
 
-                // Log signature in JSON-LD format if enabled and meets confidence threshold
-                if (sigLoggingConfig.Enabled && detection.IsBot && detection.ConfidenceScore >= sigLoggingConfig.MinConfidence)
-                {
-                    LogSignatureJsonLd(httpContext, detection, sigLoggingConfig);
-                }
+                    // Log full detection info (mode-dependent verbosity)
+                    if (mode.Equals("demo", StringComparison.OrdinalIgnoreCase))
+                    {
+                        LogDetectionDemo(httpContext, detection, stopwatch.Elapsed, sigLoggingConfig);
+                    }
+                    else
+                    {
+                        // Production: Only log bot detections and blocks
+                        var wasBlocked = httpContext.Items.TryGetValue("BotDetectionAction", out var actionObj) &&
+                                        actionObj?.ToString()?.Contains("Block", StringComparison.OrdinalIgnoreCase) == true;
 
-                // Forward detection headers to upstream
-                transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-Bot-Detection", detection.IsBot.ToString());
-                transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-Bot-Probability", detection.ConfidenceScore.ToString("F2"));
-                transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-Bot-DetectionTime", stopwatch.ElapsedMilliseconds.ToString());
+                        if (detection.IsBot || wasBlocked)
+                        {
+                            LogDetectionProduction(httpContext, detection, stopwatch.Elapsed, sigLoggingConfig);
+                        }
+                    }
 
-                if (!string.IsNullOrEmpty(detection.BotName))
-                {
-                    transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-Bot-Name", detection.BotName);
-                }
+                    // Log signature in JSON-LD format if enabled and meets confidence threshold
+                    if (sigLoggingConfig.Enabled && detection.IsBot && detection.ConfidenceScore >= sigLoggingConfig.MinConfidence)
+                    {
+                        LogSignatureJsonLd(httpContext, detection, sigLoggingConfig);
+                    }
 
-                if (detection.BotType.HasValue)
-                {
-                    transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-Bot-Type", detection.BotType.Value.ToString());
+                    // Forward detection headers to upstream
+                    transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-Bot-Detection", detection.IsBot.ToString());
+                    transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-Bot-Probability", detection.ConfidenceScore.ToString("F2"));
+                    transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-Bot-DetectionTime", stopwatch.ElapsedMilliseconds.ToString());
+
+                    if (!string.IsNullOrEmpty(detection.BotName))
+                    {
+                        transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-Bot-Name", detection.BotName);
+                    }
+
+                    if (detection.BotType.HasValue)
+                    {
+                        transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-Bot-Type", detection.BotType.Value.ToString());
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error in request transform - continuing request");
             }
         });
 
         // Add response transform to remove restrictive CSP and fix CORS, plus add client-side callback URL
         builderContext.AddResponseTransform(async transformContext =>
         {
-            var httpContext = transformContext.HttpContext;
-
-            // Add bot detection callback URL header for client-side tag
-            var callbackUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/bot-detection/client-result";
-            httpContext.Response.Headers.TryAdd("X-Bot-Detection-Callback-Url", callbackUrl);
-
-            // Pass through bot detection headers to client as well (so JavaScript can see them)
-            if (httpContext.Items.TryGetValue(BotDetectionMiddleware.BotDetectionResultKey, out var detectionObj) &&
-                detectionObj is BotDetectionResult detection)
+            try
             {
-                httpContext.Response.Headers.TryAdd("X-Bot-Detection", detection.IsBot.ToString());
-                httpContext.Response.Headers.TryAdd("X-Bot-Probability", detection.ConfidenceScore.ToString("F2"));
+                var httpContext = transformContext.HttpContext;
 
-                if (!string.IsNullOrEmpty(detection.BotName))
+                // Add bot detection callback URL header for client-side tag
+                var callbackUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/bot-detection/client-result";
+                httpContext.Response.Headers.TryAdd("X-Bot-Detection-Callback-Url", callbackUrl);
+
+                // Pass through bot detection headers to client as well (so JavaScript can see them)
+                if (httpContext.Items.TryGetValue(BotDetectionMiddleware.BotDetectionResultKey, out var detectionObj) &&
+                    detectionObj is BotDetectionResult detection)
                 {
-                    httpContext.Response.Headers.TryAdd("X-Bot-Name", detection.BotName);
+                    httpContext.Response.Headers.TryAdd("X-Bot-Detection", detection.IsBot.ToString());
+                    httpContext.Response.Headers.TryAdd("X-Bot-Probability", detection.ConfidenceScore.ToString("F2"));
+
+                    if (!string.IsNullOrEmpty(detection.BotName))
+                    {
+                        httpContext.Response.Headers.TryAdd("X-Bot-Name", detection.BotName);
+                    }
                 }
-            }
 
-            // Remove Content-Security-Policy from both proxy response AND final response headers
-            if (transformContext.ProxyResponse?.Headers.Contains("Content-Security-Policy") == true)
+                // Remove Content-Security-Policy from both proxy response AND final response headers
+                if (transformContext.ProxyResponse?.Headers.Contains("Content-Security-Policy") == true)
+                {
+                    transformContext.ProxyResponse.Headers.Remove("Content-Security-Policy");
+                }
+                httpContext.Response.Headers.Remove("Content-Security-Policy");
+
+                // Remove Content-Security-Policy-Report-Only
+                if (transformContext.ProxyResponse?.Headers.Contains("Content-Security-Policy-Report-Only") == true)
+                {
+                    transformContext.ProxyResponse.Headers.Remove("Content-Security-Policy-Report-Only");
+                }
+                httpContext.Response.Headers.Remove("Content-Security-Policy-Report-Only");
+
+                // Remove X-Frame-Options to allow embedding
+                if (transformContext.ProxyResponse?.Headers.Contains("X-Frame-Options") == true)
+                {
+                    transformContext.ProxyResponse.Headers.Remove("X-Frame-Options");
+                }
+                httpContext.Response.Headers.Remove("X-Frame-Options");
+
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
             {
-                transformContext.ProxyResponse.Headers.Remove("Content-Security-Policy");
+                Log.Error(ex, "Error in response transform - continuing response");
             }
-            httpContext.Response.Headers.Remove("Content-Security-Policy");
-
-            // Remove Content-Security-Policy-Report-Only
-            if (transformContext.ProxyResponse?.Headers.Contains("Content-Security-Policy-Report-Only") == true)
-            {
-                transformContext.ProxyResponse.Headers.Remove("Content-Security-Policy-Report-Only");
-            }
-            httpContext.Response.Headers.Remove("Content-Security-Policy-Report-Only");
-
-            // Remove X-Frame-Options to allow embedding
-            if (transformContext.ProxyResponse?.Headers.Contains("X-Frame-Options") == true)
-            {
-                transformContext.ProxyResponse.Headers.Remove("X-Frame-Options");
-            }
-            httpContext.Response.Headers.Remove("X-Frame-Options");
-
-            await Task.CompletedTask;
         });
     });
 
     var app = builder.Build();
+
+    // Load signatures from JSON-L files on startup
+    await LoadSignaturesFromJsonL(app.Services, Log.Logger);
 
     // Use Forwarded Headers middleware FIRST to extract real client IP
     app.UseForwardedHeaders();
@@ -217,6 +245,93 @@ try
 
     // Health check endpoint (AOT-compatible) - mapped BEFORE YARP to avoid being proxied
     app.MapGet("/health", () => Results.Text($"{{\"status\":\"healthy\",\"mode\":\"{mode}\",\"upstream\":\"{upstream}\",\"port\":\"{port}\"}}", "application/json"));
+
+    // Learning endpoint - handles requests internally without proxying (for training without hammering real sites)
+    // Supports status code simulation via path markers: /404/, /403/, /500/, etc.
+    // Example: /stylobot-learning/404/admin.php -> returns 404
+    // Example: /stylobot-learning/products -> returns 200
+    app.MapFallback("/stylobot-learning/{**path}", (HttpContext context) =>
+    {
+        var path = context.Request.RouteValues["path"]?.ToString() ?? "/";
+        var method = context.Request.Method;
+        var userAgent = context.Request.Headers.UserAgent.ToString();
+
+        // Determine status code from path markers
+        int statusCode = 200;
+        string statusReason = "OK";
+
+        if (path.Contains("/404/") || path.EndsWith(".php") || path.Contains("admin") || path.Contains("wp-"))
+        {
+            statusCode = 404;
+            statusReason = "Not Found";
+        }
+        else if (path.Contains("/403/") || path.Contains("forbidden"))
+        {
+            statusCode = 403;
+            statusReason = "Forbidden";
+        }
+        else if (path.Contains("/500/") || path.Contains("error"))
+        {
+            statusCode = 500;
+            statusReason = "Internal Server Error";
+        }
+
+        Log.Information("[LEARNING-MODE] Request handled internally: {Method} /stylobot-learning/{Path} UA={UserAgent} -> {StatusCode}",
+            method, path, userAgent.Length > 50 ? userAgent.Substring(0, 47) + "..." : userAgent, statusCode);
+
+        // Return appropriate response based on status code
+        var responseJson = statusCode == 404
+            ? $$"""
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "404 Not Found",
+  "description": "The requested resource was not found.",
+  "url": "/stylobot-learning/{{path}}",
+  "metadata": {
+    "statusCode": 404,
+    "statusText": "Not Found",
+    "learningMode": true
+  }
+}
+"""
+            : $$"""
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "Stylobot Learning Mode",
+  "url": "/stylobot-learning/{{path}}",
+  "description": "This is a synthetic response for bot detection training. No real website was contacted.",
+  "provider": {
+    "@type": "Organization",
+    "name": "Stylobot Bot Detection",
+    "url": "https://stylobot.net"
+  },
+  "mainEntity": {
+    "@type": "Dataset",
+    "name": "Training Data",
+    "description": "Request processed for bot detection learning",
+    "temporalCoverage": "{{DateTime.UtcNow:O}}",
+    "distribution": {
+      "@type": "DataDownload",
+      "contentUrl": "/stylobot-learning/{{path}}",
+      "encodingFormat": "application/json"
+    }
+  },
+  "metadata": {
+    "requestMethod": "{{method}}",
+    "requestPath": "/stylobot-learning/{{path}}",
+    "statusCode": {{statusCode}},
+    "statusText": "{{statusReason}}",
+    "detectionApplied": true,
+    "learningMode": true
+  }
+}
+""";
+
+        context.Response.StatusCode = statusCode;
+        return Results.Content(responseJson, "application/json");
+    });
 
     // Client-side detection callback endpoint (AOT-compatible)
     app.MapPost("/api/bot-detection/client-result", async (HttpContext context, ILearningEventBus? eventBus) =>
@@ -317,12 +432,26 @@ try
     Log.Information("✓ Proxying to {Upstream}", upstream);
     Log.Information("✓ Health check: http://localhost:{Port}/health", port);
     Log.Information("");
+    Log.Information("Starting application host... (press Ctrl+C to stop)");
 
-    await app.RunAsync();
+    try
+    {
+        await app.RunAsync();
+        Log.Warning("Application host stopped normally (this should only happen on shutdown)");
+    }
+    catch (OperationCanceledException)
+    {
+        Log.Information("Application shutdown requested (Ctrl+C or SIGTERM)");
+    }
+    catch (Exception innerEx)
+    {
+        Log.Fatal(innerEx, "Application host crashed with unhandled exception");
+        throw;
+    }
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "Application terminated unexpectedly");
+    Log.Fatal(ex, "Application startup or configuration failed");
     return 1;
 }
 finally
@@ -360,16 +489,55 @@ static double CalculateClientBotScore(bool hasCanvas, bool hasWebGL, bool hasAud
 static void LogDetectionDemo(
     Microsoft.AspNetCore.Http.HttpContext context,
     BotDetectionResult detection,
-    TimeSpan elapsed)
+    TimeSpan elapsed,
+    SignatureLoggingConfig config)
 {
     var ua = context.Request.Headers.UserAgent.ToString();
-    var uaDisplay = ua.Length > 60 ? ua.Substring(0, 57) + "..." : ua;
+    var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
-    Log.Information("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    Log.Information("🔍 Bot Detection Result");
-    Log.Information("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    // Compute HMAC hashes for zero-PII logging (default)
+    var keyBytes = Encoding.UTF8.GetBytes(config.SignatureHashKey);
+    var ipHash = ComputeHmacHash(keyBytes, ip);
+    var uaHash = ComputeHmacHash(keyBytes, ua);
+
+    // Format display strings based on LogRawPii setting
+    string ipDisplay, uaDisplay;
+    if (config.LogRawPii)
+    {
+        // Demo mode with explicit PII override: show raw + hash
+        ipDisplay = $"{ip} (hash: {ipHash})";
+        var uaTruncated = ua.Length > 40 ? ua.Substring(0, 37) + "..." : ua;
+        uaDisplay = $"{uaTruncated} (hash: {uaHash})";
+    }
+    else
+    {
+        // DEFAULT: Zero-PII mode (hash only)
+        ipDisplay = ipHash;
+        uaDisplay = uaHash;
+    }
+
+    // Check if request was blocked (from context items)
+    var actionTaken = context.Items.TryGetValue("BotDetectionAction", out var actionObj)
+        ? actionObj?.ToString()
+        : null;
+    var wasBlocked = actionTaken != null && actionTaken.Contains("Block", StringComparison.OrdinalIgnoreCase);
+
+    if (wasBlocked)
+    {
+        // BIG RED BLOCKED BANNER for demo mode
+        Log.Error("╔════════════════════════════════════════════════════════════╗");
+        Log.Error("║                   🚫 REQUEST BLOCKED 🚫                    ║");
+        Log.Error("╚════════════════════════════════════════════════════════════╝");
+    }
+    else
+    {
+        Log.Information("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Log.Information("🔍 Bot Detection Result");
+        Log.Information("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    }
+
     Log.Information("  Request:     {Method} {Path}", context.Request.Method, context.Request.Path);
-    Log.Information("  IP:          {IP}", context.Connection.RemoteIpAddress);
+    Log.Information("  IP:          {IP}", ipDisplay);
     Log.Information("  User-Agent:  {UA}", uaDisplay);
     Log.Information("");
     Log.Information("  IsBot:       {IsBot}", detection.IsBot ? "✗ YES" : "✓ NO");
@@ -377,6 +545,10 @@ static void LogDetectionDemo(
     Log.Information("  Bot Type:    {BotType}", detection.BotType?.ToString() ?? "(none)");
     Log.Information("  Bot Name:    {BotName}", detection.BotName ?? "(none)");
     Log.Information("  Time:        {Time:F2}ms", elapsed.TotalMilliseconds);
+    if (wasBlocked)
+    {
+        Log.Error("  ⚠️ ACTION:     {Action}", actionTaken);
+    }
     Log.Information("");
 
     if (detection.Reasons != null && detection.Reasons.Count > 0)
@@ -404,23 +576,36 @@ static void LogDetectionDemo(
         Log.Information("  Policy Used:      {Policy}", policy);
     }
 
-    Log.Information("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    if (wasBlocked)
+    {
+        Log.Error("╚════════════════════════════════════════════════════════════╝");
+    }
+    else
+    {
+        Log.Information("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    }
     Log.Information("");
 }
 
-// Production mode: Concise logging
+// Production mode: Concise logging (ALWAYS zero-PII)
 static void LogDetectionProduction(
     Microsoft.AspNetCore.Http.HttpContext context,
     BotDetectionResult detection,
-    TimeSpan elapsed)
+    TimeSpan elapsed,
+    SignatureLoggingConfig config)
 {
     var result = detection.IsBot ? "BOT" : "HUMAN";
     var symbol = detection.IsBot ? "✗" : "✓";
     var botType = detection.BotType?.ToString() ?? "-";
     var botName = detection.BotName ?? "-";
 
+    // ALWAYS use HMAC hash in production (zero-PII)
+    var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    var keyBytes = Encoding.UTF8.GetBytes(config.SignatureHashKey);
+    var ipHash = ComputeHmacHash(keyBytes, ip);
+
     Log.Information(
-        "{Symbol} {Result,-6} {Confidence,4:F2} {BotType,-15} {Time,5:F0}ms {Method,-4} {Path} [{IP}] {BotName}",
+        "{Symbol} {Result,-6} {Confidence,4:F2} {BotType,-15} {Time,5:F0}ms {Method,-4} {Path} [{IpHash}] {BotName}",
         symbol,
         result,
         detection.ConfidenceScore,
@@ -428,7 +613,7 @@ static void LogDetectionProduction(
         elapsed.TotalMilliseconds,
         context.Request.Method,
         context.Request.Path,
-        context.Connection.RemoteIpAddress,
+        ipHash,
         botName);
 }
 
@@ -631,6 +816,51 @@ static string BuildJsonObject(Dictionary<string, object> obj, int indent = 0)
     return sb.ToString();
 }
 
+// Load signatures from JSON-L files on startup
+static async Task LoadSignaturesFromJsonL(IServiceProvider services, Serilog.ILogger logger)
+{
+    try
+    {
+        // Find all signatures-*.jsonl files in the current directory
+        var signatureFiles = Directory.GetFiles(".", "signatures-*.jsonl");
+        if (signatureFiles.Length == 0)
+        {
+            logger.Information("No signature files found");
+            return;
+        }
+
+        var totalSignatures = 0;
+        var signaturesByDate = new Dictionary<string, int>();
+
+        foreach (var file in signatureFiles)
+        {
+            try
+            {
+                var lines = await File.ReadAllLinesAsync(file);
+                var fileName = Path.GetFileName(file);
+                signaturesByDate[fileName] = lines.Where(l => !string.IsNullOrWhiteSpace(l)).Count();
+                totalSignatures += signaturesByDate[fileName];
+            }
+            catch (Exception fileEx)
+            {
+                logger.Warning(fileEx, "Failed to read signature file {File}", Path.GetFileName(file));
+            }
+        }
+
+        logger.Information("Found {TotalSignatures} signatures across {FileCount} file(s)",
+            totalSignatures, signatureFiles.Length);
+
+        foreach (var kvp in signaturesByDate.OrderBy(x => x.Key))
+        {
+            logger.Debug("  {File}: {Count} signatures", kvp.Key, kvp.Value);
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.Error(ex, "Failed to load signatures from JSON-L files");
+    }
+}
+
 // Configuration for signature logging
 record SignatureLoggingConfig
 {
@@ -638,6 +868,7 @@ record SignatureLoggingConfig
     public double MinConfidence { get; init; }
     public bool PrettyPrintJsonLd { get; init; }
     public required string SignatureHashKey { get; init; }
+    public bool LogRawPii { get; init; }  // DEFAULT: false (zero-PII)
 }
 
 // Multi-factor signature with privacy-safe HMAC hashes

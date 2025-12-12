@@ -12,10 +12,12 @@ Minimal, single-file YARP gateway with bot detection. Built on .NET 10 with Nati
   - **Demo Mode** (default) - Full verbose logging, all detectors, no blocking
   - **Production Mode** - Blocking, background learning, AI escalation
 - **Tiny footprint** - ~10-27MB single executable (varies by platform)
-- **Zero dependencies** - No runtime required, fully self-contained
+- **Self-contained** - No runtime required; ships with required native libraries alongside binary
 - **Console logging** - All detections logged with full details
-- **Zero-PII architecture** - Raw IPs never stored, only privacy-safe HMAC signatures
-- **CSP-safe** - Automatically removes restrictive Content-Security-Policy headers from upstream responses
+- **Zero-PII by default** - No raw identifiers logged or stored; only keyed HMAC-SHA256 signatures for correlation and lookup
+- **CSP header removal** - Removes Content-Security-Policy headers from upstream responses (see [Security Considerations](#security-considerations))
+
+> **Note**: This console gateway ships with traditional detection only. The full commercial product includes LLM-based detection for advanced bot classification. See [LLM Detection (Optional)](#llm-detection-optional) for configuration details.
 
 ## Quick Start
 
@@ -60,38 +62,34 @@ export MODE=production
 - **Logging**: Full verbose output with all signals and detector contributions
 - **Action**: Log only
 
-Example output:
+Example output (default zero-PII mode):
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔍 Bot Detection Result
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Request:     GET /api/data
-  IP:          192.168.1.100
-  User-Agent:  curl/8.4.0
+  IP:          f89fa40dca80b591bc5dd6716928737a
+  User-Agent:  d84d795b8eb696aaa6d0d393f7c3634b
 
   IsBot:       ✗ YES
-  Probability: 0.95
-  Confidence:  0.95
-  Risk Band:   VeryHigh
-  Bot Name:    curl
-  Policy:      demo
-  Action:      Allow
+  Confidence:  0.76
+  Bot Type:    Unknown
+  Bot Name:    (none)
+  Time:        2.30ms
 
-  Detectors:   3 ran in 2.3ms
+  Detection Reasons: 3
   ┌─────────────────────────────────────────────────────
-  │ UserAgent                   0.95 × 1.0 =   0.95
-  │ Header                      0.80 × 0.8 =   0.64
-  │ SecurityTool                0.00 × 1.0 =   0.00
+  │ UserAgent                   0.90 - Matched pattern: ^\w+\/[\d\.]+$
+  │ Header                     -0.15 - Headers appear normal
+  │ SecurityTool                0.00 - No security tools detected
   └─────────────────────────────────────────────────────
 
-  Signals: 12
-    ua.bot_probability             = 0.95
-    ua.pattern_match               = curl/
-    ua.is_headless                 = False
-    header.missing_accept          = True
-    ...
+  Primary Category: UserAgent
+  Policy Used:      demo
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
+
+**Note**: By default, IP and User-Agent are logged as HMAC-SHA256 hashes only. See [Zero-PII Logging](#zero-pii-logging) for details.
 
 ### Production Mode
 
@@ -109,13 +107,15 @@ Example output:
 - **Logging**: Concise one-line format
 - **Response Path**: Honeypot tracking, error pattern detection
 
-Example output:
+Example output (always zero-PII in production):
 ```
-✓ HUMAN  0.12 VeryLow      1.2ms GET  /                   [192.168.1.100] -
-✗ BOT    0.95 VeryHigh     2.3ms GET  /api/data           [192.168.1.101] curl
-✓ HUMAN  0.25 Low          1.5ms POST /submit             [192.168.1.102] -
-✗ BOT    0.87 High         8.7ms GET  /admin              [192.168.1.103] Acunetix
+✓ HUMAN  0.12 -              1.2ms GET  /        [f89fa40dca80b591] -
+✗ BOT    0.95 Unknown        2.3ms GET  /api     [22fd81614ede36a3] -
+✓ HUMAN  0.25 -              1.5ms POST /submit  [adc0960d7d74a88c] -
+✗ BOT    0.87 Scraper        8.7ms GET  /admin   [31490e9910a08af3] -
 ```
+
+**Note**: Production mode ALWAYS uses HMAC-SHA256 hashes for IP addresses (no raw IPs logged).
 
 ## Command-Line Options
 
@@ -148,6 +148,284 @@ export MODE=production
 ```
 
 The `--mode` flag determines which configuration file is loaded. This allows you to maintain separate configurations for development/testing and production without modifying files.
+
+## Zero-PII Logging
+
+**Default Behavior**: No raw identifiers are logged or stored. Only keyed HMAC-SHA256 signatures of selected request factors for correlation and lookup.
+
+### How It Works
+
+Raw identifiers (IP, User-Agent, referrer, etc.) are **observed transiently** to compute detection signals, but only **HMAC-SHA256 hashed signatures** are **persisted** to logs and database.
+
+**Key Properties**:
+- **Not reversible**: HMAC cannot be decoded to the original value
+- **Searchable**: Recompute `HMAC(key, value)` to find matches
+- **Controllable**: The secret key is the capability boundary - possession of the key = ability to correlate/search
+
+### Configuration
+
+```json
+{
+  "SignatureLogging": {
+    "Enabled": true,
+    "MinConfidence": 0.7,
+    "SignatureHashKey": "YOUR_SECRET_KEY_HERE",
+    "LogRawPii": false  // DEFAULT: false (zero-PII mode)
+  }
+}
+```
+
+**Production**: ALWAYS uses hashes (ignores `LogRawPii` setting)
+**Demo**: Uses hashes by default; set `LogRawPii=true` to show raw values alongside hashes
+
+### Example Outputs
+
+**Default (LogRawPii=false)**:
+```
+IP:          f89fa40dca80b591bc5dd6716928737a
+User-Agent:  d84d795b8eb696aaa6d0d393f7c3634b
+```
+
+**Demo with LogRawPii=true**:
+```
+IP:          192.168.1.100 (hash: f89fa40dca80b591bc5dd6716928737a)
+User-Agent:  curl/8.4.0 (hash: d84d795b8eb696aaa6d0d393f7c3634b)
+```
+
+### Threat Model
+
+**Attacker steals database WITHOUT key**:
+- ❌ Cannot recover IP/UA from hashes
+- ✓ Can perform frequency analysis
+- ✓ Can cluster requests by signature
+
+**Attacker steals database AND key**:
+- ✓ Can compute matches for candidate values (dictionary attack for low-entropy fields)
+- Mitigation: Store key separately, rotate regularly, reduce stored factors, use TTL/decay
+
+**Operational Security**:
+- Store `SignatureHashKey` in secrets manager (Azure Key Vault, AWS Secrets Manager, etc.)
+- Rotate key periodically (invalidates old signatures)
+- Consider split keys: `K_sig` (persistent), `K_session` (ephemeral), `K_ip`, `K_ua`, `K_path`
+
+## Security Considerations
+
+### CSP Header Removal
+
+**⚠️ IMPORTANT**: The gateway removes `Content-Security-Policy` headers from upstream responses by default.
+
+This is necessary for client-side bot detection JavaScript to function, but it **disables a security feature**.
+
+**Recommendations**:
+- Only use this gateway for traffic you control
+- Re-apply CSP at the backend if needed
+- Consider this a **proxy behavior**, not a security product that should weaken your security posture
+- For production, evaluate whether client-side detection is needed
+
+**Future Enhancement**: Make CSP removal opt-in with configuration like:
+```json
+{
+  "HeaderManipulation": {
+    "RemoveContentSecurityPolicy": false,  // Default: false (pass-through)
+    "AllowedDirectives": ["script-src", "connect-src"]  // Only remove specific directives
+  }
+}
+```
+
+### SQLite on Shared Storage
+
+**⚠️ WARNING**: Shared SQLite over NFS/SMB/EFS works for small deployments but has operational risks:
+
+**Risks**:
+- Locking semantics vary by filesystem (POSIX locks not guaranteed on all NFS)
+- Network latency can cause performance degradation
+- Corruption possible with concurrent writes
+- Known to cause "works in staging, corrupts in prod" scenarios
+
+**Supported Scenarios**:
+- ✓ Small deployments (2-3 gateways)
+- ✓ Controlled storage with guaranteed POSIX locks
+- ✓ Development/testing environments
+
+**Recommended for Production HA**:
+- Per-node local SQLite + periodic merge/replication of signatures
+- Central store: Postgres, Redis, rqlite, LiteFS
+- Treat SQLite as write-behind cache with async central persistence
+
+**Safe Alternative**:
+```
+┌─────────┐    ┌─────────┐    ┌─────────┐
+│Gateway 1│    │Gateway 2│    │Gateway 3│
+│ (local  │    │ (local  │    │ (local  │
+│ SQLite) │    │ SQLite) │    │ SQLite) │
+└────┬────┘    └────┬────┘    └────┬────┘
+     │              │              │
+     └──────────────┼──────────────┘
+                    │
+             ┌──────▼──────┐
+             │  PostgreSQL │
+             │   (Central) │
+             └─────────────┘
+```
+
+## LLM Detection (Optional)
+
+> **Note**: LLM-based detection is available in the full product but not included by default in this console gateway demo. You can enable it by configuring an LLM endpoint.
+
+### Why Use LLM Detection?
+
+LLM detectors provide:
+- **Natural language reasoning** - Explains *why* a request looks like a bot
+- **Context-aware analysis** - Understands relationships between signals
+- **Adaptive learning** - Improves with examples
+- **High accuracy** - Especially for sophisticated bots that pass heuristic checks
+
+**Trade-offs**:
+- ⚠️ **Latency**: 500-2000ms per request (use async/background)
+- ⚠️ **Cost**: $0.001-0.01 per request depending on model
+- ⚠️ **External dependency**: Requires LLM API access
+
+### Configuration
+
+Add the LLM detector to your detection policy and configure the endpoint:
+
+**appsettings.json** (or **appsettings.production.json**):
+```json
+{
+  "BotDetection": {
+    "Policies": {
+      "production": {
+        "FastPath": ["FastPathReputation", "UserAgent", "Header"],
+        "SlowPath": ["Behavioral", "ClientSide"],
+
+        // Add LLM to AI path for high-uncertainty cases
+        "AiPath": ["Heuristic", "Llm"],
+
+        // Only escalate to LLM when heuristics are uncertain
+        "EscalateToAi": true,
+        "AiEscalationThreshold": 0.6  // 40-60% confidence = uncertain
+      }
+    },
+
+    // LLM Detector Configuration
+    "LlmDetector": {
+      // OPTION 1: OpenAI (GPT-4, GPT-3.5)
+      /* "Provider": "OpenAI",
+      "ApiKey": "${OPENAI_API_KEY}",  // From environment variable
+      "Model": "gpt-4o-mini",          // Fast, cheap model
+      "MaxTokens": 150,
+      "Temperature": 0.3,              // Low temperature for consistent results
+      "Timeout": 2000,                 // 2 second timeout
+      */
+
+      // OPTION 2: Anthropic Claude
+      /* "Provider": "Anthropic",
+      "ApiKey": "${ANTHROPIC_API_KEY}",
+      "Model": "claude-3-haiku-20240307",  // Fast, cheap model
+      "MaxTokens": 150,
+      "Temperature": 0.3,
+      "Timeout": 2000,
+      */
+
+      // OPTION 3: Local Ollama
+      /* "Provider": "Ollama",
+      "BaseUrl": "http://localhost:11434",
+      "Model": "llama3.2:3b",          // Small, fast local model
+      "MaxTokens": 150,
+      "Temperature": 0.3,
+      "Timeout": 5000,                 // Local can be slower
+      */
+
+      // OPTION 4: Azure OpenAI
+      /* "Provider": "AzureOpenAI",
+      "ApiKey": "${AZURE_OPENAI_KEY}",
+      "Endpoint": "https://your-resource.openai.azure.com/",
+      "DeploymentName": "gpt-4o-mini",
+      "ApiVersion": "2024-02-15-preview",
+      "MaxTokens": 150,
+      "Temperature": 0.3,
+      "Timeout": 2000,
+      */
+
+      // Shared settings for all providers
+      "Enabled": false,  // Set to true to enable
+      "CacheResults": true,              // Cache identical patterns
+      "CacheDuration": "01:00:00",       // 1 hour cache
+      "RunAsync": true,                  // Don't block request (recommended)
+      "IncludeReasoning": true           // Include LLM explanation in logs
+    }
+  }
+}
+```
+
+### Performance Optimization
+
+**Recommended Settings for Production**:
+
+```json
+{
+  "LlmDetector": {
+    "Enabled": true,
+    "Provider": "OpenAI",
+    "Model": "gpt-4o-mini",        // Fast, cheap ($0.15/1M tokens)
+    "Timeout": 1000,               // Aggressive 1s timeout
+    "RunAsync": true,              // CRITICAL: Don't block responses
+    "CacheResults": true,          // CRITICAL: Cache identical patterns
+    "CacheDuration": "01:00:00"    // 1 hour cache
+  },
+
+  "Policies": {
+    "production": {
+      // Only escalate when truly uncertain (saves API calls)
+      "EscalateToAi": true,
+      "AiEscalationThreshold": 0.6,
+
+      // Skip LLM if fast path is conclusive
+      "ImmediateBlockThreshold": 0.95,
+      "EarlyExitThreshold": 0.3
+    }
+  }
+}
+```
+
+**Expected Impact**:
+- ~5-10% of requests escalate to LLM (only uncertain cases)
+- ~90% cache hit rate (same bots repeat patterns)
+- Effective latency: <50ms (async + cache)
+- Cost: ~$0.50-5.00 per 100k requests
+
+### Example LLM Output
+
+When enabled, you'll see LLM reasoning in detection results:
+
+```json
+{
+  "detector": "Llm",
+  "category": "AI",
+  "impact": 0.85,
+  "reason": "LLM classified as bot: User agent indicates Puppeteer headless browser. The combination of missing Accept-Language header and datacenter IP (AWS) strongly suggests automated scraping rather than human browsing.",
+  "signals": {
+    "ai.confidence": 0.85,
+    "ai.prediction": "bot",
+    "ai.reasoning": "Puppeteer + datacenter IP + missing headers"
+  }
+}
+```
+
+### Testing LLM Detection
+
+```bash
+# Set API key
+export OPENAI_API_KEY=sk-...
+
+# Enable LLM in config (set Enabled: true)
+
+# Test with bot traffic
+curl -A "HeadlessChrome/120.0.0.0" http://localhost:5000/
+
+# Check logs for LLM reasoning
+# Look for "LLM classified as bot: ..." in detection reasons
+```
 
 ## Client-Side Detection
 
@@ -810,11 +1088,14 @@ spec:
 
 #### Clustering Notes
 
+**⚠️ IMPORTANT**: See [SQLite on Shared Storage](#sqlite-on-shared-storage) warnings before deploying to production.
+
 **Shared Database:**
 - SQLite database (`botdetection.db`) MUST be on shared storage (NFS/SMB/EFS)
 - All gateway instances read/write to the same database
 - Ephemeral coordinator batches writes to avoid file locks (500ms batching)
 - Database includes learned signatures and pattern reputations
+- **Recommended only for small deployments (2-3 gateways)**
 
 **Sticky Sessions:**
 - Use `ip_hash` (nginx) or `source` (HAProxy) for client affinity
@@ -924,8 +1205,13 @@ Typical sizes with .NET 10:
 
 ### Standalone Executable
 
+**⚠️ IMPORTANT**: Always deploy the executable alongside its native library:
+- **Windows**: `minigw.exe` + `e_sqlite3.dll`
+- **Linux**: `minigw` + `libe_sqlite3.so`
+- **macOS**: `minigw` + `libe_sqlite3.dylib`
+
 ```bash
-# Copy single executable and SQLite library to target system
+# Copy executable AND native library to target system
 scp bin/Release/net10.0/linux-x64/publish/minigw user@server:/usr/local/bin/
 scp bin/Release/net10.0/linux-x64/publish/libe_sqlite3.so user@server:/usr/local/bin/
 
@@ -937,8 +1223,6 @@ ssh user@server
 cd /etc/minigw
 /usr/local/bin/minigw --mode production --upstream http://backend:8080 --port 80
 ```
-
-**Note:** On Windows, make sure to include `e_sqlite3.dll` alongside the executable.
 
 ### Docker
 

@@ -48,7 +48,7 @@ public class HeuristicContributor : ContributingDetectorBase
                 contributions.Add(new DetectionContribution
                 {
                     DetectorName = Name,
-                    Category = "Heuristic",
+                    Category = "HeuristicEarly",
                     ConfidenceDelta = 0,
                     Weight = 0,
                     Reason = "Heuristic detection disabled or skipped",
@@ -64,7 +64,7 @@ public class HeuristicContributor : ContributingDetectorBase
                 contributions.Add(new DetectionContribution
                 {
                     DetectorName = Name,
-                    Category = "Heuristic",
+                    Category = "HeuristicEarly",
                     ConfidenceDelta = reason.ConfidenceImpact,
                     Weight = 2.0, // Heuristic predictions are weighted heavily
                     Reason = reason.Detail,

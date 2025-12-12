@@ -582,13 +582,12 @@ public class BotDetectionMiddleware(
                 var statusCode = policyAttr?.BlockStatusCode ?? 403;
                 context.Response.StatusCode = statusCode;
                 context.Response.ContentType = "application/json";
-                await context.Response.WriteAsJsonAsync(new
-                {
-                    error = "Access denied",
-                    reason = "Request blocked by bot detection",
-                    riskScore,
-                    policy = policy.Name
-                });
+                await context.Response.WriteAsJsonAsync(new BlockedResponse(
+                    Error: "Access denied",
+                    Reason: "Request blocked by bot detection",
+                    RiskScore: riskScore,
+                    Policy: policy.Name
+                ));
                 break;
 
             case BotBlockAction.Redirect:
@@ -600,12 +599,11 @@ public class BotDetectionMiddleware(
                 context.Response.StatusCode = 403;
                 context.Response.Headers["X-Bot-Challenge"] = "required";
                 context.Response.ContentType = "application/json";
-                await context.Response.WriteAsJsonAsync(new
-                {
-                    error = "Challenge required",
-                    challengeType = _options.Throttling.ChallengeType,
-                    riskScore
-                });
+                await context.Response.WriteAsJsonAsync(new ChallengeResponse(
+                    Error: "Challenge required",
+                    ChallengeType: _options.Throttling.ChallengeType,
+                    RiskScore: riskScore
+                ));
                 break;
 
             case BotBlockAction.Throttle:
@@ -975,8 +973,8 @@ public class BotDetectionMiddleware(
         {
             IsBot = isBot,
             ConfidenceScore = result.BotProbability,
-            BotType = result.PrimaryBotType,
-            BotName = result.PrimaryBotName,
+            BotType = isBot ? result.PrimaryBotType : null,  // Only set BotType if actually a bot
+            BotName = isBot ? result.PrimaryBotName : null,  // Only set BotName if actually a bot
             Reasons = result.Contributions.Select(c => new DetectionReason
             {
                 Category = c.Category,
@@ -1069,6 +1067,16 @@ public class BotDetectionMiddleware(
 
     #endregion
 }
+
+/// <summary>
+///     Response object for blocked requests (AOT-compatible)
+/// </summary>
+internal record BlockedResponse(string Error, string Reason, double RiskScore, string Policy);
+
+/// <summary>
+///     Response object for challenge requests (AOT-compatible)
+/// </summary>
+internal record ChallengeResponse(string Error, string ChallengeType, double RiskScore);
 
 /// <summary>
 ///     Extension methods for adding bot detection middleware.

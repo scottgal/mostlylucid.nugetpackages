@@ -100,16 +100,16 @@ public static class RouteBuilderExtensions
                     isVerifiedBot = context.IsVerifiedBot(),
                     isSearchEngineBot = context.IsSearchEngineBot(),
                     // Primary score: how likely is this a human (0-1)?
-                    humanProbability = 1.0 - evidence.BotProbability,
+                    humanProbability = Math.Round(1.0 - evidence.BotProbability, 4),
                     // Secondary: how likely is this a bot (0-1)?
-                    botProbability = evidence.BotProbability,
+                    botProbability = Math.Round(evidence.BotProbability, 4),
                     // Overall confidence in our classification (how certain are we?)
-                    confidence = evidence.Confidence,
+                    confidence = Math.Round(evidence.Confidence, 4),
                     botType = evidence.PrimaryBotType?.ToString(),
                     botName = evidence.PrimaryBotName,
                     riskBand = evidence.RiskBand.ToString(),
                     recommendedAction = GetRecommendedAction(evidence),
-                    processingTimeMs = evidence.TotalProcessingTimeMs,
+                    processingTimeMs = Math.Round(evidence.TotalProcessingTimeMs, 2),
                     // Pipeline execution info
                     aiRan = evidence.AiRan,
                     detectorsRan = evidence.ContributingDetectors.ToList(),
@@ -117,11 +117,11 @@ public static class RouteBuilderExtensions
                     failedDetectors = evidence.FailedDetectors.ToList(),
                     earlyExit = evidence.EarlyExit,
                     earlyExitVerdict = evidence.EarlyExitVerdict?.ToString(),
-                    // All collected signals from the pipeline
-                    signals = evidence.Signals.Count > 0 ? evidence.Signals : null,
+                    // All collected signals from the pipeline (PII signals filtered out)
+                    signals = FilterPiiSignals(evidence.Signals),
                     categoryBreakdown = evidence.CategoryBreakdown.ToDictionary(
                         kv => kv.Key,
-                        kv => new { score = kv.Value.Score, weight = kv.Value.Weight }),
+                        kv => new { score = Math.Round(kv.Value.Score, 4), weight = Math.Round(kv.Value.Weight, 2) }),
                     // Detailed detector contributions with signals, priority, and timing
                     // Sorted by timestamp for pipeline execution order
                     contributions = evidence.Contributions
@@ -132,17 +132,15 @@ public static class RouteBuilderExtensions
                             category = c.Category,
                             priority = c.Priority,
                             timestamp = c.Timestamp,
-                            processingMs = c.ProcessingTimeMs,
-                            impact = c.ConfidenceDelta,
-                            weight = c.Weight,
+                            processingMs = Math.Round(c.ProcessingTimeMs, 2),
+                            impact = Math.Round(c.ConfidenceDelta, 4),
+                            weight = Math.Round(c.Weight, 2),
                             weightedImpact = Math.Round(c.ConfidenceDelta * c.Weight, 4),
                             reason = c.Reason?.Replace("\r\n", " ").Replace("\r", " ").Replace("\n", " ").Trim(),
                             botType = c.BotType?.ToString(),
                             botName = c.BotName,
-                            // Include all signals this detector emitted
-                            signals = c.Signals.Count > 0
-                                ? c.Signals.ToDictionary(s => s.Key, s => s.Value)
-                                : null,
+                            // Include signals this detector emitted (PII signals filtered out)
+                            signals = FilterPiiSignals(c.Signals),
                             earlyExit = c.TriggerEarlyExit ? c.EarlyExitVerdict?.ToString() : null
                         }),
                     // Legacy format for backward compatibility
@@ -150,9 +148,9 @@ public static class RouteBuilderExtensions
                     {
                         category = c.Category,
                         detail = c.Reason?.Replace("\r\n", " ").Replace("\r", " ").Replace("\n", " ").Trim(),
-                        impact = c.ConfidenceDelta,
-                        weight = c.Weight,
-                        weightedImpact = c.ConfidenceDelta * c.Weight,
+                        impact = Math.Round(c.ConfidenceDelta, 4),
+                        weight = Math.Round(c.Weight, 2),
+                        weightedImpact = Math.Round(c.ConfidenceDelta * c.Weight, 4),
                         detector = c.DetectorName
                     })
                 });
@@ -220,6 +218,39 @@ public static class RouteBuilderExtensions
     }
 
     /// <summary>
+    ///     Filter out PII signals (raw user agent and IP address) from signals dictionary.
+    ///     These signals are kept internally for cross-detector communication but excluded from API responses.
+    /// </summary>
+    private static Dictionary<string, object>? FilterPiiSignals(IReadOnlyDictionary<string, object>? signals)
+    {
+        if (signals == null || signals.Count == 0)
+            return null;
+
+        // PII signal keys to exclude from API responses
+        var piiKeys = new HashSet<string>
+        {
+            SignalKeys.UserAgent,  // "ua.raw"
+            SignalKeys.ClientIp     // "ip.address"
+        };
+
+        var filtered = signals
+            .Where(kv => !piiKeys.Contains(kv.Key))
+            .ToDictionary(kv => kv.Key, kv => kv.Value);
+
+        return filtered.Count > 0 ? filtered : null;
+    }
+
+    /// <summary>
+    ///     Format probability as percentage, showing "<1%" for very low values.
+    /// </summary>
+    private static string FormatProbability(double probability)
+    {
+        if (probability < 0.01 && probability > 0)
+            return "<1%";
+        return probability.ToString("P0");
+    }
+
+    /// <summary>
     ///     Derive recommended action from evidence.
     ///     Uses explicit PolicyAction if set, otherwise derives from RiskBand.
     /// </summary>
@@ -236,28 +267,33 @@ public static class RouteBuilderExtensions
         }
 
         // Derive from RiskBand (use fully qualified to avoid namespace conflicts)
+        var probStr = FormatProbability(evidence.BotProbability);
         var (action, reason) = evidence.RiskBand switch
         {
-            Orchestration.RiskBand.VeryHigh => ("Block", $"Very high risk (probability: {evidence.BotProbability:P0})"),
-            Orchestration.RiskBand.High => ("Block", $"High risk (probability: {evidence.BotProbability:P0})"),
-            Orchestration.RiskBand.Medium => ("Challenge", $"Medium risk (probability: {evidence.BotProbability:P0})"),
-            Orchestration.RiskBand.Elevated => ("Throttle", $"Elevated risk (probability: {evidence.BotProbability:P0})"),
-            Orchestration.RiskBand.Low => ("Allow", $"Low risk (probability: {evidence.BotProbability:P0})"),
-            Orchestration.RiskBand.VeryLow => ("Allow", $"Very low risk (probability: {evidence.BotProbability:P0})"),
+            Orchestration.RiskBand.VeryHigh => ("Block", $"Very high risk (probability: {probStr})"),
+            Orchestration.RiskBand.High => ("Block", $"High risk (probability: {probStr})"),
+            Orchestration.RiskBand.Medium => ("Challenge", $"Medium risk (probability: {probStr})"),
+            Orchestration.RiskBand.Elevated => ("Throttle", $"Elevated risk (probability: {probStr})"),
+            Orchestration.RiskBand.Low => ("Allow", $"Low risk (probability: {probStr})"),
+            Orchestration.RiskBand.VeryLow => ("Allow", $"Very low risk (probability: {probStr})"),
             _ => ("Allow", "Default action")
         };
 
         return new { action, reason };
     }
 
-    private static string GetPolicyActionReason(PolicyAction action, AggregatedEvidence evidence) => action switch
+    private static string GetPolicyActionReason(PolicyAction action, AggregatedEvidence evidence)
     {
-        PolicyAction.Block => $"Policy triggered block at probability {evidence.BotProbability:P0}",
-        PolicyAction.Allow => "Policy allowed request",
-        PolicyAction.Challenge => $"Policy triggered challenge at probability {evidence.BotProbability:P0}",
-        PolicyAction.Throttle => $"Policy triggered throttle at probability {evidence.BotProbability:P0}",
-        PolicyAction.EscalateToAi => $"Policy recommends AI escalation at probability {evidence.BotProbability:P0}",
-        PolicyAction.LogOnly => "Policy set to log only",
-        _ => $"Policy action: {action}"
-    };
+        var probStr = FormatProbability(evidence.BotProbability);
+        return action switch
+        {
+            PolicyAction.Block => $"Policy triggered block at probability {probStr}",
+            PolicyAction.Allow => "Policy allowed request",
+            PolicyAction.Challenge => $"Policy triggered challenge at probability {probStr}",
+            PolicyAction.Throttle => $"Policy triggered throttle at probability {probStr}",
+            PolicyAction.EscalateToAi => $"Policy recommends AI escalation at probability {probStr}",
+            PolicyAction.LogOnly => "Policy set to log only",
+            _ => $"Policy action: {action}"
+        };
+    }
 }

@@ -88,7 +88,7 @@ public class HeuristicLateContributor : ContributingDetectorBase
             contributions.Add(new DetectionContribution
             {
                 DetectorName = Name,
-                Category = "Heuristic",
+                Category = "HeuristicLate",
                 ConfidenceDelta = reason.ConfidenceImpact,
                 Weight = 2.5, // Late heuristic is weighted heavily - it's the final say
                 Reason = reason.Detail.Replace("(early)", "(late)").Replace("(full)", "(late)"),
