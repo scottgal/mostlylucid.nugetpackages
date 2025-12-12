@@ -44,15 +44,11 @@ try
     builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
     builder.Configuration.AddJsonFile($"appsettings.{mode}.json", optional: true, reloadOnChange: true);
 
-    // Initialize SQLite provider for AOT - platform specific (runtime check)
-    if (OperatingSystem.IsWindows())
-    {
-        SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_winsqlite3());
-    }
-    else
-    {
-        SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_e_sqlite3());
-    }
+    // Initialize SQLite provider for AOT
+    // Batteries_V2.Init() will use the correct provider based on which bundle was loaded:
+    // - Windows builds get winsqlite3 bundle (uses OS SQLite)
+    // - Other platforms get e_sqlite3 bundle (includes native library)
+    SQLitePCL.Batteries_V2.Init();
 
     // Add YARP
     var yarpBuilder = builder.Services.AddReverseProxy()
