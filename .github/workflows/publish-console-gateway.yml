@@ -93,6 +93,7 @@ jobs:
       run: dotnet restore Mostlylucid.BotDetection.Console/Mostlylucid.BotDetection.Console.csproj
 
     - name: Publish ${{ matrix.runtime }} binary
+      shell: bash
       run: |
         dotnet publish Mostlylucid.BotDetection.Console/Mostlylucid.BotDetection.Console.csproj \
           --configuration Release \
