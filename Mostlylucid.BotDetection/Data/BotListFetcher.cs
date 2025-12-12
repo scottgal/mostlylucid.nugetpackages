@@ -237,7 +237,7 @@ public class BotListFetcher : IBotListFetcher
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,STILL 
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         // Use source generator context for AOT/NativeAOT support
         TypeInfoResolver = BotDetectionJsonSerializerContext.Default
     };
