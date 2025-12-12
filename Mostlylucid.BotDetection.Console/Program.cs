@@ -121,21 +121,28 @@ try
         // Add response transform to remove restrictive CSP and fix CORS
         builderContext.AddResponseTransform(async transformContext =>
         {
-            // Remove or replace restrictive Content-Security-Policy headers
+            var httpContext = transformContext.HttpContext;
+
+            // Remove Content-Security-Policy from both proxy response AND final response headers
             if (transformContext.ProxyResponse?.Headers.Contains("Content-Security-Policy") == true)
             {
                 transformContext.ProxyResponse.Headers.Remove("Content-Security-Policy");
             }
+            httpContext.Response.Headers.Remove("Content-Security-Policy");
+
+            // Remove Content-Security-Policy-Report-Only
             if (transformContext.ProxyResponse?.Headers.Contains("Content-Security-Policy-Report-Only") == true)
             {
                 transformContext.ProxyResponse.Headers.Remove("Content-Security-Policy-Report-Only");
             }
+            httpContext.Response.Headers.Remove("Content-Security-Policy-Report-Only");
 
             // Remove X-Frame-Options to allow embedding
             if (transformContext.ProxyResponse?.Headers.Contains("X-Frame-Options") == true)
             {
                 transformContext.ProxyResponse.Headers.Remove("X-Frame-Options");
             }
+            httpContext.Response.Headers.Remove("X-Frame-Options");
 
             await Task.CompletedTask;
         });
