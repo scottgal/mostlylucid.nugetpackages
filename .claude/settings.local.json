@@ -122,7 +122,8 @@
       "Bash(dotnet-script convert-signatures-to-k6.csx:*)",
       "Bash(k6 version:*)",
       "Bash(k6 run:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(python -m json.tool:*)"
     ],
     "deny": [],
     "ask": []

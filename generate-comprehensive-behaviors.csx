@@ -10,14 +10,14 @@ using System.IO;
 
 Console.WriteLine("=".PadRight(80, '='));
 Console.WriteLine("COMPREHENSIVE BOT DETECTION SIGNATURE GENERATOR");
-Console.WriteLine("Using MINISTRAL-3:3B for temporal behavior generation");
+Console.WriteLine("Using QWEN2.5-CODER:3B for temporal behavior generation");
 Console.WriteLine("Creating signature repository structure...");
 Console.WriteLine("=".PadRight(80, '='));
 Console.WriteLine();
 
 var ollama = new OllamaApiClient("http://localhost:11434")
 {
-    SelectedModel = "ministral-3:3b"
+    SelectedModel = "qwen2.5-coder:3b"
 };
 
 // Real datacenter IP prefixes from our IpContributor
@@ -266,7 +266,7 @@ Console.WriteLine();
 
 // Generate multiple scenarios for each category
 var generatedCount = 0;
-var scenariosPerCategory = 10; // Generate 10 human + 10 bot per category = 200 total scenarios
+var scenariosPerCategory = 5; // Generate 5 human + 5 bot per category = 100 total signatures
 
 foreach (var category in behaviorCategories)
 {
@@ -407,7 +407,7 @@ BDF v2 Schema:
     {{
       ""method"": ""GET"",
       ""path"": ""/"",
-      ""headers"": {{""User-Agent"": ""{ua}""{(isBot ? "" : ", \"Accept-Language\": \"en-US,en;q=0.9\"")}}}},
+      ""headers"": {{""User-Agent"": ""{ua}""{(isBot ? "" : ", \"Accept-Language\": \"en-US,en;q=0.9\"")}}},
       ""expectedStatusAny"": [200, 301, 302],
       ""expectedOutcome"": ""{(isBot ? "indexing" : "browsing")}"",
       ""successCondition"": ""any 2xx""
@@ -436,7 +436,7 @@ CRITICAL for HUMANS:
 - Referer chains
 - Variable timing 2-30s
 
-Return ONLY valid JSON, no markdown.";
+Return ONLY valid JSON, no markdown, no comments, no trailing commas.";
 
     try
     {
@@ -457,22 +457,54 @@ Return ONLY valid JSON, no markdown.";
 
         Console.WriteLine($" ✓ ({tokenCount} tokens)");
 
-        // Clean up response: strip markdown code fences
+        // Clean up response: strip markdown code fences and fix common JSON issues
         var jsonText = response.ToString().Trim();
+
+        // Remove markdown code fences
         if (jsonText.StartsWith("```json"))
         {
-            jsonText = jsonText.Substring(7); // Remove ```json
+            jsonText = jsonText.Substring(7);
         }
         if (jsonText.StartsWith("```"))
         {
-            jsonText = jsonText.Substring(3); // Remove ```
+            jsonText = jsonText.Substring(3);
         }
         if (jsonText.EndsWith("```"))
         {
-            jsonText = jsonText.Substring(0, jsonText.Length - 3); // Remove ```
+            jsonText = jsonText.Substring(0, jsonText.Length - 3);
         }
 
-        return jsonText.Trim();
+        jsonText = jsonText.Trim();
+
+        // Fix literal \n characters outside of string values
+        jsonText = System.Text.RegularExpressions.Regex.Replace(
+            jsonText,
+            @"(""[^""]*""\s*[,:\[\{]\s*)\\n(\s+)",
+            "$1\n$2"
+        );
+
+        // Remove comments (// and /* */)
+        jsonText = System.Text.RegularExpressions.Regex.Replace(
+            jsonText,
+            @"//.*$",
+            "",
+            System.Text.RegularExpressions.RegexOptions.Multiline
+        );
+        jsonText = System.Text.RegularExpressions.Regex.Replace(
+            jsonText,
+            @"/\*.*?\*/",
+            "",
+            System.Text.RegularExpressions.RegexOptions.Singleline
+        );
+
+        // Fix trailing commas before closing braces/brackets
+        jsonText = System.Text.RegularExpressions.Regex.Replace(
+            jsonText,
+            @",(\s*[}\]])",
+            "$1"
+        );
+
+        return jsonText;
     }
     catch (Exception ex)
     {

@@ -267,12 +267,20 @@ public class InconsistencyContributor : ContributingDetectorBase
         }
 
         // Check for Chrome UA without sec-ch-ua headers
-        if (userAgent.Contains("Chrome/") && !headers.ContainsKey("sec-ch-ua"))
+        // Note: Service worker, fetch API, and some browser configurations may not send Client Hints
+        // Only flag if path doesn't suggest legitimate browser request
+        var path = atom.Request.Path.Value?.ToLowerInvariant() ?? "";
+        var isLegitimateNoHintsRequest = path.Contains("serviceworker") ||
+                                          path.Contains("sw.js") ||
+                                          path.Contains("worker");
+
+        if (userAgent.Contains("Chrome/") && !headers.ContainsKey("sec-ch-ua") && !isLegitimateNoHintsRequest)
         {
+            // Reduced from 0.4 - Client Hints are not universally enabled
             contributions.Add(DetectionContribution.Bot(
-                Name, "Inconsistency", 0.4,
+                Name, "Inconsistency", 0.2,
                 "Chrome User-Agent without Client Hints",
-                BotType.Scraper)); // Likely automation/scraper
+                BotType.Scraper));
         }
 
         // Check for modern browser claiming old version
