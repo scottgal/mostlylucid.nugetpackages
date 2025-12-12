@@ -61,13 +61,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '9.0.x'
-
-    - name: Install ARM64 cross-compilation tools (Linux ARM64 only)
-      if: matrix.runtime == 'linux-arm64'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y clang zlib1g-dev gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+        dotnet-version: '10.0.x'
 
     - name: Extract version
       id: get_version
@@ -101,24 +95,13 @@ jobs:
     - name: Publish ${{ matrix.runtime }} binary
       shell: bash
       run: |
-        # Set objcopy for ARM64 cross-compilation
-        if [ "${{ matrix.runtime }}" = "linux-arm64" ]; then
-          OBJCOPY_PARAM="-p:ObjCopyName=aarch64-linux-gnu-objcopy"
-        else
-          OBJCOPY_PARAM=""
-        fi
-
         dotnet publish Mostlylucid.BotDetection.Console/Mostlylucid.BotDetection.Console.csproj \
           --configuration Release \
           --runtime ${{ matrix.runtime }} \
           --self-contained true \
           --output ./publish/${{ matrix.runtime }} \
-          -p:PublishAot=true \
-          -p:PublishTrimmed=true \
-          -p:TrimMode=full \
           -p:PublishSingleFile=true \
-          -p:Version=${{ steps.get_version.outputs.VERSION }} \
-          $OBJCOPY_PARAM
+          -p:Version=${{ steps.get_version.outputs.VERSION }}
 
     - name: Create distribution package
       shell: bash
@@ -241,17 +224,17 @@ jobs:
         cat > release_notes.md << 'EOF'
         ## Bot Detection Console Gateway v${{ steps.get_version.outputs.VERSION }}
 
-        Minimal, single-file YARP gateway with bot detection middleware. AOT-compiled for maximum performance and minimal footprint.
+        Single-file YARP gateway with bot detection middleware. Self-contained .NET 10 runtime included.
 
         ### Downloads
 
         Download the binary for your platform:
 
-        - **Linux x64**: `minigw-linux-x64.tar.gz` (~12MB)
-        - **Linux ARM64**: `minigw-linux-arm64.tar.gz` (~11MB) - For Raspberry Pi 4/5
-        - **Windows x64**: `minigw-win-x64.zip` (~10MB)
-        - **macOS Intel**: `minigw-osx-x64.tar.gz` (~13MB)
-        - **macOS Apple Silicon**: `minigw-osx-arm64.tar.gz` (~11MB)
+        - **Linux x64**: `minigw-linux-x64.tar.gz` (~130MB)
+        - **Linux ARM64**: `minigw-linux-arm64.tar.gz` (~130MB) - For Raspberry Pi 4/5
+        - **Windows x64**: `minigw-win-x64.zip` (~130MB)
+        - **macOS Intel**: `minigw-osx-x64.tar.gz` (~130MB)
+        - **macOS Apple Silicon**: `minigw-osx-arm64.tar.gz` (~130MB)
 
         ### Quick Start
 
@@ -268,7 +251,7 @@ jobs:
 
         ### Features
 
-        - ✅ **Zero dependencies** - Single-file native executable
+        - ✅ **Single-file deployment** - Self-contained .NET 10 runtime included
         - ✅ **Cross-platform** - Linux (x64, ARM64), Windows, macOS
         - ✅ **YARP reverse proxy** - Forward to any upstream backend
         - ✅ **Bot detection** - Full detection pipeline with HMAC-SHA256 signature storage

@@ -93,7 +93,15 @@
       "Bash(gh run watch:*)",
       "Bash(gh release download:*)",
       "Bash(./minigw.exe:*)",
-      "Bash(dotnet msbuild:*)"
+      "Bash(dotnet msbuild:*)",
+      "Bash(cmd /c:*)",
+      "Bash(./build-aot.bat)",
+      "Bash(\"C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/link.exe\" @obj/Release/net10.0/win-x64/native/link.rsp)",
+      "Bash(Select-String \"error|Success|minigw.exe\")",
+      "Bash(./bin/Release/net10.0/win-x64/native/minigw.exe:*)",
+      "Bash(Select-String \"sqlite\" -Context 0,1)",
+      "Bash($env:PATH = \"C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer;$env:PATH\")",
+      "Bash(copy \"C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe\" \"D:\\Source\\mostlylucid.nugetpackages\\Mostlylucid.BotDetection.Console\\vswhere.exe\")"
     ],
     "deny": [],
     "ask": []
