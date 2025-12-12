@@ -85,7 +85,11 @@
       "WebFetch(domain:www.useragents.me)",
       "WebFetch(domain:www.browsers.fyi)",
       "WebFetch(domain:www.useragentstring.com)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(del \"Mostlylucid.BotDetection.Console\\nul\" \"Mostlylucid.BotDetection.Demo.Tests\\nul\" \"Mostlylucid.BotDetection.Demo\\nul\" \"nul\")",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []
