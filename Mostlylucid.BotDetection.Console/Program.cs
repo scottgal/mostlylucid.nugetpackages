@@ -4,7 +4,9 @@ using Yarp.ReverseProxy.Transforms;
 using Mostlylucid.BotDetection.Extensions;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Middleware;
+using Microsoft.AspNetCore.HttpOverrides;
 using System.Diagnostics;
+using System.Text.Json;
 
 // Initialize SQLite bundle BEFORE anything else
 SQLitePCL.Batteries.Init();
@@ -42,6 +44,19 @@ try
 
     // Use Serilog
     builder.Host.UseSerilog();
+
+    // Configure forwarded headers to extract real client IP from Cloudflare/proxies
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+
+        // Trust all proxies (Cloudflare, reverse proxies, etc.)
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+
+        // Limit to first proxy for security
+        options.ForwardLimit = 1;
+    });
 
     // Load configuration from appsettings.json (with mode override)
     builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
@@ -101,6 +116,12 @@ try
                     LogDetectionProduction(httpContext, detection, stopwatch.Elapsed);
                 }
 
+                // Log signature in JSON-LD format if bot detected with high confidence
+                if (detection.IsBot && detection.ConfidenceScore >= 0.7)
+                {
+                    LogSignatureJsonLd(httpContext, detection);
+                }
+
                 // Forward detection headers to upstream
                 transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-Bot-Detection", detection.IsBot.ToString());
                 transformContext.ProxyRequest.Headers.TryAddWithoutValidation("X-Bot-Probability", detection.ConfidenceScore.ToString("F2"));
@@ -149,6 +170,9 @@ try
     });
 
     var app = builder.Build();
+
+    // Use Forwarded Headers middleware FIRST to extract real client IP
+    app.UseForwardedHeaders();
 
     // Use Bot Detection middleware
     app.UseBotDetection();
@@ -255,6 +279,108 @@ static void LogDetectionProduction(
         context.Request.Path,
         context.Connection.RemoteIpAddress,
         botName);
+}
+
+// Log bot signature in JSON-LD format (schema.org SecurityAction)
+static void LogSignatureJsonLd(
+    Microsoft.AspNetCore.Http.HttpContext context,
+    BotDetectionResult detection)
+{
+    var jsonLd = new
+    {
+        context = "https://schema.org",
+        type = "SecurityAction",
+        agent = new
+        {
+            type = "SoftwareApplication",
+            name = "Mostlylucid.BotDetection.Console",
+            version = "1.0.0"
+        },
+        actionStatus = "CompletedActionStatus",
+        result = new
+        {
+            type = "ThreatDetection",
+            detectedAt = DateTime.UtcNow.ToString("O"),
+            threatType = detection.BotType?.ToString() ?? "Unknown",
+            threatName = detection.BotName ?? "Unidentified",
+            confidenceScore = detection.ConfidenceScore,
+            riskLevel = detection.ConfidenceScore switch
+            {
+                >= 0.9 => "VeryHigh",
+                >= 0.7 => "High",
+                >= 0.5 => "Medium",
+                >= 0.3 => "Low",
+                _ => "VeryLow"
+            },
+            signature = new
+            {
+                requestPath = context.Request.Path.ToString(),
+                requestMethod = context.Request.Method,
+                userAgent = context.Request.Headers.UserAgent.ToString(),
+                remoteAddress = context.Connection.RemoteIpAddress?.ToString(),
+                protocol = context.Request.Protocol,
+                reasons = detection.Reasons?.Select(r => new
+                {
+                    category = r.Category,
+                    detail = r.Detail,
+                    impact = r.ConfidenceImpact
+                }).ToArray()
+            }
+        }
+    };
+
+    // Log to console
+    Log.Information("[JSON-LD-SIGNATURE] {@SignatureJsonLd}", jsonLd);
+
+    // Write to date-based JSONL file (manual JSON to avoid AOT serialization issues)
+    try
+    {
+        var dateStr = DateTime.UtcNow.ToString("yyyy-MM-dd");
+        var filename = $"signatures-{dateStr}.jsonl";
+
+        // Build JSON manually for AOT compatibility
+        var reasonsJson = detection.Reasons != null
+            ? string.Join(",", detection.Reasons.Select(r =>
+                $"{{\"category\":\"{EscapeJson(r.Category)}\",\"detail\":\"{EscapeJson(r.Detail)}\",\"impact\":{r.ConfidenceImpact}}}"))
+            : "";
+
+        var json = $"{{" +
+            $"\"@context\":\"https://schema.org\"," +
+            $"\"@type\":\"SecurityAction\"," +
+            $"\"agent\":{{\"@type\":\"SoftwareApplication\",\"name\":\"Mostlylucid.BotDetection.Console\",\"version\":\"1.0.0\"}}," +
+            $"\"actionStatus\":\"CompletedActionStatus\"," +
+            $"\"result\":{{" +
+                $"\"@type\":\"ThreatDetection\"," +
+                $"\"detectedAt\":\"{DateTime.UtcNow:O}\"," +
+                $"\"threatType\":\"{EscapeJson(detection.BotType?.ToString() ?? "Unknown")}\"," +
+                $"\"threatName\":\"{EscapeJson(detection.BotName ?? "Unidentified")}\"," +
+                $"\"confidenceScore\":{detection.ConfidenceScore}," +
+                $"\"riskLevel\":\"{(detection.ConfidenceScore >= 0.9 ? "VeryHigh" : detection.ConfidenceScore >= 0.7 ? "High" : detection.ConfidenceScore >= 0.5 ? "Medium" : detection.ConfidenceScore >= 0.3 ? "Low" : "VeryLow")}\"," +
+                $"\"signature\":{{" +
+                    $"\"requestPath\":\"{EscapeJson(context.Request.Path.ToString())}\"," +
+                    $"\"requestMethod\":\"{context.Request.Method}\"," +
+                    $"\"userAgent\":\"{EscapeJson(context.Request.Headers.UserAgent.ToString())}\"," +
+                    $"\"remoteAddress\":\"{context.Connection.RemoteIpAddress}\"," +
+                    $"\"xForwardedFor\":\"{EscapeJson(context.Request.Headers["X-Forwarded-For"].ToString())}\"," +
+                    $"\"referer\":\"{EscapeJson(context.Request.Headers["Referer"].ToString())}\"," +
+                    $"\"protocol\":\"{context.Request.Protocol}\"," +
+                    $"\"reasons\":[{reasonsJson}]" +
+                $"}}" +
+            $"}}" +
+        $"}}";
+
+        File.AppendAllText(filename, json + Environment.NewLine);
+    }
+    catch (Exception ex)
+    {
+        Log.Warning(ex, "Failed to write signature to file");
+    }
+}
+
+static string EscapeJson(string text)
+{
+    if (string.IsNullOrEmpty(text)) return text;
+    return text.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t");
 }
 
 // Helper to get command-line argument
