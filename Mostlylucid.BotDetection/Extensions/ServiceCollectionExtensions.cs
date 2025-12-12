@@ -342,7 +342,8 @@ public static class ServiceCollectionExtensions
         {
             var logger = sp.GetRequiredService<ILogger<EphemeralPatternReputationCache>>();
             var updater = sp.GetRequiredService<PatternReputationUpdater>();
-            return new EphemeralPatternReputationCache(logger, updater);
+            var patternStore = sp.GetRequiredService<ILearnedPatternStore>();
+            return new EphemeralPatternReputationCache(logger, updater, patternStore);
         });
 
         services.AddSingleton<ILearningEventHandler, ReputationMaintenanceService>();

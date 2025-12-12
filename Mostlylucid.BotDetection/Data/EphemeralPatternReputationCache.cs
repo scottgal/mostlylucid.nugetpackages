@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.Ephemeral;
+using Mostlylucid.BotDetection.Services;
 
 namespace Mostlylucid.BotDetection.Data;
 
@@ -18,6 +19,7 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
 {
     private readonly ILogger<EphemeralPatternReputationCache> _logger;
     private readonly PatternReputationUpdater _updater;
+    private readonly ILearnedPatternStore? _patternStore;
     private readonly ConcurrentDictionary<string, CacheEntry> _cache = new();
 
     // Ephemeral signal sink for reputation change observability
@@ -25,6 +27,9 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
 
     // Background decay coordinator
     private readonly EphemeralWorkCoordinator<DecayWork> _decayCoordinator;
+
+    // Background persistence coordinator for batched SQLite writes
+    private readonly EphemeralWorkCoordinator<PersistWork>? _persistCoordinator;
 
     // Tracking
     private DateTimeOffset _lastDecaySweep = DateTimeOffset.UtcNow;
@@ -53,12 +58,14 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
     public EphemeralPatternReputationCache(
         ILogger<EphemeralPatternReputationCache> logger,
         PatternReputationUpdater updater,
+        ILearnedPatternStore? patternStore = null,
         int maxPatterns = 10000,
         int hotAccessThreshold = 10,
         TimeSpan? hotKeyExtension = null)
     {
         _logger = logger;
         _updater = updater;
+        _patternStore = patternStore;
         _maxPatterns = maxPatterns;
         _hotAccessThreshold = hotAccessThreshold;
         _hotKeyExtension = hotKeyExtension ?? TimeSpan.FromHours(24);
@@ -92,6 +99,23 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
                 Signals = _signals,
                 OnSignal = evt => { } // Just for tracking
             });
+
+        // Background persistence coordinator for batched SQLite writes (avoids file locks)
+        if (_patternStore != null)
+        {
+            _persistCoordinator = new EphemeralWorkCoordinator<PersistWork>(
+                async (work, ct) =>
+                {
+                    await ExecutePersistBatchAsync(work.Reputations, ct);
+                },
+                new EphemeralOptions
+                {
+                    MaxConcurrency = 1, // Single writer to avoid SQLite locks
+                    MaxTrackedOperations = 50,
+                    Signals = _signals,
+                    OnSignal = evt => { }
+                });
+        }
     }
 
     /// <summary>
@@ -333,16 +357,130 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
         }
     }
 
-    public Task PersistAsync(CancellationToken ct = default)
+    public async Task PersistAsync(CancellationToken ct = default)
     {
-        // TODO: Persist to SQLite via ILearnedPatternStore
-        return Task.CompletedTask;
+        if (_patternStore == null || _persistCoordinator == null)
+            return;
+
+        try
+        {
+            // Queue all patterns for batched persistence
+            var patterns = _cache.Values.Select(e => e.Reputation).ToList();
+
+            if (patterns.Count > 0)
+            {
+                await _persistCoordinator.EnqueueAsync(new PersistWork(patterns), ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to queue patterns for persistence");
+        }
     }
 
-    public Task LoadAsync(CancellationToken ct = default)
+    private async Task ExecutePersistBatchAsync(IReadOnlyList<PatternReputation> reputations, CancellationToken ct)
     {
-        // TODO: Load from SQLite via ILearnedPatternStore
-        return Task.CompletedTask;
+        try
+        {
+            var saved = 0;
+
+            foreach (var reputation in reputations)
+            {
+                if (ct.IsCancellationRequested) break;
+
+                // Convert PatternReputation to LearnedSignature
+                var signature = new LearnedSignature
+                {
+                    PatternId = reputation.PatternId,
+                    SignatureType = reputation.PatternType,
+                    Pattern = reputation.Pattern,
+                    Confidence = reputation.BotScore,
+                    Occurrences = (int)Math.Round(reputation.Support),
+                    FirstSeen = reputation.FirstSeen,
+                    LastSeen = reputation.LastSeen,
+                    Action = reputation.State switch
+                    {
+                        ReputationState.ManuallyBlocked => LearnedPatternAction.Full,
+                        ReputationState.ConfirmedBad => LearnedPatternAction.Full,
+                        ReputationState.Suspect => LearnedPatternAction.ScoreOnly,
+                        ReputationState.Neutral => LearnedPatternAction.LogOnly,
+                        ReputationState.ConfirmedGood => LearnedPatternAction.LogOnly,
+                        ReputationState.ManuallyAllowed => LearnedPatternAction.LogOnly,
+                        _ => LearnedPatternAction.LogOnly
+                    },
+                    BotType = null,
+                    BotName = null,
+                    Source = "ReputationCache"
+                };
+
+                await _patternStore!.UpsertAsync(signature, ct);
+                saved++;
+            }
+
+            if (saved > 0)
+            {
+                _logger.LogDebug("Persisted {Count} pattern reputations to SQLite", saved);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist pattern reputation batch");
+        }
+    }
+
+    public async Task LoadAsync(CancellationToken ct = default)
+    {
+        if (_patternStore == null)
+            return;
+
+        try
+        {
+            // Load all signatures from SQLite
+            var signatures = await _patternStore.GetByConfidenceAsync(0.0, ct);
+            var loaded = 0;
+
+            foreach (var signature in signatures)
+            {
+                if (ct.IsCancellationRequested) break;
+
+                // Convert LearnedSignature to PatternReputation
+                var state = signature.Action switch
+                {
+                    LearnedPatternAction.Full when signature.Confidence >= 0.9 => ReputationState.ConfirmedBad,
+                    LearnedPatternAction.Full => ReputationState.Suspect,
+                    LearnedPatternAction.ScoreOnly when signature.Confidence >= 0.6 => ReputationState.Suspect,
+                    LearnedPatternAction.LogOnly when signature.Confidence <= 0.1 => ReputationState.ConfirmedGood,
+                    _ => ReputationState.Neutral
+                };
+
+                var reputation = new PatternReputation
+                {
+                    PatternId = signature.PatternId,
+                    PatternType = signature.SignatureType,
+                    Pattern = signature.Pattern,
+                    BotScore = signature.Confidence,
+                    Support = signature.Occurrences,
+                    State = state,
+                    FirstSeen = signature.FirstSeen,
+                    LastSeen = signature.LastSeen,
+                    StateChangedAt = signature.LastSeen,
+                    IsManual = false,
+                    Notes = null
+                };
+
+                _cache[signature.PatternId] = new CacheEntry(reputation);
+                loaded++;
+            }
+
+            if (loaded > 0)
+            {
+                _logger.LogInformation("Loaded {Count} pattern reputations from SQLite", loaded);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load pattern reputations");
+        }
     }
 
     public ReputationCacheStats GetStats()
@@ -399,6 +537,12 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
     {
         _decayCoordinator.Complete();
         await _decayCoordinator.DisposeAsync();
+
+        if (_persistCoordinator != null)
+        {
+            _persistCoordinator.Complete();
+            await _persistCoordinator.DisposeAsync();
+        }
     }
 
     // Internal cache entry with access tracking
@@ -426,6 +570,8 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
         GarbageCollect,
         EvictCold
     }
+
+    private readonly record struct PersistWork(IReadOnlyList<PatternReputation> Reputations);
 }
 
 /// <summary>
