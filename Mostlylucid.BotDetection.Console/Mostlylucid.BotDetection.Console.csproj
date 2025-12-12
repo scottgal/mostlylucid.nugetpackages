@@ -38,8 +38,8 @@
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
 
     <!-- Include both SQLite bundles - runtime code will select the right one -->
-    <PackageReference Include="SQLitePCLRaw.bundle_winsqlite3" Version="3.0.2" />
-    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.2" />
+    <PackageReference Include="SQLitePCLRaw.bundle_winsqlite3" Version="2.1.11" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.11" />
   </ItemGroup>
 
   <ItemGroup>
