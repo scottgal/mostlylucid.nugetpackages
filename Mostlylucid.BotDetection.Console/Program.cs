@@ -44,12 +44,15 @@ try
     builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
     builder.Configuration.AddJsonFile($"appsettings.{mode}.json", optional: true, reloadOnChange: true);
 
-    // Initialize SQLite provider for AOT - platform specific
-#if WINDOWS
-    SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_winsqlite3());
-#else
-    SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_e_sqlite3());
-#endif
+    // Initialize SQLite provider for AOT - platform specific (runtime check)
+    if (OperatingSystem.IsWindows())
+    {
+        SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_winsqlite3());
+    }
+    else
+    {
+        SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_e_sqlite3());
+    }
 
     // Add YARP
     var yarpBuilder = builder.Services.AddReverseProxy()

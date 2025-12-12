@@ -89,7 +89,8 @@
       "Bash(del \"Mostlylucid.BotDetection.Console\\nul\" \"Mostlylucid.BotDetection.Demo.Tests\\nul\" \"Mostlylucid.BotDetection.Demo\\nul\" \"nul\")",
       "Bash(gh run list:*)",
       "Bash(gh run view:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(gh run watch:*)"
     ],
     "deny": [],
     "ask": []

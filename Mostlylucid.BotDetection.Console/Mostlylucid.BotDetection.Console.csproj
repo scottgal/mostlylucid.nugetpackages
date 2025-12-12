@@ -32,11 +32,6 @@
     <AssemblyName>minigw</AssemblyName>
   </PropertyGroup>
 
-  <!-- Define platform constants for conditional compilation -->
-  <PropertyGroup Condition="$(RuntimeIdentifier.StartsWith('win'))">
-    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
-  </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="Yarp.ReverseProxy" Version="2.2.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
