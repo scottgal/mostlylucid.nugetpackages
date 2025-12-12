@@ -444,11 +444,14 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
                 if (ct.IsCancellationRequested) break;
 
                 // Convert LearnedSignature to PatternReputation
+                // Upgrade LogOnly patterns based on confidence (they may have been saved as Neutral initially)
                 var state = signature.Action switch
                 {
                     LearnedPatternAction.Full when signature.Confidence >= 0.9 => ReputationState.ConfirmedBad,
                     LearnedPatternAction.Full => ReputationState.Suspect,
                     LearnedPatternAction.ScoreOnly when signature.Confidence >= 0.6 => ReputationState.Suspect,
+                    LearnedPatternAction.LogOnly when signature.Confidence >= 0.9 => ReputationState.ConfirmedBad,
+                    LearnedPatternAction.LogOnly when signature.Confidence >= 0.6 => ReputationState.Suspect,
                     LearnedPatternAction.LogOnly when signature.Confidence <= 0.1 => ReputationState.ConfirmedGood,
                     _ => ReputationState.Neutral
                 };

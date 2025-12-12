@@ -346,8 +346,10 @@ public static class ServiceCollectionExtensions
             return new EphemeralPatternReputationCache(logger, updater, patternStore);
         });
 
-        services.AddSingleton<ILearningEventHandler, ReputationMaintenanceService>();
-        services.AddHostedService<ReputationMaintenanceService>();
+        // Register ReputationMaintenanceService as a singleton (single instance for both interfaces)
+        services.AddSingleton<ReputationMaintenanceService>();
+        services.AddSingleton<ILearningEventHandler>(sp => sp.GetRequiredService<ReputationMaintenanceService>());
+        services.AddHostedService(sp => sp.GetRequiredService<ReputationMaintenanceService>());
 
         // ==========================================
         // Blackboard Orchestrator (event-driven, parallel detection)

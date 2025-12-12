@@ -59,6 +59,9 @@ public class FastPathReputationContributor : ContributingDetectorBase
             var uaPatternId = CreateUaPatternId(state.UserAgent);
             var uaReputation = _reputationCache.Get(uaPatternId);
 
+            _logger.LogDebug("FastPathReputation UA lookup: pattern={PatternId}, found={Found}, UA={UA}",
+                uaPatternId, uaReputation != null, state.UserAgent);
+
             if (uaReputation?.CanTriggerFastAllow == true)
             {
                 matchedPattern = uaReputation;

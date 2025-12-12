@@ -124,16 +124,17 @@ public sealed record DetectionPolicy
     public static DetectionPolicy Default => new()
     {
         Name = "default",
-        Description = "Fast path with early bailout - configure AI detectors via JSON",
-        // All static/fast detectors - no hardcoded AI
-        FastPathDetectors = ["UserAgent", "Header", "Ip", "Behavioral", "ClientSide", "Inconsistency", "VersionAge"],
+        Description = "Fast path with early bailout and reputation cache",
+        // All static/fast detectors - includes reputation for instant allow/block
+        FastPathDetectors = ["FastPathReputation", "UserAgent", "Header", "Ip", "SecurityTool", "Behavioral", "ClientSide", "Inconsistency", "VersionAge"],
         SlowPathDetectors = [],
         AiPathDetectors = [], // Empty by default - add ONNX/LLM/others via JSON config
+        ResponsePathDetectors = ["ResponseBehavior"], // Track response patterns for learning
         UseFastPath = true,
         ForceSlowPath = false,
         EscalateToAi = false, // Off by default - enable via JSON with AI detectors
         // Early bailout thresholds for performance
-        EarlyExitThreshold = 0.85,
+        EarlyExitThreshold = 0.3,
         ImmediateBlockThreshold = 0.95
     };
 

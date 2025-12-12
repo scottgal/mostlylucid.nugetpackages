@@ -145,6 +145,15 @@ jobs:
         cp ../../Mostlylucid.BotDetection.Console/appsettings.json ../../dist/ || true
         cp ../../Mostlylucid.BotDetection.Console/appsettings.production.json ../../dist/ || true
 
+        # Copy wwwroot folder (client-side detection test page)
+        if [ -d "../../Mostlylucid.BotDetection.Console/wwwroot" ]; then
+          mkdir -p ../../dist/wwwroot
+          cp -r ../../Mostlylucid.BotDetection.Console/wwwroot/* ../../dist/wwwroot/ || true
+        fi
+
+        # Copy README.md if it exists
+        cp ../../Mostlylucid.BotDetection.Console/README.md ../../dist/ || true
+
         # Create README
         cat > ../../dist/README.txt << 'EOF'
         Mostlylucid Bot Detection Console Gateway
@@ -285,8 +294,11 @@ jobs:
         - ✅ **Cross-platform** - Linux (x64, ARM64), Windows, macOS
         - ✅ **YARP reverse proxy** - Forward to any upstream backend
         - ✅ **Bot detection** - Full detection pipeline with HMAC-SHA256 signature storage
+        - ✅ **Client-side validation** - Browser fingerprinting via JavaScript callback
         - ✅ **Header forwarding** - Results sent via `X-Bot-Detection-*` headers
         - ✅ **Signature tracking** - Stores high-confidence detections as privacy-safe signatures
+        - ✅ **Mismatch detection** - Logs conflicts between server/client verdicts
+        - ✅ **Learning events** - Publishes client-side results for model improvement
         - ✅ **Demo mode** - Colorful console logging
         - ✅ **Production mode** - Structured JSON logging
         - ✅ **Raspberry Pi support** - Runs on Pi 4/5 (ARM64)

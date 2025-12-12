@@ -60,6 +60,9 @@ public enum LearningEventType
     /// <summary>User feedback (confirmed bot / false positive)</summary>
     UserFeedback,
 
+    /// <summary>Client-side browser fingerprinting validation results</summary>
+    ClientSideValidation,
+
     /// <summary>Request for model inference (async)</summary>
     InferenceRequest,
 

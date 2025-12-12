@@ -4,9 +4,12 @@ using Yarp.ReverseProxy.Transforms;
 using Mostlylucid.BotDetection.Extensions;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Middleware;
+using Mostlylucid.BotDetection.Events;
 using Microsoft.AspNetCore.HttpOverrides;
 using System.Diagnostics;
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 
 // Initialize SQLite bundle BEFORE anything else
 SQLitePCL.Batteries.Init();
@@ -42,6 +45,12 @@ try
 
     var builder = WebApplication.CreateSlimBuilder();
 
+    // Configure web root path explicitly for static files (SlimBuilder doesn't set this by default)
+    var webRootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot");
+    Log.Information("Configuring web root path: {WebRootPath}", webRootPath);
+    Log.Information("Web root exists: {Exists}", Directory.Exists(webRootPath));
+    builder.WebHost.UseWebRoot(webRootPath);
+
     // Use Serilog
     builder.Host.UseSerilog();
 
@@ -61,6 +70,15 @@ try
     // Load configuration from appsettings.json (with mode override)
     builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
     builder.Configuration.AddJsonFile($"appsettings.{mode}.json", optional: true, reloadOnChange: true);
+
+    // Read signature logging configuration early (needed by YARP transforms)
+    var sigLoggingConfig = new SignatureLoggingConfig
+    {
+        Enabled = builder.Configuration.GetValue<bool>("SignatureLogging:Enabled", true),
+        MinConfidence = builder.Configuration.GetValue<double>("SignatureLogging:MinConfidence", 0.7),
+        PrettyPrintJsonLd = builder.Configuration.GetValue<bool>("SignatureLogging:PrettyPrintJsonLd", false),
+        SignatureHashKey = builder.Configuration.GetValue<string>("SignatureLogging:SignatureHashKey") ?? "DEFAULT_INSECURE_KEY_CHANGE_ME"
+    };
 
     // Add YARP
     var yarpBuilder = builder.Services.AddReverseProxy()
@@ -116,10 +134,10 @@ try
                     LogDetectionProduction(httpContext, detection, stopwatch.Elapsed);
                 }
 
-                // Log signature in JSON-LD format if bot detected with high confidence
-                if (detection.IsBot && detection.ConfidenceScore >= 0.7)
+                // Log signature in JSON-LD format if enabled and meets confidence threshold
+                if (sigLoggingConfig.Enabled && detection.IsBot && detection.ConfidenceScore >= sigLoggingConfig.MinConfidence)
                 {
-                    LogSignatureJsonLd(httpContext, detection);
+                    LogSignatureJsonLd(httpContext, detection, sigLoggingConfig);
                 }
 
                 // Forward detection headers to upstream
@@ -139,10 +157,27 @@ try
             }
         });
 
-        // Add response transform to remove restrictive CSP and fix CORS
+        // Add response transform to remove restrictive CSP and fix CORS, plus add client-side callback URL
         builderContext.AddResponseTransform(async transformContext =>
         {
             var httpContext = transformContext.HttpContext;
+
+            // Add bot detection callback URL header for client-side tag
+            var callbackUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/bot-detection/client-result";
+            httpContext.Response.Headers.TryAdd("X-Bot-Detection-Callback-Url", callbackUrl);
+
+            // Pass through bot detection headers to client as well (so JavaScript can see them)
+            if (httpContext.Items.TryGetValue(BotDetectionMiddleware.BotDetectionResultKey, out var detectionObj) &&
+                detectionObj is BotDetectionResult detection)
+            {
+                httpContext.Response.Headers.TryAdd("X-Bot-Detection", detection.IsBot.ToString());
+                httpContext.Response.Headers.TryAdd("X-Bot-Probability", detection.ConfidenceScore.ToString("F2"));
+
+                if (!string.IsNullOrEmpty(detection.BotName))
+                {
+                    httpContext.Response.Headers.TryAdd("X-Bot-Name", detection.BotName);
+                }
+            }
 
             // Remove Content-Security-Policy from both proxy response AND final response headers
             if (transformContext.ProxyResponse?.Headers.Contains("Content-Security-Policy") == true)
@@ -174,14 +209,106 @@ try
     // Use Forwarded Headers middleware FIRST to extract real client IP
     app.UseForwardedHeaders();
 
+    // Serve static files (for test pages)
+    app.UseStaticFiles();
+
     // Use Bot Detection middleware
     app.UseBotDetection();
 
-    // Map YARP
-    app.MapReverseProxy();
+    // Health check endpoint (AOT-compatible) - mapped BEFORE YARP to avoid being proxied
+    app.MapGet("/health", () => Results.Text($"{{\"status\":\"healthy\",\"mode\":\"{mode}\",\"upstream\":\"{upstream}\",\"port\":\"{port}\"}}", "application/json"));
 
-    // Health check endpoint
-    app.MapGet("/health", () => Results.Ok(new { status = "healthy", mode, upstream, port }));
+    // Client-side detection callback endpoint (AOT-compatible)
+    app.MapPost("/api/bot-detection/client-result", async (HttpContext context, ILearningEventBus? eventBus) =>
+    {
+        try
+        {
+            using var reader = new StreamReader(context.Request.Body);
+            var body = await reader.ReadToEndAsync();
+
+            Log.Information("[CLIENT-SIDE-CALLBACK] Received client-side detection result");
+
+            // Parse JSON (AOT-compatible using JsonDocument)
+            using var jsonDoc = JsonDocument.Parse(body);
+            var root = jsonDoc.RootElement;
+
+            // Extract server detection results (echoed back from client)
+            var serverDetection = root.TryGetProperty("serverDetection", out var serverDet) ? serverDet : (JsonElement?)null;
+            var serverIsBot = serverDetection?.TryGetProperty("isBot", out var isBotProp) == true && isBotProp.GetString() == "True";
+            var serverProbability = serverDetection?.TryGetProperty("probability", out var probProp) == true ? double.Parse(probProp.GetString() ?? "0") : 0.0;
+
+            // Extract client-side checks
+            var clientChecks = root.TryGetProperty("clientChecks", out var checks) ? checks : (JsonElement?)null;
+            if (clientChecks.HasValue)
+            {
+                var hasCanvas = clientChecks.Value.TryGetProperty("hasCanvas", out var canvas) && canvas.GetBoolean();
+                var hasWebGL = clientChecks.Value.TryGetProperty("hasWebGL", out var webgl) && webgl.GetBoolean();
+                var hasAudioContext = clientChecks.Value.TryGetProperty("hasAudioContext", out var audio) && audio.GetBoolean();
+                var pluginCount = clientChecks.Value.TryGetProperty("pluginCount", out var plugins) ? plugins.GetInt32() : 0;
+                var hardwareConcurrency = clientChecks.Value.TryGetProperty("hardwareConcurrency", out var hardware) ? hardware.GetInt32() : 0;
+
+                // Calculate client-side "bot score" based on checks
+                var clientBotScore = CalculateClientBotScore(hasCanvas, hasWebGL, hasAudioContext, pluginCount, hardwareConcurrency);
+
+                Log.Information("[CLIENT-SIDE-VALIDATION] Server: IsBot={ServerIsBot} (prob={ServerProb:F2}), Client: Score={ClientScore:F2}",
+                    serverIsBot, serverProbability, clientBotScore);
+
+                // Detect mismatches (server says bot, but client looks human - or vice versa)
+                var mismatch = (serverIsBot && clientBotScore < 0.3) || (!serverIsBot && clientBotScore > 0.7);
+                if (mismatch)
+                {
+                    Log.Warning("[CLIENT-SIDE-MISMATCH] Server detection ({ServerIsBot}) conflicts with client score ({ClientScore:F2})",
+                        serverIsBot, clientBotScore);
+                }
+
+                // Publish learning event for pattern improvement
+                if (eventBus != null)
+                {
+                    var learningEvent = new LearningEvent
+                    {
+                        Type = LearningEventType.ClientSideValidation,
+                        Source = "ClientSideCallback",
+                        Timestamp = DateTimeOffset.UtcNow,
+                        Label = serverIsBot,  // Server's verdict
+                        Confidence = clientBotScore,  // Client-side bot score
+                        Metadata = new Dictionary<string, object>
+                        {
+                            ["ipAddress"] = context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                            ["userAgent"] = root.TryGetProperty("userAgent", out var ua) ? ua.GetString() ?? "" : "",
+                            ["serverIsBot"] = serverIsBot,
+                            ["serverProbability"] = serverProbability,
+                            ["clientBotScore"] = clientBotScore,
+                            ["hasCanvas"] = hasCanvas,
+                            ["hasWebGL"] = hasWebGL,
+                            ["hasAudioContext"] = hasAudioContext,
+                            ["pluginCount"] = pluginCount,
+                            ["hardwareConcurrency"] = hardwareConcurrency,
+                            ["mismatch"] = mismatch
+                        }
+                    };
+
+                    if (eventBus.TryPublish(learningEvent))
+                    {
+                        Log.Debug("[CLIENT-SIDE-CALLBACK] Published learning event for client-side validation");
+                    }
+                    else
+                    {
+                        Log.Warning("[CLIENT-SIDE-CALLBACK] Failed to publish learning event (channel full?)");
+                    }
+                }
+            }
+
+            return Results.Text("{\"status\":\"accepted\",\"message\":\"Client-side detection result processed\"}", "application/json");
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to process client-side detection callback");
+            return Results.Text("{\"status\":\"error\",\"message\":\"Invalid request\"}", "application/json", statusCode: 400);
+        }
+    });
+
+    // Map YARP reverse proxy (catch-all, should be LAST)
+    app.MapReverseProxy();
 
     // Configure Kestrel to listen on specified port
     app.Urls.Add($"http://*:{port}");
@@ -204,6 +331,30 @@ finally
 }
 
 return 0;
+
+// Calculate client-side bot score based on browser fingerprinting checks
+static double CalculateClientBotScore(bool hasCanvas, bool hasWebGL, bool hasAudioContext, int pluginCount, int hardwareConcurrency)
+{
+    var score = 0.0;
+
+    // Headless browsers typically fail these checks
+    if (!hasCanvas) score += 0.30;  // Major red flag
+    if (!hasWebGL) score += 0.25;   // Very suspicious
+    if (!hasAudioContext) score += 0.15;  // Somewhat suspicious
+
+    // Real browsers typically have 1-5 plugins (though modern browsers have few)
+    if (pluginCount == 0) score += 0.10;  // Suspicious but not definitive
+
+    // Headless browsers often report 0 or suspiciously high values
+    if (hardwareConcurrency == 0) score += 0.10;
+    else if (hardwareConcurrency > 32) score += 0.05;  // Unusual but possible
+
+    // If all checks pass, give strong confidence it's a real browser
+    if (hasCanvas && hasWebGL && hasAudioContext && hardwareConcurrency > 0 && hardwareConcurrency <= 32)
+        score = Math.Max(0, score - 0.20);  // Bonus for passing all checks
+
+    return Math.Clamp(score, 0.0, 1.0);
+}
 
 // Demo mode: Full verbose logging with all signals
 static void LogDetectionDemo(
@@ -281,58 +432,26 @@ static void LogDetectionProduction(
         botName);
 }
 
-// Log bot signature in JSON-LD format (schema.org SecurityAction)
+// Log bot signature in JSON-LD format (schema.org SecurityAction) with ZERO-PII multi-factor signatures
 static void LogSignatureJsonLd(
     Microsoft.AspNetCore.Http.HttpContext context,
-    BotDetectionResult detection)
+    BotDetectionResult detection,
+    SignatureLoggingConfig config)
 {
-    var jsonLd = new
-    {
-        context = "https://schema.org",
-        type = "SecurityAction",
-        agent = new
-        {
-            type = "SoftwareApplication",
-            name = "Mostlylucid.BotDetection.Console",
-            version = "1.0.0"
-        },
-        actionStatus = "CompletedActionStatus",
-        result = new
-        {
-            type = "ThreatDetection",
-            detectedAt = DateTime.UtcNow.ToString("O"),
-            threatType = detection.BotType?.ToString() ?? "Unknown",
-            threatName = detection.BotName ?? "Unidentified",
-            confidenceScore = detection.ConfidenceScore,
-            riskLevel = detection.ConfidenceScore switch
-            {
-                >= 0.9 => "VeryHigh",
-                >= 0.7 => "High",
-                >= 0.5 => "Medium",
-                >= 0.3 => "Low",
-                _ => "VeryLow"
-            },
-            signature = new
-            {
-                requestPath = context.Request.Path.ToString(),
-                requestMethod = context.Request.Method,
-                userAgent = context.Request.Headers.UserAgent.ToString(),
-                remoteAddress = context.Connection.RemoteIpAddress?.ToString(),
-                protocol = context.Request.Protocol,
-                reasons = detection.Reasons?.Select(r => new
-                {
-                    category = r.Category,
-                    detail = r.Detail,
-                    impact = r.ConfidenceImpact
-                }).ToArray()
-            }
-        }
-    };
+    // Compute privacy-safe multi-factor signature hashes
+    var userAgent = context.Request.Headers.UserAgent.ToString();
+    var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    var referer = context.Request.Headers.Referer.ToString();
+    var xForwardedFor = context.Request.Headers["X-Forwarded-For"].ToString();
 
-    // Log to console
-    Log.Information("[JSON-LD-SIGNATURE] {@SignatureJsonLd}", jsonLd);
+    var multiFactorSig = ComputeMultiFactorSignature(
+        config.SignatureHashKey,
+        userAgent,
+        clientIp,
+        context.Request.Path.ToString(),
+        referer);
 
-    // Write to date-based JSONL file (manual JSON to avoid AOT serialization issues)
+    // Write to date-based JSONL file (manual JSON for AOT compatibility)
     try
     {
         var dateStr = DateTime.UtcNow.ToString("yyyy-MM-dd");
@@ -341,33 +460,66 @@ static void LogSignatureJsonLd(
         // Build JSON manually for AOT compatibility
         var reasonsJson = detection.Reasons != null
             ? string.Join(",", detection.Reasons.Select(r =>
-                $"{{\"category\":\"{EscapeJson(r.Category)}\",\"detail\":\"{EscapeJson(r.Detail)}\",\"impact\":{r.ConfidenceImpact}}}"))
+                BuildJsonObject(new Dictionary<string, object>
+                {
+                    ["category"] = r.Category,
+                    ["detail"] = r.Detail,
+                    ["impact"] = r.ConfidenceImpact
+                }, indent: config.PrettyPrintJsonLd ? 8 : 0)))
             : "";
 
-        var json = $"{{" +
-            $"\"@context\":\"https://schema.org\"," +
-            $"\"@type\":\"SecurityAction\"," +
-            $"\"agent\":{{\"@type\":\"SoftwareApplication\",\"name\":\"Mostlylucid.BotDetection.Console\",\"version\":\"1.0.0\"}}," +
-            $"\"actionStatus\":\"CompletedActionStatus\"," +
-            $"\"result\":{{" +
-                $"\"@type\":\"ThreatDetection\"," +
-                $"\"detectedAt\":\"{DateTime.UtcNow:O}\"," +
-                $"\"threatType\":\"{EscapeJson(detection.BotType?.ToString() ?? "Unknown")}\"," +
-                $"\"threatName\":\"{EscapeJson(detection.BotName ?? "Unidentified")}\"," +
-                $"\"confidenceScore\":{detection.ConfidenceScore}," +
-                $"\"riskLevel\":\"{(detection.ConfidenceScore >= 0.9 ? "VeryHigh" : detection.ConfidenceScore >= 0.7 ? "High" : detection.ConfidenceScore >= 0.5 ? "Medium" : detection.ConfidenceScore >= 0.3 ? "Low" : "VeryLow")}\"," +
-                $"\"signature\":{{" +
-                    $"\"requestPath\":\"{EscapeJson(context.Request.Path.ToString())}\"," +
-                    $"\"requestMethod\":\"{context.Request.Method}\"," +
-                    $"\"userAgent\":\"{EscapeJson(context.Request.Headers.UserAgent.ToString())}\"," +
-                    $"\"remoteAddress\":\"{context.Connection.RemoteIpAddress}\"," +
-                    $"\"xForwardedFor\":\"{EscapeJson(context.Request.Headers["X-Forwarded-For"].ToString())}\"," +
-                    $"\"referer\":\"{EscapeJson(context.Request.Headers["Referer"].ToString())}\"," +
-                    $"\"protocol\":\"{context.Request.Protocol}\"," +
-                    $"\"reasons\":[{reasonsJson}]" +
-                $"}}" +
-            $"}}" +
-        $"}}";
+        var indent = config.PrettyPrintJsonLd;
+        var json = BuildJsonObject(new Dictionary<string, object>
+        {
+            ["@context"] = "https://schema.org",
+            ["@type"] = "SecurityAction",
+            ["agent"] = new Dictionary<string, object>
+            {
+                ["@type"] = "SoftwareApplication",
+                ["name"] = "Mostlylucid.BotDetection.Console",
+                ["version"] = "1.0.0"
+            },
+            ["actionStatus"] = "CompletedActionStatus",
+            ["result"] = new Dictionary<string, object>
+            {
+                ["@type"] = "ThreatDetection",
+                ["detectedAt"] = DateTime.UtcNow.ToString("O"),
+                ["threatType"] = detection.BotType?.ToString() ?? "Unknown",
+                ["threatName"] = detection.BotName ?? "Unidentified",
+                ["confidenceScore"] = detection.ConfidenceScore,
+                ["riskLevel"] = detection.ConfidenceScore switch
+                {
+                    >= 0.9 => "VeryHigh",
+                    >= 0.7 => "High",
+                    >= 0.5 => "Medium",
+                    >= 0.3 => "Low",
+                    _ => "VeryLow"
+                },
+                ["multiFactorSignature"] = new Dictionary<string, object>
+                {
+                    ["primary"] = multiFactorSig.Primary,
+                    ["ip"] = multiFactorSig.IpHash,
+                    ["ua"] = multiFactorSig.UaHash,
+                    ["path"] = multiFactorSig.PathHash,
+                    ["referer"] = multiFactorSig.RefererHash
+                },
+                ["requestContext"] = new Dictionary<string, object>
+                {
+                    ["path"] = context.Request.Path.ToString(),
+                    ["method"] = context.Request.Method,
+                    ["protocol"] = context.Request.Protocol,
+                    ["hasReferer"] = !string.IsNullOrEmpty(referer),
+                    ["hasXForwardedFor"] = !string.IsNullOrEmpty(xForwardedFor)
+                },
+                ["reasons"] = $"[{reasonsJson}]"
+            }
+        }, indent: indent ? 0 : 0);
+
+        // Log to console (structured)
+        Log.Information("[JSON-LD-SIGNATURE] Primary signature: {PrimarySignature}, Confidence: {Confidence:F2}, Type: {ThreatType}",
+            multiFactorSig.Primary,
+            detection.ConfidenceScore,
+            detection.BotType?.ToString() ?? "Unknown");
 
         File.AppendAllText(filename, json + Environment.NewLine);
     }
@@ -394,4 +546,106 @@ static string? GetArg(string[] args, string name)
         }
     }
     return null;
+}
+
+// Compute multi-factor signature using HMAC-SHA256 for zero-PII logging
+static MultiFactorSignature ComputeMultiFactorSignature(
+    string secretKey,
+    string userAgent,
+    string clientIp,
+    string path,
+    string referer)
+{
+    var keyBytes = Encoding.UTF8.GetBytes(secretKey);
+
+    return new MultiFactorSignature
+    {
+        Primary = ComputeHmacHash(keyBytes, $"{userAgent}|{clientIp}|{path}"),
+        UaHash = ComputeHmacHash(keyBytes, userAgent),
+        IpHash = ComputeHmacHash(keyBytes, clientIp),
+        PathHash = ComputeHmacHash(keyBytes, path),
+        RefererHash = string.IsNullOrEmpty(referer) ? "none" : ComputeHmacHash(keyBytes, referer)
+    };
+}
+
+// Compute HMAC-SHA256 hash and return truncated hex string
+static string ComputeHmacHash(byte[] key, string input)
+{
+    if (string.IsNullOrEmpty(input))
+        return "unknown";
+
+    using var hmac = new HMACSHA256(key);
+    var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(input));
+
+    // Truncate to 128 bits (16 bytes) for compact, collision-resistant IDs
+    return Convert.ToHexString(hash[..16]).ToLowerInvariant();
+}
+
+// Build JSON object with optional pretty-printing (AOT-compatible)
+static string BuildJsonObject(Dictionary<string, object> obj, int indent = 0)
+{
+    var sb = new StringBuilder();
+    var prefix = indent > 0 ? new string(' ', indent) : "";
+    var innerPrefix = indent > 0 ? new string(' ', indent + 2) : "";
+    var nl = indent > 0 ? "\n" : "";
+
+    sb.Append('{');
+    if (indent > 0) sb.Append('\n');
+
+    var items = obj.ToList();
+    for (int i = 0; i < items.Count; i++)
+    {
+        var kvp = items[i];
+        if (indent > 0) sb.Append(innerPrefix);
+
+        sb.Append('"').Append(EscapeJson(kvp.Key)).Append("\":");
+        if (indent > 0) sb.Append(' ');
+
+        if (kvp.Value is string str)
+        {
+            sb.Append('"').Append(EscapeJson(str)).Append('"');
+        }
+        else if (kvp.Value is double d)
+        {
+            sb.Append(d.ToString("0.0###############"));
+        }
+        else if (kvp.Value is bool b)
+        {
+            sb.Append(b ? "true" : "false");
+        }
+        else if (kvp.Value is Dictionary<string, object> nested)
+        {
+            sb.Append(BuildJsonObject(nested, indent > 0 ? indent + 2 : 0));
+        }
+        else
+        {
+            sb.Append(kvp.Value?.ToString() ?? "null");
+        }
+
+        if (i < items.Count - 1) sb.Append(',');
+        if (indent > 0) sb.Append('\n');
+    }
+
+    if (indent > 0) sb.Append(prefix);
+    sb.Append('}');
+    return sb.ToString();
+}
+
+// Configuration for signature logging
+record SignatureLoggingConfig
+{
+    public bool Enabled { get; init; }
+    public double MinConfidence { get; init; }
+    public bool PrettyPrintJsonLd { get; init; }
+    public required string SignatureHashKey { get; init; }
+}
+
+// Multi-factor signature with privacy-safe HMAC hashes
+record MultiFactorSignature
+{
+    public required string Primary { get; init; }      // Combined hash
+    public required string UaHash { get; init; }       // User-Agent hash
+    public required string IpHash { get; init; }       // IP address hash
+    public required string PathHash { get; init; }     // Request path hash
+    public required string RefererHash { get; init; }  // Referer hash
 }
