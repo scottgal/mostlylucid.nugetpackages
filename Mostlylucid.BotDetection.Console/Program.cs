@@ -246,68 +246,16 @@ try
     // Health check endpoint (AOT-compatible) - mapped BEFORE YARP to avoid being proxied
     app.MapGet("/health", () => Results.Text($"{{\"status\":\"healthy\",\"mode\":\"{mode}\",\"upstream\":\"{upstream}\",\"port\":\"{port}\"}}", "application/json"));
 
-    // Demo mode: Show info page at root
-    if (mode.Equals("demo", StringComparison.OrdinalIgnoreCase))
+    // Learning endpoint - Active in demo and learning modes (demo is default)
+    // MUST be mapped BEFORE YARP to avoid being proxied
+    if (mode.Equals("demo", StringComparison.OrdinalIgnoreCase) || mode.Equals("learning", StringComparison.OrdinalIgnoreCase))
     {
-        app.MapGet("/", () => Results.Content($$"""
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Stylobot Mini Gateway - Demo Mode</title>
-    <style>
-        body { font-family: system-ui; max-width: 800px; margin: 50px auto; padding: 20px; background: #f5f5f5; }
-        h1 { color: #2563eb; }
-        .info { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
-        code { background: #e5e7eb; padding: 2px 6px; border-radius: 3px; }
-        pre { background: #1f2937; color: #f3f4f6; padding: 15px; border-radius: 5px; overflow-x: auto; }
-    </style>
-</head>
-<body>
-    <h1>🤖 Stylobot Mini Gateway</h1>
-    <div class="info">
-        <h2>Demo Mode Active</h2>
-        <p><strong>Mode:</strong> {{mode}}</p>
-        <p><strong>Port:</strong> {{port}}</p>
-        <p><strong>Upstream:</strong> {{upstream}}</p>
-    </div>
-    <div class="info">
-        <h2>Available Endpoints</h2>
-        <ul>
-            <li><code>GET /health</code> - Health check</li>
-            <li><code>POST /api/bot-detection/client-result</code> - Client-side detection callback</li>
-            <li><code>{**catch-all}</code> - Proxies to upstream ({{upstream}})</li>
-        </ul>
-    </div>
-    <div class="info">
-        <h2>Modes</h2>
-        <pre>--mode demo       Show this page (default)
---mode learning   Enable /stylobot-learning/ endpoint
---mode production Proxy all requests</pre>
-    </div>
-    <div class="info">
-        <h2>Bot Detection</h2>
-        <p>This gateway applies bot detection to all proxied requests. Detection results are added as headers:</p>
-        <ul>
-            <li><code>X-Bot-Detection</code> - true/false</li>
-            <li><code>X-Bot-Probability</code> - 0.00 to 1.00</li>
-            <li><code>X-Bot-Type</code> - Bot category</li>
-            <li><code>X-Bot-Name</code> - Known bot name</li>
-        </ul>
-    </div>
-</body>
-</html>
-""", "text/html"));
-    }
-
-    // Learning endpoint - ONLY active in learning mode
-    if (mode.Equals("learning", StringComparison.OrdinalIgnoreCase))
-    {
-        Log.Information("Learning mode enabled - /stylobot-learning/ endpoint active");
+        Log.Information("Signature learning endpoint enabled - /stylobot-learning/ active (mode: {Mode})", mode);
 
         // Supports status code simulation via path markers: /404/, /403/, /500/, etc.
         // Example: /stylobot-learning/404/admin.php -> returns 404
         // Example: /stylobot-learning/products -> returns 200
-        app.MapFallback("/stylobot-learning/{**path}", (HttpContext context) =>
+        app.MapMethods("/stylobot-learning/{**path}", new[] { "GET", "POST", "HEAD", "PUT", "DELETE", "PATCH" }, (HttpContext context) =>
     {
         // Use actual request path instead of route values to avoid double prefix
         var requestPath = context.Request.Path.Value ?? "/";
