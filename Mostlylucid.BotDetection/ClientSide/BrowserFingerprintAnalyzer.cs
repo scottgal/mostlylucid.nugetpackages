@@ -157,9 +157,7 @@ public class BrowserFingerprintAnalyzer : IBrowserFingerprintAnalyzer
 
         // No device memory (older API but still an indicator)
         if (data.DeviceMemory == 0 && !platformLower.Contains("iphone") && !platformLower.Contains("ipad"))
-        {
             integrityDeductions += 5;
-        }
 
         // ===== Generate Fingerprint Hash =====
         result.FingerprintHash = GenerateFingerprintHash(data);
@@ -222,9 +220,7 @@ public class BrowserFingerprintAnalyzer : IBrowserFingerprintAnalyzer
             if (parts.Length >= 2 &&
                 int.TryParse(parts[0], out var width) &&
                 width > 2000)
-            {
                 score -= 20;
-            }
         }
 
         // Desktop platform but has touch
@@ -232,22 +228,14 @@ public class BrowserFingerprintAnalyzer : IBrowserFingerprintAnalyzer
             !platformLower.Contains("arm") &&
             data.HasTouch == 1 &&
             data.DevicePixelRatio == 1)
-        {
             // Touch on desktop with DPR 1 is uncommon but not impossible
             score -= 5;
-        }
 
         // Missing timezone (very unusual)
-        if (string.IsNullOrEmpty(data.Timezone))
-        {
-            score -= 15;
-        }
+        if (string.IsNullOrEmpty(data.Timezone)) score -= 15;
 
         // Missing language (very unusual)
-        if (string.IsNullOrEmpty(data.Language))
-        {
-            score -= 15;
-        }
+        if (string.IsNullOrEmpty(data.Language)) score -= 15;
 
         // DPR of exactly 1 with high-res screen (unusual for modern displays)
         if (data.DevicePixelRatio == 1 &&
@@ -257,9 +245,7 @@ public class BrowserFingerprintAnalyzer : IBrowserFingerprintAnalyzer
             if (parts.Length >= 2 &&
                 int.TryParse(parts[0], out var width) &&
                 width > 2560)
-            {
                 score -= 10;
-            }
         }
 
         return Math.Max(0, score);

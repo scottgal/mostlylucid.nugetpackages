@@ -105,20 +105,17 @@ public sealed record DetectionPolicy
 
     /// <summary>
     ///     Creates the default policy - a sensible baseline that can be overridden via JSON config.
-    ///
     ///     This is a FALLBACK - define your policy in appsettings.json for full control:
-    ///
     ///     "Policies": {
-    ///       "default": {
-    ///         "FastPath": ["UserAgent", "Header", "Ip", "Behavioral", "ClientSide", "Inconsistency"],
-    ///         "AiPath": ["Onnx"],  // Add any AI detectors here for sync decision
-    ///         "EscalateToAi": true,
-    ///         "AiEscalationThreshold": 0.0,
-    ///         "EarlyExitThreshold": 0.85,
-    ///         "ImmediateBlockThreshold": 0.95
-    ///       }
+    ///     "default": {
+    ///     "FastPath": ["UserAgent", "Header", "Ip", "Behavioral", "ClientSide", "Inconsistency"],
+    ///     "AiPath": ["Onnx"],  // Add any AI detectors here for sync decision
+    ///     "EscalateToAi": true,
+    ///     "AiEscalationThreshold": 0.0,
+    ///     "EarlyExitThreshold": 0.85,
+    ///     "ImmediateBlockThreshold": 0.95
     ///     }
-    ///
+    ///     }
     ///     LEARNING: Async background service queues uncertain requests for full AI analysis.
     /// </summary>
     public static DetectionPolicy Default => new()
@@ -126,7 +123,11 @@ public sealed record DetectionPolicy
         Name = "default",
         Description = "Fast path with early bailout and reputation cache",
         // All static/fast detectors - includes reputation for instant allow/block
-        FastPathDetectors = ["FastPathReputation", "UserAgent", "Header", "Ip", "SecurityTool", "Behavioral", "ClientSide", "Inconsistency", "VersionAge"],
+        FastPathDetectors =
+        [
+            "FastPathReputation", "UserAgent", "Header", "Ip", "SecurityTool", "Behavioral", "ClientSide",
+            "Inconsistency", "VersionAge"
+        ],
         SlowPathDetectors = [],
         AiPathDetectors = [], // Empty by default - add ONNX/LLM/others via JSON config
         ResponsePathDetectors = ["ResponseBehavior"], // Track response patterns for learning
@@ -237,7 +238,7 @@ public sealed record DetectionPolicy
         UseFastPath = true,
         ForceSlowPath = false,
         EscalateToAi = false,
-        EarlyExitThreshold = 0.95,  // Almost always exit early (95%+ confidence required to continue)
+        EarlyExitThreshold = 0.95, // Almost always exit early (95%+ confidence required to continue)
         ImmediateBlockThreshold = 0.999, // 99.9% confidence required to block
         WeightOverrides = new Dictionary<string, double>
         {
@@ -459,24 +460,34 @@ public sealed record PolicyTransition
     public string? ActionPolicyName { get; init; }
 
     /// <summary>Creates a transition triggered by a signal</summary>
-    public static PolicyTransition OnSignal(string signalKey, string goToPolicy) =>
-        new() { WhenSignal = signalKey, GoToPolicy = goToPolicy };
+    public static PolicyTransition OnSignal(string signalKey, string goToPolicy)
+    {
+        return new PolicyTransition { WhenSignal = signalKey, GoToPolicy = goToPolicy };
+    }
 
     /// <summary>Creates a transition triggered by a signal that takes an action</summary>
-    public static PolicyTransition OnSignal(string signalKey, PolicyAction action) =>
-        new() { WhenSignal = signalKey, Action = action };
+    public static PolicyTransition OnSignal(string signalKey, PolicyAction action)
+    {
+        return new PolicyTransition { WhenSignal = signalKey, Action = action };
+    }
 
     /// <summary>Creates a transition triggered by high risk</summary>
-    public static PolicyTransition OnHighRisk(double threshold, string goToPolicy) =>
-        new() { WhenRiskExceeds = threshold, GoToPolicy = goToPolicy };
+    public static PolicyTransition OnHighRisk(double threshold, string goToPolicy)
+    {
+        return new PolicyTransition { WhenRiskExceeds = threshold, GoToPolicy = goToPolicy };
+    }
 
     /// <summary>Creates a transition triggered by low risk</summary>
-    public static PolicyTransition OnLowRisk(double threshold, string goToPolicy) =>
-        new() { WhenRiskBelow = threshold, GoToPolicy = goToPolicy };
+    public static PolicyTransition OnLowRisk(double threshold, string goToPolicy)
+    {
+        return new PolicyTransition { WhenRiskBelow = threshold, GoToPolicy = goToPolicy };
+    }
 
     /// <summary>Creates a transition triggered by high risk that takes an action</summary>
-    public static PolicyTransition OnHighRisk(double threshold, PolicyAction action) =>
-        new() { WhenRiskExceeds = threshold, Action = action };
+    public static PolicyTransition OnHighRisk(double threshold, PolicyAction action)
+    {
+        return new PolicyTransition { WhenRiskExceeds = threshold, Action = action };
+    }
 }
 
 /// <summary>

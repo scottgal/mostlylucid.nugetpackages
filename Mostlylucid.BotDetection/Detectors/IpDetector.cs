@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Data;
-using Mostlylucid.BotDetection.Helpers;
 using Mostlylucid.BotDetection.Metrics;
 using Mostlylucid.BotDetection.Models;
 
@@ -17,9 +16,9 @@ namespace Mostlylucid.BotDetection.Detectors;
 public class IpDetector : IDetector
 {
     private readonly ILogger<IpDetector> _logger;
+    private readonly BotDetectionMetrics? _metrics;
     private readonly BotDetectionOptions _options;
     private readonly ICompiledPatternCache? _patternCache;
-    private readonly BotDetectionMetrics? _metrics;
 
     // Pre-parsed static CIDR ranges (parsed once at construction)
     private readonly List<ParsedCidrRange> _staticCidrRanges;
@@ -38,16 +37,10 @@ public class IpDetector : IDetector
         // Pre-parse static CIDR ranges at construction time
         _staticCidrRanges = new List<ParsedCidrRange>();
         foreach (var prefix in _options.DatacenterIpPrefixes)
-        {
             if (ParsedCidrRange.TryParse(prefix, out var range) && range != null)
-            {
                 _staticCidrRanges.Add(range);
-            }
             else
-            {
                 _logger.LogWarning("Failed to parse static CIDR prefix: {Prefix}", prefix);
-            }
-        }
     }
 
     public string Name => "IP Detector";
@@ -72,7 +65,6 @@ public class IpDetector : IDetector
 
             // Check downloaded cloud provider IP ranges first (most accurate)
             if (_patternCache != null && _patternCache.DownloadedCidrRanges.Count > 0)
-            {
                 if (_patternCache.IsInAnyCidrRange(ipAddress, out var matchedRange))
                 {
                     confidence += 0.5;
@@ -84,7 +76,6 @@ public class IpDetector : IDetector
                         ConfidenceImpact = 0.5
                     });
                 }
-            }
 
             // Check static datacenter ranges (pre-parsed for speed)
             if (confidence == 0 && IsDatacenterIp(ipAddress, out var datacenterRange))
@@ -138,7 +129,8 @@ public class IpDetector : IDetector
         finally
         {
             stopwatch.Stop();
-            _metrics?.RecordDetection(result.Confidence, result.Confidence > _options.BotThreshold, stopwatch.Elapsed, Name);
+            _metrics?.RecordDetection(result.Confidence, result.Confidence > _options.BotThreshold, stopwatch.Elapsed,
+                Name);
         }
     }
 
@@ -163,13 +155,11 @@ public class IpDetector : IDetector
 
         // Use pre-parsed ranges for fast matching
         foreach (var range in _staticCidrRanges)
-        {
             if (range.Contains(ipAddress))
             {
                 matchedRange = range.OriginalCidr;
                 return true;
             }
-        }
 
         return false;
     }

@@ -11,8 +11,8 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// </summary>
 public class BehavioralContributor : ContributingDetectorBase
 {
-    private readonly ILogger<BehavioralContributor> _logger;
     private readonly BehavioralDetector _detector;
+    private readonly ILogger<BehavioralContributor> _logger;
 
     public BehavioralContributor(
         ILogger<BehavioralContributor> logger,
@@ -39,7 +39,6 @@ public class BehavioralContributor : ContributingDetectorBase
             var result = await _detector.DetectAsync(state.HttpContext, cancellationToken);
 
             if (result.Reasons.Count == 0)
-            {
                 // No behavioral issues detected - add negative signal (human indicator)
                 contributions.Add(new DetectionContribution
                 {
@@ -51,12 +50,9 @@ public class BehavioralContributor : ContributingDetectorBase
                     Signals = ImmutableDictionary<string, object>.Empty
                         .Add(SignalKeys.BehavioralAnomalyDetected, false)
                 });
-            }
             else
-            {
                 // Convert each reason to a contribution
                 foreach (var reason in result.Reasons)
-                {
                     contributions.Add(new DetectionContribution
                     {
                         DetectorName = Name,
@@ -67,10 +63,9 @@ public class BehavioralContributor : ContributingDetectorBase
                         BotType = result.BotType,
                         Signals = ImmutableDictionary<string, object>.Empty
                             .Add(SignalKeys.BehavioralAnomalyDetected, true)
-                            .Add(SignalKeys.BehavioralRateExceeded, reason.Detail.Contains("rate", StringComparison.OrdinalIgnoreCase))
+                            .Add(SignalKeys.BehavioralRateExceeded,
+                                reason.Detail.Contains("rate", StringComparison.OrdinalIgnoreCase))
                     });
-                }
-            }
         }
         catch (Exception ex)
         {

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Dashboard;
@@ -8,32 +9,27 @@ namespace Mostlylucid.BotDetection.Orchestration;
 
 /// <summary>
 ///     Fast-path signature matcher for FIRST-HIT detection using multi-factor signatures.
-///
 ///     ARCHITECTURE:
 ///     - Runs BEFORE expensive detectors (Wave 0, Priority 1)
 ///     - Extracts server-side signature factors ONLY (IP + UA)
 ///     - Client-side factors (Canvas, WebGL, etc.) come LATER via postback
 ///     - Uses weighted scoring to avoid false positives
 ///     - Guards against accidental matches (requires minimum confidence)
-///
 ///     SIGNATURE FACTORS (Server-Side Only):
 ///     1. Primary: HMAC(IP + UA) - exact match required (100% confidence)
 ///     2. IP: HMAC(IP) - handles UA changes (50% weight)
 ///     3. UA: HMAC(UA) - handles IP changes (50% weight)
 ///     4. IP Subnet: HMAC(IP /24) - same network (30% weight)
-///
 ///     CLIENT-SIDE FACTORS (Postback Only):
 ///     - ClientSide: HMAC(Canvas+WebGL+AudioContext) - browser fingerprint (80% weight)
 ///     - Plugin: HMAC(Plugins+Extensions+Fonts) - browser config (60% weight)
-///
 ///     WEIGHTED SCORING (Guards Against False Positives):
 ///     - Require PRIMARY match (100%) OR
 ///     - Require 2+ factors with min combined weight of 100% OR
 ///     - Require 3+ factors with min combined weight of 80%
-///
 ///     EXAMPLE FALSE POSITIVE PREVENTION:
 ///     - Same IP + Same UA BUT different users in office → NO MATCH
-///       (Primary differs due to subtle UA variations, need client-side to confirm)
+///     (Primary differs due to subtle UA variations, need client-side to confirm)
 ///     - IP match only (weight 50%) → NO MATCH (too low confidence)
 ///     - UA match only (weight 50%) → NO MATCH (too low confidence)
 ///     - IP + UA match (weight 100%) → MATCH (equivalent to Primary)
@@ -41,10 +37,10 @@ namespace Mostlylucid.BotDetection.Orchestration;
 /// </summary>
 public sealed class FastPathSignatureMatcher
 {
-    private readonly MultiFactorSignatureService _signatureService;
     private readonly ILogger<FastPathSignatureMatcher> _logger;
-    private readonly Func<string, CancellationToken, Task<StoredSignature?>>? _signatureLookup;
     private readonly SignatureMatchingOptions _options;
+    private readonly Func<string, CancellationToken, Task<StoredSignature?>>? _signatureLookup;
+    private readonly MultiFactorSignatureService _signatureService;
 
     public FastPathSignatureMatcher(
         MultiFactorSignatureService signatureService,
@@ -61,7 +57,6 @@ public sealed class FastPathSignatureMatcher
     /// <summary>
     ///     Attempts fast-path signature matching using server-side factors only.
     ///     Returns match result with weighted confidence score.
-    ///
     ///     CRITICAL: This runs BEFORE client-side data is available!
     ///     Client-side factors (Canvas, WebGL) are updated via postback AFTER response.
     /// </summary>
@@ -96,7 +91,8 @@ public sealed class FastPathSignatureMatcher
             if (storedSignature == null)
             {
                 _logger.LogDebug("No stored signature found for {SignatureId}",
-                    currentSignatures.PrimarySignature.Substring(0, Math.Min(12, currentSignatures.PrimarySignature.Length)));
+                    currentSignatures.PrimarySignature.Substring(0,
+                        Math.Min(12, currentSignatures.PrimarySignature.Length)));
                 return null;
             }
 
@@ -114,7 +110,8 @@ public sealed class FastPathSignatureMatcher
             // Guard against false positives - require minimum confidence
             if (!matchResult.IsMatch)
             {
-                _logger.LogDebug("Signature match rejected - insufficient confidence: {Confidence:F1}% (need {MinConfidence:F1}%)",
+                _logger.LogDebug(
+                    "Signature match rejected - insufficient confidence: {Confidence:F1}% (need {MinConfidence:F1}%)",
                     matchResult.Confidence * 100, _options.MinWeightForMatch);
                 return null;
             }
@@ -137,7 +134,6 @@ public sealed class FastPathSignatureMatcher
 
     /// <summary>
     ///     Performs weighted multi-factor matching with false positive prevention.
-    ///
     ///     RULES (Priority Order):
     ///     1. Primary match → 100% confidence (exact same IP+UA)
     ///     2. IP + UA match → 100% confidence (equivalent to primary)
@@ -150,7 +146,7 @@ public sealed class FastPathSignatureMatcher
         MultiFactorSignatures stored)
     {
         var matchedFactors = new List<string>();
-        double totalWeight = 0.0;
+        var totalWeight = 0.0;
 
         // Check Primary (IP+UA composite)
         if (current.PrimarySignature == stored.PrimarySignature)
@@ -215,7 +211,8 @@ public sealed class FastPathSignatureMatcher
             explanation = $"{matchedFactors.Count} factors matched with {totalWeight:F0}% confidence";
         }
         // Rule 3: MinFactorsForWeakMatch+ factors with combined weight ≥MinWeightForWeakMatch (weak match)
-        else if (matchedFactors.Count >= _options.MinFactorsForWeakMatch && totalWeight >= _options.MinWeightForWeakMatch)
+        else if (matchedFactors.Count >= _options.MinFactorsForWeakMatch &&
+                 totalWeight >= _options.MinWeightForWeakMatch)
         {
             isMatch = true;
             matchType = MatchType.Partial;
@@ -256,7 +253,7 @@ public sealed class FastPathSignatureMatcher
 
         try
         {
-            var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(signaturesJson);
+            var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(signaturesJson);
             if (dict == null)
                 return null;
 

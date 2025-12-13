@@ -1,21 +1,21 @@
+using System.Text.Json;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using Mostlylucid.BotDetection.UI.Configuration;
 using Mostlylucid.BotDetection.UI.Models;
 using Mostlylucid.BotDetection.UI.Services;
-using System.Text.Json;
 
 namespace Mostlylucid.BotDetection.UI.Middleware;
 
 /// <summary>
-/// Middleware for handling Stylobot Dashboard routes.
-/// Serves the dashboard UI and API endpoints.
+///     Middleware for handling Stylobot Dashboard routes.
+///     Serves the dashboard UI and API endpoints.
 /// </summary>
 public class StyloBotDashboardMiddleware
 {
+    private readonly IDashboardEventStore _eventStore;
     private readonly RequestDelegate _next;
     private readonly StyloBotDashboardOptions _options;
-    private readonly IDashboardEventStore _eventStore;
 
     public StyloBotDashboardMiddleware(
         RequestDelegate next,
@@ -87,17 +87,14 @@ public class StyloBotDashboardMiddleware
     private async Task<bool> IsAuthorizedAsync(HttpContext context)
     {
         // Custom filter takes precedence
-        if (_options.AuthorizationFilter != null)
-        {
-            return await _options.AuthorizationFilter(context);
-        }
+        if (_options.AuthorizationFilter != null) return await _options.AuthorizationFilter(context);
 
         // Policy-based auth
         if (!string.IsNullOrEmpty(_options.RequireAuthorizationPolicy))
         {
             var authService = context.RequestServices
-                .GetService(typeof(Microsoft.AspNetCore.Authorization.IAuthorizationService))
-                as Microsoft.AspNetCore.Authorization.IAuthorizationService;
+                    .GetService(typeof(IAuthorizationService))
+                as IAuthorizationService;
 
             if (authService != null)
             {
@@ -236,18 +233,16 @@ public class StyloBotDashboardMiddleware
 
         // Rows
         foreach (var d in detections)
-        {
             await writer.WriteLineAsync(
                 $"{d.RequestId},{d.Timestamp:O},{d.IsBot},{d.BotProbability},{d.Confidence}," +
                 $"{d.RiskBand},{d.BotType},{d.BotName},{d.Action},{d.Method},{d.Path}," +
                 $"{d.StatusCode},{d.ProcessingTimeMs}");
-        }
     }
 }
 
 /// <summary>
-/// HTML template for the dashboard page.
-/// Uses DaisyUI, HTMX, Alpine, ECharts, and Tabulator.
+///     HTML template for the dashboard page.
+///     Uses DaisyUI, HTMX, Alpine, ECharts, and Tabulator.
 /// </summary>
 internal static class DashboardHtmlTemplate
 {

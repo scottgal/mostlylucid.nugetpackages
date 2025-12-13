@@ -1,5 +1,7 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
-using Mostlylucid.BotDetection.Models;
+using Microsoft.AspNetCore.Http.Features;
+using Mostlylucid.BotDetection.Orchestration;
 
 namespace Mostlylucid.BotDetection.Extensions;
 
@@ -85,7 +87,6 @@ public static class YarpExtensions
     /// <summary>
     ///     Adds FULL bot detection headers including all metadata for UI display.
     ///     This includes: results, probabilities, reasons, detector contributions, YARP info, etc.
-    ///
     ///     USE THIS for comprehensive dashboard display behind YARP proxy.
     /// </summary>
     /// <param name="httpContext">The current HttpContext with bot detection results</param>
@@ -97,7 +98,7 @@ public static class YarpExtensions
 
         // Get aggregated evidence from context if available
         if (httpContext.Items.TryGetValue("BotDetection.Evidence", out var evidenceObj) &&
-            evidenceObj is Orchestration.AggregatedEvidence evidence)
+            evidenceObj is AggregatedEvidence evidence)
         {
             // Core detection results
             addHeader("X-Bot-Detection-Result", evidence.BotProbability > 0.5 ? "true" : "false");
@@ -133,7 +134,7 @@ public static class YarpExtensions
 
             if (topReasons.Any())
             {
-                var reasonsJson = System.Text.Json.JsonSerializer.Serialize(topReasons);
+                var reasonsJson = JsonSerializer.Serialize(topReasons);
                 addHeader("X-Bot-Detection-Reasons", reasonsJson);
             }
 
@@ -143,20 +144,20 @@ public static class YarpExtensions
                 .Select(g => new
                 {
                     Name = g.Key,
-                    Category = g.First().Category,
+                    g.First().Category,
                     ConfidenceDelta = g.Sum(c => c.ConfidenceDelta),
                     Weight = g.Sum(c => c.Weight),
                     Contribution = g.Sum(c => c.ConfidenceDelta * c.Weight),
                     Reason = string.Join("; ", g.Select(c => c.Reason).Where(r => !string.IsNullOrEmpty(r))),
                     ExecutionTimeMs = g.Sum(c => c.ProcessingTimeMs),
-                    Priority = g.First().Priority
+                    g.First().Priority
                 })
                 .OrderByDescending(d => Math.Abs(d.Contribution))
                 .ToList();
 
             if (contributionsData.Any())
             {
-                var contributionsJson = System.Text.Json.JsonSerializer.Serialize(contributionsData);
+                var contributionsJson = JsonSerializer.Serialize(contributionsData);
                 addHeader("X-Bot-Detection-Contributions", contributionsJson);
             }
 
@@ -166,20 +167,14 @@ public static class YarpExtensions
 
         // Add signature ID if available (for demo/debug mode)
         if (httpContext.Items.TryGetValue("BotDetection.SignatureId", out var signatureId) && signatureId != null)
-        {
             addHeader("X-Signature-ID", signatureId.ToString()!);
-        }
 
         // YARP routing info (if available)
         if (httpContext.Items.TryGetValue("Yarp.Cluster", out var cluster) && cluster != null)
-        {
             addHeader("X-Bot-Detection-Cluster", cluster.ToString()!);
-        }
 
         if (httpContext.Items.TryGetValue("Yarp.Destination", out var dest) && dest != null)
-        {
             addHeader("X-Bot-Detection-Destination", dest.ToString()!);
-        }
     }
 
     /// <summary>
@@ -269,9 +264,8 @@ public static class YarpExtensions
         try
         {
             // Extract TLS information
-            var tlsFeature = httpContext.Features.Get<Microsoft.AspNetCore.Http.Features.ITlsConnectionFeature>();
+            var tlsFeature = httpContext.Features.Get<ITlsConnectionFeature>();
             if (tlsFeature != null)
-            {
                 // TLS protocol version (if available via connection info)
                 // Note: .NET's ITlsConnectionFeature doesn't expose protocol/cipher directly,
                 // but we can get the client certificate
@@ -280,7 +274,6 @@ public static class YarpExtensions
                     addHeader("X-TLS-Client-Cert-Issuer", tlsFeature.ClientCertificate.Issuer);
                     addHeader("X-TLS-Client-Cert-Subject", tlsFeature.ClientCertificate.Subject);
                 }
-            }
 
             // HTTP protocol version
             var protocol = httpContext.Request.Protocol;
@@ -289,10 +282,7 @@ public static class YarpExtensions
                 addHeader("X-HTTP-Protocol", protocol);
 
                 // Set HTTP/2 flag if applicable
-                if (protocol.StartsWith("HTTP/2", StringComparison.OrdinalIgnoreCase))
-                {
-                    addHeader("X-Is-HTTP2", "true");
-                }
+                if (protocol.StartsWith("HTTP/2", StringComparison.OrdinalIgnoreCase)) addHeader("X-Is-HTTP2", "true");
             }
 
             // TCP/IP information from connection
@@ -335,7 +325,6 @@ public static class YarpExtensions
             // - X-TCP-Options: TCP options string
             // - X-TCP-MSS: Maximum segment size
             // - X-HTTP2-Settings: HTTP/2 SETTINGS frame
-
         }
         catch (Exception)
         {

@@ -8,11 +8,14 @@ namespace Mostlylucid.BotDetection.Orchestration.Lanes;
 /// </summary>
 internal sealed class ReputationLane : AnalysisLaneBase
 {
-    public ReputationLane(SignalSink sink) : base(sink) { }
+    public ReputationLane(SignalSink sink) : base(sink)
+    {
+    }
 
     public override string Name => "reputation";
 
-    public override Task AnalyzeAsync(IReadOnlyList<OperationCompleteSignal> window, CancellationToken cancellationToken = default)
+    public override Task AnalyzeAsync(IReadOnlyList<OperationCompleteSignal> window,
+        CancellationToken cancellationToken = default)
     {
         if (window.Count == 0)
         {

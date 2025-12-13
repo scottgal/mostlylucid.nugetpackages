@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -42,23 +41,20 @@ public class UserAgentContributor : ContributingDetectorBase
         var userAgent = state.UserAgent;
 
         if (string.IsNullOrWhiteSpace(userAgent))
-        {
             return Task.FromResult(Single(DetectionContribution.Bot(
                 Name, "UserAgent", 0.8,
                 "Missing User-Agent header",
                 BotType.Unknown)));
-        }
 
         var contributions = new List<DetectionContribution>();
 
         // Check for known good bots (whitelisted)
         var (isWhitelisted, whitelistName) = CheckWhitelist(userAgent);
         if (isWhitelisted)
-        {
             return Task.FromResult(Single(DetectionContribution.VerifiedGoodBot(
-                Name,
-                whitelistName!,
-                $"Whitelisted bot pattern: {whitelistName}")
+                    Name,
+                    whitelistName!,
+                    $"Whitelisted bot pattern: {whitelistName}")
                 with
                 {
                     Signals = ImmutableDictionary<string, object>.Empty
@@ -67,13 +63,11 @@ public class UserAgentContributor : ContributingDetectorBase
                         .Add(SignalKeys.UserAgentBotType, BotType.SearchEngine.ToString())
                         .Add(SignalKeys.UserAgentBotName, whitelistName!)
                 }));
-        }
 
         // Check for known bot patterns
         var (isBot, confidence, botType, botName, reason) = AnalyzeUserAgent(userAgent);
 
         if (isBot)
-        {
             contributions.Add(DetectionContribution.Bot(
                     Name, "UserAgent", confidence,
                     reason,
@@ -86,9 +80,7 @@ public class UserAgentContributor : ContributingDetectorBase
                         .Add(SignalKeys.UserAgentBotType, botType?.ToString() ?? "Unknown")
                         .Add(SignalKeys.UserAgentBotName, botName ?? "")
                 });
-        }
         else
-        {
             // Emit negative contribution (human-like) with signals for other detectors
             contributions.Add(new DetectionContribution
             {
@@ -101,7 +93,6 @@ public class UserAgentContributor : ContributingDetectorBase
                     .Add(SignalKeys.UserAgent, userAgent)
                     .Add(SignalKeys.UserAgentIsBot, false)
             });
-        }
 
         return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
     }
@@ -109,12 +100,9 @@ public class UserAgentContributor : ContributingDetectorBase
     private (bool isWhitelisted, string? name) CheckWhitelist(string userAgent)
     {
         foreach (var pattern in _options.WhitelistedBotPatterns)
-        {
             if (userAgent.Contains(pattern, StringComparison.OrdinalIgnoreCase))
-            {
                 return (true, pattern);
-            }
-        }
+
         return (false, null);
     }
 
@@ -123,25 +111,17 @@ public class UserAgentContributor : ContributingDetectorBase
     {
         // Check compiled patterns from data sources
         if (_patternCache != null)
-        {
             if (_patternCache.MatchesAnyPattern(userAgent, out var matchedPattern))
-            {
                 return (true, 0.9, BotType.Unknown, null,
                     $"Matched pattern: {matchedPattern}");
-            }
-        }
 
         // Check common bot indicators
         if (IsCommonBotPattern(userAgent, out var botType, out var botName))
-        {
             return (true, 0.9, botType, botName, $"Known bot pattern: {botName}");
-        }
 
         // Check for suspicious patterns
         if (IsSuspiciousUserAgent(userAgent, out var suspiciousReason))
-        {
             return (true, 0.6, BotType.Unknown, null, suspiciousReason);
-        }
 
         return (false, 0.0, null, null, "Normal user agent");
     }
@@ -169,18 +149,16 @@ public class UserAgentContributor : ContributingDetectorBase
             ("okhttp", BotType.Scraper, "OkHttp"),
             ("go-http-client", BotType.Scraper, "Go HTTP client"),
             ("node-fetch", BotType.Scraper, "node-fetch"),
-            ("axios/", BotType.Scraper, "axios"),
+            ("axios/", BotType.Scraper, "axios")
         };
 
         foreach (var (pattern, type, name) in patterns)
-        {
             if (userAgent.Contains(pattern, StringComparison.OrdinalIgnoreCase))
             {
                 botType = type;
                 botName = name;
                 return true;
             }
-        }
 
         botType = null;
         botName = null;
@@ -234,7 +212,7 @@ public class InconsistencyContributor : ContributingDetectorBase
     // Wait for UA and IP signals
     public override IReadOnlyList<TriggerCondition> TriggerConditions =>
     [
-        Triggers.WhenSignalExists(SignalKeys.UserAgent),
+        Triggers.WhenSignalExists(SignalKeys.UserAgent)
     ];
 
     public override Task<IReadOnlyList<DetectionContribution>> ContributeAsync(
@@ -249,51 +227,42 @@ public class InconsistencyContributor : ContributingDetectorBase
 
         // Check for datacenter IP + browser UA (common bot pattern)
         if (isDatacenter && LooksLikeBrowser(userAgent))
-        {
             contributions.Add(DetectionContribution.Bot(
                 Name, "Inconsistency", 0.7,
                 "Browser User-Agent from datacenter IP",
                 BotType.Unknown,
                 weight: 1.5)); // High weight for this signal
-        }
 
         // Check for missing Accept-Language with browser UA
         if (LooksLikeBrowser(userAgent) && !headers.ContainsKey("Accept-Language"))
-        {
             contributions.Add(DetectionContribution.Bot(
                 Name, "Inconsistency", 0.5,
                 "Browser User-Agent without Accept-Language header",
                 BotType.Unknown));
-        }
 
         // Check for Chrome UA without sec-ch-ua headers
         // Note: Service worker, fetch API, and some browser configurations may not send Client Hints
         // Only flag if path doesn't suggest legitimate browser request
         var path = state.HttpContext.Request.Path.Value?.ToLowerInvariant() ?? "";
         var isLegitimateNoHintsRequest = path.Contains("serviceworker") ||
-                                          path.Contains("sw.js") ||
-                                          path.Contains("worker");
+                                         path.Contains("sw.js") ||
+                                         path.Contains("worker");
 
         if (userAgent.Contains("Chrome/") && !headers.ContainsKey("sec-ch-ua") && !isLegitimateNoHintsRequest)
-        {
             // Reduced from 0.4 - Client Hints are not universally enabled
             contributions.Add(DetectionContribution.Bot(
                 Name, "Inconsistency", 0.2,
                 "Chrome User-Agent without Client Hints",
                 BotType.Scraper));
-        }
 
         // Check for modern browser claiming old version
         if (IsOutdatedBrowser(userAgent))
-        {
             contributions.Add(DetectionContribution.Bot(
                 Name, "Inconsistency", 0.3,
                 "Outdated browser version in User-Agent",
                 BotType.Unknown));
-        }
 
         if (contributions.Count == 0)
-        {
             // No inconsistencies found - add negative signal (human indicator)
             contributions.Add(new DetectionContribution
             {
@@ -303,25 +272,24 @@ public class InconsistencyContributor : ContributingDetectorBase
                 Weight = 0.8,
                 Reason = "No header/UA inconsistencies detected"
             });
-        }
 
         return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
     }
 
-    private static bool LooksLikeBrowser(string userAgent) =>
-        userAgent.Contains("Mozilla/") &&
-        (userAgent.Contains("Chrome") || userAgent.Contains("Firefox") ||
-         userAgent.Contains("Safari") || userAgent.Contains("Edge"));
+    private static bool LooksLikeBrowser(string userAgent)
+    {
+        return userAgent.Contains("Mozilla/") &&
+               (userAgent.Contains("Chrome") || userAgent.Contains("Firefox") ||
+                userAgent.Contains("Safari") || userAgent.Contains("Edge"));
+    }
 
     private static bool IsOutdatedBrowser(string userAgent)
     {
         // Check for very old Chrome versions
         var chromeMatch = Regex.Match(userAgent, @"Chrome/(\d+)");
         if (chromeMatch.Success && int.TryParse(chromeMatch.Groups[1].Value, out var version))
-        {
             // Chrome versions below 90 are considered very outdated
             return version < 90;
-        }
 
         return false;
     }
@@ -367,20 +335,16 @@ public class AiContributor : ContributingDetectorBase
         var currentRisk = state.CurrentRiskScore;
 
         if (currentRisk > 0.8)
-        {
             return Single(DetectionContribution.Bot(
                 Name, "AI", 0.2, // Small adjustment
                 "AI analysis confirms high-risk signals",
                 weight: 0.5));
-        }
 
         if (currentRisk > 0.5)
-        {
             // Uncertain - AI provides additional signal
             return Single(DetectionContribution.Info(
                 Name, "AI",
                 "AI analysis: borderline case, monitoring"));
-        }
 
         return None();
     }

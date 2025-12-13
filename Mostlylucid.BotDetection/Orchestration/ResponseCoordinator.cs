@@ -1,10 +1,9 @@
-using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.Ephemeral;
-using Mostlylucid.Ephemeral.Atoms.SlidingCache;
 using Mostlylucid.Ephemeral.Atoms.KeyedSequential;
+using Mostlylucid.Ephemeral.Atoms.SlidingCache;
 
 namespace Mostlylucid.BotDetection.Orchestration;
 
@@ -137,21 +136,20 @@ public readonly record struct ResponseAnalysisSignal(
 /// </summary>
 public sealed class ResponseCoordinator : IAsyncDisposable
 {
-    private readonly ILogger<ResponseCoordinator> _logger;
-    private readonly ResponseCoordinatorOptions _options;
-
-    // TTL-aware cache of client response tracking atoms
-    private readonly SlidingCacheAtom<string, ClientResponseTrackingAtom> _clientCache;
-
     // Per-client sequential processing
     private readonly KeyedSequentialAtom<ResponseSignal, string> _analysisAtom;
 
     // Signal sinks for observability
     private readonly TypedSignalSink<ResponseAnalysisSignal> _analysisSignals;
+
+    // TTL-aware cache of client response tracking atoms
+    private readonly SlidingCacheAtom<string, ClientResponseTrackingAtom> _clientCache;
     private readonly SignalSink _ephemeralSignals;
 
     // Feedback callback to heuristic system
     private readonly Action<string, double>? _heuristicFeedback;
+    private readonly ILogger<ResponseCoordinator> _logger;
+    private readonly ResponseCoordinatorOptions _options;
 
     public ResponseCoordinator(
         ILogger<ResponseCoordinator> logger,
@@ -164,8 +162,8 @@ public sealed class ResponseCoordinator : IAsyncDisposable
 
         // Initialize signal sinks
         _ephemeralSignals = new SignalSink(
-            maxCapacity: _options.MaxClientsInWindow * 10,
-            maxAge: _options.ResponseWindow);
+            _options.MaxClientsInWindow * 10,
+            _options.ResponseWindow);
 
         _analysisSignals = new TypedSignalSink<ResponseAnalysisSignal>(
             maxCapacity: 10000,
@@ -173,33 +171,42 @@ public sealed class ResponseCoordinator : IAsyncDisposable
 
         // Initialize client cache with TTL + LRU
         _clientCache = new SlidingCacheAtom<string, ClientResponseTrackingAtom>(
-            factory: async (clientId, ct) =>
+            async (clientId, ct) =>
             {
                 _logger.LogDebug("Creating new ClientResponseTrackingAtom for client: {ClientId}", clientId);
                 return await Task.FromResult(
                     new ClientResponseTrackingAtom(clientId, _options, _logger));
             },
-            slidingExpiration: _options.ClientTtl,
-            absoluteExpiration: _options.ClientTtl * 2,
-            maxSize: _options.MaxClientsInWindow,
-            maxConcurrency: Environment.ProcessorCount,
-            sampleRate: 10,
-            signals: _ephemeralSignals);
+            _options.ClientTtl,
+            _options.ClientTtl * 2,
+            _options.MaxClientsInWindow,
+            Environment.ProcessorCount,
+            10,
+            _ephemeralSignals);
 
         // Initialize sequential processing atom
         _analysisAtom = new KeyedSequentialAtom<ResponseSignal, string>(
-            keySelector: signal => signal.ClientId,
-            body: async (signal, ct) => await ProcessResponseSignalAsync(signal, ct),
-            maxConcurrency: Environment.ProcessorCount * 2,
-            perKeyConcurrency: 1,
-            enableFairScheduling: true,
-            signals: _ephemeralSignals);
+            signal => signal.ClientId,
+            async (signal, ct) => await ProcessResponseSignalAsync(signal, ct),
+            Environment.ProcessorCount * 2,
+            1,
+            true,
+            _ephemeralSignals);
 
         _logger.LogInformation(
             "ResponseCoordinator initialized: window={Window}, maxClients={MaxClients}, ttl={Ttl}",
             _options.ResponseWindow,
             _options.MaxClientsInWindow,
             _options.ClientTtl);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _analysisAtom.DrainAsync();
+        await _analysisAtom.DisposeAsync();
+        await _clientCache.DisposeAsync();
+
+        _logger.LogInformation("ResponseCoordinator disposed");
     }
 
     /// <summary>
@@ -248,7 +255,6 @@ public sealed class ResponseCoordinator : IAsyncDisposable
 
             // Emit analysis signal
             if (_options.EnableSignals)
-            {
                 _analysisSignals.Raise(
                     "response.analysis",
                     new ResponseAnalysisSignal(
@@ -257,8 +263,7 @@ public sealed class ResponseCoordinator : IAsyncDisposable
                         behavior.TotalResponses,
                         BuildReasonString(behavior),
                         DateTime.UtcNow),
-                    key: signal.ClientId);
-            }
+                    signal.ClientId);
 
             // Feed back into heuristic if score is significant
             if (behavior.ResponseScore > 0.3 && _heuristicFeedback != null)
@@ -273,7 +278,6 @@ public sealed class ResponseCoordinator : IAsyncDisposable
 
             // Log significant findings
             if (behavior.ResponseScore > 0.6)
-            {
                 _logger.LogWarning(
                     "High response score for {ClientId}: {Score:F2} " +
                     "(4xx={FourXx}, 404s={FourOhFour}, 5xx={FiveXx}, honeypot={Honeypot}, patterns={Patterns})",
@@ -284,7 +288,6 @@ public sealed class ResponseCoordinator : IAsyncDisposable
                     behavior.Count5xx,
                     behavior.HoneypotHits,
                     string.Join(",", behavior.PatternCounts.Keys));
-            }
         }
         catch (Exception ex)
         {
@@ -339,20 +342,9 @@ public sealed class ResponseCoordinator : IAsyncDisposable
             reasons.Add($"{behavior.AuthFailures} auth failures");
 
         foreach (var (pattern, count) in behavior.PatternCounts.Where(kvp => kvp.Value > 2))
-        {
             reasons.Add($"{count}x {pattern}");
-        }
 
         return reasons.Count > 0 ? string.Join("; ", reasons) : "normal behavior";
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        await _analysisAtom.DrainAsync();
-        await _analysisAtom.DisposeAsync();
-        await _clientCache.DisposeAsync();
-
-        _logger.LogInformation("ResponseCoordinator disposed");
     }
 }
 
@@ -362,11 +354,11 @@ public sealed class ResponseCoordinator : IAsyncDisposable
 internal sealed class ClientResponseTrackingAtom : IDisposable
 {
     private readonly string _clientId;
-    private readonly ResponseCoordinatorOptions _options;
+    private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly ILogger _logger;
+    private readonly ResponseCoordinatorOptions _options;
 
     private readonly LinkedList<ResponseSignal> _responses;
-    private readonly SemaphoreSlim _lock = new(1, 1);
 
     private ClientResponseBehavior? _cachedBehavior;
 
@@ -381,6 +373,11 @@ internal sealed class ClientResponseTrackingAtom : IDisposable
         _responses = new LinkedList<ResponseSignal>();
     }
 
+    public void Dispose()
+    {
+        _lock.Dispose();
+    }
+
     public async Task RecordResponseAsync(
         ResponseSignal signal,
         CancellationToken cancellationToken)
@@ -393,16 +390,10 @@ internal sealed class ClientResponseTrackingAtom : IDisposable
 
             // Evict old responses
             var cutoff = DateTimeOffset.UtcNow - _options.ResponseWindow;
-            while (_responses.Count > 0 && _responses.First!.Value.Timestamp < cutoff)
-            {
-                _responses.RemoveFirst();
-            }
+            while (_responses.Count > 0 && _responses.First!.Value.Timestamp < cutoff) _responses.RemoveFirst();
 
             // Enforce max responses
-            while (_responses.Count > _options.MaxResponsesPerClient)
-            {
-                _responses.RemoveFirst();
-            }
+            while (_responses.Count > _options.MaxResponsesPerClient) _responses.RemoveFirst();
 
             // Recompute behavior
             _cachedBehavior = ComputeBehavior();
@@ -433,7 +424,6 @@ internal sealed class ClientResponseTrackingAtom : IDisposable
     private ClientResponseBehavior ComputeBehavior()
     {
         if (_responses.Count == 0)
-        {
             return new ClientResponseBehavior
             {
                 ClientId = _clientId,
@@ -452,7 +442,6 @@ internal sealed class ClientResponseTrackingAtom : IDisposable
                 FirstSeen = DateTime.UtcNow,
                 LastSeen = DateTime.UtcNow
             };
-        }
 
         var responseList = _responses.ToList();
         var firstSeen = responseList.First().Timestamp.UtcDateTime;
@@ -482,12 +471,8 @@ internal sealed class ClientResponseTrackingAtom : IDisposable
         // Count pattern matches
         var patternCounts = new Dictionary<string, int>();
         foreach (var response in responseList)
-        {
-            foreach (var pattern in response.BodySummary.MatchedPatterns)
-            {
-                patternCounts[pattern] = patternCounts.GetValueOrDefault(pattern) + 1;
-            }
-        }
+        foreach (var pattern in response.BodySummary.MatchedPatterns)
+            patternCounts[pattern] = patternCounts.GetValueOrDefault(pattern) + 1;
 
         // Compute response score
         var responseScore = ComputeResponseScore(
@@ -541,7 +526,7 @@ internal sealed class ClientResponseTrackingAtom : IDisposable
         if (total < _options.MinResponsesForScoring)
             return 0.0;
 
-        double score = 0.0;
+        var score = 0.0;
         var weights = _options.FeatureWeights;
 
         // 4xx ratio (excluding normal 404s from old links)
@@ -585,10 +570,5 @@ internal sealed class ClientResponseTrackingAtom : IDisposable
             score += weights.AbuseFeedback * Math.Min(1.0, abusePatterns / 5.0);
 
         return Math.Min(score, 1.0);
-    }
-
-    public void Dispose()
-    {
-        _lock.Dispose();
     }
 }

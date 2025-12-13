@@ -12,15 +12,11 @@ using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Detectors;
 using Mostlylucid.BotDetection.Events;
 using Mostlylucid.BotDetection.Extensions;
-using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Middleware;
-using Mostlylucid.BotDetection.Orchestration;
+using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Services;
-using Xunit;
 using Xunit.Abstractions;
-
 // Resolve ambiguous RiskBand reference
-using RiskBand = Mostlylucid.BotDetection.Orchestration.RiskBand;
 
 namespace Mostlylucid.BotDetection.Orchestration.Tests.Integration;
 
@@ -51,9 +47,15 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
     {
         // Clean up test database
         if (File.Exists(_dbPath))
-        {
-            try { File.Delete(_dbPath); } catch { /* ignore */ }
-        }
+            try
+            {
+                File.Delete(_dbPath);
+            }
+            catch
+            {
+                /* ignore */
+            }
+
         return Task.CompletedTask;
     }
 
@@ -99,15 +101,13 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
         var store = new SqliteWeightStore(logger, options);
 
         // Act - Record multiple observations
-        for (int i = 0; i < 10; i++)
-        {
+        for (var i = 0; i < 10; i++)
             await store.RecordObservationAsync(
                 SignatureTypes.UaPattern,
                 "test-pattern",
-                wasBot: true,
-                detectionConfidence: 0.9,
+                true,
+                0.9,
                 CancellationToken.None);
-        }
 
         var weight = await store.GetWeightAsync(
             SignatureTypes.UaPattern,
@@ -144,8 +144,9 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
         var stats = await store.GetStatsAsync(CancellationToken.None);
 
         // Assert
-        _output.WriteLine($"Stats: Total={stats.TotalWeights}, UA={stats.UaPatternWeights}, IP={stats.IpRangeWeights}, " +
-                          $"Path={stats.PathPatternWeights}, Behavior={stats.BehaviorHashWeights}");
+        _output.WriteLine(
+            $"Stats: Total={stats.TotalWeights}, UA={stats.UaPatternWeights}, IP={stats.IpRangeWeights}, " +
+            $"Path={stats.PathPatternWeights}, Behavior={stats.BehaviorHashWeights}");
 
         Assert.Equal(5, stats.TotalWeights);
         Assert.Equal(2, stats.UaPatternWeights);
@@ -265,12 +266,21 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
             RiskBand = RiskBand.High,
             CategoryBreakdown = new Dictionary<string, CategoryScore>
             {
-                ["UserAgent"] = new() { Category = "UserAgent", Score = 0.8, Weight = 1.0, ContributionCount = 1, Reasons = ["Known bot"] },
-                ["Headers"] = new() { Category = "Headers", Score = 0.3, Weight = 0.8, ContributionCount = 1, Reasons = ["Missing headers"] },
-                ["Version"] = new() { Category = "Version", Score = 0.5, Weight = 0.6, ContributionCount = 1, Reasons = ["Outdated"] }
+                ["UserAgent"] = new()
+                {
+                    Category = "UserAgent", Score = 0.8, Weight = 1.0, ContributionCount = 1, Reasons = ["Known bot"]
+                },
+                ["Headers"] = new()
+                {
+                    Category = "Headers", Score = 0.3, Weight = 0.8, ContributionCount = 1,
+                    Reasons = ["Missing headers"]
+                },
+                ["Version"] = new()
+                    { Category = "Version", Score = 0.5, Weight = 0.6, ContributionCount = 1, Reasons = ["Outdated"] }
             },
             Signals = ImmutableDictionary<string, object>.Empty,
-            ContributingDetectors = new HashSet<string> { "User-Agent Detector", "Header Detector", "Version Age Detector" },
+            ContributingDetectors = new HashSet<string>
+                { "User-Agent Detector", "Header Detector", "Version Age Detector" },
             FailedDetectors = new HashSet<string>()
         };
 
@@ -288,10 +298,7 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
         Assert.True(features.Count > 0, "Should extract at least some features");
 
         // Log key features by prefix
-        foreach (var (key, value) in features.OrderBy(f => f.Key).Take(20))
-        {
-            _output.WriteLine($"{key}: {value:F3}");
-        }
+        foreach (var (key, value) in features.OrderBy(f => f.Key).Take(20)) _output.WriteLine($"{key}: {value:F3}");
 
         // Verify detector scores are present (dynamic keys based on detector names)
         Assert.True(features.ContainsKey("det:user-agent detector"), "Should have UA detector");
@@ -332,7 +339,8 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
             RiskBand = RiskBand.Medium,
             CategoryBreakdown = new Dictionary<string, CategoryScore>
             {
-                ["Test"] = new() { Category = "Test", Score = 0.6, Weight = 1.0, ContributionCount = 1, Reasons = ["Test"] }
+                ["Test"] = new()
+                    { Category = "Test", Score = 0.6, Weight = 1.0, ContributionCount = 1, Reasons = ["Test"] }
             },
             Signals = ImmutableDictionary<string, object>.Empty,
             ContributingDetectors = new HashSet<string> { "Single Detector" },
@@ -360,10 +368,7 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
         Assert.Equal(0.4f, features["result:bot_probability"], 0.01);
 
         _output.WriteLine($"Extracted {features.Count} features from minimal evidence");
-        foreach (var (key, value) in features.OrderBy(f => f.Key))
-        {
-            _output.WriteLine($"  {key}: {value:F3}");
-        }
+        foreach (var (key, value) in features.OrderBy(f => f.Key)) _output.WriteLine($"  {key}: {value:F3}");
     }
 
     [Fact]
@@ -371,7 +376,7 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
     {
         // Arrange
         var collector = new FakeLogCollector();
-        var bus = new LearningEventBus(capacity: 100);
+        var bus = new LearningEventBus(100);
         var receivedEvents = new List<LearningEvent>();
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
@@ -387,7 +392,7 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
         }, cts.Token);
 
         // Act - Publish events
-        for (int i = 0; i < 5; i++)
+        for (var i = 0; i < 5; i++)
         {
             var published = bus.TryPublish(new LearningEvent
             {
@@ -406,10 +411,7 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
         Assert.Equal(5, receivedEvents.Count);
         _output.WriteLine($"Received {receivedEvents.Count} events");
 
-        for (int i = 0; i < 5; i++)
-        {
-            Assert.Equal($"req-{i}", receivedEvents[i].RequestId);
-        }
+        for (var i = 0; i < 5; i++) Assert.Equal($"req-{i}", receivedEvents[i].RequestId);
     }
 
     [Fact]
@@ -445,7 +447,7 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
 
         // Assert - Check weights were recorded
         var stats = await weightStore.GetStatsAsync(CancellationToken.None);
-        _output.WriteLine($"Weight store stats after detection:");
+        _output.WriteLine("Weight store stats after detection:");
         _output.WriteLine($"  Total: {stats.TotalWeights}");
         _output.WriteLine($"  UA Patterns: {stats.UaPatternWeights}");
         _output.WriteLine($"  IP Ranges: {stats.IpRangeWeights}");
@@ -455,9 +457,7 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
         var logs = collector.GetSnapshot();
         _output.WriteLine($"\nCaptured {logs.Count} log entries");
         foreach (var log in logs.Where(l => l.Level >= LogLevel.Information).Take(10))
-        {
             _output.WriteLine($"  [{log.Level}] {log.Message}");
-        }
 
         // Should have recorded weights
         Assert.True(stats.TotalWeights > 0, "Expected weights to be recorded");
@@ -492,7 +492,8 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
 
         // Create context with outdated Chrome
         var context = new DefaultHttpContext();
-        context.Request.Headers.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.0.0 Safari/537.36";
+        context.Request.Headers.UserAgent =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.0.0 Safari/537.36";
 
         // Act
         var result = await detector.DetectAsync(context, CancellationToken.None);
@@ -500,9 +501,7 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
         // Assert
         _output.WriteLine($"Detection result: Confidence={result.Confidence:F3}");
         foreach (var reason in result.Reasons)
-        {
             _output.WriteLine($"  Reason: {reason.Category} - {reason.Detail} (+{reason.ConfidenceImpact:F2})");
-        }
 
         // Chrome 90 is severely outdated (41 versions behind Chrome 131)
         Assert.True(result.Confidence > 0, "Should detect outdated browser");
@@ -541,17 +540,15 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
 
         // Create context with impossible combination: Chrome 131 on Windows XP
         var context = new DefaultHttpContext();
-        context.Request.Headers.UserAgent = "Mozilla/5.0 (Windows NT 5.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+        context.Request.Headers.UserAgent =
+            "Mozilla/5.0 (Windows NT 5.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
         // Act
         var result = await detector.DetectAsync(context, CancellationToken.None);
 
         // Assert
         _output.WriteLine($"Detection result: Confidence={result.Confidence:F3}");
-        foreach (var reason in result.Reasons)
-        {
-            _output.WriteLine($"  Reason: {reason.Category} - {reason.Detail}");
-        }
+        foreach (var reason in result.Reasons) _output.WriteLine($"  Reason: {reason.Category} - {reason.Detail}");
 
         Assert.True(result.Confidence >= 0.5, "Should detect impossible combination");
         Assert.Contains(result.Reasons, r => r.Category == "ImpossibleCombination");
@@ -649,10 +646,7 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
         var logs = collector.GetSnapshot();
         var errors = logs.Where(l => l.Level >= LogLevel.Error).ToList();
 
-        foreach (var error in errors)
-        {
-            _output.WriteLine($"ERROR: {error.Message}");
-        }
+        foreach (var error in errors) _output.WriteLine($"ERROR: {error.Message}");
 
         Assert.Empty(errors); // No errors during startup
 
@@ -704,7 +698,7 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
 
         Assert.Empty(errors);
 
-        _output.WriteLine($"Simple bot detection test passed");
+        _output.WriteLine("Simple bot detection test passed");
     }
 
     private async Task<IHost> CreateTestHost()
@@ -717,15 +711,9 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
                     .ConfigureServices(services =>
                     {
                         services.AddRouting();
-                        services.AddBotDetection(options =>
-                        {
-                            options.DatabasePath = _dbPath;
-                        });
+                        services.AddBotDetection(options => { options.DatabasePath = _dbPath; });
                     })
-                    .Configure(app =>
-                    {
-                        app.UseRouting();
-                    });
+                    .Configure(app => { app.UseRouting(); });
             })
             .StartAsync();
 
@@ -748,15 +736,9 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
                     .ConfigureServices(services =>
                     {
                         services.AddRouting();
-                        services.AddBotDetection(options =>
-                        {
-                            options.DatabasePath = _dbPath;
-                        });
+                        services.AddBotDetection(options => { options.DatabasePath = _dbPath; });
                     })
-                    .Configure(app =>
-                    {
-                        app.UseRouting();
-                    });
+                    .Configure(app => { app.UseRouting(); });
             })
             .StartAsync();
 
@@ -805,5 +787,7 @@ public class FakeLoggerProvider : ILoggerProvider
         return new FakeLogger<object>(_collector);
     }
 
-    public void Dispose() { }
+    public void Dispose()
+    {
+    }
 }

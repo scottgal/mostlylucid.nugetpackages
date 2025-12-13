@@ -2,10 +2,8 @@ namespace Mostlylucid.BotDetection.Behavioral;
 
 /// <summary>
 ///     Configuration thresholds for mapping SignatureBehaviorState to BDF scenarios.
-///
 ///     These thresholds determine how behavioral metrics are interpreted when
 ///     generating synthetic test scenarios from observed signatures.
-///
 ///     NOTE: These are mapping heuristics, NOT detection thresholds.
 /// </summary>
 public sealed class SignatureToBdfMapperOptions

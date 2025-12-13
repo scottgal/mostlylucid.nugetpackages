@@ -1,6 +1,7 @@
 # Mostlylucid.BotDetection.Console
 
-Minimal, single-file YARP gateway with bot detection. Built on .NET 10 with Native AOT compilation and minimal APIs for maximum performance and minimal footprint.
+Minimal, single-file YARP gateway with bot detection. Built on .NET 10 with Native AOT compilation and minimal APIs for
+maximum performance and minimal footprint.
 
 ## Features
 
@@ -9,15 +10,19 @@ Minimal, single-file YARP gateway with bot detection. Built on .NET 10 with Nati
 - **Modern .NET 10** - Uses ASP.NET Core minimal APIs and latest runtime optimizations
 - **Signature tracking** - Stores high-confidence detections as HMAC-SHA256 hashed signatures (core feature)
 - **Two modes**:
-  - **Demo Mode** (default) - Full verbose logging, all detectors, no blocking
-  - **Production Mode** - Blocking, background learning, AI escalation
+    - **Demo Mode** (default) - Full verbose logging, all detectors, no blocking
+    - **Production Mode** - Blocking, background learning, AI escalation
 - **Tiny footprint** - ~10-27MB single executable (varies by platform)
 - **Self-contained** - No runtime required; ships with required native libraries alongside binary
 - **Console logging** - All detections logged with full details
-- **Zero-PII by default** - No raw identifiers logged or stored; only keyed HMAC-SHA256 signatures for correlation and lookup
-- **CSP header removal** - Removes Content-Security-Policy headers from upstream responses (see [Security Considerations](#security-considerations))
+- **Zero-PII by default** - No raw identifiers logged or stored; only keyed HMAC-SHA256 signatures for correlation and
+  lookup
+- **CSP header removal** - Removes Content-Security-Policy headers from upstream responses (
+  see [Security Considerations](#security-considerations))
 
-> **Note**: This console gateway ships with traditional detection only. The full commercial product includes LLM-based detection for advanced bot classification. See [LLM Detection (Optional)](#llm-detection-optional) for configuration details.
+> **Note**: This console gateway ships with traditional detection only. The full commercial product includes LLM-based
+> detection for advanced bot classification. See [LLM Detection (Optional)](#llm-detection-optional) for configuration
+> details.
 
 ## Quick Start
 
@@ -51,6 +56,74 @@ export MODE=production
 ./minigw
 ```
 
+## File Structure & Portability
+
+**Core files** (required):
+
+- `minigw.exe` (or `minigw` on Linux/macOS) - Single-file executable with all dependencies and static files embedded
+- `appsettings.json` - Configuration file (optional - uses defaults if missing)
+
+**Auto-created files** (all paths relative to executable directory):
+
+| File                          | Purpose                                                    | Default Location         | Configuration                                                             |
+|-------------------------------|------------------------------------------------------------|--------------------------|---------------------------------------------------------------------------|
+| `logs/errors-YYYY-MM-DD.log`  | Error logs (Warning+ only)                                 | `logs/` in exe directory | `Serilog:WriteTo:File:Args:path` in appsettings.json                      |
+| `botdetection.db`             | SQLite database for bot lists (user agents, IPs, patterns) | Exe directory            | `BotDetection:BotListDatabase:DbPath` in appsettings.json                 |
+| `signatures-YYYY-MM-DD.jsonl` | High-confidence bot signatures (HMAC-SHA256 hashed)        | Exe directory            | `BotDetection:SignatureLogging:Directory` in appsettings.json             |
+| `patterns.db`                 | Pattern reputation cache (ephemeral, auto-maintained)      | Exe directory            | `BotDetection:EphemeralPatternReputationCache:DbPath` in appsettings.json |
+
+**Configuration example** (appsettings.json):
+
+```json
+{
+  "Serilog": {
+    "WriteTo": [
+      {
+        "Name": "File",
+        "Args": {
+          "path": "logs/errors-.log",
+          "rollingInterval": "Day"
+        }
+      }
+    ]
+  },
+  "BotDetection": {
+    "BotListDatabase": {
+      "DbPath": "botdetection.db"
+    },
+    "SignatureLogging": {
+      "Enabled": true,
+      "Directory": ".",
+      "MinConfidence": 0.8
+    },
+    "EphemeralPatternReputationCache": {
+      "DbPath": "patterns.db"
+    }
+  }
+}
+```
+
+**Fully portable**: Copy the executable and optional appsettings.json to any location and the app will work. No
+installation required, no registry entries, no system dependencies, no separate wwwroot folder needed. All runtime files
+are created automatically in configurable locations.
+
+**Example deployment**:
+
+```bash
+# Copy to production server
+scp minigw appsettings.json user@server:/opt/stylobot/
+
+# Run it
+ssh user@server
+cd /opt/stylobot
+./minigw --upstream http://backend:8080 --port 80 --mode production
+
+# Logs appear in /opt/stylobot/logs/
+```
+
+**Running as a service**: The executable includes built-in support for Windows Services and Linux systemd. Just register
+it with your OS's service manager - no special installation scripts required.
+
 ## Modes
 
 ### Demo Mode
@@ -63,6 +136,7 @@ export MODE=production
 - **Action**: Log only
 
 Example output (default zero-PII mode):
+
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔍 Bot Detection Result
@@ -89,25 +163,27 @@ Example output (default zero-PII mode):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-**Note**: By default, IP and User-Agent are logged as HMAC-SHA256 hashes only. See [Zero-PII Logging](#zero-pii-logging) for details.
+**Note**: By default, IP and User-Agent are logged as HMAC-SHA256 hashes only. See [Zero-PII Logging](#zero-pii-logging)
+for details.
 
 ### Production Mode
 
 - **Purpose**: Real-world deployment with bot blocking
 - **Detectors**: Fast-path + slow-path + AI escalation
-  - Fast: FastPathReputation, UserAgent, Header, IP, SecurityTool
-  - Slow: Behavioral, Fingerprinting (HTTP/2, TLS, TCP/IP), MultiLayerCorrelation, Waveform
-  - AI: Heuristic learning
+    - Fast: FastPathReputation, UserAgent, Header, IP, SecurityTool
+    - Slow: Behavioral, Fingerprinting (HTTP/2, TLS, TCP/IP), MultiLayerCorrelation, Waveform
+    - AI: Heuristic learning
 - **Blocking**: Enabled with adaptive policies
-  - >0.95 risk: Immediate block (403)
-  - >0.70 risk: Block with logging
-  - >0.50 risk: Throttle (rate limit)
-  - <0.30 risk: Allow with minimal logging
+    - > 0.95 risk: Immediate block (403)
+    - > 0.70 risk: Block with logging
+    - > 0.50 risk: Throttle (rate limit)
+    - <0.30 risk: Allow with minimal logging
 - **Learning**: Background learning enabled
 - **Logging**: Concise one-line format
 - **Response Path**: Honeypot tracking, error pattern detection
 
 Example output (always zero-PII in production):
+
 ```
 ✓ HUMAN  0.12 -              1.2ms GET  /        [f89fa40dca80b591] -
 ✗ BOT    0.95 Unknown        2.3ms GET  /api     [22fd81614ede36a3] -
@@ -119,17 +195,18 @@ Example output (always zero-PII in production):
 
 ## Command-Line Options
 
-| Option | Environment Variable | Default | Description |
-|--------|---------------------|---------|-------------|
-| `--upstream` | `UPSTREAM` | `http://localhost:8080` | Upstream server URL |
-| `--port` | `PORT` | `5000` | Port to listen on |
-| `--mode` | `MODE` | `demo` | Mode: `demo` or `production` |
+| Option       | Environment Variable | Default                 | Description                  |
+|--------------|----------------------|-------------------------|------------------------------|
+| `--upstream` | `UPSTREAM`           | `http://localhost:8080` | Upstream server URL          |
+| `--port`     | `PORT`               | `5000`                  | Port to listen on            |
+| `--mode`     | `MODE`               | `demo`                  | Mode: `demo` or `production` |
 
 ## Configuration
 
 ### Configuration Files
 
 The gateway uses two configuration files:
+
 - `appsettings.json` - Demo mode configuration (full logging, no blocking)
 - `appsettings.production.json` - Production mode configuration (blocking, learning, AI escalation)
 
@@ -147,17 +224,21 @@ export MODE=production
 ./minigw
 ```
 
-The `--mode` flag determines which configuration file is loaded. This allows you to maintain separate configurations for development/testing and production without modifying files.
+The `--mode` flag determines which configuration file is loaded. This allows you to maintain separate configurations for
+development/testing and production without modifying files.
 
 ## Zero-PII Logging
 
-**Default Behavior**: No raw identifiers are logged or stored. Only keyed HMAC-SHA256 signatures of selected request factors for correlation and lookup.
+**Default Behavior**: No raw identifiers are logged or stored. Only keyed HMAC-SHA256 signatures of selected request
+factors for correlation and lookup.
 
 ### How It Works
 
-Raw identifiers (IP, User-Agent, referrer, etc.) are **observed transiently** to compute detection signals, but only **HMAC-SHA256 hashed signatures** are **persisted** to logs and database.
+Raw identifiers (IP, User-Agent, referrer, etc.) are **observed transiently** to compute detection signals, but only *
+*HMAC-SHA256 hashed signatures** are **persisted** to logs and database.
 
 **Key Properties**:
+
 - **Not reversible**: HMAC cannot be decoded to the original value
 - **Searchable**: Recompute `HMAC(key, value)` to find matches
 - **Controllable**: The secret key is the capability boundary - possession of the key = ability to correlate/search
@@ -181,12 +262,14 @@ Raw identifiers (IP, User-Agent, referrer, etc.) are **observed transiently** to
 ### Example Outputs
 
 **Default (LogRawPii=false)**:
+
 ```
 IP:          f89fa40dca80b591bc5dd6716928737a
 User-Agent:  d84d795b8eb696aaa6d0d393f7c3634b
 ```
 
 **Demo with LogRawPii=true**:
+
 ```
 IP:          192.168.1.100 (hash: f89fa40dca80b591bc5dd6716928737a)
 User-Agent:  curl/8.4.0 (hash: d84d795b8eb696aaa6d0d393f7c3634b)
@@ -195,64 +278,115 @@ User-Agent:  curl/8.4.0 (hash: d84d795b8eb696aaa6d0d393f7c3634b)
 ### Threat Model
 
 **Attacker steals database WITHOUT key**:
+
 - ❌ Cannot recover IP/UA from hashes
 - ✓ Can perform frequency analysis
 - ✓ Can cluster requests by signature
 
 **Attacker steals database AND key**:
+
 - ✓ Can compute matches for candidate values (dictionary attack for low-entropy fields)
 - Mitigation: Store key separately, rotate regularly, reduce stored factors, use TTL/decay
 
 **Operational Security**:
+
 - Store `SignatureHashKey` in secrets manager (Azure Key Vault, AWS Secrets Manager, etc.)
 - Rotate key periodically (invalidates old signatures)
 - Consider split keys: `K_sig` (persistent), `K_session` (ephemeral), `K_ip`, `K_ua`, `K_path`
 
 ## Security Considerations
 
-### CSP Header Removal
+### CSP Header Handling (Mode-Dependent)
 
-**⚠️ IMPORTANT**: The gateway removes `Content-Security-Policy` headers from upstream responses by default.
+The gateway handles Content Security Policy headers differently based on mode:
 
-This is necessary for client-side bot detection JavaScript to function, but it **disables a security feature**.
+#### Demo Mode (`--mode demo`)
 
-**Recommendations**:
-- Only use this gateway for traffic you control
-- Re-apply CSP at the backend if needed
-- Consider this a **proxy behavior**, not a security product that should weaken your security posture
-- For production, evaluate whether client-side detection is needed
+**CSP headers are PASSED THROUGH unchanged** from the upstream server.
 
-**Future Enhancement**: Make CSP removal opt-in with configuration like:
+**Why?**
+
+- Demo mode is for testing and development
+- Preserves the upstream site's security policies
+- Allows you to see how CSP affects client-side detection
+- No security weakening - you see the real site behavior
+
+**Use case**: Testing against production sites, development, demonstrations
+
+#### Production Mode (`--mode production`)
+
+**CSP headers are REMOVED** from upstream responses.
+
+**⚠️ IMPORTANT**: This **disables a security feature** of the upstream site.
+
+**Why remove CSP in production?**
+
+1. **Client-side bot detection requires `eval()`** - CSP with `script-src 'unsafe-eval'` would block it
+2. **Inline scripts and dynamic code** - Bot detection uses runtime script injection
+3. **Third-party script loading** - Detection may load additional resources
+4. **CSP reporting endpoints** - Upstream CSP reports would be invalid/confusing
+
+**Affected Headers**:
+
+- `Content-Security-Policy` - Removed
+- `Content-Security-Policy-Report-Only` - Removed
+- `X-Frame-Options` - Removed (allows embedding for detection)
+
+**Recommendations for Production**:
+
+- Only proxy traffic you control and understand
+- Re-implement CSP at your origin if needed (behind the gateway)
+- Consider this a **detection tool**, not a security enhancement
+- If your upstream has strict CSP, client-side detection may not work
+- Evaluate whether server-side detection alone is sufficient
+
+**Alternative**: If you need CSP in production, disable client-side detection and rely only on server-side detectors:
+
 ```json
 {
-  "HeaderManipulation": {
-    "RemoveContentSecurityPolicy": false,  // Default: false (pass-through)
-    "AllowedDirectives": ["script-src", "connect-src"]  // Only remove specific directives
+  "BotDetection": {
+    "Policies": {
+      "production": {
+        "FastPath": ["UserAgent", "IP", "Header", "Behavioral"],
+        "SlowPath": [],
+        "ResponsePath": []  // Disable client-side
+      }
+    }
   }
 }
 ```
+
+#### Learning Mode (`--mode learning`)
+
+**CSP headers are REMOVED** (same as production).
+
+**Why?** Learning mode needs to inject client-side detection JavaScript to train signatures, requiring CSP removal.
 
 ### SQLite on Shared Storage
 
 **⚠️ WARNING**: Shared SQLite over NFS/SMB/EFS works for small deployments but has operational risks:
 
 **Risks**:
+
 - Locking semantics vary by filesystem (POSIX locks not guaranteed on all NFS)
 - Network latency can cause performance degradation
 - Corruption possible with concurrent writes
 - Known to cause "works in staging, corrupts in prod" scenarios
 
 **Supported Scenarios**:
+
 - ✓ Small deployments (2-3 gateways)
 - ✓ Controlled storage with guaranteed POSIX locks
 - ✓ Development/testing environments
 
 **Recommended for Production HA**:
+
 - Per-node local SQLite + periodic merge/replication of signatures
 - Central store: Postgres, Redis, rqlite, LiteFS
 - Treat SQLite as write-behind cache with async central persistence
 
 **Safe Alternative**:
+
 ```
 ┌─────────┐    ┌─────────┐    ┌─────────┐
 │Gateway 1│    │Gateway 2│    │Gateway 3│
@@ -270,17 +404,20 @@ This is necessary for client-side bot detection JavaScript to function, but it *
 
 ## LLM Detection (Optional)
 
-> **Note**: LLM-based detection is available in the full product but not included by default in this console gateway demo. You can enable it by configuring an LLM endpoint.
+> **Note**: LLM-based detection is available in the full product but not included by default in this console gateway
+> demo. You can enable it by configuring an LLM endpoint.
 
 ### Why Use LLM Detection?
 
 LLM detectors provide:
+
 - **Natural language reasoning** - Explains *why* a request looks like a bot
 - **Context-aware analysis** - Understands relationships between signals
 - **Adaptive learning** - Improves with examples
 - **High accuracy** - Especially for sophisticated bots that pass heuristic checks
 
 **Trade-offs**:
+
 - ⚠️ **Latency**: 500-2000ms per request (use async/background)
 - ⚠️ **Cost**: $0.001-0.01 per request depending on model
 - ⚠️ **External dependency**: Requires LLM API access
@@ -290,6 +427,7 @@ LLM detectors provide:
 Add the LLM detector to your detection policy and configure the endpoint:
 
 **appsettings.json** (or **appsettings.production.json**):
+
 ```json
 {
   "BotDetection": {
@@ -389,6 +527,7 @@ Add the LLM detector to your detection policy and configure the endpoint:
 ```
 
 **Expected Impact**:
+
 - ~5-10% of requests escalate to LLM (only uncertain cases)
 - ~90% cache hit rate (same bots repeat patterns)
 - Effective latency: <50ms (async + cache)
@@ -429,16 +568,17 @@ curl -A "HeadlessChrome/120.0.0.0" http://localhost:5000/
 
 ## Client-Side Detection
 
-The gateway automatically enables client-side detection for proxied websites. This allows JavaScript running on your website to perform additional bot checks and report results back to the gateway.
+The gateway automatically enables client-side detection for proxied websites. This allows JavaScript running on your
+website to perform additional bot checks and report results back to the gateway.
 
 ### How It Works
 
 1. **Server-side detection runs first** - Gateway analyzes request and forwards headers to backend
 2. **Response headers added** - Gateway adds special headers to every response:
-   - `X-Bot-Detection-Callback-Url` - URL where client-side results should be sent
-   - `X-Bot-Detection` - Server-side bot detection result (true/false)
-   - `X-Bot-Probability` - Server confidence score (0.00-1.00)
-   - `X-Bot-Name` - Bot name if identified
+    - `X-Bot-Detection-Callback-Url` - URL where client-side results should be sent
+    - `X-Bot-Detection` - Server-side bot detection result (true/false)
+    - `X-Bot-Probability` - Server confidence score (0.00-1.00)
+    - `X-Bot-Name` - Bot name if identified
 3. **Client-side checks run** - JavaScript on the page performs browser fingerprinting
 4. **Results sent back** - JavaScript POSTs results to callback URL
 5. **Gateway logs validation** - Helps identify bot evasion techniques
@@ -446,11 +586,13 @@ The gateway automatically enables client-side detection for proxied websites. Th
 ### Test Page
 
 Access the built-in test page:
+
 ```
 http://localhost:5000/test-client-side.html
 ```
 
 This interactive test page demonstrates:
+
 - Reading server-side detection headers
 - Performing client-side checks (Canvas, WebGL, Audio, etc.)
 - Sending results back to the callback endpoint
@@ -572,6 +714,7 @@ This interactive test page demonstrates:
 Common checks to detect bots:
 
 **Canvas Fingerprinting:**
+
 ```javascript
 const canvas = document.createElement('canvas');
 const ctx = canvas.getContext('2d');
@@ -587,6 +730,7 @@ const fingerprint = canvas.toDataURL();
 ```
 
 **WebGL Vendor Detection:**
+
 ```javascript
 const canvas = document.createElement('canvas');
 const gl = canvas.getContext('webgl');
@@ -599,6 +743,7 @@ if (gl) {
 ```
 
 **Audio Context Fingerprinting:**
+
 ```javascript
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 if (AudioContext) {
@@ -609,6 +754,7 @@ if (AudioContext) {
 ```
 
 **Plugin Detection:**
+
 ```javascript
 const pluginCount = navigator.plugins.length;
 const plugins = Array.from(navigator.plugins).map(p => p.name);
@@ -620,6 +766,7 @@ const plugins = Array.from(navigator.plugins).map(p => p.name);
 **POST** `/api/bot-detection/client-result`
 
 **Request Body:**
+
 ```json
 {
   "timestamp": "2025-12-12T15:30:00Z",
@@ -649,6 +796,7 @@ const plugins = Array.from(navigator.plugins).map(p => p.name);
 ```
 
 **Response:**
+
 ```json
 {
   "status": "accepted",
@@ -686,9 +834,11 @@ const plugins = Array.from(navigator.plugins).map(p => p.name);
 
 #### Detection Policies
 
-Detection policies define **WHICH** detectors run and **HOW** they're orchestrated. Each policy can specify four detector paths:
+Detection policies define **WHICH** detectors run and **HOW** they're orchestrated. Each policy can specify four
+detector paths:
 
 **Fast Path (Wave 0)** - Synchronous detectors that run on every request (<100ms expected):
+
 - `FastPathReputation` - Check cached signatures for instant allow/block
 - `UserAgent` - Analyze User-Agent header for bot patterns
 - `Header` - Check HTTP headers for anomalies
@@ -700,6 +850,7 @@ Detection policies define **WHICH** detectors run and **HOW** they're orchestrat
 - `VersionAge` - Detect outdated browser versions
 
 **Slow Path (Wave 1+)** - Asynchronous detectors for deeper analysis:
+
 - `AdvancedBehavioral` - Deep behavioral analysis with ML features
 - `Http2Fingerprint` - HTTP/2 frame analysis (SETTINGS, PRIORITY)
 - `TlsFingerprint` - TLS cipher suites and handshake patterns
@@ -708,9 +859,11 @@ Detection policies define **WHICH** detectors run and **HOW** they're orchestrat
 - `BehavioralWaveform` - Request timing waveform analysis
 
 **AI Path** - Expensive detectors (only run when escalated):
+
 - `Heuristic` - ML-based heuristic analysis using ONNX models
 
 **Response Path** - Post-request detectors (zero latency impact):
+
 - `ResponseBehavior` - Track response patterns for learning
 
 **Orchestration Settings:**
@@ -788,6 +941,7 @@ Detection policies define **WHICH** detectors run and **HOW** they're orchestrat
 Action policies define **WHAT HAPPENS** when a bot is detected:
 
 **block-hard** - Immediate block for very high risk (>95% confidence):
+
 ```json
 {
   "ActionPolicies": {
@@ -809,6 +963,7 @@ Action policies define **WHAT HAPPENS** when a bot is detected:
 ```
 
 **block** - Block suspected bots (70-95% confidence):
+
 ```json
 {
   "block": {
@@ -828,6 +983,7 @@ Action policies define **WHAT HAPPENS** when a bot is detected:
 ```
 
 **throttle** - Rate limit suspicious traffic (50-70% confidence):
+
 ```json
 {
   "throttle": {
@@ -847,6 +1003,7 @@ Action policies define **WHAT HAPPENS** when a bot is detected:
 ```
 
 **logonly** - Log but allow low-risk traffic (<30% confidence):
+
 ```json
 {
   "logonly": {
@@ -865,7 +1022,8 @@ Action policies define **WHAT HAPPENS** when a bot is detected:
 
 ### YARP Clustering with Bot Detection
 
-You can deploy multiple gateway instances behind a load balancer for high availability and horizontal scaling. Each gateway instance shares the same SQLite signature database via network storage.
+You can deploy multiple gateway instances behind a load balancer for high availability and horizontal scaling. Each
+gateway instance shares the same SQLite signature database via network storage.
 
 #### Architecture
 
@@ -977,7 +1135,8 @@ server {
 
 **5. Configure gateway to trust X-Forwarded-For headers:**
 
-The gateway automatically configures `ForwardedHeaders` middleware to extract real client IPs from `X-Forwarded-For` headers. No additional configuration needed.
+The gateway automatically configures `ForwardedHeaders` middleware to extract real client IPs from `X-Forwarded-For`
+headers. No additional configuration needed.
 
 #### Setup with HAProxy
 
@@ -1091,6 +1250,7 @@ spec:
 **⚠️ IMPORTANT**: See [SQLite on Shared Storage](#sqlite-on-shared-storage) warnings before deploying to production.
 
 **Shared Database:**
+
 - SQLite database (`botdetection.db`) MUST be on shared storage (NFS/SMB/EFS)
 - All gateway instances read/write to the same database
 - Ephemeral coordinator batches writes to avoid file locks (500ms batching)
@@ -1098,27 +1258,32 @@ spec:
 - **Recommended only for small deployments (2-3 gateways)**
 
 **Sticky Sessions:**
+
 - Use `ip_hash` (nginx) or `source` (HAProxy) for client affinity
 - Ensures same client goes to same gateway instance
 - Improves cache hit rate for response tracking
 
 **Health Checks:**
+
 - All load balancers should check `/health` endpoint
 - Gateway returns `{"status":"healthy","mode":"production","upstream":"http://backend:8080"}`
 - Unhealthy instances automatically removed from rotation
 
 **Signature Learning:**
+
 - Learning is distributed across instances
 - Each instance writes signatures to shared database
 - All instances benefit from collective learning
 - Signatures propagate within ~30 seconds (cache flush interval)
 
 **Performance:**
+
 - Horizontal scaling: Add more gateway instances for higher throughput
 - Each gateway handles ~1000-2000 req/s (depends on detector configuration)
 - Shared database is not a bottleneck (batched writes + in-memory cache)
 
 **High Availability:**
+
 - Deploy minimum 3 gateway instances for redundancy
 - Load balancer automatically fails over to healthy instances
 - No single point of failure (except shared storage)
@@ -1136,6 +1301,7 @@ code test.http
 ```
 
 Test cases included:
+
 - Normal human requests (Chrome, Firefox)
 - Bot requests (curl, Python requests, Selenium)
 - Legitimate bots (Googlebot)
@@ -1149,9 +1315,9 @@ Test cases included:
 
 - .NET 10 SDK (or later)
 - Native AOT compiler toolchain:
-  - **Windows**: Visual Studio 2022 (17.8+) with "Desktop development with C++" workload
-  - **Linux**: `build-essential`, `zlib1g-dev`, `clang` (for ARM64: `gcc-aarch64-linux-gnu`)
-  - **macOS**: Xcode command-line tools
+    - **Windows**: Visual Studio 2022 (17.8+) with "Desktop development with C++" workload
+    - **Linux**: `build-essential`, `zlib1g-dev`, `clang` (for ARM64: `gcc-aarch64-linux-gnu`)
+    - **macOS**: Xcode command-line tools
 
 ### Build for Current Platform
 
@@ -1186,6 +1352,7 @@ dotnet publish -c Release -r osx-arm64
 ### Size Optimization
 
 The project is already configured for maximum size optimization:
+
 - Native AOT compilation (`PublishAot=true`)
 - Full trimming (`TrimMode=full`)
 - Symbol stripping (`StripSymbols=true`)
@@ -1194,6 +1361,7 @@ The project is already configured for maximum size optimization:
 - Minimal APIs (no MVC/Razor overhead)
 
 Typical sizes with .NET 10:
+
 - Windows x64: ~10MB (includes `e_sqlite3.dll`)
 - Windows ARM64: ~10MB (includes `e_sqlite3.dll`)
 - Linux x64: ~12MB
@@ -1206,6 +1374,7 @@ Typical sizes with .NET 10:
 ### Standalone Executable
 
 **⚠️ IMPORTANT**: Always deploy the executable alongside its native library:
+
 - **Windows**: `minigw.exe` + `e_sqlite3.dll`
 - **Linux**: `minigw` + `libe_sqlite3.so`
 - **macOS**: `minigw` + `libe_sqlite3.dylib`
@@ -1273,30 +1442,36 @@ sudo systemctl status minigw
 ## Performance
 
 Typical latency (measured on a Raspberry Pi 5):
+
 - Fast-path only (demo): ~1-3ms
 - Fast + slow path: ~5-15ms
 - With AI escalation: ~20-50ms
 
 Memory usage:
+
 - Idle: ~30MB
 - Under load (1000 req/s): ~80MB
 
 ## Raspberry Pi Notes
 
 Tested on:
+
 - Raspberry Pi 4 (1GB, 2GB, 4GB, 8GB)
 - Raspberry Pi 5 (4GB, 8GB)
 
 **Not supported**:
+
 - Raspberry Pi 3 and older (ARM v7)
 - Raspberry Pi Zero
 
 Build for Pi:
+
 ```bash
 dotnet publish -c Release -r linux-arm64
 ```
 
 Deploy:
+
 ```bash
 # Copy executable and SQLite native library
 scp bin/Release/net10.0/linux-arm64/publish/minigw pi@raspberrypi.local:~/
@@ -1315,6 +1490,7 @@ This demonstrates the complete flow from gateway through to backend with visual 
 ### Setup
 
 1. **Start Backend** (Demo app with YarpProxyDemo page):
+
 ```bash
 cd ../Mostlylucid.BotDetection.Demo
 dotnet run
@@ -1322,6 +1498,7 @@ dotnet run
 ```
 
 2. **Start Gateway**:
+
 ```bash
 # From Mostlylucid.BotDetection.Console directory
 dotnet run -- --upstream http://localhost:5000 --port 5100 --mode demo
@@ -1329,6 +1506,7 @@ dotnet run -- --upstream http://localhost:5000 --port 5100 --mode demo
 ```
 
 3. **Access Demo Page**:
+
 ```bash
 # Via gateway (bot detection runs)
 open http://localhost:5100/YarpProxyDemo
@@ -1340,6 +1518,7 @@ open http://localhost:5000/YarpProxyDemo
 ### What You'll See
 
 The `/YarpProxyDemo` page displays:
+
 - **Bot Detection Status** (Bot/Human with icon)
 - **Detection Reasons** in plain English bullets
 - **Detector Contributions** with visual contribution bars
@@ -1359,10 +1538,10 @@ The `/YarpProxyDemo` page displays:
 
 1. **Gateway** runs bot detection on request
 2. **Headers** serialized to `X-Bot-Detection-*` headers:
-   - `X-Bot-Detection-Result`: `true`/`false`
-   - `X-Bot-Detection-Probability`: `0.85`
-   - `X-Bot-Detection-Reasons`: `["Headless browser","Datacenter IP"]`
-   - `X-Bot-Detection-Contributions`: JSON array of detector data
+    - `X-Bot-Detection-Result`: `true`/`false`
+    - `X-Bot-Detection-Probability`: `0.85`
+    - `X-Bot-Detection-Reasons`: `["Headless browser","Datacenter IP"]`
+    - `X-Bot-Detection-Contributions`: JSON array of detector data
 3. **Backend** reads headers via `BotDetectionDetailsViewComponent`
 4. **Page** displays results in nice CSS with `<details>` tags
 
@@ -1371,21 +1550,25 @@ The `/YarpProxyDemo` page displays:
 Try different user agents via the gateway:
 
 **Googlebot:**
+
 ```bash
 curl -A "Mozilla/5.0 (compatible; Googlebot/2.1)" http://localhost:5100/YarpProxyDemo
 ```
 
 **Scraper:**
+
 ```bash
 curl -A "Scrapy/2.5.0" http://localhost:5100/YarpProxyDemo
 ```
 
 **Headless Chrome:**
+
 ```bash
 curl -A "HeadlessChrome/120.0.0.0" http://localhost:5100/YarpProxyDemo
 ```
 
 **Human (Browser):**
+
 ```bash
 curl -A "Mozilla/5.0 (Windows NT 10.0) Chrome/120.0.0.0" \
      -H "Accept: text/html" \
@@ -1400,16 +1583,19 @@ Watch the gateway console for colorful detection logs, then view the page HTML t
 To add detection display to your own backend app:
 
 1. **Install UI package:**
+
 ```bash
 dotnet add package Mostlylucid.BotDetection.UI
 ```
 
 2. **Add to _ViewImports.cshtml:**
+
 ```cshtml
 @addTagHelper *, Mostlylucid.BotDetection.UI
 ```
 
 3. **Use in your page:**
+
 ```cshtml
 <link rel="stylesheet" href="~/_content/Mostlylucid.BotDetection.UI/bot-detection-details.css" />
 
@@ -1420,6 +1606,7 @@ dotnet add package Mostlylucid.BotDetection.UI
 ```
 
 The ViewComponent automatically handles both modes:
+
 - **YARP Mode**: Reads `X-Bot-Detection-*` headers
 - **Inline Mode**: Reads `HttpContext.Items["BotDetection.Evidence"]`
 
@@ -1428,6 +1615,7 @@ The ViewComponent automatically handles both modes:
 ### "Unable to load DLL 'e_sqlite3'"
 
 The SQLite native library is missing. Make sure to copy it alongside the executable:
+
 - **Windows**: `e_sqlite3.dll`
 - **Linux**: `libe_sqlite3.so`
 - **macOS**: `libe_sqlite3.dylib`
@@ -1443,6 +1631,7 @@ chmod +x minigw
 ### "Cannot execute binary file"
 
 Wrong architecture. Rebuild for target platform:
+
 ```bash
 dotnet publish -c Release -r linux-arm64  # For Pi
 dotnet publish -c Release -r linux-x64    # For x86_64 servers
@@ -1451,6 +1640,7 @@ dotnet publish -c Release -r linux-x64    # For x86_64 servers
 ### High memory usage
 
 If running on low-memory systems (1GB Pi 4):
+
 1. Use demo mode (disables learning and slow-path)
 2. Reduce detector count in appsettings.json
 3. Increase `EarlyExitThreshold` to 0.5

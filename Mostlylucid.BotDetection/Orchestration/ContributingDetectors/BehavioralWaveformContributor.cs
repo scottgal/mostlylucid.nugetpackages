@@ -1,5 +1,5 @@
-using System.Collections.Concurrent;
 using System.Collections.Immutable;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Models;
@@ -9,16 +9,13 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// <summary>
 ///     Behavioral waveform analysis contributor.
 ///     Analyzes request patterns over time to detect bot behavior patterns.
-///
 ///     Best-in-breed approach:
 ///     - Request timing analysis (too regular = bot, too random = human)
 ///     - Path traversal patterns (depth-first vs breadth-first)
 ///     - Request rate analysis (bursts vs steady)
 ///     - Session behavior tracking (cookie consistency, session lifetime)
 ///     - Mouse/keyboard interaction patterns (from client-side signals)
-///
 ///     This runs late and correlates signals across multiple requests from the same signature.
-///
 ///     Raises signals:
 ///     - waveform.request_interval_stddev
 ///     - waveform.request_rate
@@ -28,13 +25,12 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// </summary>
 public class BehavioralWaveformContributor : ContributingDetectorBase
 {
-    private readonly ILogger<BehavioralWaveformContributor> _logger;
-    private readonly IMemoryCache _cache;
-
     // Cache request history per signature for waveform analysis
     private const string CacheKeyPrefix = "waveform:";
     private const int MaxHistorySize = 100; // Keep last 100 requests per signature
     private static readonly TimeSpan HistoryExpiration = TimeSpan.FromMinutes(30);
+    private readonly IMemoryCache _cache;
+    private readonly ILogger<BehavioralWaveformContributor> _logger;
 
     public BehavioralWaveformContributor(
         ILogger<BehavioralWaveformContributor> logger,
@@ -99,7 +95,6 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
 
             // Update cache with new history
             UpdateHistory(signature, history);
-
         }
         catch (Exception ex)
         {
@@ -137,7 +132,7 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
 
         // Calculate intervals between requests
         var intervals = new List<double>();
-        for (int i = 1; i < history.Count; i++)
+        for (var i = 1; i < history.Count; i++)
         {
             var interval = (history[i].Timestamp - history[i - 1].Timestamp).TotalSeconds;
             intervals.Add(interval);
@@ -159,16 +154,13 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
 
         // Very low CV = too regular = likely bot
         if (cv < 0.15 && intervals.Count >= 5)
-        {
             contributions.Add(DetectionContribution.Bot(
                 Name, "Waveform", 0.7,
                 $"Highly regular timing pattern (CV={cv:F3}) - typical bot behavior",
                 BotType.Scraper,
                 weight: 1.6));
-        }
         // Moderate CV = human-like
         else if (cv >= 0.3 && cv <= 2.0)
-        {
             contributions.Add(new DetectionContribution
             {
                 DetectorName = Name,
@@ -178,7 +170,6 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
                 Reason = $"Natural timing variation detected (CV={cv:F3})",
                 Signals = signals.ToImmutable()
             });
-        }
 
         // Check for burst patterns (many requests in short time)
         var recentRequests = history.Where(r => r.Timestamp > DateTimeOffset.UtcNow.AddSeconds(-10)).Count();
@@ -209,7 +200,6 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
 
         // Very low diversity = scanning/crawling same paths
         if (pathDiversity < 0.3 && recentPaths.Count >= 10)
-        {
             contributions.Add(new DetectionContribution
             {
                 DetectorName = Name,
@@ -219,7 +209,6 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
                 Reason = $"Low path diversity ({pathDiversity:P0}) - possible automated scanning",
                 Signals = signals.ToImmutable()
             });
-        }
 
         // Detect sequential/systematic path traversal (e.g., /page/1, /page/2, /page/3)
         var sequentialPattern = DetectSequentialPattern(recentPaths);
@@ -239,7 +228,6 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
         signals.Add("waveform.traversal_pattern", traversalPattern);
 
         if (traversalPattern == "depth-first-strict")
-        {
             // Bots often do strict depth-first (go deep, then backtrack)
             contributions.Add(new DetectionContribution
             {
@@ -250,7 +238,6 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
                 Reason = "Strict depth-first traversal (common for crawlers)",
                 Signals = signals.ToImmutable()
             });
-        }
     }
 
     private void AnalyzeRequestRate(List<RequestSnapshot> history, List<DetectionContribution> contributions,
@@ -266,15 +253,12 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
 
         // Very high rate = likely bot
         if (requestRate > 30) // 30+ requests/minute
-        {
             contributions.Add(DetectionContribution.Bot(
                 Name, "Waveform", 0.75,
                 $"High request rate: {requestRate:F1} requests/minute",
                 BotType.Scraper,
                 weight: 1.7));
-        }
         else if (requestRate > 10) // 10-30 requests/minute
-        {
             contributions.Add(new DetectionContribution
             {
                 DetectorName = Name,
@@ -284,7 +268,6 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
                 Reason = $"Elevated request rate: {requestRate:F1} requests/minute",
                 Signals = signals.ToImmutable()
             });
-        }
     }
 
     private void AnalyzeSessionBehavior(BlackboardState state, List<RequestSnapshot> history,
@@ -295,13 +278,11 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
         signals.Add("waveform.user_agent_changes", userAgents);
 
         if (userAgents > 1 && history.Count >= 5)
-        {
             contributions.Add(DetectionContribution.Bot(
                 Name, "Waveform", 0.8,
                 $"User-Agent changed {userAgents} times in session (IP rotation or spoofing)",
                 BotType.MaliciousBot,
                 weight: 1.8));
-        }
 
         // Session duration analysis
         if (history.Count >= 2)
@@ -311,13 +292,11 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
 
             // Very short session with many requests = bot
             if (sessionDuration < 1 && history.Count >= 10)
-            {
                 contributions.Add(DetectionContribution.Bot(
                     Name, "Waveform", 0.7,
                     $"High-speed session: {history.Count} requests in {sessionDuration:F1} minutes",
                     BotType.Scraper,
                     weight: 1.6));
-            }
         }
     }
 
@@ -333,7 +312,6 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
             signals.Add("waveform.mouse_events", mouseCount);
 
             if (mouseCount == 0)
-            {
                 contributions.Add(new DetectionContribution
                 {
                     DetectorName = Name,
@@ -343,14 +321,11 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
                     Reason = "No mouse movement detected (headless browser indicator)",
                     Signals = signals.ToImmutable()
                 });
-            }
         }
 
         if (state.Signals.TryGetValue("client.keyboard_events", out var keyboardEvents) &&
             keyboardEvents is int keyCount)
-        {
             signals.Add("waveform.keyboard_events", keyCount);
-        }
     }
 
     private string GetClientSignature(BlackboardState state)
@@ -374,10 +349,7 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
     private void UpdateHistory(string signature, List<RequestSnapshot> history)
     {
         // Keep only last N requests
-        while (history.Count > MaxHistorySize)
-        {
-            history.RemoveAt(0);
-        }
+        while (history.Count > MaxHistorySize) history.RemoveAt(0);
 
         var cacheKey = CacheKeyPrefix + signature;
         _cache.Set(cacheKey, history, HistoryExpiration);
@@ -387,16 +359,16 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
     {
         if (paths.Count < 3) return false;
 
-        var numberPattern = new System.Text.RegularExpressions.Regex(@"\d+");
+        var numberPattern = new Regex(@"\d+");
         var numbers = paths.Select(p => numberPattern.Match(p))
-                          .Where(m => m.Success)
-                          .Select(m => int.Parse(m.Value))
-                          .ToList();
+            .Where(m => m.Success)
+            .Select(m => int.Parse(m.Value))
+            .ToList();
 
         if (numbers.Count < 3) return false;
 
         // Check if numbers are sequential (difference of 1 or -1)
-        for (int i = 1; i < numbers.Count; i++)
+        for (var i = 1; i < numbers.Count; i++)
         {
             var diff = Math.Abs(numbers[i] - numbers[i - 1]);
             if (diff != 1) return false;
@@ -416,22 +388,12 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
         var increasingRuns = 0;
         var strictDepthFirst = true;
 
-        for (int i = 1; i < depths.Count; i++)
-        {
+        for (var i = 1; i < depths.Count; i++)
             if (depths[i] > depths[i - 1])
-            {
                 increasingRuns++;
-            }
-            else if (depths[i] < depths[i - 1] - 1)
-            {
-                strictDepthFirst = false;
-            }
-        }
+            else if (depths[i] < depths[i - 1] - 1) strictDepthFirst = false;
 
-        if (increasingRuns > paths.Count * 0.7)
-        {
-            return strictDepthFirst ? "depth-first-strict" : "depth-first-loose";
-        }
+        if (increasingRuns > paths.Count * 0.7) return strictDepthFirst ? "depth-first-strict" : "depth-first-loose";
 
         return "mixed";
     }

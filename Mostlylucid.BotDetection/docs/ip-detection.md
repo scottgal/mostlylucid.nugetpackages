@@ -1,6 +1,7 @@
 # IP Detection
 
-IP detection identifies requests originating from datacenter infrastructure, cloud providers, and anonymization networks.
+IP detection identifies requests originating from datacenter infrastructure, cloud providers, and anonymization
+networks.
 
 ## How It Works
 
@@ -64,6 +65,7 @@ The system can download official IP ranges from cloud providers:
 ```
 
 Downloaded ranges are:
+
 - Pre-parsed into optimized CIDR structures
 - Cached with background refresh
 - Fallback to static ranges if download fails
@@ -72,11 +74,11 @@ Downloaded ranges are:
 
 Quick identification without full CIDR parsing:
 
-| First Octet | Provider |
-|-------------|----------|
-| 3, 13, 18, 52 | AWS |
-| 20, 40, 104 | Azure |
-| 34, 35 | Google Cloud |
+| First Octet   | Provider     |
+|---------------|--------------|
+| 3, 13, 18, 52 | AWS          |
+| 20, 40, 104   | Azure        |
+| 34, 35        | Google Cloud |
 | 138, 139, 140 | Oracle Cloud |
 
 Impact: +0.3 confidence (lower than CIDR match)
@@ -110,6 +112,7 @@ Configure trusted proxies:
 ### Tor Exit Nodes
 
 Requests from Tor are flagged:
+
 - Impact: +0.5 confidence
 - BotType: MaliciousBot (by default)
 
@@ -130,6 +133,7 @@ Tor detection can be configured:
 ### VPN/Proxy Detection
 
 For commercial VPN detection, integrate with services like:
+
 - MaxMind GeoIP2 Proxy Detection
 - IPQualityScore
 - ip-api.com
@@ -138,13 +142,13 @@ For commercial VPN detection, integrate with services like:
 
 IP detection is optimized with pre-parsed CIDR structures:
 
-| Operation | Typical Time |
-|-----------|--------------|
-| X-Forwarded-For parsing | < 0.01ms |
-| Downloaded CIDR check (trie) | < 0.1ms |
-| Static CIDR check | < 0.1ms |
-| First octet heuristic | < 0.01ms |
-| **Total** | **< 0.3ms** |
+| Operation                    | Typical Time |
+|------------------------------|--------------|
+| X-Forwarded-For parsing      | < 0.01ms     |
+| Downloaded CIDR check (trie) | < 0.1ms      |
+| Static CIDR check            | < 0.1ms      |
+| First octet heuristic        | < 0.01ms     |
+| **Total**                    | **< 0.3ms**  |
 
 ## Integration with Behavioral Analysis
 
@@ -164,12 +168,12 @@ var cloudProvider = context.GetCloudProvider();
 
 Not all datacenter traffic is bad:
 
-| Source | Typical Action |
-|--------|----------------|
-| Cloud-hosted monitoring | Whitelist |
-| CI/CD systems | Whitelist |
-| Corporate VPN egress | Allow with tracking |
-| Unknown datacenter | Increased scrutiny |
+| Source                  | Typical Action      |
+|-------------------------|---------------------|
+| Cloud-hosted monitoring | Whitelist           |
+| CI/CD systems           | Whitelist           |
+| Corporate VPN egress    | Allow with tracking |
+| Unknown datacenter      | Increased scrutiny  |
 
 Whitelist known good IPs:
 

@@ -1,15 +1,18 @@
 # Project Honeypot Integration
 
-Project Honeypot (HTTP:BL) integration provides IP reputation checking against a crowdsourced database of known malicious actors, email harvesters, and comment spammers.
+Project Honeypot (HTTP:BL) integration provides IP reputation checking against a crowdsourced database of known
+malicious actors, email harvesters, and comment spammers.
 
 ## Overview
 
 [Project Honeypot](https://www.projecthoneypot.org/) maintains a DNS-based blocklist (HTTP:BL) that tracks:
+
 - **Harvesters** - Bots that collect email addresses for spam lists
 - **Comment Spammers** - Bots that post spam comments on websites
 - **Suspicious IPs** - IPs that have exhibited suspicious behavior
 
-The `ProjectHoneypotContributor` runs in **Wave 1** (after basic IP analysis) and performs DNS lookups to check visitor IPs.
+The `ProjectHoneypotContributor` runs in **Wave 1** (after basic IP analysis) and performs DNS lookups to check visitor
+IPs.
 
 ```mermaid
 flowchart LR
@@ -58,6 +61,7 @@ The contributor builds a DNS query in the format:
 ```
 
 For example, checking IP `192.168.1.100`:
+
 ```
 your12charkey.100.1.168.192.dnsbl.httpbl.org
 ```
@@ -66,27 +70,28 @@ your12charkey.100.1.168.192.dnsbl.httpbl.org
 
 A response of `127.x.y.z` indicates the IP is listed:
 
-| Octet | Meaning |
-|-------|---------|
-| `127` | Valid response marker |
-| `x` (Days) | Days since last activity (0-255) |
+| Octet        | Meaning                           |
+|--------------|-----------------------------------|
+| `127`        | Valid response marker             |
+| `x` (Days)   | Days since last activity (0-255)  |
 | `y` (Threat) | Threat score (0-255, logarithmic) |
-| `z` (Type) | Visitor type bitfield |
+| `z` (Type)   | Visitor type bitfield             |
 
 ### Visitor Type Bitfield
 
-| Bit | Value | Type |
-|-----|-------|------|
-| 0 | 1 | Suspicious |
-| 1 | 2 | Harvester |
-| 2 | 4 | Comment Spammer |
-| - | 0 | Search Engine (special case) |
+| Bit | Value | Type                         |
+|-----|-------|------------------------------|
+| 0   | 1     | Suspicious                   |
+| 1   | 2     | Harvester                    |
+| 2   | 4     | Comment Spammer              |
+| -   | 0     | Search Engine (special case) |
 
 Combinations are possible (e.g., `3` = Suspicious + Harvester).
 
 ### Example Response
 
 Response `127.5.75.6`:
+
 - `5` days since last activity
 - `75` threat score
 - `6` = Harvester (2) + Comment Spammer (4)
@@ -114,18 +119,18 @@ Response `127.5.75.6`:
 }
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `Enabled` | bool | `false` | Enable Project Honeypot checks |
-| `AccessKey` | string | `null` | Your 12-character HTTP:BL access key |
-| `HighThreatThreshold` | int | `25` | Threat score triggering verified bad bot |
-| `MaxDaysAge` | int | `90` | Ignore entries older than this |
-| `TimeoutMs` | int | `1000` | DNS lookup timeout |
-| `CacheDurationSeconds` | int | `1800` | Cache duration for lookups (30 min) |
-| `SkipLocalIps` | bool | `true` | Skip localhost/private IPs |
-| `TreatHarvestersAsMalicious` | bool | `true` | Mark harvesters as malicious bots |
-| `TreatCommentSpammersAsMalicious` | bool | `true` | Mark spammers as malicious bots |
-| `TreatSuspiciousAsSuspicious` | bool | `true` | Mark suspicious as bot |
+| Option                            | Type   | Default | Description                              |
+|-----------------------------------|--------|---------|------------------------------------------|
+| `Enabled`                         | bool   | `false` | Enable Project Honeypot checks           |
+| `AccessKey`                       | string | `null`  | Your 12-character HTTP:BL access key     |
+| `HighThreatThreshold`             | int    | `25`    | Threat score triggering verified bad bot |
+| `MaxDaysAge`                      | int    | `90`    | Ignore entries older than this           |
+| `TimeoutMs`                       | int    | `1000`  | DNS lookup timeout                       |
+| `CacheDurationSeconds`            | int    | `1800`  | Cache duration for lookups (30 min)      |
+| `SkipLocalIps`                    | bool   | `true`  | Skip localhost/private IPs               |
+| `TreatHarvestersAsMalicious`      | bool   | `true`  | Mark harvesters as malicious bots        |
+| `TreatCommentSpammersAsMalicious` | bool   | `true`  | Mark spammers as malicious bots          |
+| `TreatSuspiciousAsSuspicious`     | bool   | `true`  | Mark suspicious as bot                   |
 
 ## Detection Output
 
@@ -190,48 +195,49 @@ Confidence is calculated based on threat score, recency, and visitor type:
 
 | Threat Score | Base Confidence |
 |--------------|-----------------|
-| >= 100 | 0.95 |
-| >= 50 | 0.85 |
-| >= 25 | 0.70 |
-| >= 10 | 0.55 |
-| >= 5 | 0.40 |
-| < 5 | 0.30 |
+| >= 100       | 0.95            |
+| >= 50        | 0.85            |
+| >= 25        | 0.70            |
+| >= 10        | 0.55            |
+| >= 5         | 0.40            |
+| < 5          | 0.30            |
 
 ### Age Factor (Recency)
 
 | Days Since Last Activity | Factor |
-|-------------------------|--------|
-| 0 (today) | 1.0 |
-| 1-7 (last week) | 0.95 |
-| 8-30 (last month) | 0.85 |
-| 31-90 (last quarter) | 0.70 |
-| 91-180 (last 6 months) | 0.50 |
-| > 180 | 0.30 |
+|--------------------------|--------|
+| 0 (today)                | 1.0    |
+| 1-7 (last week)          | 0.95   |
+| 8-30 (last month)        | 0.85   |
+| 31-90 (last quarter)     | 0.70   |
+| 91-180 (last 6 months)   | 0.50   |
+| > 180                    | 0.30   |
 
 ### Type Factor (Severity)
 
-| Visitor Type | Multiplier |
-|-------------|------------|
-| Comment Spammer | 1.1 |
-| Harvester | 1.15 |
-| Suspicious | 1.05 |
+| Visitor Type    | Multiplier |
+|-----------------|------------|
+| Comment Spammer | 1.1        |
+| Harvester       | 1.15       |
+| Suspicious      | 1.05       |
 
 Final confidence: `min(base × age × type, 0.99)`
 
 ## Signals Emitted
 
-| Signal Key | Type | Description |
-|------------|------|-------------|
-| `honeypot.checked` | bool | True if honeypot was queried |
-| `honeypot.listed` | bool | True if IP is in database |
-| `honeypot.threat_score` | int | Threat score (0-255) |
-| `honeypot.visitor_type` | string | Visitor type flags |
-| `honeypot.days_since_activity` | int | Days since last activity |
-| `HoneypotTestMode` | bool | True if using test mode simulation |
+| Signal Key                     | Type   | Description                        |
+|--------------------------------|--------|------------------------------------|
+| `honeypot.checked`             | bool   | True if honeypot was queried       |
+| `honeypot.listed`              | bool   | True if IP is in database          |
+| `honeypot.threat_score`        | int    | Threat score (0-255)               |
+| `honeypot.visitor_type`        | string | Visitor type flags                 |
+| `honeypot.days_since_activity` | int    | Days since last activity           |
+| `HoneypotTestMode`             | bool   | True if using test mode simulation |
 
 ## Caching
 
 Lookups are cached for 30 minutes by default to:
+
 - Reduce DNS queries
 - Improve response times
 - Avoid rate limiting
@@ -282,11 +288,11 @@ curl http://localhost:5000/bot-detection/check \
 
 ### Test Mode Response Values
 
-| Test Type | Threat Score | Days Ago | Visitor Type |
-|-----------|--------------|----------|--------------|
-| `harvester` | 75 | 3 | Harvester |
-| `spammer` | 100 | 1 | CommentSpammer |
-| `suspicious` | 35 | 14 | Suspicious |
+| Test Type    | Threat Score | Days Ago | Visitor Type   |
+|--------------|--------------|----------|----------------|
+| `harvester`  | 75           | 3        | Harvester      |
+| `spammer`    | 100          | 1        | CommentSpammer |
+| `suspicious` | 35           | 14       | Suspicious     |
 
 ## Integration Tests
 
@@ -313,11 +319,11 @@ public async Task ProjectHoneypotContributor_SimulatesHoneypotFromTestMarker(
 
 The contributor is designed with security in mind:
 
-| Default | Production Recommendation |
-|---------|--------------------------|
-| `Enabled`: `false` | Requires explicit API key |
-| `SkipLocalIps`: `true` | Never queries localhost |
-| No cached key leakage | Access key only in DNS query |
+| Default                | Production Recommendation    |
+|------------------------|------------------------------|
+| `Enabled`: `false`     | Requires explicit API key    |
+| `SkipLocalIps`: `true` | Never queries localhost      |
+| No cached key leakage  | Access key only in DNS query |
 
 ## Limitations
 

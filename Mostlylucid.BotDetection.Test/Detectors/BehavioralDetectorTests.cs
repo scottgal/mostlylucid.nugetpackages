@@ -215,6 +215,29 @@ public class BehavioralDetectorTests
 
     #endregion
 
+    #region Request Timing Analysis Tests
+
+    [Fact]
+    public async Task DetectAsync_RegularTimingPattern_DetectsBotLikeBehavior()
+    {
+        // Arrange
+        var cache = CreateFreshCache();
+        var options = new BotDetectionOptions { MaxRequestsPerMinute = 100 };
+        var detector = new BehavioralDetector(_logger, Options.Create(options), cache);
+        var context = MockHttpContext.CreateWithIpAddress("192.168.1.1");
+
+        // Act - Make exactly 5 requests to trigger timing analysis
+        // Note: In real scenarios, bot-like regular timing would be detected
+        // This test verifies the timing analysis runs without error
+        for (var i = 0; i < 5; i++) await detector.DetectAsync(context);
+
+        // Assert - Timing analysis should have run (result should not be null)
+        var result = await detector.DetectAsync(context);
+        Assert.NotNull(result);
+    }
+
+    #endregion
+
     #region Rate Limiting Tests
 
     [Fact]
@@ -873,32 +896,6 @@ public class BehavioralDetectorTests
         // Assert - Key-2 should not have API key rate limit (different key)
         Assert.DoesNotContain(result2.Reasons, r =>
             r.Detail.Contains("API key rate limit", StringComparison.OrdinalIgnoreCase));
-    }
-
-    #endregion
-
-    #region Request Timing Analysis Tests
-
-    [Fact]
-    public async Task DetectAsync_RegularTimingPattern_DetectsBotLikeBehavior()
-    {
-        // Arrange
-        var cache = CreateFreshCache();
-        var options = new BotDetectionOptions { MaxRequestsPerMinute = 100 };
-        var detector = new BehavioralDetector(_logger, Options.Create(options), cache);
-        var context = MockHttpContext.CreateWithIpAddress("192.168.1.1");
-
-        // Act - Make exactly 5 requests to trigger timing analysis
-        // Note: In real scenarios, bot-like regular timing would be detected
-        // This test verifies the timing analysis runs without error
-        for (var i = 0; i < 5; i++)
-        {
-            await detector.DetectAsync(context);
-        }
-
-        // Assert - Timing analysis should have run (result should not be null)
-        var result = await detector.DetectAsync(context);
-        Assert.NotNull(result);
     }
 
     #endregion

@@ -1,6 +1,7 @@
 # Bot Detection Demo
 
-Interactive demonstration of the **mostlylucid.botdetection** library's full detection pipeline with **real-time signature analysis**.
+Interactive demonstration of the **mostlylucid.botdetection** library's full detection pipeline with **real-time
+signature analysis**.
 
 ## Quick Start
 
@@ -15,6 +16,7 @@ dotnet run
 Visit **http://localhost:5000/SignatureDemo** for advanced signature analysis:
 
 ### Features
+
 - **Real-time SignalR streaming** of bot detection signatures
 - **REST API** for signature retrieval (`/api/signature/...`)
 - **TagHelper visualization** with comprehensive detector breakdowns
@@ -28,35 +30,36 @@ See the [Signature Demo Documentation](#signature-analysis-system) below for com
 
 **IMPORTANT**: This demo exposes detailed detection info for learning purposes. In production:
 
-| Setting | Demo | Production |
-|---------|------|------------|
-| `ResponseHeaders.Enabled` | `true` | **`false`** - Never leak detection details to clients |
+| Setting                         | Demo    | Production                                                 |
+|---------------------------------|---------|------------------------------------------------------------|
+| `ResponseHeaders.Enabled`       | `true`  | **`false`** - Never leak detection details to clients      |
 | `/bot-detection/check` endpoint | Enabled | **Disabled** - Use `HttpContext.Items` for internal checks |
-| Test mode headers | Enabled | **Disabled** - Set `EnableTestMode: false` |
-| Full JSON responses | Enabled | **Blocked** - Detection flows downstream only |
+| Test mode headers               | Enabled | **Disabled** - Set `EnableTestMode: false`                 |
+| Full JSON responses             | Enabled | **Blocked** - Detection flows downstream only              |
 
-Detection results are stored in `HttpContext.Items["BotDetectionResult"]` for your application to consume internally without exposing to clients.
+Detection results are stored in `HttpContext.Items["BotDetectionResult"]` for your application to consume internally
+without exposing to clients.
 
 ## Detection Pipeline
 
 The demo showcases a multi-layered detection system:
 
-| Detector | Speed | Description |
-|----------|-------|-------------|
-| **FastPathReputation** | <1ms | Cached known-good/bad classifications |
-| **UserAgent** | <1ms | Pattern matching against known bot signatures |
-| **Header** | <1ms | Missing/suspicious HTTP header analysis |
-| **Ip** | <1ms | Datacenter/cloud provider IP detection |
-| **SecurityTool** | <1ms | Vulnerability scanner detection (Nikto, Nmap, etc.) |
-| **ProjectHoneypot** | ~100ms | IP reputation via HTTP:BL DNS lookup |
-| **Behavioral** | <1ms | Rate limiting & request pattern anomalies |
-| **ClientSide** | <1ms | Browser fingerprint verification |
-| **Inconsistency** | <1ms | Cross-signal contradiction detection |
-| **VersionAge** | <1ms | Browser/OS version freshness check |
-| **ReputationBias** | <1ms | Applies cached reputation to scoring |
-| **Heuristic** | ~1ms | ML-trained weighted feature model |
-| **LLM** | ~500ms | Language model reasoning (optional) |
-| **HeuristicLate** | <1ms | Post-LLM heuristic refinement |
+| Detector               | Speed  | Description                                         |
+|------------------------|--------|-----------------------------------------------------|
+| **FastPathReputation** | <1ms   | Cached known-good/bad classifications               |
+| **UserAgent**          | <1ms   | Pattern matching against known bot signatures       |
+| **Header**             | <1ms   | Missing/suspicious HTTP header analysis             |
+| **Ip**                 | <1ms   | Datacenter/cloud provider IP detection              |
+| **SecurityTool**       | <1ms   | Vulnerability scanner detection (Nikto, Nmap, etc.) |
+| **ProjectHoneypot**    | ~100ms | IP reputation via HTTP:BL DNS lookup                |
+| **Behavioral**         | <1ms   | Rate limiting & request pattern anomalies           |
+| **ClientSide**         | <1ms   | Browser fingerprint verification                    |
+| **Inconsistency**      | <1ms   | Cross-signal contradiction detection                |
+| **VersionAge**         | <1ms   | Browser/OS version freshness check                  |
+| **ReputationBias**     | <1ms   | Applies cached reputation to scoring                |
+| **Heuristic**          | ~1ms   | ML-trained weighted feature model                   |
+| **LLM**                | ~500ms | Language model reasoning (optional)                 |
+| **HeuristicLate**      | <1ms   | Post-LLM heuristic refinement                       |
 
 ## Interactive Demo UI
 
@@ -66,43 +69,44 @@ Visit **http://localhost:5000/bot-test** for the full interactive demo:
 
 Test the detection pipeline with various bot signatures:
 
-| Category | Simulations |
-|----------|-------------|
-| **Browsers** | Real Browser (human-like Chrome UA) |
-| **Search Engines** | Googlebot, Bingbot |
-| **Scrapers** | Scrapy, cURL, Puppeteer/Headless Chrome |
-| **AI Crawlers** | GPTBot (OpenAI), ClaudeBot (Anthropic) |
-| **Social Bots** | TwitterBot, FacebookBot |
-| **Monitoring** | UptimeRobot |
-| **Security Scanners** | Nikto, Nessus, Nmap, Burp Suite, Acunetix |
-| **Malicious** | sqlmap (SQL injection tool) |
-| **Honeypot Tests** | Harvester, Spammer, Suspicious (simulated Project Honeypot responses) |
+| Category              | Simulations                                                           |
+|-----------------------|-----------------------------------------------------------------------|
+| **Browsers**          | Real Browser (human-like Chrome UA)                                   |
+| **Search Engines**    | Googlebot, Bingbot                                                    |
+| **Scrapers**          | Scrapy, cURL, Puppeteer/Headless Chrome                               |
+| **AI Crawlers**       | GPTBot (OpenAI), ClaudeBot (Anthropic)                                |
+| **Social Bots**       | TwitterBot, FacebookBot                                               |
+| **Monitoring**        | UptimeRobot                                                           |
+| **Security Scanners** | Nikto, Nessus, Nmap, Burp Suite, Acunetix                             |
+| **Malicious**         | sqlmap (SQL injection tool)                                           |
+| **Honeypot Tests**    | Harvester, Spammer, Suspicious (simulated Project Honeypot responses) |
 
 ### Custom User-Agent Testing
 
 Enter any User-Agent string directly to test detection:
+
 - Clicking simulator buttons populates the UA input field
 - Press Enter or click "Test UA" to analyze any string
 
 ### Detection Modes
 
-| Mode | Description | Use Case |
-|------|-------------|----------|
+| Mode                | Description                                    | Use Case                     |
+|---------------------|------------------------------------------------|------------------------------|
 | **Real Experience** | Fast detection with actual blocking/challenges | What users see in production |
-| **UA Only** | Just User-Agent analysis (~5ms) | Testing UA string patterns |
-| **Fast (No Block)** | All static detectors + Heuristic (~50ms) | Debug without blocking |
-| **Full Pipeline** | All detectors + Heuristic + LLM (~500ms) | Complete analysis with AI |
-| **Learning** | Full pipeline, never blocks, saves patterns | Training weight model |
+| **UA Only**         | Just User-Agent analysis (~5ms)                | Testing UA string patterns   |
+| **Fast (No Block)** | All static detectors + Heuristic (~50ms)       | Debug without blocking       |
+| **Full Pipeline**   | All detectors + Heuristic + LLM (~500ms)       | Complete analysis with AI    |
+| **Learning**        | Full pipeline, never blocks, saves patterns    | Training weight model        |
 
 ## Test Mode Headers
 
 Control detection behavior via HTTP headers:
 
-| Header | Purpose | Example |
-|--------|---------|---------|
+| Header             | Purpose                        | Example                                    |
+|--------------------|--------------------------------|--------------------------------------------|
 | `ml-bot-test-mode` | Simulate a predefined bot type | `googlebot`, `nikto`, `honeypot-harvester` |
-| `ml-bot-test-ua` | Test with a custom UA string | Any User-Agent string |
-| `X-Bot-Policy` | Override detection policy | `realfast`, `uaonly`, `demo` |
+| `ml-bot-test-ua`   | Test with a custom UA string   | Any User-Agent string                      |
+| `X-Bot-Policy`     | Override detection policy      | `realfast`, `uaonly`, `demo`               |
 
 ### Test Mode Simulations (appsettings.json)
 
@@ -122,6 +126,7 @@ Control detection behavior via HTTP headers:
 Policies define which detectors run and how results are processed:
 
 ### realfast (Default)
+
 ```json
 {
   "Description": "Production mode that BLOCKS bots",
@@ -134,6 +139,7 @@ Policies define which detectors run and how results are processed:
 ```
 
 ### uaonly (Fastest)
+
 ```json
 {
   "Description": "UA-based detection only",
@@ -142,6 +148,7 @@ Policies define which detectors run and how results are processed:
 ```
 
 ### demo (Full Analysis)
+
 ```json
 {
   "Description": "Full pipeline sync for demonstration",
@@ -153,6 +160,7 @@ Policies define which detectors run and how results are processed:
 ### Policy Transitions
 
 Policies can escalate uncertain results:
+
 ```json
 "Transitions": [
   { "WhenRiskExceeds": 0.5, "WhenRiskBelow": 0.85, "GoTo": "default",
@@ -162,10 +170,10 @@ Policies can escalate uncertain results:
 
 ## API Endpoints
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /bot-test` | Interactive demo UI |
-| `GET /bot-detection/check` | JSON detection result |
+| Endpoint                          | Description               |
+|-----------------------------------|---------------------------|
+| `GET /bot-test`                   | Interactive demo UI       |
+| `GET /bot-detection/check`        | JSON detection result     |
 | `POST /bot-detection/fingerprint` | Submit client fingerprint |
 
 ### curl Examples
@@ -198,6 +206,7 @@ curl http://localhost:5000/bot-detection/check \
 ## Security Tool Detection
 
 Detects vulnerability scanners using patterns from external sources:
+
 - [digininja/scanner_user_agents](https://github.com/digininja/scanner_user_agents)
 - [OWASP CoreRuleSet](https://github.com/coreruleset/coreruleset)
 
@@ -235,6 +244,7 @@ dotnet user-secrets set "BotDetection:ProjectHoneypot:AccessKey" "your12charkey"
 ### Testing Honeypot Detection
 
 Use the special `<test-honeypot:type>` markers to simulate honeypot responses:
+
 - `<test-honeypot:harvester>` - Email address harvester
 - `<test-honeypot:spammer>` - Comment spammer
 - `<test-honeypot:suspicious>` - Suspicious activity
@@ -256,6 +266,7 @@ Weighted feature extraction with learning capabilities:
 ```
 
 Features extracted:
+
 - UA bot probability, header completeness, IP datacenter signals
 - Behavioral anomalies, fingerprint scores, request timing
 - Cross-detector inconsistencies
@@ -275,6 +286,7 @@ Uses Ollama for natural language reasoning:
 ```
 
 Setup:
+
 ```bash
 ollama pull gemma3:4b
 ollama serve
@@ -296,6 +308,7 @@ Browser fingerprint collection and validation:
 ```
 
 Detects:
+
 - WebDriver (navigator.webdriver)
 - PhantomJS, Selenium, Puppeteer markers
 - Chrome DevTools Protocol traces
@@ -306,7 +319,8 @@ Detects:
 
 **IMPORTANT: Production vs Debug**
 
-By default, detection results flow **downstream only** (to your application code via HttpContext.Items). Response headers exposing detection info to clients are **disabled by default** in production.
+By default, detection results flow **downstream only** (to your application code via HttpContext.Items). Response
+headers exposing detection info to clients are **disabled by default** in production.
 
 Only enable response headers for debugging/demo purposes:
 
@@ -323,6 +337,7 @@ Only enable response headers for debugging/demo purposes:
 ```
 
 When enabled for debugging:
+
 ```
 X-Bot-Policy: realfast
 X-Bot-Confidence: 0.85
@@ -331,7 +346,8 @@ X-Bot-ProcessingTime: 12.5ms
 X-Bot-Name: Nikto
 ```
 
-**Security Note**: Never expose detailed detection signals to untrusted clients in production. This information helps attackers evade detection.
+**Security Note**: Never expose detailed detection signals to untrusted clients in production. This information helps
+attackers evade detection.
 
 ## Data Sources
 
@@ -353,16 +369,17 @@ Background updates run every 24 hours by default.
 
 ## Performance
 
-| Mode | Typical Latency | Notes |
-|------|-----------------|-------|
-| **realfast** | 5-20ms | Production recommended |
-| **uaonly** | 2-5ms | Fastest, UA patterns only |
-| **fastpath** | 20-50ms | All static detectors |
-| **demo** | 200-800ms | Includes LLM if available |
+| Mode         | Typical Latency | Notes                     |
+|--------------|-----------------|---------------------------|
+| **realfast** | 5-20ms          | Production recommended    |
+| **uaonly**   | 2-5ms           | Fastest, UA patterns only |
+| **fastpath** | 20-50ms         | All static detectors      |
+| **demo**     | 200-800ms       | Includes LLM if available |
 
 ## Configuration Reference
 
 See the docs folder for complete configuration examples:
+
 - `docs/appsettings.typical.json` - Balanced production config
 - `docs/appsettings.full.json` - All options documented
 
@@ -372,7 +389,8 @@ See the docs folder for complete configuration examples:
 
 ## Overview
 
-The signature demo showcases the complete bot detection system with real-time streaming, comprehensive fingerprinting, and visual analysis.
+The signature demo showcases the complete bot detection system with real-time streaming, comprehensive fingerprinting,
+and visual analysis.
 
 ### Architecture
 
@@ -390,6 +408,7 @@ Request → SignatureCaptureMiddleware (generates ID)
 ## API Endpoints
 
 ### GET `/api/signature/{id}`
+
 Get specific signature by ID.
 
 ```bash
@@ -397,6 +416,7 @@ curl https://localhost:5001/api/signature/abc123
 ```
 
 **Response:**
+
 ```json
 {
   "signatureId": "abc123",
@@ -417,9 +437,11 @@ curl https://localhost:5001/api/signature/abc123
 ```
 
 ### GET `/api/signature/recent?count=50`
+
 Get most recent signatures (max 1000).
 
 ### GET `/api/signature/stats`
+
 Get aggregate statistics.
 
 ```json
@@ -432,6 +454,7 @@ Get aggregate statistics.
 ```
 
 ### GET `/api/signature/current`
+
 Get signature for current request (reads `X-Signature-ID` header).
 
 ## SignalR Hub
@@ -478,6 +501,7 @@ const stats = await connection.invoke("GetStats");
 The `full-demo` policy runs all non-AI detectors:
 
 **Fast Path (Synchronous):**
+
 1. FastPathReputation - Quick reputation lookup
 2. HoneypotLink - Honeypot trap detection
 3. UserAgent - User-agent analysis
@@ -495,6 +519,7 @@ The `full-demo` policy runs all non-AI detectors:
 15. Heuristic - ML scoring
 
 **Advanced Fingerprinting:**
+
 16. **TlsFingerprint** - JA3/JA4 TLS
 17. **TcpIpFingerprint** - p0f OS detection
 18. **Http2Fingerprint** - HTTP/2 SETTINGS
@@ -522,12 +547,14 @@ dotnet test
 ## Production Deployment
 
 ### Security
+
 - Add authentication to `/api/signature` endpoints
 - Require auth for SignalR subscriptions
 - Use cryptographic signature IDs
 - Enable rate limiting
 
 ### Scalability
+
 - Replace SignatureStore with Redis/SQL
 - Use RabbitMQ/Kafka for SignalR scale-out
 - CDN for fingerprint databases

@@ -2,7 +2,8 @@
 
 ## Overview
 
-Response analysis can be **pre-configured during request detection** by early detectors (Priority 0-50). This allows the response coordinator to be ready and waiting BEFORE the response is even generated, enabling:
+Response analysis can be **pre-configured during request detection** by early detectors (Priority 0-50). This allows the
+response coordinator to be ready and waiting BEFORE the response is even generated, enabling:
 
 1. **Streaming analysis**: Analyze response body as it's generated
 2. **Adaptive thoroughness**: High-risk requests get deeper analysis
@@ -134,6 +135,7 @@ public class IpDetector : ContributingDetectorBase, IResponseAnalysisTrigger
 ```
 
 **What happens**:
+
 1. IpDetector runs FIRST (Priority=0)
 2. Detects datacenter IP
 3. Calls `state.TriggerDatacenterResponseAnalysis(...)`
@@ -188,6 +190,7 @@ public class PathDetector : ContributingDetectorBase
 ```
 
 **What happens**:
+
 1. PathDetector runs early (Priority=10)
 2. Detects honeypot path `/.git/config`
 3. Calls `state.TriggerHoneypotResponseAnalysis(...)`
@@ -235,12 +238,13 @@ public class HeuristicDetector : ContributingDetectorBase
 ```
 
 **What happens**:
+
 1. HeuristicDetector runs mid-wave (Priority=50)
 2. Looks up prior score from previous requests (learned from response analysis!)
 3. If score > 0.6, triggers response analysis
 4. Thoroughness adapts to score:
-   - 0.6-0.8 → Thorough, Async
-   - 0.8+ → Deep, Inline, Streaming
+    - 0.6-0.8 → Thorough, Async
+    - 0.8+ → Deep, Inline, Streaming
 5. Creates feedback loop: Response analysis → Heuristic → Triggers more response analysis
 
 ## Helper Methods
@@ -406,21 +410,25 @@ private async Task AnalyzeResponseStreamingAsync(
 ## Performance Impact
 
 ### Minimal Thoroughness
+
 - **Latency**: < 0.5ms
 - **Detectors**: Status code only
 - **Use case**: Low-risk requests, high-volume APIs
 
 ### Standard Thoroughness (Default)
+
 - **Latency**: 1-2ms (async), 0ms added (async)
 - **Detectors**: Status + basic patterns
 - **Use case**: Most requests
 
 ### Thorough Thoroughness
+
 - **Latency**: 5-10ms (inline), 0ms added (async)
 - **Detectors**: All response detectors, full patterns
 - **Use case**: Medium-risk requests (datacenter IPs, suspicious UAs)
 
 ### Deep Thoroughness
+
 - **Latency**: 20-50ms (inline), 0ms added (async)
 - **Detectors**: Streaming, semantic content, LLM if enabled
 - **Use case**: High-risk requests (honeypots, known bad actors)
@@ -539,4 +547,5 @@ Request-side triggers enable:
 5. **Streaming Capability**: Deep analysis can inspect response as it generates
 6. **Feedback Loop**: Response scores improve request-side detection over time
 
-The system automatically escalates from cheap to expensive analysis based on early request signals, ensuring optimal performance while catching sophisticated bots.
+The system automatically escalates from cheap to expensive analysis based on early request signals, ensuring optimal
+performance while catching sophisticated bots.

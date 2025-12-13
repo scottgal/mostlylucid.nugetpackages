@@ -11,8 +11,8 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// </summary>
 public class HeuristicContributor : ContributingDetectorBase
 {
-    private readonly ILogger<HeuristicContributor> _logger;
     private readonly HeuristicDetector _detector;
+    private readonly ILogger<HeuristicContributor> _logger;
 
     public HeuristicContributor(
         ILogger<HeuristicContributor> logger,

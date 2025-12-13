@@ -8,11 +8,14 @@ namespace Mostlylucid.BotDetection.Orchestration.Lanes;
 /// </summary>
 internal sealed class BehavioralLane : AnalysisLaneBase
 {
-    public BehavioralLane(SignalSink sink) : base(sink) { }
+    public BehavioralLane(SignalSink sink) : base(sink)
+    {
+    }
 
     public override string Name => "behavioral";
 
-    public override Task AnalyzeAsync(IReadOnlyList<OperationCompleteSignal> window, CancellationToken cancellationToken = default)
+    public override Task AnalyzeAsync(IReadOnlyList<OperationCompleteSignal> window,
+        CancellationToken cancellationToken = default)
     {
         if (window.Count == 0)
         {

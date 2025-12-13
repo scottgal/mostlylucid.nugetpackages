@@ -16,16 +16,6 @@ public class LearningListener : IBotSignalListener, ISignalSubscriber
         _logger = logger;
     }
 
-    /// <summary>
-    ///     Listen to all signals for learning
-    /// </summary>
-    public IEnumerable<BotSignalType> SubscribedSignals => new[]
-    {
-        BotSignalType.InconsistencyUpdated,
-        BotSignalType.AiClassificationCompleted,
-        BotSignalType.Finalising
-    };
-
     public ValueTask OnSignalAsync(
         BotSignalType signal,
         DetectionContext context,
@@ -48,6 +38,16 @@ public class LearningListener : IBotSignalListener, ISignalSubscriber
 
         return ValueTask.CompletedTask;
     }
+
+    /// <summary>
+    ///     Listen to all signals for learning
+    /// </summary>
+    public IEnumerable<BotSignalType> SubscribedSignals => new[]
+    {
+        BotSignalType.InconsistencyUpdated,
+        BotSignalType.AiClassificationCompleted,
+        BotSignalType.Finalising
+    };
 
     private void CaptureInconsistencyLearning(DetectionContext context)
     {

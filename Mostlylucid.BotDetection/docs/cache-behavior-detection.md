@@ -2,7 +2,9 @@
 
 ## Overview
 
-The **CacheBehavior** contributor detects bots by analyzing HTTP caching behavior patterns. Real browsers implement sophisticated HTTP caching mechanisms (ETags, Last-Modified headers, compression support), while many bots and scrapers ignore or skip these features to simplify their implementation.
+The **CacheBehavior** contributor detects bots by analyzing HTTP caching behavior patterns. Real browsers implement
+sophisticated HTTP caching mechanisms (ETags, Last-Modified headers, compression support), while many bots and scrapers
+ignore or skip these features to simplify their implementation.
 
 ## How It Works
 
@@ -11,13 +13,16 @@ The **CacheBehavior** contributor detects bots by analyzing HTTP caching behavio
 The contributor analyzes four key aspects of HTTP caching behavior:
 
 #### 1. Missing Cache Validation Headers
+
 **Signal:** `cache.validation_missing`
 
 Real browsers send cache validation headers on subsequent requests:
+
 - `If-None-Match` (ETag validation)
 - `If-Modified-Since` (Last-Modified validation)
 
 Missing these headers on repeated resource requests is suspicious, as it indicates:
+
 - The client is not caching resources
 - The client is ignoring standard HTTP caching mechanisms
 - Likely a bot fetching pages without optimization
@@ -26,12 +31,15 @@ Missing these headers on repeated resource requests is suspicious, as it indicat
 **Confidence Delta:** 0.3
 
 #### 2. Missing Compression Support
+
 **Signal:** `cache.compression_missing`
 
 Modern browsers universally support HTTP compression:
+
 - `Accept-Encoding: gzip, deflate, br`
 
 Missing this header entirely suggests:
+
 - Legacy or custom HTTP client
 - Bot/scraper without compression support
 - Simplified client implementation
@@ -40,9 +48,12 @@ Missing this header entirely suggests:
 **Confidence Delta:** 0.25
 
 #### 3. Rapid Repeated Requests Without Caching
+
 **Signal:** `cache.rapid_repeated`
 
-When a client makes multiple requests to the same resource path within a short time window (30 seconds) WITHOUT sending cache validation headers, it indicates:
+When a client makes multiple requests to the same resource path within a short time window (30 seconds) WITHOUT sending
+cache validation headers, it indicates:
+
 - The client is not caching at all
 - Each request is treated as a fresh fetch
 - Typical bot behavior (fetching pages repeatedly without state)
@@ -51,9 +62,11 @@ When a client makes multiple requests to the same resource path within a short t
 **Confidence Delta:** 0.35
 
 #### 4. Low Cache Validation Rate
+
 **Signal:** `cache.behavior_anomaly`
 
 Tracks the ratio of cache-validated requests to total requests over a session window. If the validation rate is < 20%:
+
 - The client rarely validates cached resources
 - Inconsistent with normal browser behavior
 - Suggests simplified or non-compliant HTTP client
@@ -64,6 +77,7 @@ Tracks the ratio of cache-validated requests to total requests over a session wi
 ### Positive Signals (Human-like Behavior)
 
 When a client consistently shows good caching behavior:
+
 - Sends validation headers appropriately
 - Supports compression
 - Validates 30%+ of requests
@@ -74,6 +88,7 @@ When a client consistently shows good caching behavior:
 ## Privacy & Security
 
 The CacheBehavior contributor is **privacy-preserving**:
+
 - Uses **hashed identity keys** (IP + salt) - NO PII storage
 - Identity signatures are deterministic (same IP always produces same hash)
 - The salt is configurable via `Behavioral.IdentityHashSalt`
@@ -95,15 +110,16 @@ The CacheBehavior contributor is **privacy-preserving**:
 
 ### Configuration Options
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `AnalysisWindow` | Time window for tracking caching behavior | 15 minutes |
-| `IdentityHashSalt` | Salt for hashing IP addresses (KEEP SECRET!) | Random GUID |
-| `EnableAdvancedPatternDetection` | Enable cache behavior analysis | true |
+| Option                           | Description                                  | Default     |
+|----------------------------------|----------------------------------------------|-------------|
+| `AnalysisWindow`                 | Time window for tracking caching behavior    | 15 minutes  |
+| `IdentityHashSalt`               | Salt for hashing IP addresses (KEEP SECRET!) | Random GUID |
+| `EnableAdvancedPatternDetection` | Enable cache behavior analysis               | true        |
 
 ## Example Detection
 
 ### Bot Pattern
+
 ```http
 GET /page.html HTTP/1.1
 Host: example.com
@@ -119,12 +135,14 @@ User-Agent: python-requests/2.28.1
 ```
 
 **Detection Result:**
+
 - Missing validation headers: +0.3 confidence
 - Missing compression: +0.25 confidence
 - Rapid repeated without cache: +0.35 confidence
 - **Total contribution: ~0.7 bot probability**
 
 ### Human Pattern
+
 ```http
 GET /page.html HTTP/1.1
 Host: example.com
@@ -141,6 +159,7 @@ If-None-Match: "abc123"
 ```
 
 **Detection Result:**
+
 - Good caching behavior detected: -0.15 confidence
 - **Contributes to human classification**
 
@@ -155,13 +174,17 @@ This allows cache behavior signals to influence downstream detectors through the
 ## Use Cases
 
 ### 1. Scraper Detection
+
 Scrapers often skip caching to ensure they get fresh content on every fetch, making them easy to identify.
 
 ### 2. Bot Framework Detection
+
 Many bot frameworks (Puppeteer, Selenium in headless mode) implement partial caching, leading to suspicious patterns.
 
 ### 3. API Client Detection
-Programmatic API clients often don't implement full HTTP caching semantics, revealing themselves through missing headers.
+
+Programmatic API clients often don't implement full HTTP caching semantics, revealing themselves through missing
+headers.
 
 ## Technical Details
 
@@ -186,6 +209,7 @@ private string HashIdentity(string identityKey)
 ### Tracking Window
 
 The contributor uses ephemeral.complete's SHORT tracking semantics:
+
 - Entries are tracked for `AnalysisWindow` duration (default 15 minutes)
 - Entries automatically expire after window elapses
 - Memory efficient - no long-term storage
@@ -196,6 +220,7 @@ The contributor uses ephemeral.complete's SHORT tracking semantics:
 The CacheBehavior contributor is automatically registered when using bot detection. To ensure it runs:
 
 1. **Add to policy paths** in `appsettings.json`:
+
 ```json
 {
   "Policies": {
@@ -212,6 +237,7 @@ The CacheBehavior contributor is automatically registered when using bot detecti
 ```
 
 2. **Verify it's running** - check detection output:
+
 ```json
 {
   "detectorsRan": ["...", "CacheBehavior", "..."],

@@ -2,11 +2,13 @@
 
 [![NuGet](https://img.shields.io/nuget/v/Mostlylucid.BotDetection.ApiHolodeck.svg)](https://www.nuget.org/packages/Mostlylucid.BotDetection.ApiHolodeck/)
 
-A honeypot extension for [Mostlylucid.BotDetection](../Mostlylucid.BotDetection/) that creates a fake API "holodeck" for detected bots.
+A honeypot extension for [Mostlylucid.BotDetection](../Mostlylucid.BotDetection/) that creates a fake API "holodeck" for
+detected bots.
 
 ## What It Does
 
-Instead of simply blocking detected bots, ApiHolodeck redirects them to **fake API endpoints** that return realistic-looking but useless data. This:
+Instead of simply blocking detected bots, ApiHolodeck redirects them to **fake API endpoints** that return
+realistic-looking but useless data. This:
 
 - **Wastes bot resources** - They scrape fake data instead of your real content
 - **Studies bot behavior** - You learn what they're looking for
@@ -94,6 +96,7 @@ Redirects detected bots to MockLLMApi instead of your real backend.
 Detects when bots access trap paths that real users would never visit.
 
 Built-in honeypot paths include:
+
 - `/wp-login.php`, `/wp-admin` - WordPress probes
 - `/.env`, `/config.php` - Config file access
 - `/.git/config` - Version control exposure
@@ -120,13 +123,13 @@ Reports malicious IPs to threat intelligence services (Project Honeypot, AbuseIP
 
 ## Holodeck Modes
 
-| Mode | Description |
-|------|-------------|
-| `Realistic` | Generate believable fake data |
+| Mode                  | Description                               |
+|-----------------------|-------------------------------------------|
+| `Realistic`           | Generate believable fake data             |
 | `RealisticButUseless` | Fake data with wrong schemas, demo values |
-| `Chaos` | Random errors, timeouts, inconsistencies |
-| `StrictSchema` | OpenAPI-based structured fakes |
-| `Adversarial` | Mix of all tactics |
+| `Chaos`               | Random errors, timeouts, inconsistencies  |
+| `StrictSchema`        | OpenAPI-based structured fakes            |
+| `Adversarial`         | Mix of all tactics                        |
 
 ## Configuration
 
@@ -174,22 +177,24 @@ Request -> BotDetection
                                             +-- Bot thinks it's real data!
 ```
 
-Each bot gets a **consistent fake world** based on their fingerprint. If they make 10 requests, they get coherent (but fake) responses. This makes it harder to detect they're being sandboxed.
+Each bot gets a **consistent fake world** based on their fingerprint. If they make 10 requests, they get coherent (but
+fake) responses. This makes it harder to detect they're being sandboxed.
 
 ## Context Keys
 
 The `ContextSource` setting determines how bots are identified:
 
-| Source | Description |
-|--------|-------------|
+| Source        | Description                                |
+|---------------|--------------------------------------------|
 | `Fingerprint` | Browser/client fingerprint (most accurate) |
-| `Ip` | IP address only |
-| `Session` | Session ID |
-| `Combined` | IP + Fingerprint |
+| `Ip`          | IP address only                            |
+| `Session`     | Session ID                                 |
+| `Combined`    | IP + Fingerprint                           |
 
 ## Study Cutoff
 
-After `MaxStudyRequests`, the bot is hard-blocked. This prevents infinite resource consumption while still gathering useful intelligence about their scraping patterns.
+After `MaxStudyRequests`, the bot is hard-blocked. This prevents infinite resource consumption while still gathering
+useful intelligence about their scraping patterns.
 
 ## Example: API Protection
 

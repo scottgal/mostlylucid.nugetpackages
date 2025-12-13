@@ -12,10 +12,8 @@ namespace Mostlylucid.BotDetection.Filters;
 /// <example>
 ///     [BlockBots] // Blocks all bots
 ///     public IActionResult SensitiveData() { ... }
-///
 ///     [BlockBots(AllowVerifiedBots = true)] // Blocks bots except verified ones (Googlebot, etc.)
 ///     public IActionResult PublicData() { ... }
-///
 ///     [BlockBots(MinConfidence = 0.9)] // Only blocks high-confidence bot detections
 ///     public IActionResult ModerateProtection() { ... }
 /// </example>
@@ -102,7 +100,6 @@ public class BlockBotsAttribute : ActionFilterAttribute
 /// <example>
 ///     [AllowBots] // All bots allowed
 ///     public IActionResult RobotsFile() { ... }
-///
 ///     [AllowBots(OnlyVerified = true)] // Only verified bots allowed
 ///     public IActionResult Sitemap() { ... }
 /// </example>

@@ -11,8 +11,6 @@
 // - User ID (via claim or header)
 // ============================================================================
 
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using Mostlylucid.BotDetection.Extensions;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Orchestration;
@@ -35,24 +33,21 @@ public static class BehavioralAnalysisExample
     ///     // In Program.cs:
     ///     builder.Services.AddBotDetection(options =>
     ///     {
-    ///         options.MaxRequestsPerMinute = 60;
-    ///
-    ///         options.Behavioral = new BehavioralOptions
-    ///         {
-    ///             // Track by API key header
-    ///             ApiKeyHeader = "X-Api-Key",
-    ///             ApiKeyRateLimit = 120, // 2x the IP limit
-    ///
-    ///             // Track by user ID
-    ///             UserIdClaim = "sub",      // From JWT
-    ///             UserIdHeader = "X-User-Id", // Fallback header
-    ///             UserRateLimit = 180,      // 3x the IP limit
-    ///
-    ///             // Anomaly detection
-    ///             EnableAnomalyDetection = true,
-    ///             SpikeThresholdMultiplier = 5.0, // 5x = spike
-    ///             NewPathAnomalyThreshold = 0.8   // 80% new paths = anomaly
-    ///         };
+    ///     options.MaxRequestsPerMinute = 60;
+    ///     options.Behavioral = new BehavioralOptions
+    ///     {
+    ///     // Track by API key header
+    ///     ApiKeyHeader = "X-Api-Key",
+    ///     ApiKeyRateLimit = 120, // 2x the IP limit
+    ///     // Track by user ID
+    ///     UserIdClaim = "sub",      // From JWT
+    ///     UserIdHeader = "X-User-Id", // Fallback header
+    ///     UserRateLimit = 180,      // 3x the IP limit
+    ///     // Anomaly detection
+    ///     EnableAnomalyDetection = true,
+    ///     SpikeThresholdMultiplier = 5.0, // 5x = spike
+    ///     NewPathAnomalyThreshold = 0.8   // 80% new paths = anomaly
+    ///     };
     ///     });
     /// </example>
     public static void ConfigureBasicBehavioral(IServiceCollection services)
@@ -85,15 +80,15 @@ public static class BehavioralAnalysisExample
     /// <example>
     ///     // appsettings.json:
     ///     {
-    ///       "BotDetection": {
-    ///         "MaxRequestsPerMinute": 100,
-    ///         "Behavioral": {
-    ///           "ApiKeyHeader": "Authorization",
-    ///           "ApiKeyRateLimit": 1000,
-    ///           "EnableAnomalyDetection": true,
-    ///           "SpikeThresholdMultiplier": 10.0
-    ///         }
-    ///       }
+    ///     "BotDetection": {
+    ///     "MaxRequestsPerMinute": 100,
+    ///     "Behavioral": {
+    ///     "ApiKeyHeader": "Authorization",
+    ///     "ApiKeyRateLimit": 1000,
+    ///     "EnableAnomalyDetection": true,
+    ///     "SpikeThresholdMultiplier": 10.0
+    ///     }
+    ///     }
     ///     }
     /// </example>
     public static void ConfigureApiGateway(IServiceCollection services)
@@ -127,8 +122,8 @@ public static class BehavioralAnalysisExample
     ///     // Use tenant ID from JWT claim for tracking
     ///     options.Behavioral = new BehavioralOptions
     ///     {
-    ///         UserIdClaim = "tenant_id",
-    ///         UserRateLimit = 500  // Per-tenant limit
+    ///     UserIdClaim = "tenant_id",
+    ///     UserRateLimit = 500  // Per-tenant limit
     ///     };
     /// </example>
     public static void ConfigureMultiTenant(IServiceCollection services)
@@ -164,23 +159,19 @@ public static class BehavioralAnalysisExample
     /// <example>
     ///     app.MapGet("/api/protected", (HttpContext context) =>
     ///     {
-    ///         var reasons = context.GetDetectionReasons();
-    ///         var behavioralReasons = reasons.Where(r => r.Category == "Behavioral");
-    ///
-    ///         foreach (var reason in behavioralReasons)
-    ///         {
-    ///             // Check for specific behavioral issues
-    ///             if (reason.Detail.Contains("API key rate limit"))
-    ///                 return Results.StatusCode(429); // Too Many Requests
-    ///
-    ///             if (reason.Detail.Contains("User rate limit"))
-    ///                 return Results.StatusCode(429);
-    ///
-    ///             if (reason.Detail.Contains("Sudden request spike"))
-    ///                 return Results.StatusCode(503); // Service Unavailable
-    ///         }
-    ///
-    ///         return Results.Ok("Access granted");
+    ///     var reasons = context.GetDetectionReasons();
+    ///     var behavioralReasons = reasons.Where(r => r.Category == "Behavioral");
+    ///     foreach (var reason in behavioralReasons)
+    ///     {
+    ///     // Check for specific behavioral issues
+    ///     if (reason.Detail.Contains("API key rate limit"))
+    ///     return Results.StatusCode(429); // Too Many Requests
+    ///     if (reason.Detail.Contains("User rate limit"))
+    ///     return Results.StatusCode(429);
+    ///     if (reason.Detail.Contains("Sudden request spike"))
+    ///     return Results.StatusCode(503); // Service Unavailable
+    ///     }
+    ///     return Results.Ok("Access granted");
     ///     });
     /// </example>
     public static IResult CheckBehavioralResults(HttpContext context)
@@ -192,46 +183,84 @@ public static class BehavioralAnalysisExample
         {
             // API key rate limit exceeded
             if (reason.Detail.Contains("API key rate limit", StringComparison.OrdinalIgnoreCase))
-            {
                 return Results.Json(new
                 {
                     Error = "API rate limit exceeded",
                     RetryAfter = 60
                 }, statusCode: 429);
-            }
 
             // User rate limit exceeded
             if (reason.Detail.Contains("User rate limit", StringComparison.OrdinalIgnoreCase))
-            {
                 return Results.Json(new
                 {
                     Error = "User rate limit exceeded",
                     RetryAfter = 60
                 }, statusCode: 429);
-            }
 
             // Sudden behavior change (potential account takeover)
             if (reason.Detail.Contains("Sudden request spike", StringComparison.OrdinalIgnoreCase) ||
                 reason.Detail.Contains("behavior anomaly", StringComparison.OrdinalIgnoreCase))
-            {
                 return Results.Json(new
                 {
                     Error = "Unusual activity detected",
                     Action = "Please verify your identity"
                 }, statusCode: 403);
-            }
 
             // Bot-like timing patterns
             if (reason.Detail.Contains("Too regular interval", StringComparison.OrdinalIgnoreCase))
-            {
                 return Results.Json(new
                 {
                     Error = "Automated request pattern detected"
                 }, statusCode: 403);
-            }
         }
 
         return Results.Ok(new { Status = "Access granted" });
+    }
+
+    // ============================================================================
+    // Example 6: Using with Client-Side Fingerprinting
+    // ============================================================================
+
+    /// <summary>
+    ///     Combined behavioral + client-side fingerprint tracking.
+    /// </summary>
+    /// <example>
+    ///     // appsettings.json:
+    ///     {
+    ///     "BotDetection": {
+    ///     "ClientSide": {
+    ///     "Enabled": true,
+    ///     "TokenSecret": "your-secret"
+    ///     },
+    ///     "Behavioral": {
+    ///     "EnableAnomalyDetection": true
+    ///     }
+    ///     }
+    ///     }
+    ///     // When client-side is enabled, the BehavioralDetector automatically
+    ///     // tracks by fingerprint hash in addition to IP/API key/user.
+    ///     // This catches bots that rotate IPs but keep the same fingerprint.
+    /// </example>
+    public static void ConfigureWithClientSide(IServiceCollection services)
+    {
+        services.AddBotDetection(options =>
+        {
+            // Enable client-side fingerprinting
+            options.ClientSide = new ClientSideOptions
+            {
+                Enabled = true,
+                TokenSecret = "your-secret-key",
+                CollectWebGL = true,
+                CollectCanvas = true
+            };
+
+            // Behavioral analysis will automatically track by fingerprint hash
+            options.Behavioral = new BehavioralOptions
+            {
+                EnableAnomalyDetection = true,
+                SpikeThresholdMultiplier = 5.0
+            };
+        });
     }
 
     // ============================================================================
@@ -292,53 +321,6 @@ public static class BehavioralAnalysisExample
 
             await _next(context);
         }
-    }
-
-    // ============================================================================
-    // Example 6: Using with Client-Side Fingerprinting
-    // ============================================================================
-
-    /// <summary>
-    ///     Combined behavioral + client-side fingerprint tracking.
-    /// </summary>
-    /// <example>
-    ///     // appsettings.json:
-    ///     {
-    ///       "BotDetection": {
-    ///         "ClientSide": {
-    ///           "Enabled": true,
-    ///           "TokenSecret": "your-secret"
-    ///         },
-    ///         "Behavioral": {
-    ///           "EnableAnomalyDetection": true
-    ///         }
-    ///       }
-    ///     }
-    ///
-    ///     // When client-side is enabled, the BehavioralDetector automatically
-    ///     // tracks by fingerprint hash in addition to IP/API key/user.
-    ///     // This catches bots that rotate IPs but keep the same fingerprint.
-    /// </example>
-    public static void ConfigureWithClientSide(IServiceCollection services)
-    {
-        services.AddBotDetection(options =>
-        {
-            // Enable client-side fingerprinting
-            options.ClientSide = new ClientSideOptions
-            {
-                Enabled = true,
-                TokenSecret = "your-secret-key",
-                CollectWebGL = true,
-                CollectCanvas = true
-            };
-
-            // Behavioral analysis will automatically track by fingerprint hash
-            options.Behavioral = new BehavioralOptions
-            {
-                EnableAnomalyDetection = true,
-                SpikeThresholdMultiplier = 5.0
-            };
-        });
     }
 }
 

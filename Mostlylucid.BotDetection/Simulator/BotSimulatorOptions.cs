@@ -78,7 +78,7 @@ public class BotSimulatorOptions
 
     /// <summary>
     ///     Log all simulator requests for auditing.
-    ///     </summary>
+    /// </summary>
     public bool LogAllRequests { get; set; } = true;
 }
 

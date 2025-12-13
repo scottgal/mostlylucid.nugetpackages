@@ -2,29 +2,27 @@ using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Models;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
+
 /// TODO: WE NEED TO USE THIS LIST AND MAINTAIN COMPATABILITY WITH SIGNATURES SO WE CAN USE THEM.
 /// https://threatfox.abuse.ch/export/json/recent/
 /// <summary>
 ///     TLS fingerprinting contributor using JA3/JA4-style fingerprinting.
 ///     Analyzes TLS handshake parameters to detect automated clients.
-///
 ///     Best-in-breed approach:
 ///     - JA3: TLS client hello fingerprinting (SSLVersion,Ciphers,Extensions,EllipticCurves,EllipticCurvePointFormats)
 ///     - JA4: Modern evolution with better normalization
 ///     - Detects headless browsers, automation frameworks, and custom HTTP clients
-///
 ///     IMPORTANT: This contributor relies on reverse proxy (nginx/HAProxy) to extract
 ///     TLS handshake data and pass via headers (X-JA3-Hash, X-TLS-Protocol, X-TLS-Cipher).
 ///     ASP.NET Core's ITlsConnectionFeature has very limited TLS information available.
 /// </summary>
 public class TlsFingerprintContributor : ContributingDetectorBase
 {
-    private readonly ILogger<TlsFingerprintContributor> _logger;
-
     // Known bot TLS fingerprints (JA3 MD5 hashes)
     // These are sample fingerprints - in production, maintain a database
     private static readonly HashSet<string> KnownBotFingerprints = new(StringComparer.OrdinalIgnoreCase)
@@ -60,6 +58,8 @@ public class TlsFingerprintContributor : ContributingDetectorBase
         // Safari/WebKit
         "e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0"
     };
+
+    private readonly ILogger<TlsFingerprintContributor> _logger;
 
     public TlsFingerprintContributor(ILogger<TlsFingerprintContributor> logger)
     {
@@ -125,15 +125,12 @@ public class TlsFingerprintContributor : ContributingDetectorBase
             {
                 // Check against known fingerprints
                 if (KnownBotFingerprints.Contains(ja3Hash))
-                {
                     contributions.Add(DetectionContribution.Bot(
                         Name, "TLS", 0.85,
                         $"Known bot TLS fingerprint detected: {ja3Hash[..Math.Min(8, ja3Hash.Length)]}...",
                         BotType.Scraper,
                         weight: 1.8));
-                }
                 else if (KnownBrowserFingerprints.Contains(ja3Hash))
-                {
                     contributions.Add(new DetectionContribution
                     {
                         DetectorName = Name,
@@ -143,15 +140,12 @@ public class TlsFingerprintContributor : ContributingDetectorBase
                         Reason = $"Known legitimate browser fingerprint: {ja3Hash[..Math.Min(8, ja3Hash.Length)]}...",
                         Signals = signals.ToImmutable()
                     });
-                }
                 else
-                {
                     signals.Add("tls.fingerprint_known", false);
-                }
             }
 
             // Check for client certificate (uncommon for browsers)
-            var tlsFeature = state.HttpContext.Features.Get<Microsoft.AspNetCore.Http.Features.ITlsConnectionFeature>();
+            var tlsFeature = state.HttpContext.Features.Get<ITlsConnectionFeature>();
             if (tlsFeature?.ClientCertificate != null)
             {
                 signals.Add("tls.client_cert_present", true);
@@ -167,7 +161,6 @@ public class TlsFingerprintContributor : ContributingDetectorBase
                     Signals = signals.ToImmutable()
                 });
             }
-
         }
         catch (Exception ex)
         {
@@ -177,7 +170,6 @@ public class TlsFingerprintContributor : ContributingDetectorBase
 
         // If no contributions yet, add neutral
         if (contributions.Count == 0)
-        {
             contributions.Add(new DetectionContribution
             {
                 DetectorName = Name,
@@ -187,7 +179,6 @@ public class TlsFingerprintContributor : ContributingDetectorBase
                 Reason = "TLS connection appears normal",
                 Signals = signals.ToImmutable()
             });
-        }
 
         return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
     }
@@ -197,16 +188,13 @@ public class TlsFingerprintContributor : ContributingDetectorBase
     {
         // Outdated protocols are suspicious
         if (protocol.Contains("SSL", StringComparison.OrdinalIgnoreCase))
-        {
             contributions.Add(DetectionContribution.Bot(
                 Name, "TLS", 0.7,
                 $"Outdated SSL protocol: {protocol}",
                 BotType.Scraper,
                 weight: 1.5));
-        }
         else if (protocol.Contains("TLSv1.0", StringComparison.OrdinalIgnoreCase) ||
                  protocol.Contains("TLSv1.1", StringComparison.OrdinalIgnoreCase))
-        {
             contributions.Add(new DetectionContribution
             {
                 DetectorName = Name,
@@ -216,7 +204,6 @@ public class TlsFingerprintContributor : ContributingDetectorBase
                 Reason = $"Old TLS version: {protocol} (modern browsers use TLS 1.2+)",
                 Signals = signals.ToImmutable()
             });
-        }
         // TLS 1.2+ is normal
     }
 
@@ -227,7 +214,6 @@ public class TlsFingerprintContributor : ContributingDetectorBase
         if (cipherSuite.Contains("NULL", StringComparison.OrdinalIgnoreCase) ||
             cipherSuite.Contains("NONE", StringComparison.OrdinalIgnoreCase) ||
             cipherSuite.Contains("MD5", StringComparison.OrdinalIgnoreCase))
-        {
             contributions.Add(new DetectionContribution
             {
                 DetectorName = Name,
@@ -237,18 +223,15 @@ public class TlsFingerprintContributor : ContributingDetectorBase
                 Reason = $"Weak cipher suite detected: {cipherSuite}",
                 Signals = signals.ToImmutable()
             });
-        }
 
         // Export-grade or DES ciphers
         if (cipherSuite.Contains("DES", StringComparison.OrdinalIgnoreCase) ||
             cipherSuite.Contains("EXPORT", StringComparison.OrdinalIgnoreCase))
-        {
             contributions.Add(DetectionContribution.Bot(
                 Name, "TLS", 0.6,
                 "Export-grade or DES cipher (very outdated)",
                 BotType.Scraper,
                 weight: 1.4));
-        }
     }
 
     private string GetJa3Fingerprint(HttpContext context, ImmutableDictionary<string, object>.Builder signals)

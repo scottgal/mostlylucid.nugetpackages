@@ -87,12 +87,12 @@ public readonly record struct SignalMessage(
 public sealed class BotSignalBus : IAsyncDisposable
 {
     private readonly Channel<SignalMessage> _channel;
-    private readonly Dictionary<BotSignalType, List<IBotSignalListener>> _listeners = new();
-    private readonly List<SignalMessage> _signalHistory = new();
     private readonly Dictionary<string, DetectorCompletion> _completions = new();
-    private readonly HashSet<string> _expectedDetectors = new();
     private readonly TaskCompletionSource _consensusTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly HashSet<string> _expectedDetectors = new();
+    private readonly Dictionary<BotSignalType, List<IBotSignalListener>> _listeners = new();
     private readonly object _lock = new();
+    private readonly List<SignalMessage> _signalHistory = new();
     private bool _earlyExit;
 
     public BotSignalBus()
@@ -100,10 +100,87 @@ public sealed class BotSignalBus : IAsyncDisposable
         // Unbounded channel - signals are small, won't accumulate much per-request
         _channel = Channel.CreateUnbounded<SignalMessage>(new UnboundedChannelOptions
         {
-            SingleReader = true,  // Only the orchestrator reads
+            SingleReader = true, // Only the orchestrator reads
             SingleWriter = false, // Multiple detectors can write
             AllowSynchronousContinuations = true // Fast path for sync completions
         });
+    }
+
+    /// <summary>
+    ///     Check if consensus has been reached
+    /// </summary>
+    public bool HasConsensus
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return CheckConsensusLocked();
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Check if early exit was requested
+    /// </summary>
+    public bool ShouldEarlyExit
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _earlyExit;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Get completion status for all detectors
+    /// </summary>
+    public IReadOnlyDictionary<string, DetectorCompletion> Completions
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return new Dictionary<string, DetectorCompletion>(_completions);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Get which detectors haven't reported yet
+    /// </summary>
+    public IEnumerable<string> PendingDetectors
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _expectedDetectors.Where(d => !_completions.ContainsKey(d)).ToList();
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Get the history of signals published
+    /// </summary>
+    public IReadOnlyList<SignalMessage> SignalHistory
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _signalHistory.ToList();
+            }
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        Complete();
+        _consensusTcs.TrySetCanceled();
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>
@@ -130,6 +207,7 @@ public sealed class BotSignalBus : IAsyncDisposable
                 list = new List<IBotSignalListener>();
                 _listeners[signal] = list;
             }
+
             list.Add(listener);
         }
     }
@@ -181,27 +259,12 @@ public sealed class BotSignalBus : IAsyncDisposable
             reachedConsensus = CheckConsensusLocked();
         }
 
-        if (reachedConsensus)
-        {
-            _consensusTcs.TrySetResult();
-        }
+        if (reachedConsensus) _consensusTcs.TrySetResult();
     }
 
-    private bool CheckConsensusLocked() =>
-        _earlyExit || _expectedDetectors.All(d => _completions.ContainsKey(d));
-
-    /// <summary>
-    ///     Check if consensus has been reached
-    /// </summary>
-    public bool HasConsensus
+    private bool CheckConsensusLocked()
     {
-        get
-        {
-            lock (_lock)
-            {
-                return CheckConsensusLocked();
-            }
-        }
+        return _earlyExit || _expectedDetectors.All(d => _completions.ContainsKey(d));
     }
 
     /// <summary>
@@ -237,48 +300,6 @@ public sealed class BotSignalBus : IAsyncDisposable
     }
 
     /// <summary>
-    ///     Check if early exit was requested
-    /// </summary>
-    public bool ShouldEarlyExit
-    {
-        get
-        {
-            lock (_lock)
-            {
-                return _earlyExit;
-            }
-        }
-    }
-
-    /// <summary>
-    ///     Get completion status for all detectors
-    /// </summary>
-    public IReadOnlyDictionary<string, DetectorCompletion> Completions
-    {
-        get
-        {
-            lock (_lock)
-            {
-                return new Dictionary<string, DetectorCompletion>(_completions);
-            }
-        }
-    }
-
-    /// <summary>
-    ///     Get which detectors haven't reported yet
-    /// </summary>
-    public IEnumerable<string> PendingDetectors
-    {
-        get
-        {
-            lock (_lock)
-            {
-                return _expectedDetectors.Where(d => !_completions.ContainsKey(d)).ToList();
-            }
-        }
-    }
-
-    /// <summary>
     ///     Process all signals in the channel, invoking listeners.
     ///     Call this after all detectors have published their signals.
     /// </summary>
@@ -298,31 +319,16 @@ public sealed class BotSignalBus : IAsyncDisposable
                 continue;
 
             // Sequential for predictable behavior
-            foreach (var listener in listeners)
-            {
-                await listener.OnSignalAsync(msg.Signal, context, ct);
-            }
+            foreach (var listener in listeners) await listener.OnSignalAsync(msg.Signal, context, ct);
         }
     }
 
     /// <summary>
     ///     Consume signals as they arrive (async enumerable)
     /// </summary>
-    public IAsyncEnumerable<SignalMessage> ReadAllAsync(CancellationToken ct = default) =>
-        _channel.Reader.ReadAllAsync(ct);
-
-    /// <summary>
-    ///     Get the history of signals published
-    /// </summary>
-    public IReadOnlyList<SignalMessage> SignalHistory
+    public IAsyncEnumerable<SignalMessage> ReadAllAsync(CancellationToken ct = default)
     {
-        get
-        {
-            lock (_lock)
-            {
-                return _signalHistory.ToList();
-            }
-        }
+        return _channel.Reader.ReadAllAsync(ct);
     }
 
     /// <summary>
@@ -339,13 +345,9 @@ public sealed class BotSignalBus : IAsyncDisposable
     /// <summary>
     ///     Complete the channel (no more signals will be published)
     /// </summary>
-    public void Complete() => _channel.Writer.TryComplete();
-
-    public ValueTask DisposeAsync()
+    public void Complete()
     {
-        Complete();
-        _consensusTcs.TrySetCanceled();
-        return ValueTask.CompletedTask;
+        _channel.Writer.TryComplete();
     }
 }
 
@@ -388,13 +390,9 @@ public class BotSignalBusFactory : IBotSignalBusFactory
         var bus = new BotSignalBus();
 
         foreach (var listener in _listeners)
-        {
             // Each listener declares what signals it listens to via attribute or interface
             if (listener is ISignalSubscriber subscriber)
-            {
                 bus.Register(subscriber.SubscribedSignals, listener);
-            }
-        }
 
         return bus;
     }

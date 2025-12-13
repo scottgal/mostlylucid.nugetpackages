@@ -1,9 +1,8 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Orchestration;
 using Mostlylucid.BotDetection.UI.Models;
-using System.Text.Json;
 
 namespace Mostlylucid.BotDetection.UI.ViewComponents;
 
@@ -25,10 +24,7 @@ public class BotDetectionDetailsViewComponent : ViewComponent
     public IViewComponentResult Invoke()
     {
         var context = _httpContextAccessor.HttpContext ?? HttpContext;
-        if (context == null)
-        {
-            return View(new DetectionDisplayModel());
-        }
+        if (context == null) return View(new DetectionDisplayModel());
 
         var model = ExtractDetectionData(context);
         return View(model);
@@ -41,10 +37,7 @@ public class BotDetectionDetailsViewComponent : ViewComponent
     {
         // Try inline mode first (HttpContext.Items)
         var model = TryExtractFromContextItems(context);
-        if (model.HasData)
-        {
-            return model;
-        }
+        if (model.HasData) return model;
 
         // Fallback to YARP headers
         return TryExtractFromYarpHeaders(context);
@@ -59,7 +52,6 @@ public class BotDetectionDetailsViewComponent : ViewComponent
         // Note: The middleware stores this under "BotDetection.AggregatedEvidence"
         if (context.Items.TryGetValue("BotDetection.AggregatedEvidence", out var evidenceObj) &&
             evidenceObj is AggregatedEvidence evidence)
-        {
             return new DetectionDisplayModel
             {
                 IsBot = evidence.BotProbability > 0.5,
@@ -94,13 +86,14 @@ public class BotDetectionDetailsViewComponent : ViewComponent
                     .ToList(),
                 RequestId = context.TraceIdentifier,
                 Timestamp = DateTime.UtcNow,
-                YarpCluster = context.Items.TryGetValue("Yarp.Cluster", out var cluster) && cluster != null ?
-                    cluster.ToString() : null,
-                YarpDestination = context.Items.TryGetValue("Yarp.Destination", out var dest) && dest != null ?
-                    dest.ToString() : null,
+                YarpCluster = context.Items.TryGetValue("Yarp.Cluster", out var cluster) && cluster != null
+                    ? cluster.ToString()
+                    : null,
+                YarpDestination = context.Items.TryGetValue("Yarp.Destination", out var dest) && dest != null
+                    ? dest.ToString()
+                    : null,
                 Signatures = ExtractSignatures(context)
             };
-        }
 
         return new DetectionDisplayModel();
     }
@@ -113,10 +106,7 @@ public class BotDetectionDetailsViewComponent : ViewComponent
         var headers = context.Request.Headers;
 
         // Check if YARP headers are present
-        if (!headers.ContainsKey("X-Bot-Detection-Result"))
-        {
-            return new DetectionDisplayModel();
-        }
+        if (!headers.ContainsKey("X-Bot-Detection-Result")) return new DetectionDisplayModel();
 
         try
         {
@@ -144,7 +134,6 @@ public class BotDetectionDetailsViewComponent : ViewComponent
             // Parse top reasons (JSON array)
             var reasonsJson = GetHeaderValue(headers, "X-Bot-Detection-Reasons");
             if (!string.IsNullOrEmpty(reasonsJson))
-            {
                 try
                 {
                     model.TopReasons = JsonSerializer.Deserialize<List<string>>(reasonsJson) ?? new List<string>();
@@ -153,22 +142,20 @@ public class BotDetectionDetailsViewComponent : ViewComponent
                 {
                     // Ignore JSON parsing errors
                 }
-            }
 
             // Parse detector contributions (JSON array)
             var contributionsJson = GetHeaderValue(headers, "X-Bot-Detection-Contributions");
             if (!string.IsNullOrEmpty(contributionsJson))
-            {
                 try
                 {
-                    model.DetectorContributions = JsonSerializer.Deserialize<List<DetectorContributionDisplay>>(contributionsJson)
+                    model.DetectorContributions =
+                        JsonSerializer.Deserialize<List<DetectorContributionDisplay>>(contributionsJson)
                         ?? new List<DetectorContributionDisplay>();
                 }
                 catch
                 {
                     // Ignore JSON parsing errors
                 }
-            }
 
             return model;
         }
@@ -203,38 +190,28 @@ public class BotDetectionDetailsViewComponent : ViewComponent
         // Try to get signatures from context items (inline mode)
         if (context.Items.TryGetValue("BotDetection.Signatures", out var signaturesObj) &&
             signaturesObj is string signaturesJson)
-        {
             try
             {
                 var signatures = JsonSerializer.Deserialize<Dictionary<string, string>>(signaturesJson);
-                if (signatures != null)
-                {
-                    return BuildSignatureDisplay(signatures);
-                }
+                if (signatures != null) return BuildSignatureDisplay(signatures);
             }
             catch
             {
                 // Ignore JSON parsing errors
             }
-        }
 
         // Try to get signatures from YARP headers
         var signatureHeader = GetHeaderValue(context.Request.Headers, "X-Bot-Detection-Signatures");
         if (!string.IsNullOrEmpty(signatureHeader))
-        {
             try
             {
                 var signatures = JsonSerializer.Deserialize<Dictionary<string, string>>(signatureHeader);
-                if (signatures != null)
-                {
-                    return BuildSignatureDisplay(signatures);
-                }
+                if (signatures != null) return BuildSignatureDisplay(signatures);
             }
             catch
             {
                 // Ignore JSON parsing errors
             }
-        }
 
         return null;
     }
@@ -271,13 +248,15 @@ public class BotDetectionDetailsViewComponent : ViewComponent
         if (!string.IsNullOrEmpty(ua))
         {
             availableFactors.Add("User-Agent");
-            explanations.Add("User-Agent signature tracks your browser - allows matching even when IP changes (mobile networks, VPNs).");
+            explanations.Add(
+                "User-Agent signature tracks your browser - allows matching even when IP changes (mobile networks, VPNs).");
         }
 
         if (!string.IsNullOrEmpty(clientSide))
         {
             availableFactors.Add("Browser Fingerprint");
-            explanations.Add("Browser fingerprint is the most stable identifier - based on hardware rendering (Canvas, WebGL, AudioContext).");
+            explanations.Add(
+                "Browser fingerprint is the most stable identifier - based on hardware rendering (Canvas, WebGL, AudioContext).");
         }
 
         if (!string.IsNullOrEmpty(plugin))
@@ -297,11 +276,13 @@ public class BotDetectionDetailsViewComponent : ViewComponent
         {
             0 => "No signature factors available.",
             1 => $"{explanations[0]} (Single factor - lower confidence)",
-            2 => $"Using {explanations.Count} factors for tracking: {string.Join(" ", explanations)} Multi-factor matching requires at least 2 factors to avoid false positives.",
-            _ => $"Using {explanations.Count} signature factors for robust tracking across network and browser changes. " +
-                 $"System requires at least 2 factors to match for positive identification. " +
-                 $"This handles real-world scenarios like mobile users (IP changes), browser updates (UA changes), " +
-                 $"while avoiding false positives from shared corporate networks."
+            2 =>
+                $"Using {explanations.Count} factors for tracking: {string.Join(" ", explanations)} Multi-factor matching requires at least 2 factors to avoid false positives.",
+            _ =>
+                $"Using {explanations.Count} signature factors for robust tracking across network and browser changes. " +
+                $"System requires at least 2 factors to match for positive identification. " +
+                $"This handles real-world scenarios like mobile users (IP changes), browser updates (UA changes), " +
+                $"while avoiding false positives from shared corporate networks."
         };
 
         return new MultiFactorSignatureDisplay

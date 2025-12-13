@@ -11,8 +11,8 @@ namespace Mostlylucid.BotDetection.Demo.Controllers;
 [Route("api/[controller]")]
 public class SignatureController : ControllerBase
 {
-    private readonly SignatureStore _signatureStore;
     private readonly ILogger<SignatureController> _logger;
+    private readonly SignatureStore _signatureStore;
 
     public SignatureController(SignatureStore signatureStore, ILogger<SignatureController> logger)
     {
@@ -49,10 +49,7 @@ public class SignatureController : ControllerBase
     [ProducesResponseType(typeof(List<StoredSignature>), 200)]
     public ActionResult<List<StoredSignature>> GetRecentSignatures([FromQuery] int count = 50)
     {
-        if (count < 1 || count > 1000)
-        {
-            return BadRequest(new { error = "Count must be between 1 and 1000" });
-        }
+        if (count < 1 || count > 1000) return BadRequest(new { error = "Count must be between 1 and 1000" });
 
         var signatures = _signatureStore.GetRecentSignatures(count);
         return Ok(signatures);
@@ -81,9 +78,7 @@ public class SignatureController : ControllerBase
     {
         // Check for signature ID in headers (passed by YARP)
         if (!Request.Headers.TryGetValue("X-Signature-ID", out var signatureIdHeader))
-        {
             return NotFound(new { error = "No X-Signature-ID header found in request" });
-        }
 
         var signatureId = signatureIdHeader.ToString();
         var signature = _signatureStore.GetSignature(signatureId);
@@ -117,9 +112,7 @@ public class SignatureController : ControllerBase
             if (key.StartsWith("x-bot-") || key.StartsWith("x-tls-") ||
                 key.StartsWith("x-tcp-") || key.StartsWith("x-http-") ||
                 key == "x-signature-id")
-            {
                 headers[header.Key] = header.Value.ToString();
-            }
         }
 
         return headers;

@@ -12,14 +12,13 @@ namespace Mostlylucid.BotDetection.Orchestration;
 /// </summary>
 public sealed class SignatureResponseCoordinator : IAsyncDisposable
 {
+    // Lanes (share the coordinator's sink)
+    private readonly IReadOnlyList<IAnalysisLane> _lanes;
+    private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly ILogger _logger;
     private readonly string _signature;
     private readonly SignalSink _sink; // OWNED by this coordinator (TIGHT)
     private readonly LinkedList<OperationCompleteSignal> _window;
-    private readonly SemaphoreSlim _lock = new(1, 1);
-    private readonly ILogger _logger;
-
-    // Lanes (share the coordinator's sink)
-    private readonly IReadOnlyList<IAnalysisLane> _lanes;
 
     public SignatureResponseCoordinator(string signature, ILogger logger)
     {
@@ -28,8 +27,8 @@ public sealed class SignatureResponseCoordinator : IAsyncDisposable
 
         // Create TIGHT sink (owned by this coordinator)
         _sink = new SignalSink(
-            maxCapacity: 10000,
-            maxAge: TimeSpan.FromHours(24));
+            10000,
+            TimeSpan.FromHours(24));
 
         _window = new LinkedList<OperationCompleteSignal>();
 
@@ -43,6 +42,15 @@ public sealed class SignatureResponseCoordinator : IAsyncDisposable
 
         _logger.LogDebug("SignatureResponseCoordinator created for {Signature} with {LaneCount} lanes",
             signature, _lanes.Count);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        // SignalSink disposal handled by GC (no Dispose method in v1.6.8)
+        _lock.Dispose();
+
+        _logger.LogDebug("SignatureResponseCoordinator disposed for {Signature}", _signature);
+        await ValueTask.CompletedTask;
     }
 
     /// <summary>
@@ -60,14 +68,11 @@ public sealed class SignatureResponseCoordinator : IAsyncDisposable
 
             // If honeypot or very high risk, update heuristic immediately
             if (signal.Honeypot || signal.Risk > 0.8)
-            {
                 _logger.LogWarning(
                     "Early high-risk signal for {Signature}: risk={Risk:F2}, honeypot={Honeypot}",
                     _signature, signal.Risk, signal.Honeypot);
-
-                // TODO: Immediate heuristic feedback
-                // heuristicStore.UpdateAsync(_signature, signal.Risk);
-            }
+            // TODO: Immediate heuristic feedback
+            // heuristicStore.UpdateAsync(_signature, signal.Risk);
         }
         finally
         {
@@ -125,12 +130,12 @@ public sealed class SignatureResponseCoordinator : IAsyncDisposable
     /// </summary>
     private SignatureResponseBehavior AggregateLaneSignals()
     {
-        var behavioralScore = GetLatestDoubleSignal("behavioral.score", 0.0);
-        var spectralScore = GetLatestDoubleSignal("spectral.score", 0.0);
-        var reputationScore = GetLatestDoubleSignal("reputation.score", 0.0);
+        var behavioralScore = GetLatestDoubleSignal("behavioral.score");
+        var spectralScore = GetLatestDoubleSignal("spectral.score");
+        var reputationScore = GetLatestDoubleSignal("reputation.score");
 
         // Weighted average (configurable in future)
-        var combinedScore = (behavioralScore * 0.4) + (spectralScore * 0.3) + (reputationScore * 0.3);
+        var combinedScore = behavioralScore * 0.4 + spectralScore * 0.3 + reputationScore * 0.3;
 
         return new SignatureResponseBehavior
         {
@@ -156,14 +161,5 @@ public sealed class SignatureResponseCoordinator : IAsyncDisposable
             return value;
 
         return defaultValue;
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        // SignalSink disposal handled by GC (no Dispose method in v1.6.8)
-        _lock.Dispose();
-
-        _logger.LogDebug("SignatureResponseCoordinator disposed for {Signature}", _signature);
-        await ValueTask.CompletedTask;
     }
 }

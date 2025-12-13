@@ -1,9 +1,9 @@
+using System.Net;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Engines;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using Mostlylucid.BotDetection.Extensions;
 using Mostlylucid.BotDetection.Orchestration;
 using Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
@@ -18,16 +18,16 @@ namespace Mostlylucid.BotDetection.Benchmarks;
 [SimpleJob(RunStrategy.Throughput, warmupCount: 3, iterationCount: 10)]
 public class IndividualDetectorBenchmarks
 {
-    private IServiceProvider _serviceProvider = null!;
-    private BlackboardState _humanState = null!;
+    private BehavioralContributor _behavioralDetector = null!;
     private BlackboardState _botState = null!;
+    private HeaderContributor _headerDetector = null!;
+    private HeuristicContributor _heuristicDetector = null!;
+    private BlackboardState _humanState = null!;
+    private IpContributor _ipDetector = null!;
+    private IServiceProvider _serviceProvider = null!;
 
     // Individual detectors
     private UserAgentContributor _userAgentDetector = null!;
-    private IpContributor _ipDetector = null!;
-    private HeaderContributor _headerDetector = null!;
-    private BehavioralContributor _behavioralDetector = null!;
-    private HeuristicContributor _heuristicDetector = null!;
 
     [GlobalSetup]
     public void GlobalSetup()
@@ -65,12 +65,13 @@ public class IndividualDetectorBenchmarks
     private BlackboardState CreateHumanState()
     {
         var context = new DefaultHttpContext();
-        context.Request.Headers.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+        context.Request.Headers.UserAgent =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
         context.Request.Headers.Accept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
         context.Request.Headers.AcceptLanguage = "en-US,en;q=0.9";
         context.Request.Headers.AcceptEncoding = "gzip, deflate, br";
         context.Request.Headers.Referer = "https://google.com";
-        context.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("203.0.113.42");
+        context.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.42");
         context.Request.Method = "GET";
         context.Request.Path = "/";
 
@@ -92,7 +93,7 @@ public class IndividualDetectorBenchmarks
         var context = new DefaultHttpContext();
         context.Request.Headers.UserAgent = "curl/8.4.0";
         context.Request.Headers.Accept = "*/*";
-        context.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("198.51.100.50");
+        context.Connection.RemoteIpAddress = IPAddress.Parse("198.51.100.50");
         context.Request.Method = "GET";
         context.Request.Path = "/api/data";
 

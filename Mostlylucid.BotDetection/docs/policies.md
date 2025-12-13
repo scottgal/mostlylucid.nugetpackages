@@ -2,11 +2,13 @@
 
 **New in 0.5.0-preview1**
 
-Detection policies allow you to configure different detection workflows for different URL paths or scenarios. This enables fine-grained control over which detectors run, their weights, and how risk thresholds trigger actions.
+Detection policies allow you to configure different detection workflows for different URL paths or scenarios. This
+enables fine-grained control over which detectors run, their weights, and how risk thresholds trigger actions.
 
 ## Overview
 
 A policy defines:
+
 - **Which detectors run** (fast path, slow path, AI path)
 - **Detection weights** (per-policy overrides)
 - **Thresholds** (early exit, immediate block, AI escalation)
@@ -16,12 +18,12 @@ A policy defines:
 
 Four policies are registered by default:
 
-| Policy | Description | Use Case |
-|--------|-------------|----------|
-| `default` | Balanced detection | General-purpose endpoints |
-| `strict` | Deep analysis, AI escalation | Login, payment, admin |
-| `relaxed` | Fast, minimal detection | Static content, public APIs |
-| `allowVerifiedBots` | Allows verified search engines | SEO-friendly endpoints |
+| Policy              | Description                    | Use Case                    |
+|---------------------|--------------------------------|-----------------------------|
+| `default`           | Balanced detection             | General-purpose endpoints   |
+| `strict`            | Deep analysis, AI escalation   | Login, payment, admin       |
+| `relaxed`           | Fast, minimal detection        | Static content, public APIs |
+| `allowVerifiedBots` | Allows verified search engines | SEO-friendly endpoints      |
 
 ## Configuration
 
@@ -104,6 +106,7 @@ services.AddBotDetection(options =>
 ## Path Matching
 
 Path patterns support:
+
 - **Exact match**: `/api/login` matches only `/api/login`
 - **Single wildcard**: `/api/*` matches `/api/users` but not `/api/users/123`
 - **Double wildcard**: `/api/**` matches `/api/users`, `/api/users/123`, etc.
@@ -143,40 +146,40 @@ Transitions allow dynamic policy changes based on detection state:
 
 ### Transition Conditions
 
-| Condition | Description |
-|-----------|-------------|
-| `WhenRiskExceeds` | Risk score above threshold |
-| `WhenRiskBelow` | Risk score below threshold |
-| `WhenSignal` | Signal present in blackboard |
+| Condition             | Description                     |
+|-----------------------|---------------------------------|
+| `WhenRiskExceeds`     | Risk score above threshold      |
+| `WhenRiskBelow`       | Risk score below threshold      |
+| `WhenSignal`          | Signal present in blackboard    |
 | `WhenReputationState` | Pattern has specific reputation |
 
 ### Actions
 
-| Action | Description |
-|--------|-------------|
-| `Allow` | Allow request immediately |
-| `Block` | Block request immediately |
-| `Challenge` | Present CAPTCHA or challenge |
-| `Throttle` | Rate limit the request |
-| `LogOnly` | Log but allow (shadow mode) |
-| `EscalateToSlowPath` | Run slow path detectors |
-| `EscalateToAi` | Run AI detectors |
+| Action               | Description                  |
+|----------------------|------------------------------|
+| `Allow`              | Allow request immediately    |
+| `Block`              | Block request immediately    |
+| `Challenge`          | Present CAPTCHA or challenge |
+| `Throttle`           | Rate limit the request       |
+| `LogOnly`            | Log but allow (shadow mode)  |
+| `EscalateToSlowPath` | Run slow path detectors      |
+| `EscalateToAi`       | Run AI detectors             |
 
 ## Detector Weights
 
 Each detector has a default weight. Policies can override weights:
 
-| Detector | Default Weight | Description |
-|----------|----------------|-------------|
-| UserAgent | 1.0 | UA pattern matching |
-| Header | 1.0 | HTTP header analysis |
-| Ip | 1.0 | IP/datacenter detection |
-| Behavioral | 1.2 | Request rate patterns |
-| Inconsistency | 1.5 | Cross-signal mismatches |
-| ClientSide | 1.3 | Browser fingerprinting |
-| Heuristic | 2.0 | Feature-weighted classification with learning |
-| Llm | 2.5 | LLM analysis |
-| IpReputation | 1.5 | IP reputation lookup |
+| Detector      | Default Weight | Description                                   |
+|---------------|----------------|-----------------------------------------------|
+| UserAgent     | 1.0            | UA pattern matching                           |
+| Header        | 1.0            | HTTP header analysis                          |
+| Ip            | 1.0            | IP/datacenter detection                       |
+| Behavioral    | 1.2            | Request rate patterns                         |
+| Inconsistency | 1.5            | Cross-signal mismatches                       |
+| ClientSide    | 1.3            | Browser fingerprinting                        |
+| Heuristic     | 2.0            | Feature-weighted classification with learning |
+| Llm           | 2.5            | LLM analysis                                  |
+| IpReputation  | 1.5            | IP reputation lookup                          |
 
 Higher weights increase detector influence on the final score.
 

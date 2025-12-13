@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Net;
+using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Models;
@@ -11,21 +12,18 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 ///     Project Honeypot HTTP:BL integration for IP reputation checking.
 ///     Uses DNS lookups to check visitor IP addresses against Project Honeypot's database.
 ///     See: https://www.projecthoneypot.org/httpbl_api.php
-///
 ///     Query Format: [AccessKey].[Reversed IP].dnsbl.httpbl.org
 ///     Response: 127.[Days].[ThreatScore].[Type]
-///
 ///     Requires a free API key from Project Honeypot.
 ///     This contributor runs in Wave 2 (after initial IP analysis).
 /// </summary>
 public class ProjectHoneypotContributor : ContributingDetectorBase
 {
-    private readonly ILogger<ProjectHoneypotContributor> _logger;
-    private readonly BotDetectionOptions _options;
-
     // Cache for DNS lookups to avoid repeated queries
     private static readonly ConcurrentDictionary<string, (HoneypotResult Result, DateTime Expires)> _cache = new();
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(30);
+    private readonly ILogger<ProjectHoneypotContributor> _logger;
+    private readonly BotDetectionOptions _options;
 
     public ProjectHoneypotContributor(
         ILogger<ProjectHoneypotContributor> logger,
@@ -54,10 +52,7 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
         // Read directly from request headers since this may run before UserAgentContributor sets the signal
         var userAgent = state.HttpContext?.Request.Headers["User-Agent"].FirstOrDefault() ?? "";
         var testResult = CheckTestModeSimulation(userAgent);
-        if (testResult != null)
-        {
-            return testResult;
-        }
+        if (testResult != null) return testResult;
 
         // Check if Project Honeypot is enabled and configured
         if (!_options.ProjectHoneypot.Enabled ||
@@ -70,26 +65,17 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
         }
 
         var clientIp = state.GetSignal<string>(SignalKeys.ClientIp);
-        if (string.IsNullOrWhiteSpace(clientIp))
-        {
-            return None();
-        }
+        if (string.IsNullOrWhiteSpace(clientIp)) return None();
 
         // Skip local/private IPs - they won't be in Project Honeypot
         var isLocal = state.GetSignal<bool>(SignalKeys.IpIsLocal);
-        if (isLocal)
-        {
-            return Single(DetectionContribution.Neutral(Name, "Skipped: localhost/private IP"));
-        }
+        if (isLocal) return Single(DetectionContribution.Neutral(Name, "Skipped: localhost/private IP"));
 
         // Parse the IP address
-        if (!IPAddress.TryParse(clientIp, out var ipAddress))
-        {
-            return None();
-        }
+        if (!IPAddress.TryParse(clientIp, out var ipAddress)) return None();
 
         // Only IPv4 is supported by HTTP:BL
-        if (ipAddress.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+        if (ipAddress.AddressFamily != AddressFamily.InterNetwork)
         {
             _logger.LogDebug("Skipping Project Honeypot lookup for IPv6 address: {Ip}", clientIp);
             return None();
@@ -100,7 +86,6 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
             var result = await LookupIpAsync(clientIp, cancellationToken);
 
             if (result == null || !result.IsListed)
-            {
                 // IP not found in database - slight positive signal
                 return Single(new DetectionContribution
                 {
@@ -113,7 +98,6 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
                         .Add(SignalKeys.HoneypotChecked, true)
                         .Add(SignalKeys.HoneypotListed, false)
                 });
-            }
 
             // IP is listed - determine severity based on threat score and type
             var contributions = new List<DetectionContribution>();
@@ -130,10 +114,13 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
             {
                 _logger.LogDebug("IP {Ip} identified as search engine by Project Honeypot", clientIp);
                 contributions.Add(DetectionContribution.VerifiedGoodBot(
-                    Name,
-                    "Search Engine (Project Honeypot)",
-                    $"IP verified as search engine by Project Honeypot")
-                    with { Signals = signals.ToImmutable() });
+                        Name,
+                        "Search Engine (Project Honeypot)",
+                        "IP verified as search engine by Project Honeypot")
+                    with
+                    {
+                        Signals = signals.ToImmutable()
+                    });
                 return contributions;
             }
 
@@ -148,30 +135,29 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
 
             // High threat scores trigger early exit
             if (result.ThreatScore >= _options.ProjectHoneypot.HighThreatThreshold)
-            {
                 contributions.Add(DetectionContribution.VerifiedBadBot(
-                    Name,
-                    $"Honeypot Threat ({result.VisitorType})",
-                    reason,
-                    botType)
+                        Name,
+                        $"Honeypot Threat ({result.VisitorType})",
+                        reason,
+                        botType)
                     with
                     {
                         ConfidenceDelta = confidence,
                         Weight = 1.8, // High weight for verified threats
                         Signals = signals.ToImmutable()
                     });
-            }
             else
-            {
                 contributions.Add(DetectionContribution.Bot(
-                    Name,
-                    "ProjectHoneypot",
-                    confidence,
-                    reason,
-                    botType,
-                    weight: 1.5)
-                    with { Signals = signals.ToImmutable() });
-            }
+                        Name,
+                        "ProjectHoneypot",
+                        confidence,
+                        reason,
+                        botType,
+                        weight: 1.5)
+                    with
+                    {
+                        Signals = signals.ToImmutable()
+                    });
 
             return contributions;
         }
@@ -185,10 +171,7 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
     private async Task<HoneypotResult?> LookupIpAsync(string ip, CancellationToken cancellationToken)
     {
         // Check cache first
-        if (_cache.TryGetValue(ip, out var cached) && cached.Expires > DateTime.UtcNow)
-        {
-            return cached.Result;
-        }
+        if (_cache.TryGetValue(ip, out var cached) && cached.Expires > DateTime.UtcNow) return cached.Result;
 
         // Build DNS query: [key].[reversed-ip].dnsbl.httpbl.org
         var reversedIp = string.Join(".", ip.Split('.').Reverse());
@@ -211,7 +194,8 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
             // First octet must be 127 for valid response
             if (response[0] != 127)
             {
-                _logger.LogWarning("Invalid Project Honeypot response for {Ip}: first octet is {Octet}", ip, response[0]);
+                _logger.LogWarning("Invalid Project Honeypot response for {Ip}: first octet is {Octet}", ip,
+                    response[0]);
                 return null;
             }
 
@@ -228,7 +212,7 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
 
             return result;
         }
-        catch (System.Net.Sockets.SocketException)
+        catch (SocketException)
         {
             // NXDOMAIN means IP is not in the database
             _cache[ip] = (new HoneypotResult { IsListed = false }, DateTime.UtcNow.Add(CacheDuration));
@@ -276,12 +260,12 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
         // Reduce confidence for older entries
         var ageFactor = result.DaysSinceLastActivity switch
         {
-            0 => 1.0,     // Today
+            0 => 1.0, // Today
             <= 7 => 0.95, // Last week
             <= 30 => 0.85, // Last month
             <= 90 => 0.70, // Last quarter
             <= 180 => 0.50, // Last 6 months
-            _ => 0.30     // Older
+            _ => 0.30 // Older
         };
 
         // Increase confidence for more serious visitor types
@@ -319,7 +303,8 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
             types.Add("CommentSpammer");
 
         var typeStr = types.Count > 0 ? string.Join(", ", types) : "Unknown";
-        return $"IP listed in Project Honeypot: {typeStr} (Threat: {result.ThreatScore}, Last seen: {result.DaysSinceLastActivity} days ago)";
+        return
+            $"IP listed in Project Honeypot: {typeStr} (Threat: {result.ThreatScore}, Last seen: {result.DaysSinceLastActivity} days ago)";
     }
 
     /// <summary>
@@ -396,30 +381,29 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
 
         // High threat scores trigger verified bad bot
         if (result.ThreatScore >= _options.ProjectHoneypot.HighThreatThreshold)
-        {
             contributions.Add(DetectionContribution.VerifiedBadBot(
-                Name,
-                $"Honeypot Threat ({result.VisitorType})",
-                reason,
-                botType)
+                    Name,
+                    $"Honeypot Threat ({result.VisitorType})",
+                    reason,
+                    botType)
                 with
                 {
                     ConfidenceDelta = confidence,
                     Weight = 1.8,
                     Signals = signals.ToImmutable()
                 });
-        }
         else
-        {
             contributions.Add(DetectionContribution.Bot(
-                Name,
-                "ProjectHoneypot",
-                confidence,
-                reason,
-                botType,
-                weight: 1.5)
-                with { Signals = signals.ToImmutable() });
-        }
+                    Name,
+                    "ProjectHoneypot",
+                    confidence,
+                    reason,
+                    botType,
+                    weight: 1.5)
+                with
+                {
+                    Signals = signals.ToImmutable()
+                });
 
         return contributions;
     }

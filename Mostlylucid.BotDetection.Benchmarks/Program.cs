@@ -8,12 +8,8 @@ public class Program
     {
         // Run individual detector benchmarks if --detectors flag is provided
         if (args.Contains("--detectors"))
-        {
             BenchmarkRunner.Run<IndividualDetectorBenchmarks>();
-        }
         else
-        {
             BenchmarkRunner.Run<DetectionPipelineBenchmarks>();
-        }
     }
 }

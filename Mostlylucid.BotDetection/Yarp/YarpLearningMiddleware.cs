@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Extensions;
 using Mostlylucid.BotDetection.Models;
-using Mostlylucid.BotDetection.Orchestration;
 
 namespace Mostlylucid.BotDetection.Yarp;
 
@@ -13,11 +12,11 @@ namespace Mostlylucid.BotDetection.Yarp;
 /// </summary>
 public class YarpLearningMiddleware
 {
-    private readonly RequestDelegate _next;
     private readonly ILogger<YarpLearningMiddleware> _logger;
+    private readonly RequestDelegate _next;
     private readonly YarpLearningModeOptions _options;
-    private readonly IYarpSignatureWriter _signatureWriter;
     private readonly Random _random = new();
+    private readonly IYarpSignatureWriter _signatureWriter;
 
     public YarpLearningMiddleware(
         RequestDelegate next,
@@ -69,21 +68,15 @@ public class YarpLearningMiddleware
             // Only capture if confidence threshold met
             var confidence = context.GetBotConfidence();
             if (confidence >= _options.MinConfidenceToLog)
-            {
                 await CaptureSignatureAsync(context, stopwatch.Elapsed, initialStatusCode);
-            }
         }
     }
 
     private bool ShouldExcludePath(PathString path)
     {
         foreach (var excludePath in _options.ExcludePaths)
-        {
             if (path.StartsWithSegments(excludePath, StringComparison.OrdinalIgnoreCase))
-            {
                 return true;
-            }
-        }
 
         return false;
     }
@@ -132,34 +125,20 @@ public class YarpLearningMiddleware
 
             // Add detection reasons
             var reasons = context.GetDetectionReasons();
-            foreach (var reason in reasons)
-            {
-                signature.Detection.Reasons.Add($"{reason.Category}: {reason.Detail}");
-            }
+            foreach (var reason in reasons) signature.Detection.Reasons.Add($"{reason.Category}: {reason.Detail}");
 
             // Capture detector outputs if enabled
-            if (_options.IncludeDetectorOutputs)
-            {
-                CaptureDetectorOutputs(context, signature);
-            }
+            if (_options.IncludeDetectorOutputs) CaptureDetectorOutputs(context, signature);
 
             // Capture blackboard signals if enabled
-            if (_options.IncludeBlackboardSignals)
-            {
-                CaptureBlackboardSignals(context, signature);
-            }
+            if (_options.IncludeBlackboardSignals) CaptureBlackboardSignals(context, signature);
 
             // Capture full HTTP context if enabled (WARNING: May contain PII)
-            if (_options.IncludeFullHttpContext)
-            {
-                CaptureHttpContext(context, signature);
-            }
+            if (_options.IncludeFullHttpContext) CaptureHttpContext(context, signature);
 
             // Capture request body if enabled (WARNING: May contain PII)
             if (_options.IncludeRequestBody && context.Request.ContentLength > 0)
-            {
                 await CaptureRequestBodyAsync(context, signature);
-            }
 
             // Capture YARP routing info if available
             CaptureYarpRouting(context, signature);
@@ -168,10 +147,7 @@ public class YarpLearningMiddleware
             await _signatureWriter.WriteAsync(signature);
 
             // Log to console if enabled
-            if (_options.LogToConsole)
-            {
-                LogSignatureToConsole(signature);
-            }
+            if (_options.LogToConsole) LogSignatureToConsole(signature);
         }
         catch (Exception ex)
         {
@@ -184,9 +160,7 @@ public class YarpLearningMiddleware
         // Try to get detector contributions from context
         if (context.Items.TryGetValue("BotDetection.Contributions", out var contributionsObj) &&
             contributionsObj is List<DetectorContribution> contributions)
-        {
             foreach (var contrib in contributions)
-            {
                 signature.DetectorOutputs[contrib.DetectorName] = new DetectorOutput
                 {
                     Detector = contrib.DetectorName,
@@ -198,8 +172,6 @@ public class YarpLearningMiddleware
                     ExecutionTimeMs = contrib.ExecutionTimeMs,
                     Wave = contrib.Wave
                 };
-            }
-        }
     }
 
     private void CaptureBlackboardSignals(HttpContext context, YarpBotSignature signature)
@@ -207,12 +179,8 @@ public class YarpLearningMiddleware
         // Try to get blackboard signals from context
         if (context.Items.TryGetValue("BotDetection.Signals", out var signalsObj) &&
             signalsObj is Dictionary<string, object> signals)
-        {
             foreach (var (key, value) in signals)
-            {
                 signature.Signals[key] = value;
-            }
-        }
     }
 
     private void CaptureHttpContext(HttpContext context, YarpBotSignature signature)
@@ -247,22 +215,16 @@ public class YarpLearningMiddleware
     {
         // Try to get YARP routing info from context
         if (context.Items.TryGetValue("Yarp.Cluster", out var cluster) && cluster != null)
-        {
             signature.Cluster = cluster.ToString();
-        }
 
         if (context.Items.TryGetValue("Yarp.Destination", out var destination) && destination != null)
-        {
             signature.Destination = destination.ToString();
-        }
     }
 
     private string DetermineAction(HttpContext context)
     {
         if (context.Items.TryGetValue("BotDetection.Action", out var action) && action != null)
-        {
             return action.ToString() ?? "unknown";
-        }
 
         // In learning mode, always "allow"
         return "allow";
@@ -279,13 +241,9 @@ public class YarpLearningMiddleware
         Console.ResetColor();
 
         if (signature.DetectorOutputs.Count > 0)
-        {
             foreach (var (name, output) in signature.DetectorOutputs.OrderByDescending(kv => kv.Value.Contribution))
-            {
                 Console.WriteLine(
                     $"  [{name}] {output.Confidence:F2} * {output.Weight:F2} = {output.Contribution:F2} | {output.Reason}");
-            }
-        }
 
         if (signature.Signals.Count > 0)
         {

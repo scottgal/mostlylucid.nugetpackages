@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Mostlylucid.BotDetection.ClientSide;
-using Xunit;
 
 namespace Mostlylucid.BotDetection.Orchestration.Tests.Unit;
 
@@ -17,6 +16,64 @@ public class BrowserFingerprintAnalyzerTests
         _analyzer = new BrowserFingerprintAnalyzer(NullLogger<BrowserFingerprintAnalyzer>.Instance);
     }
 
+    #region Permission Consistency
+
+    [Fact]
+    public void Analyze_SuspiciousPermissions_Flagged()
+    {
+        // Arrange
+        var data = CreateRealChromeBrowserData();
+        data.NotificationPermission = "suspicious";
+
+        // Act
+        var result = _analyzer.Analyze(data, "test-request-17");
+
+        // Assert
+        Assert.True(result.HeadlessLikelihood >= 0.25);
+        Assert.Contains(result.Reasons, r => r.Contains("Permission"));
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    private static BrowserFingerprintData CreateRealChromeBrowserData()
+    {
+        return new BrowserFingerprintData
+        {
+            Platform = "Win32",
+            Timezone = "America/New_York",
+            Language = "en-US",
+            Languages = "en-US,en",
+            ScreenResolution = "1920x1080",
+            AvailableResolution = "1920x1040",
+            DevicePixelRatio = 1.25,
+            HardwareConcurrency = 8,
+            DeviceMemory = 8,
+            HasTouch = 0,
+            HasPdfPlugin = 1,
+            PluginCount = 5,
+            HasChromeObject = true,
+            WebDriver = 0,
+            Phantom = 0,
+            Selenium = false,
+            Nightmare = false,
+            ChromeDevTools = 0,
+            NotificationPermission = "default",
+            OuterWidth = 1920,
+            OuterHeight = 1040,
+            InnerWidth = 1903,
+            InnerHeight = 969,
+            EvalLength = 33,
+            BindIsNative = 1,
+            WebGLVendor = "Google Inc.",
+            WebGLRenderer = "ANGLE (Intel)",
+            CanvasHash = "abc123def456"
+        };
+    }
+
+    #endregion
+
     #region Real Browser Detection
 
     [Fact]
@@ -31,7 +88,8 @@ public class BrowserFingerprintAnalyzerTests
         // Assert
         Assert.False(result.IsHeadless);
         Assert.True(result.HeadlessLikelihood < 0.3, $"HeadlessLikelihood {result.HeadlessLikelihood} should be < 0.3");
-        Assert.True(result.BrowserIntegrityScore >= 80, $"IntegrityScore {result.BrowserIntegrityScore} should be >= 80");
+        Assert.True(result.BrowserIntegrityScore >= 80,
+            $"IntegrityScore {result.BrowserIntegrityScore} should be >= 80");
         Assert.Null(result.DetectedAutomation);
         Assert.Empty(result.Reasons);
     }
@@ -338,25 +396,6 @@ public class BrowserFingerprintAnalyzerTests
 
         // Assert - no reason about eval
         Assert.DoesNotContain(result.Reasons, r => r.Contains("eval"));
-    }
-
-    #endregion
-
-    #region Permission Consistency
-
-    [Fact]
-    public void Analyze_SuspiciousPermissions_Flagged()
-    {
-        // Arrange
-        var data = CreateRealChromeBrowserData();
-        data.NotificationPermission = "suspicious";
-
-        // Act
-        var result = _analyzer.Analyze(data, "test-request-17");
-
-        // Assert
-        Assert.True(result.HeadlessLikelihood >= 0.25);
-        Assert.Contains(result.Reasons, r => r.Contains("Permission"));
     }
 
     #endregion
@@ -668,45 +707,6 @@ public class BrowserFingerprintAnalyzerTests
         // Assert
         Assert.True(result.BrowserIntegrityScore < 80);
         Assert.True(result.HeadlessLikelihood > 0.3);
-    }
-
-    #endregion
-
-    #region Helper Methods
-
-    private static BrowserFingerprintData CreateRealChromeBrowserData()
-    {
-        return new BrowserFingerprintData
-        {
-            Platform = "Win32",
-            Timezone = "America/New_York",
-            Language = "en-US",
-            Languages = "en-US,en",
-            ScreenResolution = "1920x1080",
-            AvailableResolution = "1920x1040",
-            DevicePixelRatio = 1.25,
-            HardwareConcurrency = 8,
-            DeviceMemory = 8,
-            HasTouch = 0,
-            HasPdfPlugin = 1,
-            PluginCount = 5,
-            HasChromeObject = true,
-            WebDriver = 0,
-            Phantom = 0,
-            Selenium = false,
-            Nightmare = false,
-            ChromeDevTools = 0,
-            NotificationPermission = "default",
-            OuterWidth = 1920,
-            OuterHeight = 1040,
-            InnerWidth = 1903,
-            InnerHeight = 969,
-            EvalLength = 33,
-            BindIsNative = 1,
-            WebGLVendor = "Google Inc.",
-            WebGLRenderer = "ANGLE (Intel)",
-            CanvasHash = "abc123def456"
-        };
     }
 
     #endregion

@@ -45,7 +45,8 @@ This detector **never stores full response bodies**—it only uses:
 
 ## 2. Goals
 
-1. **Contribute a bounded heuristic score** to overall bot/human classification, based on server responses associated with a client.
+1. **Contribute a bounded heuristic score** to overall bot/human classification, based on server responses associated
+   with a client.
 2. **Detect response-side patterns** indicative of automation or abuse:
 
     * High 4xx rate, 404 scan profiles.

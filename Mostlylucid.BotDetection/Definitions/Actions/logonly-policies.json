@@ -1,43 +1,53 @@
 {
   "$schema": "./action-policy.schema.json",
   "_comment": "Built-in LogOnly action policies. These are compiled into the library.",
-
   "logonly": {
     "Type": "LogOnly",
     "Description": "Minimal logging - shadow mode with basic info",
-    "Tags": ["default", "shadow"],
+    "Tags": [
+      "default",
+      "shadow"
+    ],
     "LogLevel": "Information",
     "LogFullEvidence": false,
     "AddResponseHeaders": false,
     "AddToContextItems": true,
     "WouldBlockThreshold": 0.85
   },
-
   "shadow": {
     "Type": "LogOnly",
     "Extends": "logonly",
     "Description": "Shadow mode with response headers for debugging",
-    "Tags": ["production", "shadow", "headers"],
+    "Tags": [
+      "production",
+      "shadow",
+      "headers"
+    ],
     "AddResponseHeaders": true,
     "IncludeDetailedHeaders": false
   },
-
   "debug": {
     "Type": "LogOnly",
     "Extends": "logonly",
     "Description": "Full debug logging with all evidence and headers",
-    "Tags": ["development", "debug"],
+    "Tags": [
+      "development",
+      "debug"
+    ],
     "LogLevel": "Debug",
     "LogFullEvidence": true,
     "AddResponseHeaders": true,
     "IncludeDetailedHeaders": true
   },
-
   "full-log": {
     "Type": "LogOnly",
     "Extends": "debug",
     "Description": "Maximum visibility - debug logging with all response headers. Great for demos.",
-    "Tags": ["demo", "debug", "development"],
+    "Tags": [
+      "demo",
+      "debug",
+      "development"
+    ],
     "LogLevel": "Debug",
     "LogFullEvidence": true,
     "AddResponseHeaders": true,
@@ -45,12 +55,15 @@
     "AddToContextItems": true,
     "WouldBlockThreshold": 0.7
   },
-
   "shadow-production": {
     "Type": "LogOnly",
     "Extends": "logonly",
     "Description": "Production shadow mode - logs what WOULD be blocked without blocking. No headers exposed.",
-    "Tags": ["production", "shadow", "testing"],
+    "Tags": [
+      "production",
+      "shadow",
+      "testing"
+    ],
     "LogLevel": "Information",
     "LogFullEvidence": false,
     "AddResponseHeaders": false,
@@ -58,12 +71,15 @@
     "WouldBlockThreshold": 0.7,
     "MetricName": "bot_detection_shadow"
   },
-
   "log-to-file": {
     "Type": "LogOnly",
     "Extends": "logonly",
     "Description": "Writes detection events to JSON Lines files for playback and forensic analysis",
-    "Tags": ["production", "audit", "forensics"],
+    "Tags": [
+      "production",
+      "audit",
+      "forensics"
+    ],
     "LogLevel": "Information",
     "LogFullEvidence": true,
     "AddToContextItems": true,
@@ -73,12 +89,15 @@
     "LogMinConfidence": 0.5,
     "LogRetainFiles": 30
   },
-
   "forward-to-honeypot": {
     "Type": "LogOnly",
     "Extends": "logonly",
     "Description": "Forwards detection data to honeypot/trap service. Detection runs, request passes through.",
-    "Tags": ["honeypot", "security", "research"],
+    "Tags": [
+      "honeypot",
+      "security",
+      "research"
+    ],
     "LogLevel": "Debug",
     "LogFullEvidence": true,
     "AddToContextItems": true,
@@ -89,12 +108,15 @@
     "ForwardIncludeHeaders": true,
     "ForwardIncludeReasons": true
   },
-
   "forward-to-analytics": {
     "Type": "LogOnly",
     "Extends": "logonly",
     "Description": "Fire-and-forget forwarding to SIEM/analytics endpoint",
-    "Tags": ["analytics", "siem", "monitoring"],
+    "Tags": [
+      "analytics",
+      "siem",
+      "monitoring"
+    ],
     "LogLevel": "Information",
     "AddToContextItems": true,
     "ForwardUrl": "http://analytics:9000/events/bot-detection",
@@ -103,12 +125,15 @@
     "ForwardIncludeHeaders": false,
     "ForwardIncludeReasons": true
   },
-
   "passthrough-internal": {
     "Type": "LogOnly",
     "Extends": "logonly",
     "Description": "Allows known-good traffic through while still logging. Use for false positive exceptions.",
-    "Tags": ["internal", "exceptions", "false-positives"],
+    "Tags": [
+      "internal",
+      "exceptions",
+      "false-positives"
+    ],
     "LogLevel": "Information",
     "LogFullEvidence": true,
     "AddToContextItems": true,

@@ -1,11 +1,10 @@
 using Microsoft.Extensions.Logging;
-using Mostlylucid.BotDetection.Learning;
 
 namespace Mostlylucid.BotDetection.Learning.Handlers;
 
 /// <summary>
-/// Learning handler for User-Agent pattern extraction and updates.
-/// Keyed by: "ua.pattern"
+///     Learning handler for User-Agent pattern extraction and updates.
+///     Keyed by: "ua.pattern"
 /// </summary>
 public class UserAgentPatternLearningHandler : IKeyedLearningHandler
 {
@@ -20,19 +19,15 @@ public class UserAgentPatternLearningHandler : IKeyedLearningHandler
     {
         return signalKey.StartsWith("ua.") &&
                operationType is LearningOperationType.PatternExtraction or
-                                LearningOperationType.PatternUpdate;
+                   LearningOperationType.PatternUpdate;
     }
 
     public async Task HandleAsync(string signalKey, LearningTask task, CancellationToken cancellationToken = default)
     {
         if (task.OperationType == LearningOperationType.PatternExtraction)
-        {
             await ExtractPatternAsync(task, cancellationToken);
-        }
         else if (task.OperationType == LearningOperationType.PatternUpdate)
-        {
             await UpdatePatternAsync(task, cancellationToken);
-        }
     }
 
     private async Task ExtractPatternAsync(LearningTask task, CancellationToken cancellationToken)

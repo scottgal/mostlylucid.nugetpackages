@@ -4,35 +4,33 @@ using Mostlylucid.BotDetection.Orchestration;
 namespace Mostlylucid.BotDetection.Learning;
 
 /// <summary>
-/// Signal-triggered learning workflows.
-///
-/// Architecture:
-/// - Detectors raise signals during detection (e.g., "ua.bot_pattern_detected")
-/// - Triggers monitor signals and submit learning tasks to LearningCoordinator
-/// - Learning happens asynchronously, off the request path
-///
-/// Example flow:
-/// 1. UserAgentContributor detects "HeadlessChrome" pattern
-/// 2. Raises signal: "ua.headless_detected" with confidence=0.9
-/// 3. Trigger sees high-confidence signal -> submits learning task to coordinator
-/// 4. Coordinator queues task under key "ua.pattern"
-/// 5. UserAgentPatternLearningHandler processes task asynchronously
-/// 6. Pattern is added to fast-path database for future requests
+///     Signal-triggered learning workflows.
+///     Architecture:
+///     - Detectors raise signals during detection (e.g., "ua.bot_pattern_detected")
+///     - Triggers monitor signals and submit learning tasks to LearningCoordinator
+///     - Learning happens asynchronously, off the request path
+///     Example flow:
+///     1. UserAgentContributor detects "HeadlessChrome" pattern
+///     2. Raises signal: "ua.headless_detected" with confidence=0.9
+///     3. Trigger sees high-confidence signal -> submits learning task to coordinator
+///     4. Coordinator queues task under key "ua.pattern"
+///     5. UserAgentPatternLearningHandler processes task asynchronously
+///     6. Pattern is added to fast-path database for future requests
 /// </summary>
 public interface ILearningTrigger
 {
     /// <summary>
-    /// Signals this trigger monitors for.
+    ///     Signals this trigger monitors for.
     /// </summary>
     IReadOnlySet<string> MonitoredSignals { get; }
 
     /// <summary>
-    /// Check if the signal should trigger learning.
+    ///     Check if the signal should trigger learning.
     /// </summary>
     bool ShouldTrigger(BlackboardState state, string signal, object? signalValue);
 
     /// <summary>
-    /// Create learning task(s) from the triggered signal.
+    ///     Create learning task(s) from the triggered signal.
     /// </summary>
     IEnumerable<(string signalKey, LearningTask task)> CreateLearningTasks(
         BlackboardState state,
@@ -41,7 +39,7 @@ public interface ILearningTrigger
 }
 
 /// <summary>
-/// Trigger for high-confidence User-Agent pattern learning.
+///     Trigger for high-confidence User-Agent pattern learning.
 /// </summary>
 public class UserAgentPatternTrigger : ILearningTrigger
 {
@@ -63,16 +61,10 @@ public class UserAgentPatternTrigger : ILearningTrigger
     public bool ShouldTrigger(BlackboardState state, string signal, object? signalValue)
     {
         // Only trigger on high-confidence detections
-        if (signal == "ua.bot_probability" && signalValue is double prob)
-        {
-            return prob >= 0.85; // High confidence
-        }
+        if (signal == "ua.bot_probability" && signalValue is double prob) return prob >= 0.85; // High confidence
 
         // Always trigger on specific pattern matches
-        if (signal is "ua.pattern_match" or "ua.headless_detected" or "ua.automation_detected")
-        {
-            return true;
-        }
+        if (signal is "ua.pattern_match" or "ua.headless_detected" or "ua.automation_detected") return true;
 
         return false;
     }
@@ -155,7 +147,7 @@ public class UserAgentPatternTrigger : ILearningTrigger
 }
 
 /// <summary>
-/// Trigger for heuristic weight learning based on high-confidence detections.
+///     Trigger for heuristic weight learning based on high-confidence detections.
 /// </summary>
 public class HeuristicWeightTrigger : ILearningTrigger
 {
@@ -176,22 +168,14 @@ public class HeuristicWeightTrigger : ILearningTrigger
     public bool ShouldTrigger(BlackboardState state, string signal, object? signalValue)
     {
         // Trigger on high-confidence detections (for online learning)
-        if (signal == "detection.high_confidence")
-        {
-            return state.CurrentRiskScore >= 0.85;
-        }
+        if (signal == "detection.high_confidence") return state.CurrentRiskScore >= 0.85;
 
         // Always trigger on user feedback (ground truth)
-        if (signal == "user.feedback_received")
-        {
-            return true;
-        }
+        if (signal == "user.feedback_received") return true;
 
         // Trigger on completed detections above learning threshold
         if (signal == "detection.completed")
-        {
             return state.CurrentRiskScore >= 0.7; // Lower threshold for training data collection
-        }
 
         return false;
     }
@@ -248,23 +232,14 @@ public class HeuristicWeightTrigger : ILearningTrigger
 
         // Extract features from signals
         foreach (var (key, value) in state.Signals)
-        {
             // Convert signal values to features
             if (value is double d)
-            {
                 features[key] = d;
-            }
             else if (value is bool b)
-            {
                 features[key] = b ? 1.0 : 0.0;
-            }
-            else if (value is int i)
-            {
-                features[key] = i;
-            }
-            // Ignore complex objects
-        }
+            else if (value is int i) features[key] = i;
 
+        // Ignore complex objects
         // Add derived features
         features["detector_count"] = state.CompletedDetectors.Count;
         features["risk_score"] = state.CurrentRiskScore;
@@ -275,7 +250,7 @@ public class HeuristicWeightTrigger : ILearningTrigger
 }
 
 /// <summary>
-/// Trigger for TLS fingerprint pattern learning.
+///     Trigger for TLS fingerprint pattern learning.
 /// </summary>
 public class TlsFingerprintTrigger : ILearningTrigger
 {
@@ -298,15 +273,10 @@ public class TlsFingerprintTrigger : ILearningTrigger
     {
         // Trigger on unknown fingerprints (potential new pattern)
         if (signal == "tls.unknown_fingerprint")
-        {
             return state.CurrentRiskScore >= 0.7; // Only if rest of detection is high
-        }
 
         // Trigger on fingerprint matches for confidence updates
-        if (signal == "tls.fingerprint_match")
-        {
-            return true;
-        }
+        if (signal == "tls.fingerprint_match") return true;
 
         return false;
     }
@@ -341,13 +311,13 @@ public class TlsFingerprintTrigger : ILearningTrigger
 }
 
 /// <summary>
-/// Service that monitors blackboard signals and triggers learning workflows.
+///     Service that monitors blackboard signals and triggers learning workflows.
 /// </summary>
 public class LearningTriggerService
 {
     private readonly ILearningCoordinator _coordinator;
-    private readonly IEnumerable<ILearningTrigger> _triggers;
     private readonly ILogger<LearningTriggerService> _logger;
+    private readonly IEnumerable<ILearningTrigger> _triggers;
 
     public LearningTriggerService(
         ILearningCoordinator coordinator,
@@ -360,8 +330,8 @@ public class LearningTriggerService
     }
 
     /// <summary>
-    /// Check all signals in the blackboard and trigger learning workflows if conditions are met.
-    /// Called after detection completes (in response path or after request).
+    ///     Check all signals in the blackboard and trigger learning workflows if conditions are met.
+    ///     Called after detection completes (in response path or after request).
     /// </summary>
     public void ProcessSignals(BlackboardState state)
     {
@@ -373,7 +343,6 @@ public class LearningTriggerService
                 .ToList();
 
             foreach (var trigger in relevantTriggers)
-            {
                 try
                 {
                     if (!trigger.ShouldTrigger(state, signal, value))
@@ -383,14 +352,10 @@ public class LearningTriggerService
                     var learningTasks = trigger.CreateLearningTasks(state, signal, value);
 
                     foreach (var (signalKey, task) in learningTasks)
-                    {
                         if (!_coordinator.TrySubmitLearning(signalKey, task))
-                        {
                             _logger.LogWarning(
                                 "Failed to submit learning task: signalKey={SignalKey}, trigger={Trigger}",
                                 signalKey, trigger.GetType().Name);
-                        }
-                    }
                 }
                 catch (Exception ex)
                 {
@@ -398,7 +363,6 @@ public class LearningTriggerService
                         "Error processing signal {Signal} with trigger {Trigger}",
                         signal, trigger.GetType().Name);
                 }
-            }
         }
     }
 }

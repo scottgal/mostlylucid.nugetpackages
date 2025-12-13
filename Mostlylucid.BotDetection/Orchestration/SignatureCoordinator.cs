@@ -1,10 +1,10 @@
-using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.Ephemeral;
-using Mostlylucid.Ephemeral.Atoms.SlidingCache;
 using Mostlylucid.Ephemeral.Atoms.KeyedSequential;
+using Mostlylucid.Ephemeral.Atoms.SlidingCache;
+using CacheStats = Mostlylucid.Ephemeral.Atoms.SlidingCache.CacheStats;
 
 namespace Mostlylucid.BotDetection.Orchestration;
 
@@ -155,6 +155,12 @@ internal record SignatureUpdateRequest
 /// </summary>
 public class SignatureCoordinator : IAsyncDisposable
 {
+    // Global signal sinks for observability
+    private readonly TypedSignalSink<AberrationSignal> _aberrationSignals;
+
+    // Shared signal sink for ephemeral atoms
+    private readonly SignalSink _ephemeralSignals;
+    private readonly TypedSignalSink<SignatureErrorSignal> _errorSignals;
     private readonly ILogger<SignatureCoordinator> _logger;
     private readonly SignatureCoordinatorOptions _options;
 
@@ -163,14 +169,7 @@ public class SignatureCoordinator : IAsyncDisposable
 
     // Per-signature sequential updates (ephemeral.complete pattern)
     private readonly KeyedSequentialAtom<SignatureUpdateRequest, string> _updateAtom;
-
-    // Global signal sinks for observability
-    private readonly TypedSignalSink<AberrationSignal> _aberrationSignals;
     private readonly TypedSignalSink<SignatureUpdateSignal> _updateSignals;
-    private readonly TypedSignalSink<SignatureErrorSignal> _errorSignals;
-
-    // Shared signal sink for ephemeral atoms
-    private readonly SignalSink _ephemeralSignals;
 
     public SignatureCoordinator(
         ILogger<SignatureCoordinator> logger,
@@ -181,8 +180,8 @@ public class SignatureCoordinator : IAsyncDisposable
 
         // Initialize shared signal sink for all ephemeral atoms
         _ephemeralSignals = new SignalSink(
-            maxCapacity: _options.MaxSignaturesInWindow * 10,
-            maxAge: _options.SignatureWindow);
+            _options.MaxSignaturesInWindow * 10,
+            _options.SignatureWindow);
 
         // Initialize typed signal sinks for observability
         _aberrationSignals = new TypedSignalSink<AberrationSignal>(
@@ -200,35 +199,47 @@ public class SignatureCoordinator : IAsyncDisposable
         // Create TTL-aware LRU cache using ephemeral.complete SlidingCacheAtom
         // This replaces manual LRU + TTL tracking!
         _signatureCache = new SlidingCacheAtom<string, SignatureTrackingAtom>(
-            factory: async (signature, ct) =>
+            async (signature, ct) =>
             {
                 // Factory creates new tracking atoms on cache miss
                 _logger.LogDebug("Creating new SignatureTrackingAtom for signature: {Signature}", signature);
                 return await Task.FromResult(
                     new SignatureTrackingAtom(signature, _options, _logger, _aberrationSignals));
             },
-            slidingExpiration: _options.SignatureTtl,        // Access resets TTL
-            absoluteExpiration: _options.SignatureTtl * 2,    // Hard limit
-            maxSize: _options.MaxSignaturesInWindow,          // LRU capacity
-            maxConcurrency: Environment.ProcessorCount,       // Parallel factory calls
-            sampleRate: 10,                                   // Signal sampling (1 in 10)
-            signals: _ephemeralSignals);                      // Shared signals
+            _options.SignatureTtl, // Access resets TTL
+            _options.SignatureTtl * 2, // Hard limit
+            _options.MaxSignaturesInWindow, // LRU capacity
+            Environment.ProcessorCount, // Parallel factory calls
+            10, // Signal sampling (1 in 10)
+            _ephemeralSignals); // Shared signals
 
         // Create per-signature sequential update atom using ephemeral.complete KeyedSequentialAtom
         // This ensures updates to the same signature are sequential while allowing global parallelism
         _updateAtom = new KeyedSequentialAtom<SignatureUpdateRequest, string>(
-            keySelector: req => req.Signature,               // Key by signature
-            body: async (req, ct) => await ProcessSignatureUpdateAsync(req, ct),
-            maxConcurrency: Environment.ProcessorCount * 2,  // Global parallelism
-            perKeyConcurrency: 1,                            // Per-signature sequential
-            enableFairScheduling: true,                      // Fair scheduling across signatures
-            signals: _ephemeralSignals);                     // Shared signals
+            req => req.Signature, // Key by signature
+            async (req, ct) => await ProcessSignatureUpdateAsync(req, ct),
+            Environment.ProcessorCount * 2, // Global parallelism
+            1, // Per-signature sequential
+            true, // Fair scheduling across signatures
+            _ephemeralSignals); // Shared signals
 
         _logger.LogInformation(
             "SignatureCoordinator initialized: window={Window}, maxSignatures={MaxSignatures}, ttl={Ttl}",
             _options.SignatureWindow,
             _options.MaxSignaturesInWindow,
             _options.SignatureTtl);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        // Drain the update atom to complete pending updates
+        await _updateAtom.DrainAsync();
+
+        // Dispose atoms
+        await _updateAtom.DisposeAsync();
+        await _signatureCache.DisposeAsync();
+
+        _logger.LogInformation("SignatureCoordinator disposed");
     }
 
     /// <summary>
@@ -287,7 +298,6 @@ public class SignatureCoordinator : IAsyncDisposable
 
             // Emit update signal if enabled
             if (_options.EnableUpdateSignals)
-            {
                 _updateSignals.Raise(
                     new SignalKey<SignatureUpdateSignal>("signature.update"),
                     new SignatureUpdateSignal(
@@ -296,7 +306,6 @@ public class SignatureCoordinator : IAsyncDisposable
                         behavior.AberrationScore,
                         behavior.IsAberrant,
                         DateTime.UtcNow));
-            }
 
             // Check for aberrations and escalate if needed
             if (behavior.IsAberrant && !updateRequest.Request.Escalated)
@@ -327,7 +336,6 @@ public class SignatureCoordinator : IAsyncDisposable
         {
             // Emit error signal
             if (_options.EnableErrorSignals)
-            {
                 _errorSignals.Raise(
                     new SignalKey<SignatureErrorSignal>("signature.update_error"),
                     new SignatureErrorSignal(
@@ -335,7 +343,6 @@ public class SignatureCoordinator : IAsyncDisposable
                         $"Update failed: {ex.Message}",
                         ex,
                         DateTime.UtcNow));
-            }
 
             _logger.LogError(ex,
                 "Failed to process signature update for {Signature}",
@@ -383,7 +390,7 @@ public class SignatureCoordinator : IAsyncDisposable
     /// <summary>
     ///     Get cache statistics for observability.
     /// </summary>
-    public Mostlylucid.Ephemeral.Atoms.SlidingCache.CacheStats GetCacheStats()
+    public CacheStats GetCacheStats()
     {
         return _signatureCache.GetStats();
     }
@@ -395,18 +402,6 @@ public class SignatureCoordinator : IAsyncDisposable
     {
         return _ephemeralSignals.Sense();
     }
-
-    public async ValueTask DisposeAsync()
-    {
-        // Drain the update atom to complete pending updates
-        await _updateAtom.DrainAsync();
-
-        // Dispose atoms
-        await _updateAtom.DisposeAsync();
-        await _signatureCache.DisposeAsync();
-
-        _logger.LogInformation("SignatureCoordinator disposed");
-    }
 }
 
 /// <summary>
@@ -415,14 +410,14 @@ public class SignatureCoordinator : IAsyncDisposable
 /// </summary>
 internal class SignatureTrackingAtom : IDisposable
 {
-    private readonly string _signature;
-    private readonly SignatureCoordinatorOptions _options;
-    private readonly ILogger _logger;
     private readonly TypedSignalSink<AberrationSignal> _aberrationSignals;
+    private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly ILogger _logger;
+    private readonly SignatureCoordinatorOptions _options;
 
     // Sliding window of requests (bounded by MaxRequestsPerSignature)
     private readonly LinkedList<SignatureRequest> _requests;
-    private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly string _signature;
 
     // Cached behavior (recomputed on each request)
     private SignatureBehavior? _cachedBehavior;
@@ -443,6 +438,11 @@ internal class SignatureTrackingAtom : IDisposable
     public int RequestCount => _requests.Count;
     public bool IsAberrant => _cachedBehavior?.IsAberrant ?? false;
 
+    public void Dispose()
+    {
+        _lock.Dispose();
+    }
+
     public async Task RecordRequestAsync(
         SignatureRequest request,
         CancellationToken cancellationToken)
@@ -455,16 +455,10 @@ internal class SignatureTrackingAtom : IDisposable
 
             // Evict old requests (outside window)
             var cutoff = DateTime.UtcNow - _options.SignatureWindow;
-            while (_requests.Count > 0 && _requests.First!.Value.Timestamp < cutoff)
-            {
-                _requests.RemoveFirst();
-            }
+            while (_requests.Count > 0 && _requests.First!.Value.Timestamp < cutoff) _requests.RemoveFirst();
 
             // Enforce max requests per signature
-            while (_requests.Count > _options.MaxRequestsPerSignature)
-            {
-                _requests.RemoveFirst();
-            }
+            while (_requests.Count > _options.MaxRequestsPerSignature) _requests.RemoveFirst();
 
             // Recompute behavior
             _cachedBehavior = ComputeBehavior();
@@ -495,7 +489,6 @@ internal class SignatureTrackingAtom : IDisposable
     private SignatureBehavior ComputeBehavior()
     {
         if (_requests.Count == 0)
-        {
             return new SignatureBehavior
             {
                 Signature = _signature,
@@ -510,7 +503,6 @@ internal class SignatureTrackingAtom : IDisposable
                 AberrationScore = 0,
                 IsAberrant = false
             };
-        }
 
         var requestList = _requests.ToList();
         var firstSeen = requestList.First().Timestamp;
@@ -518,10 +510,8 @@ internal class SignatureTrackingAtom : IDisposable
 
         // Calculate average interval
         var intervals = new List<double>();
-        for (int i = 1; i < requestList.Count; i++)
-        {
+        for (var i = 1; i < requestList.Count; i++)
             intervals.Add((requestList[i].Timestamp - requestList[i - 1].Timestamp).TotalSeconds);
-        }
 
         var avgInterval = intervals.Count > 0 ? intervals.Average() : 0;
 
@@ -607,10 +597,5 @@ internal class SignatureTrackingAtom : IDisposable
             score += 0.2;
 
         return Math.Min(score, 1.0);
-    }
-
-    public void Dispose()
-    {
-        _lock.Dispose();
     }
 }

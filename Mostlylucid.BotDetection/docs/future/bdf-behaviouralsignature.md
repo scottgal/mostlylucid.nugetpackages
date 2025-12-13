@@ -3,7 +3,6 @@ Receptors activate molecules.
 Molecules assemble workflows.
 Styloflow evolves architecture from behaviour.
 
-
 Think of BDF as:
 
 > **“A declarative description of how a client behaves over time.”**
@@ -14,10 +13,12 @@ Think of BDF as:
 
 BDF should let you:
 
-1. **Describe behaviour**: not just single requests, but the *shape* over time (paths, timing, errors, bursts, navigation style).
+1. **Describe behaviour**: not just single requests, but the *shape* over time (paths, timing, errors, bursts,
+   navigation style).
 2. **Replay behaviour**: drive a load generator/test harness against Stylobot/YARP/ASP.NET.
 3. **Compare & assert**: tell the test what you *expect* Stylobot to classify (bot/human, risk band).
-4. **Reverse-map from signatures**: given a `SignatureBehaviorState`, produce an approximate BDF that *would* have generated similar metrics.
+4. **Reverse-map from signatures**: given a `SignatureBehaviorState`, produce an approximate BDF that *would* have
+   generated similar metrics.
 
 ---
 
@@ -257,7 +258,8 @@ SignatureBehaviorState → set of Phase templates + parameter ranges
                         → BDF scenario describing a client that *resembles* this signature
 ```
 
-You’ll never reconstruct the exact request sequence, but you’ll generate a new “bot that looks like this kind of bot” for replay/regression.
+You’ll never reconstruct the exact request sequence, but you’ll generate a new “bot that looks like this kind of bot”
+for replay/regression.
 
 ---
 
@@ -358,7 +360,6 @@ If you like, I can next:
 * define a *tiny* C# DTO model for BDF, or
 * sketch how a `SignatureBehaviorState → BDF` reverse mapper would look (mapping thresholds to phase choices).
 
-
 Yes, this is the fun bit: the mapper is what closes the loop and lets you *stress-test* your own signatures.
 
 Here’s a clean spec for the **Signature → BDF Mapper**, so you can:
@@ -392,7 +393,8 @@ public sealed record SignatureBehaviorState(
 );
 ```
 
-You basically already compute most of these; a few (like `AverageRps`) you can derive from your existing behavioural analyzer.
+You basically already compute most of these; a few (like `AverageRps`) you can derive from your existing behavioural
+analyzer.
 
 ---
 
@@ -627,7 +629,8 @@ ExpectationConfig MapExpectation(SignatureBehaviorProfile profile)
 }
 ```
 
-This is what lets you **evaluate signatures against expected behaviour**: you generate a scenario that matches the measured waveform and assert your detector still arrives at the same high-level judgement.
+This is what lets you **evaluate signatures against expected behaviour**: you generate a scenario that matches the
+measured waveform and assert your detector still arrives at the same high-level judgement.
 
 ---
 
@@ -725,7 +728,6 @@ If you want, I can next:
 
 * tighten `SignatureBehaviorState` to exactly match the fields you already emit in your debug JSON, or
 * sketch a tiny test showing “take existing signature JSON → map → BDF → run → compare risk bands”.
-
 
 Yep, you’ve basically got a **two-for-one** here:
 
@@ -936,4 +938,5 @@ And if you want a “Replay this behaviour” button:
 
     * “Re-run as synthetic test” in one click.
 
-So yeah: the explanation formatter is just a **human-readable front-end** to the same mapping logic you’re already designing for BDF — which is exactly what you noticed.
+So yeah: the explanation formatter is just a **human-readable front-end** to the same mapping logic you’re already
+designing for BDF — which is exactly what you noticed.

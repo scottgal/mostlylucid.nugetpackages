@@ -169,6 +169,7 @@ RequestSignature = HMAC-SHA256(IP | UserAgent | Path, salt)
 ```
 
 This allows:
+
 - ✅ Detecting repeat visitors without storing IP
 - ✅ Identifying attack patterns from same subnet
 - ✅ Grouping by UA family without storing full string
@@ -210,12 +211,12 @@ public interface IDetectionStore
 
 - **File**: `detections.db` in app data folder
 - **Tables**:
-  - `detections` - Main records
-  - `detector_contributions` - Per-detector data (1:N)
+    - `detections` - Main records
+    - `detector_contributions` - Per-detector data (1:N)
 - **Indexes**:
-  - `idx_timestamp` - For time-range queries
-  - `idx_signature` - For pattern queries
-  - `idx_risk_band` - For filtering
+    - `idx_timestamp` - For time-range queries
+    - `idx_signature` - For pattern queries
+    - `idx_risk_band` - For filtering
 - **Retention**: Auto-purge records older than 30 days
 
 ### PostgresDetectionStore (Future)

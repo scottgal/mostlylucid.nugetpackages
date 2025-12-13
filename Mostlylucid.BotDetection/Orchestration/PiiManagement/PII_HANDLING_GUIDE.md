@@ -5,6 +5,7 @@
 **PII (Personally Identifiable Information) must NEVER be placed in signal payloads.**
 
 This is a **critical architectural requirement**, not a nice-to-have. Violating this principle would:
+
 - Break the zero-PII architecture
 - Create GDPR/CCPA compliance issues
 - Undermine the core value proposition of Stylobot
@@ -12,6 +13,7 @@ This is a **critical architectural requirement**, not a nice-to-have. Violating 
 ## What is PII?
 
 For Stylobot's purposes, PII includes:
+
 - IP addresses (full or partial)
 - User agent strings
 - Geographic coordinates (city, region, lat/lon)
@@ -23,6 +25,7 @@ For Stylobot's purposes, PII includes:
 ## What is NOT PII?
 
 The following are safe for signals:
+
 - Country codes (e.g., "US", "GB") - GDPR Article 4 excludes these
 - Timezone names (e.g., "America/New_York") - behavioral data
 - Primary language codes (e.g., "en", "fr") - non-identifying
@@ -54,6 +57,7 @@ public async Task<IReadOnlyList<DetectionContribution>> ContributeAsync(
 ```
 
 **Available State Properties:**
+
 - `state.ClientIp` - Raw IP address
 - `state.UserAgent` - Raw user agent string
 - `state.Referer` - Raw referer header
@@ -206,9 +210,11 @@ var signals = new Dictionary<string, object>
 };
 ```
 
-**Why wrong?** Signals are stored in the blackboard and may be logged, persisted, or transmitted. Raw PII in signals breaks zero-PII architecture.
+**Why wrong?** Signals are stored in the blackboard and may be logged, persisted, or transmitted. Raw PII in signals
+breaks zero-PII architecture.
 
 **Fix:**
+
 ```csharp
 // ✅ CORRECT - Boolean indicators and hashes
 var signals = PiiSignalHelper.EmitIpSignals("192.168.1.100", _hasher);
@@ -228,6 +234,7 @@ var signals = new Dictionary<string, object>
 **Why wrong?** IP prefixes can still identify subnets and networks.
 
 **Fix:**
+
 ```csharp
 // ✅ CORRECT - Hash the subnet
 var signals = new Dictionary<string, object>
@@ -246,6 +253,7 @@ var ip = state.GetSignal<string>("client_ip");
 **Why wrong?** Signals should never contain raw PII.
 
 **Fix:**
+
 ```csharp
 // ✅ CORRECT - Read raw PII from state properties
 var ip = state.ClientIp;
@@ -261,6 +269,7 @@ _logger.LogInformation("Request from IP {Ip}", state.ClientIp);
 **Why wrong?** Logs persist indefinitely and may be shipped to external systems.
 
 **Fix:**
+
 ```csharp
 // ✅ CORRECT - Log hashed values
 _logger.LogInformation(
@@ -375,4 +384,5 @@ Before shipping a detector, verify:
 
 Following these rules ensures Stylobot can legitimately claim:
 
-> **"We store literally zero PII. Raw IP/UA/location never touches disk - only non-reversible, keyed signatures are persisted."**
+> **"We store literally zero PII. Raw IP/UA/location never touches disk - only non-reversible, keyed signatures are
+persisted."**

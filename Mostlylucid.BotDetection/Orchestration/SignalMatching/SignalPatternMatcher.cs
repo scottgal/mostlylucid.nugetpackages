@@ -55,7 +55,7 @@ public sealed class SignalPatternMatcher
         var matches = sink.Sense(evt => MatchesPattern(evt.Signal, pattern));
         var latest = matches.OrderByDescending(e => e.Timestamp).FirstOrDefault();
         // Return the value from Key property
-        return latest == default ? null : (latest.Key ?? latest.Signal);
+        return latest == default ? null : latest.Key ?? latest.Signal;
     }
 
     /// <summary>

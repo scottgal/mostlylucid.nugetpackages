@@ -9,9 +9,9 @@ namespace Mostlylucid.BotDetection.Orchestration.Tests.Unit;
 
 public class DriftDetectionHandlerTests
 {
+    private readonly DriftDetectionHandler _handler;
     private readonly Mock<ILearningEventBus> _mockLearningBus;
     private readonly BotDetectionOptions _options;
-    private readonly DriftDetectionHandler _handler;
     private readonly List<LearningEvent> _publishedEvents;
 
     public DriftDetectionHandlerTests()
@@ -149,10 +149,7 @@ public class DriftDetectionHandlerTests
         };
 
         // Act
-        for (int i = 0; i < 10; i++)
-        {
-            await _handler.HandleAsync(evt);
-        }
+        for (var i = 0; i < 10; i++) await _handler.HandleAsync(evt);
 
         // Assert - no feedback because disabled
         Assert.Empty(_publishedEvents);
@@ -247,10 +244,7 @@ public class DriftDetectionHandlerTests
         };
 
         // Act - process enough times to trigger feedback
-        for (int i = 0; i < 5; i++)
-        {
-            await _handler.HandleAsync(evt);
-        }
+        for (var i = 0; i < 5; i++) await _handler.HandleAsync(evt);
 
         // Assert
         var feedbackEvent = _publishedEvents.FirstOrDefault(e => e.Type == LearningEventType.SignatureFeedback);

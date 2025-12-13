@@ -1,4 +1,6 @@
-﻿Below is a **full whitepaper-style draft**, written in a professional but accessible tone, aligned with your philosophy (ephemeral windows, behavioural detectors, zero-PII signals, foveated markets, transparent economic incentives).
+﻿Below is a **full whitepaper-style draft**, written in a professional but accessible tone, aligned with your
+philosophy (ephemeral windows, behavioural detectors, zero-PII signals, foveated markets, transparent economic
+incentives).
 It positions Stylocoin as the world’s first **privacy-preserving behavioural training economy** for a semantic firewall.
 
 ---
@@ -11,12 +13,14 @@ It positions Stylocoin as the world’s first **privacy-preserving behavioural t
 
 ## **Abstract**
 
-Stylocoin is a **non-tradeable, internal training credit** that powers the collaborative evolution of the Stylowall Semantic Firewall.
+Stylocoin is a **non-tradeable, internal training credit** that powers the collaborative evolution of the Stylowall
+Semantic Firewall.
 It enables a foveated marketplace where:
 
 * participants contribute **anonymous behavioural telemetry**,
 * detectors and tools contribute **specialised analytic capability**, and
-* Stylowall continuously adjusts **pricing, rewards, and reputation signals** based on transparent mathematical utility models.
+* Stylowall continuously adjusts **pricing, rewards, and reputation signals** based on transparent mathematical utility
+  models.
 
 Stylocoin is **not a cryptocurrency**, nor a security token.
 It cannot be exchanged for money, transferred externally, or speculated upon.
@@ -27,7 +31,8 @@ It is a **closed-circuit incentive system** used solely to:
 * fund community buyouts of high-value tools,
 * and maintain a self-optimising detector ecosystem that improves in real time.
 
-Stylocoin is the first currency designed for **zero-PII behavioural intelligence** and **continuous, decentralised detector refinement**.
+Stylocoin is the first currency designed for **zero-PII behavioural intelligence** and **continuous, decentralised
+detector refinement**.
 
 ---
 
@@ -52,7 +57,8 @@ Instead, Stylowall is based on the **Ephemeral Model**:
 * and usefulness is measured, not assumed.
 
 This creates a new problem:
-**How do you reward the community for producing high-quality behavioural signals without compromising privacy or exposing raw data?**
+**How do you reward the community for producing high-quality behavioural signals without compromising privacy or
+exposing raw data?**
 
 Stylocoin solves this.
 
@@ -240,7 +246,8 @@ A tool vendor may declare:
 
 > “I am willing to sell this detector to the Community Fund for 150,000 Gold.”
 
-If the fund reaches that amount, the tool becomes **free for all users**, and the vendor is paid the internal USD equivalent (not withdrawn, but applied to service credit or contract payment).
+If the fund reaches that amount, the tool becomes **free for all users**, and the vendor is paid the internal USD
+equivalent (not withdrawn, but applied to service credit or contract payment).
 
 This **democratises high-end detection**, without undermining the marketplace.
 

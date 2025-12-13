@@ -34,6 +34,7 @@ The signed token prevents replay attacks and fingerprint spoofing.
 ### 2. Add the Tag Helper
 
 In `_ViewImports.cshtml`:
+
 ```cshtml
 @addTagHelper *, Mostlylucid.BotDetection
 ```
@@ -45,6 +46,7 @@ In `_ViewImports.cshtml`:
 ```
 
 With options:
+
 ```html
 <bot-detection-script
     endpoint="/bot-detection/fingerprint"
@@ -55,28 +57,30 @@ With options:
 ### 4. Map the Endpoint
 
 In `Program.cs`:
+
 ```csharp
 app.MapBotDetectionFingerprintEndpoint();
 ```
 
 ## Configuration Reference
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `Enabled` | `false` | Enable client-side detection |
-| `TokenSecret` | `null` | Secret for signing tokens (min 16 chars) |
-| `TokenLifetimeSeconds` | `300` | Token validity period |
-| `FingerprintCacheDurationSeconds` | `1800` | Cache fingerprint results |
-| `CollectionTimeoutMs` | `5000` | JS collection timeout |
-| `CollectWebGL` | `true` | Collect WebGL renderer info |
-| `CollectCanvas` | `true` | Collect canvas fingerprint |
-| `CollectAudio` | `false` | Collect audio context fingerprint |
-| `MinIntegrityScore` | `70` | Min score to consider "human" |
-| `HeadlessThreshold` | `0.5` | Headless likelihood threshold |
+| Setting                           | Default | Description                              |
+|-----------------------------------|---------|------------------------------------------|
+| `Enabled`                         | `false` | Enable client-side detection             |
+| `TokenSecret`                     | `null`  | Secret for signing tokens (min 16 chars) |
+| `TokenLifetimeSeconds`            | `300`   | Token validity period                    |
+| `FingerprintCacheDurationSeconds` | `1800`  | Cache fingerprint results                |
+| `CollectionTimeoutMs`             | `5000`  | JS collection timeout                    |
+| `CollectWebGL`                    | `true`  | Collect WebGL renderer info              |
+| `CollectCanvas`                   | `true`  | Collect canvas fingerprint               |
+| `CollectAudio`                    | `false` | Collect audio context fingerprint        |
+| `MinIntegrityScore`               | `70`    | Min score to consider "human"            |
+| `HeadlessThreshold`               | `0.5`   | Headless likelihood threshold            |
 
 ## What It Detects
 
 ### Automation Markers
+
 - `navigator.webdriver` flag (WebDriver/Selenium)
 - PhantomJS global objects
 - Nightmare.js markers
@@ -84,6 +88,7 @@ app.MapBotDetectionFingerprintEndpoint();
 - Chrome DevTools Protocol (CDP/Puppeteer) markers
 
 ### Browser Integrity
+
 - Missing plugins in Chrome (headless has none)
 - Zero outer window dimensions
 - Prototype pollution (non-native `Function.bind`)
@@ -108,7 +113,8 @@ if (headlessLikelihood > 0.7)
 
 ## Integration with Behavioral Analysis
 
-When client-side is enabled, the `BehavioralDetector` automatically tracks by fingerprint hash in addition to IP. This catches bots that:
+When client-side is enabled, the `BehavioralDetector` automatically tracks by fingerprint hash in addition to IP. This
+catches bots that:
 
 - Rotate IP addresses
 - Use residential proxies

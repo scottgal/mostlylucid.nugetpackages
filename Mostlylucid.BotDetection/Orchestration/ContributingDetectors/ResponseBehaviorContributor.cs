@@ -8,10 +8,8 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// <summary>
 ///     Response behavior analysis contributor.
 ///     Integrates response-side bot detection from ResponseCoordinator into the detection pipeline.
-///
 ///     This contributor feeds BACK into the request detection pipeline by analyzing patterns
 ///     from previous responses for the same client (IP+UA signature).
-///
 ///     Best-in-breed approach:
 ///     - Honeypot path detection (accessing paths that should never be hit)
 ///     - 404 scanning patterns (probing for vulnerabilities)
@@ -19,9 +17,7 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 ///     - Auth brute-forcing detection (repeated 401s)
 ///     - Rate limit violations (429 responses)
 ///     - Response time anomalies (too fast = cached/automated)
-///
 ///     This runs early (wave 0) to provide feedback for current request based on past behavior.
-///
 ///     Raises signals:
 ///     - response.historical_score
 ///     - response.honeypot_hits
@@ -32,8 +28,8 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// </summary>
 public class ResponseBehaviorContributor : ContributingDetectorBase
 {
-    private readonly ILogger<ResponseBehaviorContributor> _logger;
     private readonly ResponseCoordinator? _coordinator;
+    private readonly ILogger<ResponseBehaviorContributor> _logger;
 
     public ResponseBehaviorContributor(
         ILogger<ResponseBehaviorContributor> logger,
@@ -112,7 +108,6 @@ public class ResponseBehaviorContributor : ContributingDetectorBase
             AnalyzeErrorHarvesting(behavior, contributions, signals);
             AnalyzeRateLimitViolations(behavior, contributions, signals);
             AnalyzeOverallResponseScore(behavior, contributions, signals);
-
         }
         catch (Exception ex)
         {
@@ -181,7 +176,7 @@ public class ResponseBehaviorContributor : ContributingDetectorBase
             signals.Add("response.scan_pattern_detected", true);
 
             var scanIntensity = Math.Min(1.0, behavior.UniqueNotFoundPaths / 50.0);
-            var confidence = 0.5 + (scanIntensity * 0.4); // 0.5 to 0.9
+            var confidence = 0.5 + scanIntensity * 0.4; // 0.5 to 0.9
 
             contributions.Add(DetectionContribution.Bot(
                 Name, "Response", confidence,
@@ -310,15 +305,12 @@ public class ResponseBehaviorContributor : ContributingDetectorBase
         signals.Add("response.rate_limit_violations", rateLimitCount);
 
         if (rateLimitCount > 5)
-        {
             contributions.Add(DetectionContribution.Bot(
                 Name, "Response", 0.75,
                 $"Multiple rate limit violations: {rateLimitCount} occurrences",
                 BotType.Scraper,
                 weight: 1.7));
-        }
         else if (rateLimitCount > 2)
-        {
             contributions.Add(new DetectionContribution
             {
                 DetectorName = Name,
@@ -328,7 +320,6 @@ public class ResponseBehaviorContributor : ContributingDetectorBase
                 Reason = $"Some rate limit violations: {rateLimitCount} occurrences",
                 Signals = signals.ToImmutable()
             });
-        }
     }
 
     /// <summary>
@@ -341,15 +332,12 @@ public class ResponseBehaviorContributor : ContributingDetectorBase
     {
         // The ResponseCoordinator already computed a comprehensive score
         if (behavior.ResponseScore > 0.8)
-        {
             contributions.Add(DetectionContribution.Bot(
                 Name, "Response", 0.85,
                 $"Very high response score: {behavior.ResponseScore:F2}",
                 BotType.MaliciousBot,
                 weight: 1.8));
-        }
         else if (behavior.ResponseScore > 0.6)
-        {
             contributions.Add(new DetectionContribution
             {
                 DetectorName = Name,
@@ -359,9 +347,7 @@ public class ResponseBehaviorContributor : ContributingDetectorBase
                 Reason = $"High response score: {behavior.ResponseScore:F2}",
                 Signals = signals.ToImmutable()
             });
-        }
         else if (behavior.ResponseScore > 0.4)
-        {
             contributions.Add(new DetectionContribution
             {
                 DetectorName = Name,
@@ -371,20 +357,18 @@ public class ResponseBehaviorContributor : ContributingDetectorBase
                 Reason = $"Elevated response score: {behavior.ResponseScore:F2}",
                 Signals = signals.ToImmutable()
             });
-        }
         // Low score = likely human
         else if (behavior.ResponseScore < 0.2 && behavior.TotalResponses >= 5)
-        {
             contributions.Add(new DetectionContribution
             {
                 DetectorName = Name,
                 Category = "Response",
                 ConfidenceDelta = -0.15,
                 Weight = 1.3,
-                Reason = $"Clean response history: {behavior.TotalResponses} responses, score {behavior.ResponseScore:F2}",
+                Reason =
+                    $"Clean response history: {behavior.TotalResponses} responses, score {behavior.ResponseScore:F2}",
                 Signals = signals.ToImmutable()
             });
-        }
     }
 
     private string GetClientSignature(HttpContext context)

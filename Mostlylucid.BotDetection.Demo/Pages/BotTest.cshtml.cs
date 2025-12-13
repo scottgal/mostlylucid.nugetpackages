@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Mostlylucid.BotDetection.Extensions;
 using Mostlylucid.BotDetection.Middleware;
-using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Orchestration;
 
 namespace Mostlylucid.BotDetection.Demo.Pages;
@@ -66,9 +65,7 @@ public class BotTestModel : PageModel
 
             // Category breakdown
             foreach (var (category, info) in evidence.CategoryBreakdown)
-            {
                 CategoryScores[category] = Math.Round(info.Score * 100, 1);
-            }
 
             // Extract AI explanation from LLM or Heuristic detector
             var llmContribution = evidence.Contributions

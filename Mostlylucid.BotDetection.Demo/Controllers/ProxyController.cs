@@ -1,6 +1,6 @@
+using System.Net;
 using Microsoft.AspNetCore.Mvc;
 using Yarp.ReverseProxy.Forwarder;
-using Yarp.ReverseProxy.Transforms;
 
 namespace Mostlylucid.BotDetection.Demo.Controllers;
 
@@ -27,10 +27,7 @@ public class ProxyController : ControllerBase
     public async Task ProxyRequest(string url)
     {
         // Normalize URL - add https:// if no protocol specified
-        if (!url.StartsWith("http://") && !url.StartsWith("https://"))
-        {
-            url = "https://" + url;
-        }
+        if (!url.StartsWith("http://") && !url.StartsWith("https://")) url = "https://" + url;
 
         // Parse the URL to extract the destination
         if (!Uri.TryCreate(url, UriKind.Absolute, out var destinationUri))
@@ -48,7 +45,7 @@ public class ProxyController : ControllerBase
         {
             UseProxy = false,
             AllowAutoRedirect = false,
-            AutomaticDecompression = System.Net.DecompressionMethods.None,
+            AutomaticDecompression = DecompressionMethods.None,
             UseCookies = false
         });
 
@@ -92,7 +89,8 @@ internal class CustomProxyTransformer : HttpTransformer
         _destinationUri = destinationUri;
     }
 
-    public override async ValueTask TransformRequestAsync(HttpContext httpContext, HttpRequestMessage proxyRequest, string destinationPrefix, CancellationToken cancellationToken)
+    public override async ValueTask TransformRequestAsync(HttpContext httpContext, HttpRequestMessage proxyRequest,
+        string destinationPrefix, CancellationToken cancellationToken)
     {
         // Call base transformation first
         await base.TransformRequestAsync(httpContext, proxyRequest, destinationPrefix, cancellationToken);

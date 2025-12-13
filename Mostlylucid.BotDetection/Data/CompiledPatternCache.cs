@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Sockets;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 
@@ -11,13 +12,13 @@ namespace Mostlylucid.BotDetection.Data;
 /// </summary>
 public class CompiledPatternCache : ICompiledPatternCache
 {
-    private readonly ConcurrentDictionary<string, Regex?> _regexCache = new();
     private readonly ConcurrentDictionary<string, ParsedCidrRange?> _cidrCache = new();
     private readonly ILogger<CompiledPatternCache> _logger;
+    private readonly ConcurrentDictionary<string, Regex?> _regexCache = new();
+    private volatile IReadOnlyList<ParsedCidrRange> _downloadedCidrRanges = Array.Empty<ParsedCidrRange>();
 
     // Pre-compiled patterns from downloaded sources (isbot, crawler-user-agents)
     private volatile IReadOnlyList<Regex> _downloadedPatterns = Array.Empty<Regex>();
-    private volatile IReadOnlyList<ParsedCidrRange> _downloadedCidrRanges = Array.Empty<ParsedCidrRange>();
 
     public CompiledPatternCache(ILogger<CompiledPatternCache> logger)
     {
@@ -87,10 +88,7 @@ public class CompiledPatternCache : ICompiledPatternCache
         foreach (var pattern in patterns)
         {
             var regex = GetOrCompileRegex(pattern);
-            if (regex != null)
-            {
-                compiled.Add(regex);
-            }
+            if (regex != null) compiled.Add(regex);
         }
 
         _downloadedPatterns = compiled;
@@ -107,10 +105,7 @@ public class CompiledPatternCache : ICompiledPatternCache
         foreach (var cidr in cidrs)
         {
             var range = GetOrParseCidr(cidr);
-            if (range != null)
-            {
-                parsed.Add(range);
-            }
+            if (range != null) parsed.Add(range);
         }
 
         _downloadedCidrRanges = parsed;
@@ -126,7 +121,6 @@ public class CompiledPatternCache : ICompiledPatternCache
 
         // First check source-generated patterns (fastest)
         foreach (var regex in BotSignatures.CompiledBotPatterns)
-        {
             try
             {
                 if (regex.IsMatch(userAgent))
@@ -139,11 +133,9 @@ public class CompiledPatternCache : ICompiledPatternCache
             {
                 // Skip timed out patterns
             }
-        }
 
         // Then check downloaded patterns
         foreach (var regex in _downloadedPatterns)
-        {
             try
             {
                 if (regex.IsMatch(userAgent))
@@ -156,7 +148,6 @@ public class CompiledPatternCache : ICompiledPatternCache
             {
                 // Skip timed out patterns
             }
-        }
 
         return false;
     }
@@ -169,13 +160,11 @@ public class CompiledPatternCache : ICompiledPatternCache
         matchedRange = null;
 
         foreach (var range in _downloadedCidrRanges)
-        {
             if (range.Contains(ipAddress))
             {
                 matchedRange = range.OriginalCidr;
                 return true;
             }
-        }
 
         return false;
     }
@@ -214,15 +203,12 @@ public interface ICompiledPatternCache
 /// </summary>
 public sealed class ParsedCidrRange
 {
-    public string OriginalCidr { get; }
-    public IPAddress NetworkAddress { get; }
-    public int PrefixLength { get; }
+    private readonly int _fullBytes;
+    private readonly byte _lastByteMask;
 
     // Pre-computed values for fast matching
     private readonly byte[] _networkBytes;
-    private readonly int _fullBytes;
     private readonly int _remainingBits;
-    private readonly byte _lastByteMask;
 
     private ParsedCidrRange(string cidr, IPAddress networkAddress, int prefixLength)
     {
@@ -235,6 +221,10 @@ public sealed class ParsedCidrRange
         _remainingBits = prefixLength % 8;
         _lastByteMask = _remainingBits > 0 ? (byte)(0xFF << (8 - _remainingBits)) : (byte)0;
     }
+
+    public string OriginalCidr { get; }
+    public IPAddress NetworkAddress { get; }
+    public int PrefixLength { get; }
 
     /// <summary>
     ///     Tries to parse a CIDR string into a ParsedCidrRange.
@@ -256,7 +246,7 @@ public sealed class ParsedCidrRange
         if (!int.TryParse(parts[1], out var prefixLength))
             return false;
 
-        var maxPrefix = networkAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? 32 : 128;
+        var maxPrefix = networkAddress.AddressFamily == AddressFamily.InterNetwork ? 32 : 128;
         if (prefixLength < 0 || prefixLength > maxPrefix)
             return false;
 
@@ -278,17 +268,13 @@ public sealed class ParsedCidrRange
 
         // Check full bytes
         for (var i = 0; i < _fullBytes; i++)
-        {
             if (ipBytes[i] != _networkBytes[i])
                 return false;
-        }
 
         // Check remaining bits with pre-computed mask
         if (_remainingBits > 0 && _fullBytes < ipBytes.Length)
-        {
             if ((ipBytes[_fullBytes] & _lastByteMask) != (_networkBytes[_fullBytes] & _lastByteMask))
                 return false;
-        }
 
         return true;
     }

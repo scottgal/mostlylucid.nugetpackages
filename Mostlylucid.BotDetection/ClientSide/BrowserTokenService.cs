@@ -42,13 +42,12 @@ public record BrowserTokenPayload
 
 public class BrowserTokenService : IBrowserTokenService
 {
-    private readonly BotDetectionOptions _options;
-    private readonly ILogger<BrowserTokenService> _logger;
-    private readonly IMemoryCache _cache;
-    private readonly byte[] _key;
-
     // Cache used tokens to prevent replay attacks
     private const string UsedTokenCachePrefix = "MLBotD:UsedToken:";
+    private readonly IMemoryCache _cache;
+    private readonly byte[] _key;
+    private readonly ILogger<BrowserTokenService> _logger;
+    private readonly BotDetectionOptions _options;
 
     public BrowserTokenService(
         IOptions<BotDetectionOptions> options,

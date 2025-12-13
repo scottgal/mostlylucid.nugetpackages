@@ -26,9 +26,6 @@ namespace Mostlylucid.BotDetection.ApiHolodeck.Contributors;
 /// </remarks>
 public class HoneypotLinkContributor : ContributingDetectorBase
 {
-    private readonly ILogger<HoneypotLinkContributor> _logger;
-    private readonly HolodeckOptions _options;
-
     // Common scanner paths (expanded list)
     private static readonly HashSet<string> DefaultHoneypotPaths = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -53,6 +50,9 @@ public class HoneypotLinkContributor : ContributingDetectorBase
         // Specific exploits
         "/cgi-bin/", "/fckeditor/", "/kcfinder/", "/elfinder/"
     };
+
+    private readonly ILogger<HoneypotLinkContributor> _logger;
+    private readonly HolodeckOptions _options;
 
     public HoneypotLinkContributor(
         ILogger<HoneypotLinkContributor> logger,
@@ -83,56 +83,34 @@ public class HoneypotLinkContributor : ContributingDetectorBase
         BlackboardState state,
         CancellationToken cancellationToken = default)
     {
-        if (!_options.EnableHoneypotLinkDetection)
-        {
-            return Task.FromResult(None());
-        }
+        if (!_options.EnableHoneypotLinkDetection) return Task.FromResult(None());
 
         var path = state.HttpContext?.Request.Path.Value?.ToLowerInvariant() ?? "";
 
-        if (string.IsNullOrEmpty(path))
-        {
-            return Task.FromResult(None());
-        }
+        if (string.IsNullOrEmpty(path)) return Task.FromResult(None());
 
         // Combine default paths with configured paths
         var honeypotPaths = new HashSet<string>(DefaultHoneypotPaths, StringComparer.OrdinalIgnoreCase);
-        foreach (var configPath in _options.HoneypotPaths)
-        {
-            honeypotPaths.Add(configPath.ToLowerInvariant());
-        }
+        foreach (var configPath in _options.HoneypotPaths) honeypotPaths.Add(configPath.ToLowerInvariant());
 
         // Check for exact match
-        if (honeypotPaths.Contains(path))
-        {
-            return Task.FromResult(CreateHoneypotHit(path, "exact"));
-        }
+        if (honeypotPaths.Contains(path)) return Task.FromResult(CreateHoneypotHit(path, "exact"));
 
         // Check for prefix match (e.g., /wp-admin/anything)
         foreach (var honeypotPath in honeypotPaths)
-        {
             if (path.StartsWith(honeypotPath, StringComparison.OrdinalIgnoreCase))
-            {
                 return Task.FromResult(CreateHoneypotHit(path, "prefix"));
-            }
-        }
 
         // Check for suspicious file extensions in any path
         var suspiciousExtensions = new[] { ".sql", ".bak", ".old", ".env", ".config" };
         foreach (var ext in suspiciousExtensions)
-        {
             if (path.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
-            {
                 return Task.FromResult(CreateSuspiciousExtensionHit(path, ext));
-            }
-        }
 
         // Check referrer - did they follow a hidden link from our honeypot page?
         var referer = state.HttpContext?.Request.Headers["Referer"].FirstOrDefault();
         if (!string.IsNullOrEmpty(referer) && IsHoneypotReferer(referer))
-        {
             return Task.FromResult(CreateHoneypotRefererHit(path, referer));
-        }
 
         return Task.FromResult(None());
     }
@@ -152,10 +130,10 @@ public class HoneypotLinkContributor : ContributingDetectorBase
         return
         [
             DetectionContribution.VerifiedBadBot(
-                Name,
-                "HoneypotTrap",
-                $"Accessed honeypot path: {path} (match: {matchType})",
-                BotType.Scraper)
+                    Name,
+                    "HoneypotTrap",
+                    $"Accessed honeypot path: {path} (match: {matchType})",
+                    BotType.Scraper)
                 with
                 {
                     ConfidenceDelta = 0.95, // Very high confidence
@@ -179,12 +157,12 @@ public class HoneypotLinkContributor : ContributingDetectorBase
         return
         [
             DetectionContribution.Bot(
-                Name,
-                "SuspiciousExtension",
-                0.7, // High but not verified
-                $"Accessed suspicious file extension: {extension}",
-                BotType.Scraper,
-                weight: 1.5)
+                    Name,
+                    "SuspiciousExtension",
+                    0.7, // High but not verified
+                    $"Accessed suspicious file extension: {extension}",
+                    BotType.Scraper,
+                    weight: 1.5)
                 with
                 {
                     Signals = signals.ToImmutable()
@@ -206,10 +184,10 @@ public class HoneypotLinkContributor : ContributingDetectorBase
         return
         [
             DetectionContribution.VerifiedBadBot(
-                Name,
-                "HoneypotLinkFollower",
-                $"Followed hidden honeypot link from {referer}",
-                BotType.Scraper)
+                    Name,
+                    "HoneypotLinkFollower",
+                    $"Followed hidden honeypot link from {referer}",
+                    BotType.Scraper)
                 with
                 {
                     ConfidenceDelta = 0.90,

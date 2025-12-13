@@ -18,7 +18,7 @@ namespace Mostlylucid.BotDetection.Detectors;
 /// <remarks>
 ///     <para>
 ///         The heuristic model uses a <b>dynamic feature dictionary</b> from
-///         <see cref="HeuristicFeatureExtractor"/>. Features are key-value pairs where:
+///         <see cref="HeuristicFeatureExtractor" />. Features are key-value pairs where:
 ///         <list type="bullet">
 ///             <item>Keys are dynamic feature names (e.g., "det:user_agent_detector", "cat:suspicious")</item>
 ///             <item>Values are feature activations (typically 0.0 to 1.0)</item>
@@ -35,7 +35,7 @@ namespace Mostlylucid.BotDetection.Detectors;
 ///         Weights are:
 ///         <list type="bullet">
 ///             <item>Initialized with sensible defaults for known patterns</item>
-///             <item>Loaded from <see cref="IWeightStore"/> on startup if available</item>
+///             <item>Loaded from <see cref="IWeightStore" /> on startup if available</item>
 ///             <item>Updated via learning events when detection feedback is received</item>
 ///             <item>Persisted to survive application restarts</item>
 ///             <item>New features automatically get default weights and learn over time</item>
@@ -49,7 +49,7 @@ namespace Mostlylucid.BotDetection.Detectors;
 ///                 metadata for quick preliminary classification.
 ///             </item>
 ///             <item>
-///                 <b>Full mode:</b> After <see cref="AggregatedEvidence"/> is available,
+///                 <b>Full mode:</b> After <see cref="AggregatedEvidence" /> is available,
 ///                 uses all features including detector results for final classification.
 ///             </item>
 ///         </list>
@@ -57,24 +57,13 @@ namespace Mostlylucid.BotDetection.Detectors;
 /// </remarks>
 public class HeuristicDetector : IDetector, IDisposable
 {
-    private readonly ILogger<HeuristicDetector> _logger;
-    private readonly BotDetectionOptions _options;
-    private readonly BotDetectionMetrics? _metrics;
-    private readonly IWeightStore? _weightStore;
-    private readonly SemaphoreSlim _initLock = new(1, 1);
-    private bool _initialized;
-    private bool _disposed;
-
     private const string BiasSignature = "bias";
     private const float DefaultBias = 0.1f;
     private const float DefaultNewFeatureWeight = 0.1f;
 
-    // Use the canonical signature type from SignatureTypes
-    private static string WeightSignatureType => SignatureTypes.HeuristicFeature;
-
     /// <summary>
     ///     Default weights for known feature patterns.
-    ///     New features not in this dictionary get <see cref="DefaultNewFeatureWeight"/>.
+    ///     New features not in this dictionary get <see cref="DefaultNewFeatureWeight" />.
     /// </summary>
     private static readonly Dictionary<string, float> DefaultWeights = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -120,11 +109,11 @@ public class HeuristicDetector : IDetector, IDisposable
         ["accept:json"] = 0.0f,
 
         // Client-side fingerprint - STRONG human indicator when present
-        ["fp:received"] = -0.7f,      // Fingerprint received = strong human signal
-        ["fp:legitimate"] = -0.8f,    // Legitimate fingerprint = very strong human signal
-        ["fp:integrity"] = -0.5f,     // Integrity score weight (multiplied by actual score)
-        ["fp:suspicious"] = 0.6f,     // Suspicious fingerprint (headless, automation)
-        ["fp:missing"] = 0.15f,       // No fingerprint - slightly suspicious but not conclusive
+        ["fp:received"] = -0.7f, // Fingerprint received = strong human signal
+        ["fp:legitimate"] = -0.8f, // Legitimate fingerprint = very strong human signal
+        ["fp:integrity"] = -0.5f, // Integrity score weight (multiplied by actual score)
+        ["fp:suspicious"] = 0.6f, // Suspicious fingerprint (headless, automation)
+        ["fp:missing"] = 0.15f, // No fingerprint - slightly suspicious but not conclusive
 
         // Stats - aggregate signals
         ["stat:detector_max"] = 0.6f,
@@ -136,12 +125,20 @@ public class HeuristicDetector : IDetector, IDisposable
         // Results - final scores from pipeline
         ["result:bot_probability"] = 1.0f,
         ["result:confidence"] = 0.8f,
-        ["result:risk_band"] = 0.6f,
+        ["result:risk_band"] = 0.6f
     };
+
+    private readonly SemaphoreSlim _initLock = new(1, 1);
+    private readonly ILogger<HeuristicDetector> _logger;
+    private readonly BotDetectionMetrics? _metrics;
+    private readonly BotDetectionOptions _options;
+    private readonly IWeightStore? _weightStore;
+    private float _bias;
+    private bool _disposed;
+    private bool _initialized;
 
     // Learned weights (loaded from store, merged with defaults)
     private Dictionary<string, float> _weights = new(StringComparer.OrdinalIgnoreCase);
-    private float _bias;
 
     public HeuristicDetector(
         ILogger<HeuristicDetector> logger,
@@ -154,6 +151,9 @@ public class HeuristicDetector : IDetector, IDisposable
         _weightStore = weightStore;
         _metrics = metrics;
     }
+
+    // Use the canonical signature type from SignatureTypes
+    private static string WeightSignatureType => SignatureTypes.HeuristicFeature;
 
     public string Name => "Heuristic Detector";
 
@@ -221,7 +221,8 @@ public class HeuristicDetector : IDetector, IDisposable
                 result.Reasons.Add(new DetectionReason
                 {
                     Category = "Heuristic",
-                    Detail = $"Heuristic model ({mode}): {humanProbability:P0} human likelihood ({features.Count} features)",
+                    Detail =
+                        $"Heuristic model ({mode}): {humanProbability:P0} human likelihood ({features.Count} features)",
                     ConfidenceImpact = -result.Confidence // Negative = human indicator
                 });
             }
@@ -231,7 +232,8 @@ public class HeuristicDetector : IDetector, IDisposable
                 mode, features.Count, probability);
 
             stopwatch.Stop();
-            _metrics?.RecordDetection(result.Confidence, result.Confidence > _options.BotThreshold, stopwatch.Elapsed, Name);
+            _metrics?.RecordDetection(result.Confidence, result.Confidence > _options.BotThreshold, stopwatch.Elapsed,
+                Name);
         }
         catch (Exception ex)
         {
@@ -241,6 +243,12 @@ public class HeuristicDetector : IDetector, IDisposable
         }
 
         return result;
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
 
     private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
@@ -258,9 +266,7 @@ public class HeuristicDetector : IDetector, IDisposable
 
             // Try to load learned weights from store
             if (_weightStore != null && _options.AiDetection.Heuristic.LoadLearnedWeights)
-            {
                 await LoadWeightsFromStoreAsync(cancellationToken);
-            }
 
             _initialized = true;
             _logger.LogInformation(
@@ -279,30 +285,23 @@ public class HeuristicDetector : IDetector, IDisposable
         {
             // Load bias
             var biasWeight = await _weightStore!.GetWeightAsync(WeightSignatureType, BiasSignature, cancellationToken);
-            if (Math.Abs(biasWeight) > 0.001)
-            {
-                _bias = (float)biasWeight;
-            }
+            if (Math.Abs(biasWeight) > 0.001) _bias = (float)biasWeight;
 
             // Load all feature weights for this type
             var allStoredWeights = await _weightStore.GetAllWeightsAsync(WeightSignatureType, cancellationToken);
 
             var loadedCount = 0;
             foreach (var learnedWeight in allStoredWeights)
-            {
                 if (learnedWeight.Signature != BiasSignature && Math.Abs(learnedWeight.Weight) > 0.001)
                 {
                     _weights[learnedWeight.Signature] = (float)learnedWeight.Weight;
                     loadedCount++;
                 }
-            }
 
             if (loadedCount > 0)
-            {
                 _logger.LogDebug(
                     "Loaded {Count} learned weights from store (bias={Bias:F3})",
                     loadedCount, _bias);
-            }
         }
         catch (Exception ex)
         {
@@ -316,7 +315,7 @@ public class HeuristicDetector : IDetector, IDisposable
     private (bool IsBot, double Probability) RunInference(Dictionary<string, float> features)
     {
         // Calculate weighted sum: score = bias + Σ(feature[name] * weight[name])
-        float score = _bias;
+        var score = _bias;
 
         foreach (var (featureName, featureValue) in features)
         {
@@ -347,15 +346,9 @@ public class HeuristicDetector : IDetector, IDisposable
             return;
         }
 
-        if (!_options.AiDetection.Heuristic.EnableWeightLearning)
-        {
-            return;
-        }
+        if (!_options.AiDetection.Heuristic.EnableWeightLearning) return;
 
-        if (confidence < _options.AiDetection.Heuristic.MinConfidenceForLearning)
-        {
-            return;
-        }
+        if (confidence < _options.AiDetection.Heuristic.MinConfidenceForLearning) return;
 
         try
         {
@@ -363,7 +356,6 @@ public class HeuristicDetector : IDetector, IDisposable
 
             // Record observation for each feature that was active
             foreach (var (featureName, featureValue) in features)
-            {
                 if (Math.Abs(featureValue) > 0.001)
                 {
                     await _weightStore.RecordObservationAsync(
@@ -374,7 +366,6 @@ public class HeuristicDetector : IDetector, IDisposable
                         cancellationToken);
                     updatedCount++;
                 }
-            }
 
             _logger.LogDebug(
                 "Updated weights for {FeatureCount} active features (wasBot={WasBot}, confidence={Confidence:F2})",
@@ -409,33 +400,32 @@ public class HeuristicDetector : IDetector, IDisposable
     /// <summary>
     ///     Gets the current feature names that have weights (for debugging/introspection).
     /// </summary>
-    public IReadOnlyList<string> GetFeatureNames() => _weights.Keys.ToList();
+    public IReadOnlyList<string> GetFeatureNames()
+    {
+        return _weights.Keys.ToList();
+    }
 
     /// <summary>
     ///     Gets the current weights as a dictionary (for debugging/introspection).
     /// </summary>
-    public IReadOnlyDictionary<string, float> GetCurrentWeights() =>
-        _weights.Count > 0 ? _weights : DefaultWeights;
+    public IReadOnlyDictionary<string, float> GetCurrentWeights()
+    {
+        return _weights.Count > 0 ? _weights : DefaultWeights;
+    }
 
     /// <summary>
     ///     Gets the current bias (for debugging/introspection).
     /// </summary>
-    public float GetCurrentBias() => _initialized ? _bias : DefaultBias;
-
-    public void Dispose()
+    public float GetCurrentBias()
     {
-        Dispose(true);
-        GC.SuppressFinalize(this);
+        return _initialized ? _bias : DefaultBias;
     }
 
     protected virtual void Dispose(bool disposing)
     {
         if (_disposed) return;
 
-        if (disposing)
-        {
-            _initLock.Dispose();
-        }
+        if (disposing) _initLock.Dispose();
 
         _disposed = true;
     }

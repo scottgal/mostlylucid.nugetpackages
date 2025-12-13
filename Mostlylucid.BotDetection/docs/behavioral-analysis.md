@@ -33,35 +33,39 @@ The behavioral detector tracks requests at four identity levels simultaneously:
 
 ## Settings Reference
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `ApiKeyHeader` | `null` | Header name for API key extraction |
-| `ApiKeyRateLimit` | `0` | Rate limit per API key (0 = 2x `MaxRequestsPerMinute`) |
-| `UserIdClaim` | `null` | JWT claim for user ID |
-| `UserIdHeader` | `null` | Header name for user ID (fallback) |
-| `UserRateLimit` | `0` | Rate limit per user (0 = 3x `MaxRequestsPerMinute`) |
-| `EnableAnomalyDetection` | `true` | Detect behavior changes |
-| `SpikeThresholdMultiplier` | `5.0` | Request spike = this × normal rate |
-| `NewPathAnomalyThreshold` | `0.8` | Flag if 80%+ recent requests hit new paths |
+| Setting                    | Default | Description                                            |
+|----------------------------|---------|--------------------------------------------------------|
+| `ApiKeyHeader`             | `null`  | Header name for API key extraction                     |
+| `ApiKeyRateLimit`          | `0`     | Rate limit per API key (0 = 2x `MaxRequestsPerMinute`) |
+| `UserIdClaim`              | `null`  | JWT claim for user ID                                  |
+| `UserIdHeader`             | `null`  | Header name for user ID (fallback)                     |
+| `UserRateLimit`            | `0`     | Rate limit per user (0 = 3x `MaxRequestsPerMinute`)    |
+| `EnableAnomalyDetection`   | `true`  | Detect behavior changes                                |
+| `SpikeThresholdMultiplier` | `5.0`   | Request spike = this × normal rate                     |
+| `NewPathAnomalyThreshold`  | `0.8`   | Flag if 80%+ recent requests hit new paths             |
 
 ## Detection Signals
 
 ### Rate Limiting
+
 - Excessive requests per IP
 - Excessive requests per API key
 - Excessive requests per user
 - Excessive requests per fingerprint hash
 
 ### Timing Analysis
+
 - Rapid sequential requests (<100ms between requests)
 - Suspiciously regular intervals (low standard deviation = bot-like)
 
 ### Anomaly Detection
+
 - Sudden request spikes (5x normal rate by default)
 - Accessing many new endpoints suddenly
 - Behavior profile changes
 
 ### Session Consistency
+
 - Missing cookies across multiple requests
 - Missing referrer on non-initial requests
 

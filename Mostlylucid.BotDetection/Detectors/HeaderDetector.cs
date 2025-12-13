@@ -20,8 +20,8 @@ public class HeaderDetector : IDetector
     ];
 
     private readonly ILogger<HeaderDetector> _logger;
-    private readonly BotDetectionOptions _options;
     private readonly BotDetectionMetrics? _metrics;
+    private readonly BotDetectionOptions _options;
 
     public HeaderDetector(
         ILogger<HeaderDetector> logger,
@@ -177,7 +177,8 @@ public class HeaderDetector : IDetector
         result.Reasons = reasons;
 
         stopwatch.Stop();
-        _metrics?.RecordDetection(result.Confidence, result.Confidence > _options.BotThreshold, stopwatch.Elapsed, Name);
+        _metrics?.RecordDetection(result.Confidence, result.Confidence > _options.BotThreshold, stopwatch.Elapsed,
+            Name);
 
         return Task.FromResult(result);
     }

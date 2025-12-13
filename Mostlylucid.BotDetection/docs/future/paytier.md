@@ -504,4 +504,5 @@ This should be enough to:
 
 * drop into a repo as the “contract”,
 * hang implementation details (YARP/Caddy/Traefik shims, SSH guards, dashboards) off it,
-* and keep the Free vs Enterprise story clean: **same core, same scores; Enterprise just buys more detectors and more control.**
+* and keep the Free vs Enterprise story clean: **same core, same scores; Enterprise just buys more detectors and more
+  control.**

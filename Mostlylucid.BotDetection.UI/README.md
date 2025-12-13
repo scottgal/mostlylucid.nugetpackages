@@ -68,9 +68,11 @@ The component automatically detects and extracts bot detection data from two sou
 
 ### 1. Inline Mode (HttpContext.Items)
 
-When bot detection middleware runs inline, it stores `AggregatedEvidence` in `HttpContext.Items["BotDetection.Evidence"]`.
+When bot detection middleware runs inline, it stores `AggregatedEvidence` in
+`HttpContext.Items["BotDetection.Evidence"]`.
 
 The component reads this directly and displays:
+
 - Bot vs Human classification
 - Bot probability and confidence scores
 - Risk band (VeryLow, Low, Medium, High, VeryHigh)
@@ -81,6 +83,7 @@ The component reads this directly and displays:
 ### 2. YARP Proxy Mode (Headers)
 
 When behind a YARP proxy, bot detection results are forwarded via headers:
+
 - `X-Bot-Detection-Result`: true/false
 - `X-Bot-Detection-Probability`: 0.0-1.0
 - `X-Bot-Detection-Confidence`: 0.0-1.0
@@ -95,12 +98,14 @@ The component automatically reads these headers and displays the same rich UI.
 ## Display Features
 
 ### Header Section
+
 - 🤖/👤 Icon (Bot/Human)
 - Bot Probability percentage
 - Confidence percentage
 - Risk Band badge (color-coded)
 
 ### Metadata Section
+
 - Bot Type (if detected)
 - Bot Name (if identified)
 - Policy applied
@@ -108,20 +113,24 @@ The component automatically reads these headers and displays the same rich UI.
 - Processing time in milliseconds
 
 ### YARP Section (if behind proxy)
+
 - Cluster name
 - Destination server
 
 ### Detection Reasons
+
 - Top 5 reasons for the detection decision
 - Ordered by contribution strength
 
 ### Detector Contributions
+
 - Visual contribution bars (positive = red, negative = green)
 - Detector name and category
 - Confidence delta, weight, and execution time
 - Priority/wave information
 
 ### Footer
+
 - Request ID for correlation
 - Detection timestamp (UTC)
 

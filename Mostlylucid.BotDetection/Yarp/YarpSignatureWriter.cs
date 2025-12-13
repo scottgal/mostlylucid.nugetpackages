@@ -22,16 +22,16 @@ public interface IYarpSignatureWriter
 /// </summary>
 public class YarpSignatureWriter : IYarpSignatureWriter, IDisposable
 {
-    private readonly ILogger<YarpSignatureWriter> _logger;
-    private readonly YarpLearningModeOptions _options;
+    private readonly Timer _autoFlushTimer;
     private readonly ConcurrentQueue<YarpBotSignature> _buffer = new();
     private readonly SemaphoreSlim _flushLock = new(1, 1);
-    private readonly Timer _autoFlushTimer;
+    private readonly ILogger<YarpSignatureWriter> _logger;
+    private readonly YarpLearningModeOptions _options;
+    private int _bufferedCount;
+    private DateTime _currentFileCreated;
 
     private string? _currentFilePath;
-    private DateTime _currentFileCreated;
     private long _currentFileSize;
-    private int _bufferedCount;
 
     public YarpSignatureWriter(
         ILogger<YarpSignatureWriter> logger,
@@ -48,10 +48,14 @@ public class YarpSignatureWriter : IYarpSignatureWriter, IDisposable
             TimeSpan.FromSeconds(10));
 
         // Ensure output directory exists
-        if (_options.Enabled)
-        {
-            Directory.CreateDirectory(_options.OutputPath);
-        }
+        if (_options.Enabled) Directory.CreateDirectory(_options.OutputPath);
+    }
+
+    public void Dispose()
+    {
+        _autoFlushTimer.Dispose();
+        FlushAsync().GetAwaiter().GetResult();
+        _flushLock.Dispose();
     }
 
     public Task WriteAsync(YarpBotSignature signature)
@@ -63,10 +67,7 @@ public class YarpSignatureWriter : IYarpSignatureWriter, IDisposable
         Interlocked.Increment(ref _bufferedCount);
 
         // Auto-flush if buffer is full
-        if (_bufferedCount >= _options.BufferSize)
-        {
-            return FlushAsync();
-        }
+        if (_bufferedCount >= _options.BufferSize) return FlushAsync();
 
         return Task.CompletedTask;
     }
@@ -84,23 +85,16 @@ public class YarpSignatureWriter : IYarpSignatureWriter, IDisposable
 
             // Drain buffer
             var signatures = new List<YarpBotSignature>();
-            while (_buffer.TryDequeue(out var sig))
-            {
-                signatures.Add(sig);
-            }
+            while (_buffer.TryDequeue(out var sig)) signatures.Add(sig);
 
             if (signatures.Count == 0)
                 return;
 
             // Write to file
             if (_options.FileFormat.Equals("jsonl", StringComparison.OrdinalIgnoreCase))
-            {
                 await WriteJsonLinesAsync(filePath, signatures);
-            }
             else
-            {
                 await WriteJsonArrayAsync(filePath, signatures);
-            }
 
             // Update counters
             Interlocked.Exchange(ref _bufferedCount, 0);
@@ -123,10 +117,7 @@ public class YarpSignatureWriter : IYarpSignatureWriter, IDisposable
     private string GetCurrentFilePath()
     {
         // Check if rotation needed
-        if (ShouldRotate())
-        {
-            RotateFile();
-        }
+        if (ShouldRotate()) RotateFile();
 
         // Generate file path if needed
         if (string.IsNullOrEmpty(_currentFilePath))
@@ -197,7 +188,6 @@ public class YarpSignatureWriter : IYarpSignatureWriter, IDisposable
             // Delete old files
             var filesToDelete = files.Skip(_options.Rotation.MaxFiles);
             foreach (var file in filesToDelete)
-            {
                 try
                 {
                     file.Delete();
@@ -207,7 +197,6 @@ public class YarpSignatureWriter : IYarpSignatureWriter, IDisposable
                 {
                     _logger.LogWarning(ex, "Failed to delete old file: {Path}", file.FullName);
                 }
-            }
         }
         catch (Exception ex)
         {
@@ -237,8 +226,8 @@ public class YarpSignatureWriter : IYarpSignatureWriter, IDisposable
             FileMode.Append,
             FileAccess.Write,
             FileShare.Read,
-            bufferSize: 4096,
-            useAsync: true);
+            4096,
+            true);
 
         await using var writer = new StreamWriter(stream);
 
@@ -262,32 +251,20 @@ public class YarpSignatureWriter : IYarpSignatureWriter, IDisposable
         var allSignatures = new List<YarpBotSignature>();
 
         if (File.Exists(filePath))
-        {
             try
             {
                 var existingJson = await File.ReadAllTextAsync(filePath);
                 var existing = JsonSerializer.Deserialize<List<YarpBotSignature>>(existingJson, options);
-                if (existing != null)
-                {
-                    allSignatures.AddRange(existing);
-                }
+                if (existing != null) allSignatures.AddRange(existing);
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to read existing JSON file, starting fresh");
             }
-        }
 
         allSignatures.AddRange(signatures);
 
         var json = JsonSerializer.Serialize(allSignatures, options);
         await File.WriteAllTextAsync(filePath, json);
-    }
-
-    public void Dispose()
-    {
-        _autoFlushTimer.Dispose();
-        FlushAsync().GetAwaiter().GetResult();
-        _flushLock.Dispose();
     }
 }

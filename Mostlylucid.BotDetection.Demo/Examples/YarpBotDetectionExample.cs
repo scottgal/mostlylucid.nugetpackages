@@ -9,10 +9,7 @@
 // 2. Copy the relevant code into your YARP-based application
 // ============================================================================
 
-using Microsoft.AspNetCore.Http;
 using Mostlylucid.BotDetection.Extensions;
-using Mostlylucid.BotDetection.Middleware;
-using Mostlylucid.BotDetection.Models;
 
 namespace Mostlylucid.BotDetection.Demo.Examples;
 
@@ -29,30 +26,27 @@ namespace Mostlylucid.BotDetection.Demo.Examples;
 /// <example>
 ///     // In Program.cs with YARP:
 ///     builder.Services.AddReverseProxy()
-///         .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
-///         .AddTransforms(context =>
-///         {
-///             context.AddRequestTransform(transformContext =>
-///             {
-///                 var httpContext = transformContext.HttpContext;
-///
-///                 // Add bot detection headers to proxied request
-///                 if (httpContext.Items.TryGetValue(BotDetectionMiddleware.BotDetectionResultKey, out var result)
-///                     && result is BotDetectionResult botResult)
-///                 {
-///                     transformContext.ProxyRequest.Headers.Add("X-Bot-Detected", botResult.IsBot.ToString());
-///                     transformContext.ProxyRequest.Headers.Add("X-Bot-Confidence", botResult.ConfidenceScore.ToString("F2"));
-///
-///                     if (botResult.IsBot)
-///                     {
-///                         transformContext.ProxyRequest.Headers.Add("X-Bot-Type", botResult.BotType?.ToString() ?? "Unknown");
-///                         transformContext.ProxyRequest.Headers.Add("X-Bot-Name", botResult.BotName ?? "Unknown");
-///                     }
-///                 }
-///
-///                 return ValueTask.CompletedTask;
-///             });
-///         });
+///     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
+///     .AddTransforms(context =>
+///     {
+///     context.AddRequestTransform(transformContext =>
+///     {
+///     var httpContext = transformContext.HttpContext;
+///     // Add bot detection headers to proxied request
+///     if (httpContext.Items.TryGetValue(BotDetectionMiddleware.BotDetectionResultKey, out var result)
+///     && result is BotDetectionResult botResult)
+///     {
+///     transformContext.ProxyRequest.Headers.Add("X-Bot-Detected", botResult.IsBot.ToString());
+///     transformContext.ProxyRequest.Headers.Add("X-Bot-Confidence", botResult.ConfidenceScore.ToString("F2"));
+///     if (botResult.IsBot)
+///     {
+///     transformContext.ProxyRequest.Headers.Add("X-Bot-Type", botResult.BotType?.ToString() ?? "Unknown");
+///     transformContext.ProxyRequest.Headers.Add("X-Bot-Name", botResult.BotName ?? "Unknown");
+///     }
+///     }
+///     return ValueTask.CompletedTask;
+///     });
+///     });
 /// </example>
 public static class YarpBotDetectionTransforms
 {
@@ -97,20 +91,19 @@ public static class YarpBotDetectionTransforms
 ///     // In Program.cs:
 ///     builder.Services.AddAuthorization(options =>
 ///     {
-///         options.AddPolicy("BlockBots", policy =>
-///             policy.Requirements.Add(new BotBlockingRequirement()));
+///     options.AddPolicy("BlockBots", policy =>
+///     policy.Requirements.Add(new BotBlockingRequirement()));
 ///     });
 ///     builder.Services.AddSingleton&lt;IAuthorizationHandler, BotBlockingHandler&gt;();
-///
 ///     // In YARP config (appsettings.json):
 ///     "ReverseProxy": {
-///         "Routes": {
-///             "api-route": {
-///                 "ClusterId": "api-cluster",
-///                 "AuthorizationPolicy": "BlockBots",
-///                 "Match": { "Path": "/api/{**catch-all}" }
-///             }
-///         }
+///     "Routes": {
+///     "api-route": {
+///     "ClusterId": "api-cluster",
+///     "AuthorizationPolicy": "BlockBots",
+///     "Match": { "Path": "/api/{**catch-all}" }
+///     }
+///     }
 ///     }
 /// </example>
 public class BotBlockingRequirement // : IAuthorizationRequirement
@@ -187,29 +180,28 @@ public class BotBlockingHandler : AuthorizationHandler<BotBlockingRequirement>
 ///     // In Program.cs:
 ///     builder.Services.AddRateLimiter(options =>
 ///     {
-///         // Strict limit for detected bots
-///         options.AddPolicy("BotRateLimit", context =>
-///         {
-///             if (context.IsBot())
-///             {
-///                 return RateLimitPartition.GetFixedWindowLimiter(
-///                     partitionKey: "bot",
-///                     factory: _ => new FixedWindowRateLimiterOptions
-///                     {
-///                         PermitLimit = 10,
-///                         Window = TimeSpan.FromMinutes(1)
-///                     });
-///             }
-///
-///             // Human rate limit
-///             return RateLimitPartition.GetFixedWindowLimiter(
-///                 partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-///                 factory: _ => new FixedWindowRateLimiterOptions
-///                 {
-///                     PermitLimit = 100,
-///                     Window = TimeSpan.FromMinutes(1)
-///                 });
-///         });
+///     // Strict limit for detected bots
+///     options.AddPolicy("BotRateLimit", context =>
+///     {
+///     if (context.IsBot())
+///     {
+///     return RateLimitPartition.GetFixedWindowLimiter(
+///     partitionKey: "bot",
+///     factory: _ => new FixedWindowRateLimiterOptions
+///     {
+///     PermitLimit = 10,
+///     Window = TimeSpan.FromMinutes(1)
+///     });
+///     }
+///     // Human rate limit
+///     return RateLimitPartition.GetFixedWindowLimiter(
+///     partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+///     factory: _ => new FixedWindowRateLimiterOptions
+///     {
+///     PermitLimit = 100,
+///     Window = TimeSpan.FromMinutes(1)
+///     });
+///     });
 ///     });
 /// </example>
 public static class BotAwareRateLimiting
@@ -237,38 +229,34 @@ public static class BotAwareRateLimiting
 /// <example>
 ///     // Concept: Route search engines to a dedicated cluster optimized for crawling,
 ///     // while blocking malicious bots entirely.
-///
 ///     // In appsettings.json:
 ///     "ReverseProxy": {
-///         "Routes": {
-///             "default": {
-///                 "ClusterId": "main-cluster",
-///                 "Match": { "Path": "{**catch-all}" }
-///             }
-///         },
-///         "Clusters": {
-///             "main-cluster": { ... },
-///             "crawler-cluster": { ... }  // Optimized for search engines
-///         }
+///     "Routes": {
+///     "default": {
+///     "ClusterId": "main-cluster",
+///     "Match": { "Path": "{**catch-all}" }
 ///     }
-///
+///     },
+///     "Clusters": {
+///     "main-cluster": { ... },
+///     "crawler-cluster": { ... }  // Optimized for search engines
+///     }
+///     }
 ///     // Custom cluster selector in transforms:
 ///     builder.Services.AddReverseProxy()
-///         .AddTransforms(context =>
-///         {
-///             context.AddRequestTransform(transformContext =>
-///             {
-///                 var httpContext = transformContext.HttpContext;
-///
-///                 if (httpContext.IsSearchEngineBot())
-///                 {
-///                     // Route to crawler-optimized cluster
-///                     // (Requires custom destination selection logic)
-///                 }
-///
-///                 return ValueTask.CompletedTask;
-///             });
-///         });
+///     .AddTransforms(context =>
+///     {
+///     context.AddRequestTransform(transformContext =>
+///     {
+///     var httpContext = transformContext.HttpContext;
+///     if (httpContext.IsSearchEngineBot())
+///     {
+///     // Route to crawler-optimized cluster
+///     // (Requires custom destination selection logic)
+///     }
+///     return ValueTask.CompletedTask;
+///     });
+///     });
 /// </example>
 public static class BotAwareClusterSelection
 {

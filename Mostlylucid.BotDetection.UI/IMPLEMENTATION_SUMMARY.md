@@ -5,6 +5,7 @@
 A complete **real-time bot detection dashboard** for Mostlylucid.BotDetection.UI with:
 
 ### Architecture
+
 - **Plugin-based design**: Add the package, configure in `Program.cs`, and the dashboard is available
 - **Configurable URL paths**: Default `/stylobot`, fully customizable
 - **HTMX-first approach**: Minimal JavaScript, server-rendered partials for maximum performance
@@ -13,75 +14,82 @@ A complete **real-time bot detection dashboard** for Mostlylucid.BotDetection.UI
 ### Core Components Created
 
 #### 1. **SignalR Hub** (`Hubs/`)
+
 - `IStyloBotDashboardHub.cs` - Contract for real-time messaging
 - `StyloBotDashboardHub.cs` - Hub implementation
 - **Broadcasts**: Detection events, signatures, summary statistics
 
 #### 2. **Data Models** (`Models/`)
+
 - `DashboardModels.cs`:
-  - `DashboardDetectionEvent` - Real-time detection event
-  - `DashboardSignatureEvent` - Signature observation
-  - `DashboardSummary` - Summary statistics
-  - `DashboardTimeSeriesPoint` - Chart data points
-  - `DashboardFilter` - Query filters
+    - `DashboardDetectionEvent` - Real-time detection event
+    - `DashboardSignatureEvent` - Signature observation
+    - `DashboardSummary` - Summary statistics
+    - `DashboardTimeSeriesPoint` - Chart data points
+    - `DashboardFilter` - Query filters
 
 #### 3. **Configuration** (`Configuration/`)
+
 - `StyloBotDashboardOptions.cs`:
-  - URL path configuration
-  - Authorization settings
-  - In-memory limits
-  - Simulator settings
-  - Broadcast intervals
+    - URL path configuration
+    - Authorization settings
+    - In-memory limits
+    - Simulator settings
+    - Broadcast intervals
 
 #### 4. **Services** (`Services/`)
+
 - `IDashboardEventStore.cs` - Event storage interface
 - `InMemoryDashboardEventStore.cs` - Thread-safe circular buffer
 - `DashboardSummaryBroadcaster.cs` - Background service for stats
 - `DashboardSimulatorService.cs` - Test data generator (LLMApi-ready)
 
 #### 5. **Middleware** (`Middleware/`)
+
 - `StyloBotDashboardMiddleware.cs`:
-  - Route handling for `/stylobot`
-  - API endpoints (detections, signatures, summary, timeseries, export)
-  - Authorization checking
-  - Embedded HTML dashboard template
+    - Route handling for `/stylobot`
+    - API endpoints (detections, signatures, summary, timeseries, export)
+    - Authorization checking
+    - Embedded HTML dashboard template
 
 #### 6. **Extension Methods** (`Extensions/`)
+
 - `StyloBotDashboardServiceExtensions.cs`:
-  - `AddStyloBotDashboard()` - Service registration
-  - `UseStyloBotDashboard()` - Middleware registration
-  - Fluent API for configuration
+    - `AddStyloBotDashboard()` - Service registration
+    - `UseStyloBotDashboard()` - Middleware registration
+    - Fluent API for configuration
 
 ### Dashboard Features
 
 #### UI Components
+
 1. **Summary Cards**
-   - Total requests
-   - Bot requests (with percentage)
-   - Human requests
-   - Unique signatures
+    - Total requests
+    - Bot requests (with percentage)
+    - Human requests
+    - Unique signatures
 
 2. **Filter Controls**
-   - Time range selector (5m, 1h, 24h, custom)
-   - Risk band filter
-   - Classification toggle (All/Bots/Humans)
-   - Export buttons (JSON, CSV)
+    - Time range selector (5m, 1h, 24h, custom)
+    - Risk band filter
+    - Classification toggle (All/Bots/Humans)
+    - Export buttons (JSON, CSV)
 
 3. **Visualizations** (ECharts)
-   - Detection timeline (bot vs human over time)
-   - Classification distribution (pie chart)
+    - Detection timeline (bot vs human over time)
+    - Classification distribution (pie chart)
 
 4. **Live Signatures Feed**
-   - Scrolling list with animations
-   - Risk band badges
-   - Hit counts
-   - Bot names (if known)
+    - Scrolling list with animations
+    - Risk band badges
+    - Hit counts
+    - Bot names (if known)
 
 5. **Detections Grid** (Tabulator)
-   - Sortable, filterable table
-   - Columns: Time, Type, Risk, Method, Path, Action, Probability
-   - Client-side pagination
-   - Real-time updates via SignalR
+    - Sortable, filterable table
+    - Columns: Time, Type, Risk, Method, Path, Action, Probability
+    - Client-side pagination
+    - Real-time updates via SignalR
 
 #### API Endpoints
 
@@ -99,21 +107,21 @@ GET  /api/export?format=csv   - Export detections
 ### Security
 
 - **Configurable authorization**:
-  - Custom filter functions
-  - ASP.NET Core policy-based auth
-  - IP whitelisting support
+    - Custom filter functions
+    - ASP.NET Core policy-based auth
+    - IP whitelisting support
 - **Secure by default**: Requires explicit auth configuration
 - **Production-ready**: No hardcoded secrets, no default passwords
 
 ### Documentation
 
 1. **DASHBOARD_README.md** - Complete user guide with:
-   - Quick start
-   - Configuration options
-   - Authorization examples
-   - API documentation
-   - Troubleshooting
-   - Architecture overview
+    - Quick start
+    - Configuration options
+    - Authorization examples
+    - API documentation
+    - Troubleshooting
+    - Architecture overview
 
 2. **Examples/QuickStartExample.cs** - Copy-paste setup example
 
@@ -153,12 +161,14 @@ Then navigate to: `https://localhost:5001/stylobot`
 ## Technology Stack
 
 ### Backend
+
 - **ASP.NET Core** - Framework
 - **SignalR** - Real-time communication (WebSockets)
 - **Middleware** - Custom routing and API
 - **Hosted Services** - Background workers
 
 ### Frontend
+
 - **DaisyUI** - Component library (MIT license)
 - **Tailwind CSS** - Utility-first CSS
 - **HTMX** - Server-side rendering with AJAX
@@ -174,7 +184,7 @@ Then navigate to: `https://localhost:5001/stylobot`
 ## Bugs Fixed
 
 - Fixed `atom` reference error in `UserAgentContributor.cs:272`
-  - Changed `atom.Request.Path.Value` → `state.HttpContext.Request.Path.Value`
+    - Changed `atom.Request.Path.Value` → `state.HttpContext.Request.Path.Value`
 
 ## Future Enhancements (Noted in DASHBOARD_README.md)
 

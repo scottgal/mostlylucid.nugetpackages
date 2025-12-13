@@ -6,7 +6,8 @@ And yes, you can absolutely do this in a way that stays true to your “static a
 
 ## 1. Treat the LLM as a **policy compiler**, not the bouncer
 
-Key move: the LLM never decides per-request. It only turns human intent into **structured rules** that your existing engine enforces.
+Key move: the LLM never decides per-request. It only turns human intent into **structured rules** that your existing
+engine enforces.
 
 Something like:
 
@@ -174,7 +175,8 @@ To keep it sane:
         * **policy + rule name**
     * So your log / UI can say:
 
-      > Blocked (Policy: `BlockScrapers`, Rule: `Deny Scraper category`, Risk: 0.73, UA: `curl/8.0`, Org: `DigitalOcean`)
+      > Blocked (Policy: `BlockScrapers`, Rule: `Deny Scraper category`, Risk: 0.73, UA: `curl/8.0`, Org:
+      `DigitalOcean`)
 
 ---
 
@@ -211,10 +213,12 @@ And because your engine is event-driven & layered, this just becomes **another s
 
     * your blackboard signals,
     * your risk/reputation system,
-    * your learning bus (you can even emit `UserFeedback` when an admin hard-overrides a decision → that feeds training/analytics later).
+    * your learning bus (you can even emit `UserFeedback` when an admin hard-overrides a decision → that feeds
+      training/analytics later).
 
 And yeah, it’s very, very on-brand:
 
 > *“Natural language policies, statically compiled to a smart, evolving bot firewall.”*
 
-If you want, next step we can sketch a **minimal `BotPolicyDescriptor` schema + 3 prompt examples** you can literally drop into a tiny local model (phi, gemma 2B, whatever) and start compiling policies tonight.
+If you want, next step we can sketch a **minimal `BotPolicyDescriptor` schema + 3 prompt examples** you can literally
+drop into a tiny local model (phi, gemma 2B, whatever) and start compiling policies tonight.

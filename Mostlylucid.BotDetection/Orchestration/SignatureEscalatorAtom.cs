@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
-using Mostlylucid.Ephemeral;
 using Mostlylucid.BotDetection.Orchestration.Escalation;
 using Mostlylucid.BotDetection.Orchestration.SignalMatching;
 using Mostlylucid.BotDetection.Orchestration.Signals;
+using Mostlylucid.Ephemeral;
 
 namespace Mostlylucid.BotDetection.Orchestration;
 
@@ -12,22 +12,21 @@ namespace Mostlylucid.BotDetection.Orchestration;
 ///     - Should we store operation summary?
 ///     - Should we emit alerts?
 ///     - What priority for signature processing?
-///
 ///     This atom is TIGHT with the OperationSignalSink (dies when sink dies).
 ///     Uses PATTERN MATCHING for dynamic signal resolution.
 /// </summary>
 public sealed class SignatureEscalatorAtom : IAsyncDisposable
 {
-    private readonly SignalSink _operationSink; // Listen for analysis.complete
-    private readonly SignatureResponseCoordinatorCache _signatureCoordinators;
-    private readonly ILogger<SignatureEscalatorAtom> _logger;
-    private readonly string _signature;
-    private readonly string _requestId;
     private readonly EscalatorConfig _config;
+    private readonly ILogger<SignatureEscalatorAtom> _logger;
+    private readonly SignalSink _operationSink; // Listen for analysis.complete
+    private readonly string _requestId;
 
     // Pattern matchers for dynamic signal resolution
     private readonly SignalPatternMatcher _requestPatterns;
     private readonly SignalPatternMatcher _responsePatterns;
+    private readonly string _signature;
+    private readonly SignatureResponseCoordinatorCache _signatureCoordinators;
     private readonly SignalPatternMatcher _triggerPatterns;
 
     public SignatureEscalatorAtom(
@@ -51,6 +50,13 @@ public sealed class SignatureEscalatorAtom : IAsyncDisposable
         _triggerPatterns = new SignalPatternMatcher(_config.TriggerPatterns);
     }
 
+    public async ValueTask DisposeAsync()
+    {
+        // Atom disposes when operation sink disposes
+        _logger.LogDebug("SignatureEscalatorAtom disposed for {Signature}", _signature);
+        await ValueTask.CompletedTask;
+    }
+
     /// <summary>
     ///     Called when request analysis completes.
     ///     Decides if early escalation needed using PATTERN MATCHING.
@@ -67,10 +73,7 @@ public sealed class SignatureEscalatorAtom : IAsyncDisposable
         // Decide: Early escalation?
         var decision = DecideEarlyEscalation(risk, honeypot, signals);
 
-        if (decision.ShouldEscalate)
-        {
-            await EscalateRequestAsync(decision, signals, cancellationToken);
-        }
+        if (decision.ShouldEscalate) await EscalateRequestAsync(decision, signals, cancellationToken);
 
         _logger.LogDebug(
             "Request analysis complete for {Signature}: escalate={Escalate}, reason={Reason}",
@@ -101,16 +104,10 @@ public sealed class SignatureEscalatorAtom : IAsyncDisposable
         await EscalateOperationAsync(decision, allSignals, cancellationToken);
 
         // Storage decision
-        if (decision.ShouldStore)
-        {
-            await StoreOperationAsync(decision, allSignals, cancellationToken);
-        }
+        if (decision.ShouldStore) await StoreOperationAsync(decision, allSignals, cancellationToken);
 
         // Alert decision
-        if (decision.ShouldAlert)
-        {
-            await EmitAlertAsync(decision, allSignals, cancellationToken);
-        }
+        if (decision.ShouldAlert) await EmitAlertAsync(decision, allSignals, cancellationToken);
 
         _logger.LogInformation(
             "Operation complete for {Signature}: priority={Priority}, store={Store}, alert={Alert}",
@@ -125,9 +122,7 @@ public sealed class SignatureEscalatorAtom : IAsyncDisposable
     {
         // Apply escalation rules from config (pattern-driven)
         foreach (var rule in _config.EscalationRules.OrderByDescending(r => r.Priority))
-        {
             if (rule.ShouldEscalate(signals))
-            {
                 return new EscalationDecision
                 {
                     ShouldEscalate = true,
@@ -136,8 +131,6 @@ public sealed class SignatureEscalatorAtom : IAsyncDisposable
                     ShouldStore = rule.ShouldStore,
                     ShouldAlert = rule.ShouldAlert
                 };
-            }
-        }
 
         // Default: No early escalation
         return new EscalationDecision
@@ -163,9 +156,7 @@ public sealed class SignatureEscalatorAtom : IAsyncDisposable
 
         // Apply operation escalation rules from config
         foreach (var rule in _config.OperationEscalationRules.OrderByDescending(r => r.Priority))
-        {
             if (rule.ShouldEscalate(allSignals))
-            {
                 return new EscalationDecision
                 {
                     ShouldEscalate = true,
@@ -174,8 +165,6 @@ public sealed class SignatureEscalatorAtom : IAsyncDisposable
                     ShouldStore = rule.ShouldStore,
                     ShouldAlert = rule.ShouldAlert
                 };
-            }
-        }
 
         // Default: Always escalate for window tracking
         return new EscalationDecision
@@ -323,13 +312,9 @@ public sealed class SignatureEscalatorAtom : IAsyncDisposable
             pattern == "*" || evt.Signal.StartsWith(pattern.Replace("*", "")));
 
         foreach (var evt in events.OrderByDescending(e => e.Timestamp))
-        {
             if (!signals.ContainsKey(evt.Signal))
-            {
                 // In ephemeral 1.6.8, the value is in the Key property (second param of Raise)
                 signals[evt.Signal] = evt.Key ?? evt.Signal;
-            }
-        }
 
         return signals;
     }
@@ -366,12 +351,5 @@ public sealed class SignatureEscalatorAtom : IAsyncDisposable
         {
             return defaultValue;
         }
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        // Atom disposes when operation sink disposes
-        _logger.LogDebug("SignatureEscalatorAtom disposed for {Signature}", _signature);
-        await ValueTask.CompletedTask;
     }
 }

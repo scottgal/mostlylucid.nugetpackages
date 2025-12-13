@@ -16,9 +16,9 @@ namespace Mostlylucid.BotDetection.Detectors;
 public class UserAgentDetector : IDetector
 {
     private readonly ILogger<UserAgentDetector> _logger;
+    private readonly BotDetectionMetrics? _metrics;
     private readonly BotDetectionOptions _options;
     private readonly ICompiledPatternCache? _patternCache;
-    private readonly BotDetectionMetrics? _metrics;
 
     public UserAgentDetector(
         ILogger<UserAgentDetector> logger,
@@ -59,9 +59,7 @@ public class UserAgentDetector : IDetector
 
             // Check for known good bots (whitelisted)
             foreach (var (pattern, name) in BotSignatures.GoodBots)
-            {
                 if (userAgent.Contains(pattern, StringComparison.OrdinalIgnoreCase))
-                {
                     if (_options.WhitelistedBotPatterns.Any(wp =>
                             userAgent.Contains(wp, StringComparison.OrdinalIgnoreCase)))
                     {
@@ -76,15 +74,12 @@ public class UserAgentDetector : IDetector
                         });
                         return Task.FromResult(result);
                     }
-                }
-            }
 
             var confidence = 0.0;
             var reasons = new List<DetectionReason>();
 
             // Check for malicious bot patterns (string matching - fast)
             foreach (var pattern in BotSignatures.MaliciousBotPatterns)
-            {
                 if (userAgent.Contains(pattern, StringComparison.OrdinalIgnoreCase))
                 {
                     confidence += 0.3;
@@ -95,11 +90,9 @@ public class UserAgentDetector : IDetector
                         ConfidenceImpact = 0.3
                     });
                 }
-            }
 
             // Check for automation frameworks (string matching - fast)
             foreach (var framework in BotSignatures.AutomationFrameworks)
-            {
                 if (userAgent.Contains(framework, StringComparison.OrdinalIgnoreCase))
                 {
                     confidence += 0.5;
@@ -111,12 +104,10 @@ public class UserAgentDetector : IDetector
                     });
                     result.BotType = BotType.Scraper;
                 }
-            }
 
             // Check source-generated regex patterns (compiled at build time - fastest regex)
             var patternStartTime = Stopwatch.GetTimestamp();
             foreach (var regex in BotSignatures.CompiledBotPatterns)
-            {
                 try
                 {
                     if (regex.IsMatch(userAgent))
@@ -134,13 +125,10 @@ public class UserAgentDetector : IDetector
                 {
                     _logger.LogDebug("Regex timeout for pattern: {Pattern}", regex);
                 }
-            }
 
             // Check downloaded patterns from cache (compiled at runtime - still fast)
             if (_patternCache?.DownloadedPatterns.Count > 0)
-            {
                 foreach (var regex in _patternCache.DownloadedPatterns)
-                {
                     try
                     {
                         if (regex.IsMatch(userAgent))
@@ -159,8 +147,6 @@ public class UserAgentDetector : IDetector
                     {
                         _logger.LogDebug("Regex timeout for downloaded pattern");
                     }
-                }
-            }
 
             var patternDuration = Stopwatch.GetElapsedTime(patternStartTime);
             _metrics?.RecordPatternMatch(patternDuration, confidence > 0, "user-agent");
@@ -201,7 +187,8 @@ public class UserAgentDetector : IDetector
         finally
         {
             stopwatch.Stop();
-            _metrics?.RecordDetection(result.Confidence, result.Confidence > _options.BotThreshold, stopwatch.Elapsed, Name);
+            _metrics?.RecordDetection(result.Confidence, result.Confidence > _options.BotThreshold, stopwatch.Elapsed,
+                Name);
         }
     }
 }

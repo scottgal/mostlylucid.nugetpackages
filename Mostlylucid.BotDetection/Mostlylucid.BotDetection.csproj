@@ -32,22 +32,22 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="AngleSharp" Version="1.4.0" />
-        <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.1" />
-        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.1" />
-        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.1" />
-        <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.1" />
-        <PackageReference Include="OllamaSharp" Version="5.4.12" />
-        <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.1" />
-        <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.2" />
-        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.1" />
-        <PackageReference Include="System.IO.Hashing" Version="10.0.1" />
-        <PackageReference Include="mostlylucid.ephemeral.complete" Version="1.7.1" />
-        <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+        <PackageReference Include="AngleSharp" Version="1.4.0"/>
+        <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.1"/>
+        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.1"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.1"/>
+        <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.1"/>
+        <PackageReference Include="OllamaSharp" Version="5.4.12"/>
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.1"/>
+        <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.1"/>
+        <PackageReference Include="System.IO.Hashing" Version="10.0.1"/>
+        <PackageReference Include="mostlylucid.ephemeral.complete" Version="1.7.1"/>
+        <PackageReference Include="MathNet.Numerics" Version="5.0.0"/>
         <PackageReference Include="MinVer" Version="6.0.0">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -55,18 +55,18 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="ReleaseNotes.txt" />
-        <Content Include="docs\ai-detection.md" />
+        <None Include="ReleaseNotes.txt"/>
+        <Content Include="docs\ai-detection.md"/>
     </ItemGroup>
 
     <!-- Embed JS files as resources for TagHelper -->
     <ItemGroup>
-        <EmbeddedResource Include="ClientSide\botdetection.js" />
+        <EmbeddedResource Include="ClientSide\botdetection.js"/>
     </ItemGroup>
 
     <!-- Embed policy definition JSON files -->
     <ItemGroup>
-        <EmbeddedResource Include="Definitions\Actions\*.json" />
+        <EmbeddedResource Include="Definitions\Actions\*.json"/>
     </ItemGroup>
 
     <!-- Include icon and README in NuGet package -->
@@ -81,6 +81,6 @@
 
     <!-- Exclude docs folder from NuGet package -->
     <ItemGroup>
-        <Content Remove="docs\**" />
+        <Content Remove="docs\**"/>
     </ItemGroup>
 </Project>

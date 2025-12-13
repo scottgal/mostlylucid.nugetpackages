@@ -5,15 +5,15 @@ using Mostlylucid.BotDetection.UI.Models;
 namespace Mostlylucid.BotDetection.UI.Services;
 
 /// <summary>
-/// In-memory storage for dashboard events.
-/// Thread-safe, circular buffer with configurable max size.
+///     In-memory storage for dashboard events.
+///     Thread-safe, circular buffer with configurable max size.
 /// </summary>
 public class InMemoryDashboardEventStore : IDashboardEventStore
 {
     private readonly ConcurrentQueue<DashboardDetectionEvent> _detections = new();
-    private readonly ConcurrentQueue<DashboardSignatureEvent> _signatures = new();
-    private readonly ConcurrentDictionary<string, int> _signatureHitCounts = new();
     private readonly int _maxEvents;
+    private readonly ConcurrentDictionary<string, int> _signatureHitCounts = new();
+    private readonly ConcurrentQueue<DashboardSignatureEvent> _signatures = new();
     private int _totalDetections;
 
     public InMemoryDashboardEventStore(StyloBotDashboardOptions options)
@@ -28,15 +28,10 @@ public class InMemoryDashboardEventStore : IDashboardEventStore
 
         // Track signature hit counts
         if (!string.IsNullOrEmpty(detection.PrimarySignature))
-        {
             _signatureHitCounts.AddOrUpdate(detection.PrimarySignature, 1, (_, count) => count + 1);
-        }
 
         // Trim if over limit
-        while (_detections.Count > _maxEvents)
-        {
-            _detections.TryDequeue(out _);
-        }
+        while (_detections.Count > _maxEvents) _detections.TryDequeue(out _);
 
         return Task.CompletedTask;
     }
@@ -46,10 +41,7 @@ public class InMemoryDashboardEventStore : IDashboardEventStore
         _signatures.Enqueue(signature);
 
         // Trim if over limit
-        while (_signatures.Count > _maxEvents)
-        {
-            _signatures.TryDequeue(out _);
-        }
+        while (_signatures.Count > _maxEvents) _signatures.TryDequeue(out _);
 
         return Task.CompletedTask;
     }
@@ -73,7 +65,8 @@ public class InMemoryDashboardEventStore : IDashboardEventStore
                 detections = detections.Where(d => d.IsBot == filter.IsBot.Value).ToList();
 
             if (!string.IsNullOrEmpty(filter.PathContains))
-                detections = detections.Where(d => d.Path.Contains(filter.PathContains, StringComparison.OrdinalIgnoreCase)).ToList();
+                detections = detections
+                    .Where(d => d.Path.Contains(filter.PathContains, StringComparison.OrdinalIgnoreCase)).ToList();
 
             if (!string.IsNullOrEmpty(filter.SignatureId))
                 detections = detections.Where(d => d.PrimarySignature == filter.SignatureId).ToList();

@@ -2,15 +2,18 @@
 
 ## Executive Summary
 
-The BDF (Behavioral Description Format) system demonstrates strong adherence to SOLID principles with minor opportunities for improvement. Overall compliance: **95%**
+The BDF (Behavioral Description Format) system demonstrates strong adherence to SOLID principles with minor
+opportunities for improvement. Overall compliance: **95%**
 
 **Strengths:**
+
 - Excellent Single Responsibility separation
 - Strong Dependency Inversion via abstractions
 - Clean Interface Segregation
 - Liskov Substitution fully supported
 
 **Areas for Improvement:**
+
 - Mapper and Formatter use switch/if-else that violate Open/Closed (minor)
 - Could benefit from Strategy pattern for extensibility
 
@@ -25,9 +28,11 @@ The BDF (Behavioral Description Format) system demonstrates strong adherence to 
 Each component has a single, well-defined responsibility:
 
 #### BdfModels.cs (384 lines)
+
 **Responsibility:** Data structure definitions for BDF scenarios
 
 **Analysis:**
+
 - Pure data models with no behavior (records with init-only properties)
 - Single reason to change: BDF specification changes
 - No logic, validation, or formatting mixed in
@@ -44,9 +49,11 @@ public sealed record BdfScenario
 ```
 
 #### SignatureBehaviorState.cs (147 lines)
+
 **Responsibility:** Behavioral metrics snapshot
 
 **Analysis:**
+
 - Holds behavioral waveform data only
 - No calculation logic (metrics are pre-computed)
 - No formatting or presentation concerns
@@ -54,9 +61,11 @@ public sealed record BdfScenario
 - **Score: 100%**
 
 #### SignatureToBdfMapper.cs (288 lines)
+
 **Responsibility:** Map behavior metrics → BDF scenarios
 
 **Analysis:**
+
 - Single purpose: transform SignatureBehaviorState to BdfScenario
 - Doesn't format explanations (that's SignatureExplanationFormatter)
 - Doesn't execute scenarios (that's BdfRunner)
@@ -75,9 +84,11 @@ public BdfScenario Map(SignatureBehaviorState state, SignatureBehaviorProfile pr
 ```
 
 #### SignatureExplanationFormatter.cs (236 lines)
+
 **Responsibility:** Format behavior → human-readable explanations
 
 **Analysis:**
+
 - Single purpose: generate dashboard explanations
 - Doesn't map to BDF (that's SignatureToBdfMapper)
 - Doesn't execute tests (that's BdfRunner)
@@ -85,9 +96,11 @@ public BdfScenario Map(SignatureBehaviorState state, SignatureBehaviorProfile pr
 - **Score: 100%**
 
 #### BdfRunner.cs (425 lines)
+
 **Responsibility:** Execute BDF scenarios
 
 **Analysis:**
+
 - Single purpose: run scenarios and collect results
 - Doesn't map behavior (uses pre-built scenarios)
 - Doesn't format explanations (returns raw results)
@@ -201,6 +214,7 @@ public interface IHighlightRule
 #### BdfRunner.cs
 
 **Analysis:**
+
 - Navigation mode selection uses switch (lines 285-298)
 - Could use strategy pattern for extensibility
 - However, runner is designed to execute scenarios, not create them
@@ -208,7 +222,8 @@ public interface IHighlightRule
 
 **Score: 90%**
 
-**OCP Verdict: ⚠️ GOOD** - Minor violations in mapper/formatter. Strategy pattern would improve extensibility, but current design is pragmatic for stable requirements.
+**OCP Verdict: ⚠️ GOOD** - Minor violations in mapper/formatter. Strategy pattern would improve extensibility, but
+current design is pragmatic for stable requirements.
 
 ---
 
@@ -240,6 +255,7 @@ public interface IBdfRunner
 ```
 
 **Analysis:**
+
 - Clean interface contracts with no hidden preconditions
 - Implementations can be swapped without breaking consumers
 - Mock implementations are trivial for testing:
@@ -268,6 +284,7 @@ public sealed record BdfScenario { ... }
 ```
 
 **Analysis:**
+
 - Immutable records prevent unexpected state mutations
 - Safe to pass between components
 - No hidden side effects
@@ -288,11 +305,13 @@ public sealed record BdfScenario { ... }
 Each interface is minimal and focused:
 
 **ISignatureExplanationFormatter:**
+
 - Single method: `Explain()`
 - Clients only depend on explanation formatting
 - Don't need to know about BDF mapping or execution
 
 **IBdfRunner:**
+
 - Two methods: `RunScenarioAsync()`, `LoadScenarioAsync()`
 - Clients executing scenarios don't need mapping functionality
 - Clear separation from formatter
@@ -400,6 +419,7 @@ services.TryAddSingleton<IBdfRunner, BdfRunner>();
 ```
 
 **Benefits:**
+
 - Easy to swap implementations (e.g., BdfRunner → MockBdfRunner for testing)
 - Configuration via IOptions enables runtime binding
 - No direct instantiation (`new BdfRunner()`) anywhere
@@ -411,13 +431,13 @@ services.TryAddSingleton<IBdfRunner, BdfRunner>();
 
 ## Overall SOLID Compliance
 
-| Principle | Score | Status | Notes |
-|-----------|-------|--------|-------|
-| **S**ingle Responsibility | 100% | ✅ | Perfect separation of concerns |
-| **O**pen/Closed | 87% | ⚠️ | Minor violations in mapper/formatter switch logic |
-| **L**iskov Substitution | 100% | ✅ | Full interface substitutability |
-| **I**nterface Segregation | 100% | ✅ | Minimal, focused interfaces |
-| **D**ependency Inversion | 100% | ✅ | Full abstraction-based design |
+| Principle                 | Score | Status | Notes                                             |
+|---------------------------|-------|--------|---------------------------------------------------|
+| **S**ingle Responsibility | 100%  | ✅      | Perfect separation of concerns                    |
+| **O**pen/Closed           | 87%   | ⚠️     | Minor violations in mapper/formatter switch logic |
+| **L**iskov Substitution   | 100%  | ✅      | Full interface substitutability                   |
+| **I**nterface Segregation | 100%  | ✅      | Minimal, focused interfaces                       |
+| **D**ependency Inversion  | 100%  | ✅      | Full abstraction-based design                     |
 
 **Overall Score: 97.4%**
 
@@ -428,6 +448,7 @@ services.TryAddSingleton<IBdfRunner, BdfRunner>();
 ### 1. Apply Strategy Pattern to Mapper (Optional Enhancement)
 
 **Current:**
+
 ```csharp
 private TimingConfig MapTiming(SignatureBehaviorState state)
 {
@@ -438,6 +459,7 @@ private TimingConfig MapTiming(SignatureBehaviorState state)
 ```
 
 **Proposed:**
+
 ```csharp
 public interface ITimingMappingStrategy
 {
@@ -463,6 +485,7 @@ private TimingConfig MapTiming(SignatureBehaviorState state) =>
 ### 2. Extract Highlight Rules (Optional Enhancement)
 
 **Current:**
+
 ```csharp
 private List<string> GenerateHighlights(...)
 {
@@ -474,6 +497,7 @@ private List<string> GenerateHighlights(...)
 ```
 
 **Proposed:**
+
 ```csharp
 public interface IHighlightRule
 {
@@ -497,6 +521,7 @@ private List<string> GenerateHighlights(...) =>
 ### 3. Keep Current Design for v1
 
 **Rationale:**
+
 - BDF specification is stable
 - Timing/navigation modes are well-defined and unlikely to change
 - Current if/else is clear and readable
@@ -504,6 +529,7 @@ private List<string> GenerateHighlights(...) =>
 - **Pragmatism over Purism**
 
 **When to Refactor:**
+
 - If adding 3+ new timing modes
 - If highlight rules vary by customer/tenant
 - If BDF spec becomes plugin-based
@@ -562,15 +588,19 @@ public void BdfRunner_DependsOnAbstractions_NotConcretions()
 
 ## Conclusion
 
-The BDF system demonstrates **excellent SOLID compliance** with a pragmatic approach to design patterns. The minor OCP violations (switch/if-else in mapper/formatter) are acceptable trade-offs for simplicity and are easily addressable if requirements change.
+The BDF system demonstrates **excellent SOLID compliance** with a pragmatic approach to design patterns. The minor OCP
+violations (switch/if-else in mapper/formatter) are acceptable trade-offs for simplicity and are easily addressable if
+requirements change.
 
 **Key Strengths:**
+
 - Clean separation of concerns (SRP)
 - Strong abstraction boundaries (DIP)
 - Substitutable components (LSP)
 - Minimal interfaces (ISP)
 
 **Next Steps:**
+
 1. ✅ Ship v1 with current design
 2. ⏳ Monitor for extensibility requirements (new modes, rules)
 3. ⏳ Refactor to Strategy pattern if 3+ new modes are added

@@ -3,6 +3,7 @@
 ## Overview
 
 The **Holodeck** extension provides a honeypot ecosystem for BotDetection that:
+
 1. Redirects detected bots to fake API endpoints powered by LLM (using `mostlylucid.mockllmapi`)
 2. Detects when bots follow hidden honeypot links
 3. Reports malicious IPs back to Project Honeypot (contributing to the community database)
@@ -60,6 +61,7 @@ The **Holodeck** extension provides a honeypot ecosystem for BotDetection that:
 **Purpose:** Redirect detected bots to fake API endpoints powered by MockLLMApi.
 
 **Features:**
+
 - [x] Configurable redirect to MockLLMApi endpoints
 - [ ] Context key based on fingerprint/IP for consistent fake world per bot
 - [ ] Mode selection: realistic, realistic-but-useless, chaos, strict-schema
@@ -67,6 +69,7 @@ The **Holodeck** extension provides a honeypot ecosystem for BotDetection that:
 - [ ] URL template placeholders: {fingerprint}, {risk}, {originalPath}
 
 **Configuration:**
+
 ```json
 {
   "BotDetection": {
@@ -88,6 +91,7 @@ The **Holodeck** extension provides a honeypot ecosystem for BotDetection that:
 **Purpose:** Detect when bots follow hidden honeypot links that real users would never click.
 
 **Features:**
+
 - [ ] Configurable honeypot paths (e.g., `/admin-secret`, `/wp-login.php`)
 - [ ] Hidden link injection into responses (CSS hidden, tiny font, etc.)
 - [ ] Referer header analysis (came from our honeypot page?)
@@ -95,6 +99,7 @@ The **Holodeck** extension provides a honeypot ecosystem for BotDetection that:
 - [ ] Signal tracking for follow-up analysis
 
 **Configuration:**
+
 ```json
 {
   "BotDetection": {
@@ -112,6 +117,7 @@ The **Holodeck** extension provides a honeypot ecosystem for BotDetection that:
 **Purpose:** Report confirmed malicious IPs back to Project Honeypot, contributing to the community database.
 
 **Features:**
+
 - [ ] Project Honeypot http:BL submission API integration
 - [ ] Configurable reporting thresholds (only report high-confidence bots)
 - [ ] Rate limiting to avoid flooding
@@ -119,6 +125,7 @@ The **Holodeck** extension provides a honeypot ecosystem for BotDetection that:
 - [ ] Async background reporting queue
 
 **Configuration:**
+
 ```json
 {
   "BotDetection": {
@@ -137,6 +144,7 @@ The **Holodeck** extension provides a honeypot ecosystem for BotDetection that:
 **Purpose:** Inject hidden honeypot links into HTML responses to trap crawlers.
 
 **Features:**
+
 - [ ] Middleware that modifies HTML responses
 - [ ] Configurable injection strategies (CSS hidden, off-screen, tiny font)
 - [ ] Random link generation to avoid pattern detection
@@ -147,34 +155,41 @@ The **Holodeck** extension provides a honeypot ecosystem for BotDetection that:
 ## Implementation Checklist
 
 ### Phase 1: Project Setup
+
 - [x] Create project structure (csproj, directories)
 - [ ] Add ReleaseNotes.txt
 - [ ] Add README.md documentation
 - [ ] Add to solution file
 
 ### Phase 2: Core Components
+
 - [ ] **HolodeckOptions.cs** - Configuration model
 - [ ] **HolodeckActionPolicy.cs** - Action policy implementation
 - [ ] **HolodeckActionPolicyFactory.cs** - Factory for configuration-based creation
 
 ### Phase 3: Honeypot Detection
+
 - [ ] **HoneypotLinkContributor.cs** - Contributor for honeypot path detection
 - [ ] **HoneypotPathMatcher.cs** - Pattern matching for common honeypot paths
 
 ### Phase 4: Project Honeypot Integration
+
 - [ ] **HoneypotReporter.cs** - Background service for reporting
 - [ ] **ProjectHoneypotClient.cs** - HTTP:BL submission client
 - [ ] **ReportingQueue.cs** - Async queue for batched reporting
 
 ### Phase 5: HTML Injection (Optional)
+
 - [ ] **HoneypotInjectionMiddleware.cs** - HTML response modification
 - [ ] **LinkInjector.cs** - Hidden link generation strategies
 
 ### Phase 6: DI & Configuration
+
 - [ ] **ServiceCollectionExtensions.cs** - AddHolodeck() extension
 - [ ] **ApplicationBuilderExtensions.cs** - UseHolodeck() extension
 
 ### Phase 7: Testing
+
 - [ ] Unit tests for HolodeckActionPolicy
 - [ ] Unit tests for HoneypotLinkContributor
 - [ ] Integration tests with MockLLMApi
@@ -184,10 +199,10 @@ The **Holodeck** extension provides a honeypot ecosystem for BotDetection that:
 
 ## Dependencies
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| Mostlylucid.BotDetection | latest | Core bot detection |
-| mostlylucid.mockllmapi | 2.1.0 | LLM-powered fake API responses |
+| Package                  | Version | Purpose                        |
+|--------------------------|---------|--------------------------------|
+| Mostlylucid.BotDetection | latest  | Core bot detection             |
+| mostlylucid.mockllmapi   | 2.1.0   | LLM-powered fake API responses |
 
 ---
 

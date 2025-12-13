@@ -312,13 +312,13 @@ POST {{baseUrl}}/api/v1/batch-check
 Content-Type: application/json
 
 {
-    "userAgents": [
-        "Mozilla/5.0 Chrome/120",
-        "Googlebot/2.1",
-        "Scrapy/2.5.0",
-        "curl/7.68.0",
-        "sqlmap/1.5.2"
-    ]
+  "userAgents": [
+    "Mozilla/5.0 Chrome/120",
+    "Googlebot/2.1",
+    "Scrapy/2.5.0",
+    "curl/7.68.0",
+    "sqlmap/1.5.2"
+  ]
 }
 
 ### ============================================

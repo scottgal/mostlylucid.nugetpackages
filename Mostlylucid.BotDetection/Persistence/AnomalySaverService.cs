@@ -1,12 +1,12 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Events;
 using Mostlylucid.BotDetection.Models;
-using Mostlylucid.BotDetection.Orchestration;
 
 namespace Mostlylucid.BotDetection.Persistence;
 
@@ -17,20 +17,19 @@ namespace Mostlylucid.BotDetection.Persistence;
 /// </summary>
 public class AnomalySaverService : BackgroundService
 {
-    private readonly ILogger<AnomalySaverService> _logger;
-    private readonly AnomalySaverOptions _options;
-    private readonly ILearningEventBus? _eventBus;
-    private readonly RollingFileManager _fileManager;
-
-    // Bounded channel for write-through buffering with backpressure
-    private readonly System.Threading.Channels.Channel<DetectionEvent> _writeChannel;
-
-    // Per-file lock to ensure sequential writes (keyed by file path)
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _fileLocks = new();
-
     // Batch buffer - cleared quickly after write (SHORT window)
     private readonly List<DetectionEvent> _batchBuffer = new();
     private readonly SemaphoreSlim _batchLock = new(1, 1);
+    private readonly ILearningEventBus? _eventBus;
+
+    // Per-file lock to ensure sequential writes (keyed by file path)
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _fileLocks = new();
+    private readonly RollingFileManager _fileManager;
+    private readonly ILogger<AnomalySaverService> _logger;
+    private readonly AnomalySaverOptions _options;
+
+    // Bounded channel for write-through buffering with backpressure
+    private readonly Channel<DetectionEvent> _writeChannel;
     private DateTime _lastFlush = DateTime.UtcNow;
 
     public AnomalySaverService(
@@ -45,11 +44,11 @@ public class AnomalySaverService : BackgroundService
 
         // Create bounded channel - backpressure kicks in when full
         // Short buffer = quick clear after write
-        var channelOptions = new System.Threading.Channels.BoundedChannelOptions(_options.BatchSize * 2)
+        var channelOptions = new BoundedChannelOptions(_options.BatchSize * 2)
         {
-            FullMode = System.Threading.Channels.BoundedChannelFullMode.Wait // Backpressure
+            FullMode = BoundedChannelFullMode.Wait // Backpressure
         };
-        _writeChannel = System.Threading.Channels.Channel.CreateBounded<DetectionEvent>(channelOptions);
+        _writeChannel = Channel.CreateBounded<DetectionEvent>(channelOptions);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -75,10 +74,7 @@ public class AnomalySaverService : BackgroundService
         };
 
         // Add learning event bus reader if available
-        if (_eventBus != null)
-        {
-            tasks.Add(LearningEventReaderAsync(stoppingToken));
-        }
+        if (_eventBus != null) tasks.Add(LearningEventReaderAsync(stoppingToken));
 
         await Task.WhenAll(tasks);
     }
@@ -92,12 +88,10 @@ public class AnomalySaverService : BackgroundService
         var reader = _writeChannel.Reader;
 
         while (!cancellationToken.IsCancellationRequested)
-        {
             try
             {
                 // Wait for next event
                 if (await reader.WaitToReadAsync(cancellationToken))
-                {
                     while (reader.TryRead(out var evt))
                     {
                         await _batchLock.WaitAsync(cancellationToken);
@@ -107,19 +101,15 @@ public class AnomalySaverService : BackgroundService
 
                             // Adaptive batching: flush when batch is full OR timeout elapsed
                             var shouldFlush = _batchBuffer.Count >= _options.BatchSize ||
-                                              (DateTime.UtcNow - _lastFlush) >= _options.FlushInterval;
+                                              DateTime.UtcNow - _lastFlush >= _options.FlushInterval;
 
-                            if (shouldFlush)
-                            {
-                                await FlushBatchAsync(cancellationToken);
-                            }
+                            if (shouldFlush) await FlushBatchAsync(cancellationToken);
                         }
                         finally
                         {
                             _batchLock.Release();
                         }
                     }
-                }
             }
             catch (OperationCanceledException)
             {
@@ -130,7 +120,6 @@ public class AnomalySaverService : BackgroundService
                 _logger.LogError(ex, "Error in writer loop");
                 await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
             }
-        }
     }
 
     /// <summary>
@@ -141,7 +130,6 @@ public class AnomalySaverService : BackgroundService
         using var timer = new PeriodicTimer(_options.FlushInterval);
 
         while (!cancellationToken.IsCancellationRequested)
-        {
             try
             {
                 await timer.WaitForNextTickAsync(cancellationToken);
@@ -149,10 +137,7 @@ public class AnomalySaverService : BackgroundService
                 await _batchLock.WaitAsync(cancellationToken);
                 try
                 {
-                    if (_batchBuffer.Count > 0)
-                    {
-                        await FlushBatchAsync(cancellationToken);
-                    }
+                    if (_batchBuffer.Count > 0) await FlushBatchAsync(cancellationToken);
                 }
                 finally
                 {
@@ -167,7 +152,6 @@ public class AnomalySaverService : BackgroundService
             {
                 _logger.LogError(ex, "Error in flush timer");
             }
-        }
     }
 
     /// <summary>
@@ -212,7 +196,7 @@ public class AnomalySaverService : BackgroundService
     {
         try
         {
-            await using var writer = new StreamWriter(filePath, append: true);
+            await using var writer = new StreamWriter(filePath, true);
 
             var jsonOptions = new JsonSerializerOptions
             {
@@ -247,16 +231,11 @@ public class AnomalySaverService : BackgroundService
         var reader = _eventBus!.Reader;
 
         while (!cancellationToken.IsCancellationRequested)
-        {
             try
             {
                 if (await reader.WaitToReadAsync(cancellationToken))
-                {
                     while (reader.TryRead(out var evt))
-                    {
                         await HandleLearningEventAsync(evt, cancellationToken);
-                    }
-                }
             }
             catch (OperationCanceledException)
             {
@@ -267,7 +246,6 @@ public class AnomalySaverService : BackgroundService
                 _logger.LogError(ex, "Error reading learning events");
                 await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
             }
-        }
     }
 
     /// <summary>
@@ -299,14 +277,16 @@ public class AnomalySaverService : BackgroundService
                 UserAgent = evt.Metadata.TryGetValue("userAgent", out var ua) ? ua?.ToString() : null,
                 IpAddress = evt.Metadata.TryGetValue("ip", out var ip) ? ip?.ToString() : null,
                 Path = evt.Metadata.TryGetValue("path", out var path) ? path?.ToString() : null,
-                ProcessingTimeMs = evt.Metadata.TryGetValue("processingTimeMs", out var time) ?
-                    Convert.ToDouble(time) : 0,
-                ContributingDetectors = evt.Metadata.TryGetValue("contributingDetectors", out var detectors) ?
-                    detectors as List<string> : null,
-                FailedDetectors = evt.Metadata.TryGetValue("failedDetectors", out var failed) ?
-                    failed as List<string> : null,
-                CategoryBreakdown = evt.Metadata.TryGetValue("categoryBreakdown", out var breakdown) ?
-                    breakdown : null
+                ProcessingTimeMs = evt.Metadata.TryGetValue("processingTimeMs", out var time)
+                    ? Convert.ToDouble(time)
+                    : 0,
+                ContributingDetectors = evt.Metadata.TryGetValue("contributingDetectors", out var detectors)
+                    ? detectors as List<string>
+                    : null,
+                FailedDetectors = evt.Metadata.TryGetValue("failedDetectors", out var failed)
+                    ? failed as List<string>
+                    : null,
+                CategoryBreakdown = evt.Metadata.TryGetValue("categoryBreakdown", out var breakdown) ? breakdown : null
             };
 
             // Write to channel - backpressure handled automatically
@@ -330,10 +310,7 @@ public class AnomalySaverService : BackgroundService
         await _batchLock.WaitAsync(cancellationToken);
         try
         {
-            if (_batchBuffer.Count > 0)
-            {
-                await FlushBatchAsync(cancellationToken);
-            }
+            if (_batchBuffer.Count > 0) await FlushBatchAsync(cancellationToken);
         }
         finally
         {
@@ -361,29 +338,20 @@ internal class RollingFileManager
         if (!string.IsNullOrEmpty(_options.OutputPath))
         {
             var directory = Path.GetDirectoryName(_options.OutputPath);
-            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory)) Directory.CreateDirectory(directory);
         }
     }
 
     public string GetCurrentFile()
     {
-        if (_currentFile == null || ShouldRoll())
-        {
-            Roll();
-        }
+        if (_currentFile == null || ShouldRoll()) Roll();
 
         return _currentFile!;
     }
 
     public void CheckAndRoll()
     {
-        if (ShouldRoll())
-        {
-            Roll();
-        }
+        if (ShouldRoll()) Roll();
     }
 
     private bool ShouldRoll()
@@ -391,19 +359,13 @@ internal class RollingFileManager
         if (_currentFile == null) return true;
 
         // Check time-based rolling
-        if (DateTime.UtcNow - _currentFileStartTime >= _options.RollingInterval)
-        {
-            return true;
-        }
+        if (DateTime.UtcNow - _currentFileStartTime >= _options.RollingInterval) return true;
 
         // Check size-based rolling
         if (_options.MaxFileSizeBytes > 0 && File.Exists(_currentFile))
         {
             var fileInfo = new FileInfo(_currentFile);
-            if (fileInfo.Length >= _options.MaxFileSizeBytes)
-            {
-                return true;
-            }
+            if (fileInfo.Length >= _options.MaxFileSizeBytes) return true;
         }
 
         return false;
@@ -437,10 +399,7 @@ internal class RollingFileManager
                 .Where(f => f.CreationTimeUtc < DateTime.UtcNow.AddDays(-_options.RetentionDays))
                 .ToList();
 
-            foreach (var file in files)
-            {
-                file.Delete();
-            }
+            foreach (var file in files) file.Delete();
         }
         catch
         {

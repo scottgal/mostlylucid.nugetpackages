@@ -4,17 +4,18 @@ The package automatically fetches and updates bot detection data from authoritat
 
 ## Default Sources
 
-| Source | Description | Default |
-|--------|-------------|---------|
-| **IsBot** | Comprehensive bot regex patterns (primary) | Enabled |
-| Matomo Device Detector | Categorized bot patterns with metadata | Disabled* |
-| Crawler User Agents | Community-maintained crawler list | Disabled* |
-| AWS IP Ranges | Official Amazon IP ranges | Enabled |
-| Google Cloud IP Ranges | Official GCP IP ranges | Enabled |
-| Azure IP Ranges | Changes weekly, requires manual update | Disabled |
-| Cloudflare IP Ranges | IPv4 and IPv6 ranges | Enabled |
+| Source                 | Description                                | Default   |
+|------------------------|--------------------------------------------|-----------|
+| **IsBot**              | Comprehensive bot regex patterns (primary) | Enabled   |
+| Matomo Device Detector | Categorized bot patterns with metadata     | Disabled* |
+| Crawler User Agents    | Community-maintained crawler list          | Disabled* |
+| AWS IP Ranges          | Official Amazon IP ranges                  | Enabled   |
+| Google Cloud IP Ranges | Official GCP IP ranges                     | Enabled   |
+| Azure IP Ranges        | Changes weekly, requires manual update     | Disabled  |
+| Cloudflare IP Ranges   | IPv4 and IPv6 ranges                       | Enabled   |
 
-\* *IsBot already incorporates patterns from Matomo, crawler-user-agents, myip.ms, and more. Enable these only if you need their specific metadata.*
+\* *IsBot already incorporates patterns from Matomo, crawler-user-agents, myip.ms, and more. Enable these only if you
+need their specific metadata.*
 
 ## Configuration
 

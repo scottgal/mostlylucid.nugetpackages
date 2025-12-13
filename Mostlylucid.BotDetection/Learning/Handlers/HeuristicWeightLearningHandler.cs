@@ -1,13 +1,11 @@
 using Microsoft.Extensions.Logging;
-using Mostlylucid.BotDetection.Learning;
 
 namespace Mostlylucid.BotDetection.Learning.Handlers;
 
 /// <summary>
-/// Learning handler for heuristic weight updates.
-/// Keyed by: "heuristic.weights"
-///
-/// This handler updates ML model weights based on feedback and high-confidence detections.
+///     Learning handler for heuristic weight updates.
+///     Keyed by: "heuristic.weights"
+///     This handler updates ML model weights based on feedback and high-confidence detections.
 /// </summary>
 public class HeuristicWeightLearningHandler : IKeyedLearningHandler
 {
@@ -22,19 +20,15 @@ public class HeuristicWeightLearningHandler : IKeyedLearningHandler
     {
         return signalKey == "heuristic.weights" &&
                operationType is LearningOperationType.WeightUpdate or
-                                LearningOperationType.ModelTraining;
+                   LearningOperationType.ModelTraining;
     }
 
     public async Task HandleAsync(string signalKey, LearningTask task, CancellationToken cancellationToken = default)
     {
         if (task.OperationType == LearningOperationType.WeightUpdate)
-        {
             await UpdateWeightsAsync(task, cancellationToken);
-        }
         else if (task.OperationType == LearningOperationType.ModelTraining)
-        {
             await TrainModelAsync(task, cancellationToken);
-        }
     }
 
     private async Task UpdateWeightsAsync(LearningTask task, CancellationToken cancellationToken)
@@ -54,20 +48,15 @@ public class HeuristicWeightLearningHandler : IKeyedLearningHandler
 
         // Get learning rate from metadata or use default
         var learningRate = 0.01;
-        if (task.Metadata?.TryGetValue("learning_rate", out var lrObj) == true && lrObj is double lr)
-        {
-            learningRate = lr;
-        }
+        if (task.Metadata?.TryGetValue("learning_rate", out var lrObj) == true && lrObj is double lr) learningRate = lr;
 
         // Apply weight updates
         foreach (var (featureName, featureValue) in task.Features)
-        {
             // Calculate gradient and update weight
             // This would interact with the actual weight storage (file, memory, etc.)
             _logger.LogTrace(
                 "Updating weight for feature {Feature}: value={Value:F4}",
                 featureName, featureValue);
-        }
 
         await Task.CompletedTask; // Placeholder for actual persistence
     }

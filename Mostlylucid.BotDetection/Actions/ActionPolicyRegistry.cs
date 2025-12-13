@@ -6,7 +6,7 @@ using Mostlylucid.BotDetection.Models;
 namespace Mostlylucid.BotDetection.Actions;
 
 /// <summary>
-///     Default implementation of <see cref="IActionPolicyRegistry"/>.
+///     Default implementation of <see cref="IActionPolicyRegistry" />.
 ///     Manages named action policies and provides lookup by name and type.
 /// </summary>
 /// <remarks>
@@ -68,12 +68,8 @@ public class ActionPolicyRegistry : IActionPolicyRegistry
 
         // Register any additional policies from DI
         if (additionalPolicies != null)
-        {
             foreach (var policy in additionalPolicies)
-            {
                 RegisterPolicy(policy);
-            }
-        }
     }
 
     /// <inheritdoc />
@@ -184,7 +180,7 @@ public class ActionPolicyRegistry : IActionPolicyRegistry
         // Note: Forward/File logging options require configuration to be useful
         RegisterPolicy(new LogOnlyActionPolicy("shadow-production", new LogOnlyActionOptions
         {
-            LogLevel = Microsoft.Extensions.Logging.LogLevel.Information,
+            LogLevel = LogLevel.Information,
             LogFullEvidence = false,
             AddResponseHeaders = false,
             AddToContextItems = true,
@@ -193,7 +189,7 @@ public class ActionPolicyRegistry : IActionPolicyRegistry
 
         RegisterPolicy(new LogOnlyActionPolicy("strict-block-log", new LogOnlyActionOptions
         {
-            LogLevel = Microsoft.Extensions.Logging.LogLevel.Warning,
+            LogLevel = LogLevel.Warning,
             LogFullEvidence = true,
             AddResponseHeaders = false,
             AddToContextItems = true,
@@ -211,7 +207,6 @@ public class ActionPolicyRegistry : IActionPolicyRegistry
         var factoryByType = _factories.ToDictionary(f => f.ActionType);
 
         foreach (var (name, config) in _options.ActionPolicies)
-        {
             try
             {
                 // Skip disabled policies
@@ -249,12 +244,11 @@ public class ActionPolicyRegistry : IActionPolicyRegistry
             {
                 _logger?.LogError(ex, "Error creating action policy '{Name}'", name);
             }
-        }
     }
 }
 
 /// <summary>
-///     Extension methods for <see cref="IActionPolicyRegistry"/>.
+///     Extension methods for <see cref="IActionPolicyRegistry" />.
 /// </summary>
 public static class ActionPolicyRegistryExtensions
 {
@@ -279,29 +273,39 @@ public static class ActionPolicyRegistryExtensions
     ///     Gets all block policies.
     /// </summary>
     public static IEnumerable<IActionPolicy> GetBlockPolicies(this IActionPolicyRegistry registry)
-        => registry.GetPoliciesByType(ActionType.Block);
+    {
+        return registry.GetPoliciesByType(ActionType.Block);
+    }
 
     /// <summary>
     ///     Gets all throttle policies.
     /// </summary>
     public static IEnumerable<IActionPolicy> GetThrottlePolicies(this IActionPolicyRegistry registry)
-        => registry.GetPoliciesByType(ActionType.Throttle);
+    {
+        return registry.GetPoliciesByType(ActionType.Throttle);
+    }
 
     /// <summary>
     ///     Gets all challenge policies.
     /// </summary>
     public static IEnumerable<IActionPolicy> GetChallengePolicies(this IActionPolicyRegistry registry)
-        => registry.GetPoliciesByType(ActionType.Challenge);
+    {
+        return registry.GetPoliciesByType(ActionType.Challenge);
+    }
 
     /// <summary>
     ///     Gets all redirect policies.
     /// </summary>
     public static IEnumerable<IActionPolicy> GetRedirectPolicies(this IActionPolicyRegistry registry)
-        => registry.GetPoliciesByType(ActionType.Redirect);
+    {
+        return registry.GetPoliciesByType(ActionType.Redirect);
+    }
 
     /// <summary>
     ///     Gets all log-only policies.
     /// </summary>
     public static IEnumerable<IActionPolicy> GetLogOnlyPolicies(this IActionPolicyRegistry registry)
-        => registry.GetPoliciesByType(ActionType.LogOnly);
+    {
+        return registry.GetPoliciesByType(ActionType.LogOnly);
+    }
 }

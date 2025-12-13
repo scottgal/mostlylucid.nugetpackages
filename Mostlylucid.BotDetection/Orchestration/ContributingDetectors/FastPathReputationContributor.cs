@@ -10,14 +10,12 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// <summary>
 ///     Ultra-fast Wave 0 contributor that checks for CONFIRMED patterns (both good and bad).
 ///     Runs FIRST (no dependencies) to enable instant allow/abort for known actors.
-///
 ///     This is the "12 basic shapes" fast-path check:
 ///     - Checks patterns that are ConfirmedGood or ManuallyAllowed → instant ALLOW
 ///     - Checks patterns that are ConfirmedBad or ManuallyBlocked → instant ABORT
 ///     - Skips Neutral/Suspect patterns (those are handled by ReputationBiasContributor later)
 ///     - Uses raw UA/IP directly without waiting for signal extraction
 ///     - Enables circuit-breaker style early exit before expensive analysis
-///
 ///     Works in tandem with ReputationBiasContributor:
 ///     - FastPathReputationContributor (Priority 3) - Instant allow/abort for known patterns
 ///     - ReputationBiasContributor (Priority 45) - Bias for scoring after signals extracted
@@ -50,8 +48,8 @@ public class FastPathReputationContributor : ContributingDetectorBase
         // ConfirmedBad/ManuallyBlocked → instant abort
 
         PatternReputation? matchedPattern = null;
-        string matchType = "";
-        bool isGoodPattern = false;
+        var matchType = "";
+        var isGoodPattern = false;
 
         // Check raw User-Agent first (most common fast-path hit)
         if (!string.IsNullOrWhiteSpace(state.UserAgent))
@@ -98,22 +96,15 @@ public class FastPathReputationContributor : ContributingDetectorBase
 
         // No fast-path match - report neutral so we show in detector list
         if (matchedPattern == null)
-        {
             return Task.FromResult<IReadOnlyList<DetectionContribution>>(new[]
             {
                 DetectionContribution.Neutral(Name, "No known patterns in reputation cache")
             });
-        }
 
         // FAST PATH HIT - create instant allow or abort contribution
-        if (isGoodPattern)
-        {
-            return Task.FromResult(CreateFastAllowContribution(matchedPattern, matchType));
-        }
-        else
-        {
-            return Task.FromResult(CreateFastAbortContribution(matchedPattern, matchType));
-        }
+        if (isGoodPattern) return Task.FromResult(CreateFastAllowContribution(matchedPattern, matchType));
+
+        return Task.FromResult(CreateFastAbortContribution(matchedPattern, matchType));
     }
 
     /// <summary>
@@ -141,12 +132,13 @@ public class FastPathReputationContributor : ContributingDetectorBase
             : $"Trusted IP ({matchedPattern.PatternId})";
 
         var contribution = DetectionContribution.VerifiedGoodBot(
-            Name,
-            botName,
-            $"[FastPath] Known good {matchType}: {matchedPattern.State} (score={matchedPattern.BotScore:F2}, support={matchedPattern.Support:F0})") with
-        {
-            Signals = signals
-        };
+                Name,
+                botName,
+                $"[FastPath] Known good {matchType}: {matchedPattern.State} (score={matchedPattern.BotScore:F2}, support={matchedPattern.Support:F0})")
+            with
+            {
+                Signals = signals
+            };
 
         return new[] { contribution };
     }
@@ -171,15 +163,15 @@ public class FastPathReputationContributor : ContributingDetectorBase
             .Add($"reputation.fastpath.{matchType.ToLowerInvariant()}.support", matchedPattern.Support);
 
         var contribution = DetectionContribution.VerifiedBadBot(
-            Name,
-            matchedPattern.PatternId,
-            $"[FastPath] Known bad {matchType}: {matchedPattern.State} (score={matchedPattern.BotScore:F2}, support={matchedPattern.Support:F0})",
-            BotType.MaliciousBot) with
-        {
-            ConfidenceDelta = matchedPattern.BotScore,
-            Weight = 3.0, // Very high weight for confirmed patterns - instant abort
-            Signals = signals
-        };
+                Name,
+                matchedPattern.PatternId,
+                $"[FastPath] Known bad {matchType}: {matchedPattern.State} (score={matchedPattern.BotScore:F2}, support={matchedPattern.Support:F0})")
+            with
+            {
+                ConfidenceDelta = matchedPattern.BotScore,
+                Weight = 3.0, // Very high weight for confirmed patterns - instant abort
+                Signals = signals
+            };
 
         return new[] { contribution };
     }
@@ -266,19 +258,13 @@ public class FastPathReputationContributor : ContributingDetectorBase
         if (ip.Contains(':'))
         {
             var parts = ip.Split(':');
-            if (parts.Length >= 3)
-            {
-                return $"{parts[0]}:{parts[1]}:{parts[2]}::/48";
-            }
+            if (parts.Length >= 3) return $"{parts[0]}:{parts[1]}:{parts[2]}::/48";
             return ip;
         }
 
         // Handle IPv4 - normalize to /24
         var octets = ip.Split('.');
-        if (octets.Length == 4)
-        {
-            return $"{octets[0]}.{octets[1]}.{octets[2]}.0/24";
-        }
+        if (octets.Length == 4) return $"{octets[0]}.{octets[1]}.{octets[2]}.0/24";
 
         return ip;
     }

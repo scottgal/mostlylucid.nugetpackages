@@ -25,16 +25,16 @@ builder.Services.AddReverseProxy()
 
 ### Headers Added
 
-| Header | Value |
-|--------|-------|
-| `X-Bot-Detected` | `true` / `false` |
-| `X-Bot-Confidence` | `0.00` - `1.00` |
-| `X-Bot-Type` | `SearchEngine`, `Scraper`, etc. |
-| `X-Bot-Name` | Identified bot name |
-| `X-Bot-Category` | Detection category |
-| `X-Is-Search-Engine` | `true` / `false` |
-| `X-Is-Malicious-Bot` | `true` / `false` |
-| `X-Is-Social-Bot` | `true` / `false` |
+| Header               | Value                           |
+|----------------------|---------------------------------|
+| `X-Bot-Detected`     | `true` / `false`                |
+| `X-Bot-Confidence`   | `0.00` - `1.00`                 |
+| `X-Bot-Type`         | `SearchEngine`, `Scraper`, etc. |
+| `X-Bot-Name`         | Identified bot name             |
+| `X-Bot-Category`     | Detection category              |
+| `X-Is-Search-Engine` | `true` / `false`                |
+| `X-Is-Malicious-Bot` | `true` / `false`                |
+| `X-Is-Social-Bot`    | `true` / `false`                |
 
 ## Bot-Aware Cluster Selection
 

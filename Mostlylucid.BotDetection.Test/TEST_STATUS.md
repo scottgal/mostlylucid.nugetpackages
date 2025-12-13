@@ -2,16 +2,19 @@
 
 ## Summary
 
-The bot detection codebase has undergone significant architectural changes. Many tests require updates to match the new API.
+The bot detection codebase has undergone significant architectural changes. Many tests require updates to match the new
+API.
 
 ## Fixed Tests
 
 ### ✅ Detector Result API (Completed)
+
 - Changed `result.BotProbability` → `result.Confidence`
 - Changed `result.Reasons[0]` → `result.Reasons` collection checks
 - **Fixed in**: All detector tests
 
 ### ✅ SecurityToolDetector Constructor (Completed)
+
 - Added required `IOptions<BotDetectionOptions>` parameter
 - Added required `IBotListFetcher` parameter
 - **Fixed in**: SecurityToolDetectorTests.cs
@@ -23,45 +26,52 @@ The bot detection codebase has undergone significant architectural changes. Many
 Several detectors now require additional constructor parameters:
 
 **ClientSideDetectorTests.cs**
+
 - Missing: `IOptions<BotDetectionOptions>`, `IBrowserFingerprintStore`
 - Error: `CS7036`
 
 **VersionAgeDetectorTests.cs**
+
 - Missing: `IOptions<BotDetectionOptions>`, `IBrowserVersionService`
 - Error: `CS7036`
 
 ### ⚠️ Signal Architecture Changes
 
 **SignatureResponseCoordinatorTests.cs**
+
 - Missing types: `BehavioralLane`, `SpectralLane`, `ReputationLane`, `OperationCompleteSignal`
 - These types were removed or renamed in the new architecture
 - **Count**: ~10 errors
 
 **SignatureEscalatorAtomTests.cs**
+
 - Missing types: `SignalPatternMatcher`, `EscalationRule`, `EscalatorConfig`
 - These types were removed in favor of simpler escalation logic
 - **Count**: ~15 errors
 
 **ResponseAnalysisContextTests.cs**
+
 - `ResponseSignal` API changed:
-  - Removed: `Headers`, `ResponseTimeMs`
-  - Added required: `ResponseBytes`, `Path`, `Method`
-  - `ResponseBodySummary` requires: `IsPresent`, `Length`
+    - Removed: `Headers`, `ResponseTimeMs`
+    - Added required: `ResponseBytes`, `Path`, `Method`
+    - `ResponseBodySummary` requires: `IsPresent`, `Length`
 - **Count**: ~8 errors
 
 ## Recommended Actions
 
 ### Quick Fix (Immediate)
+
 1. Add `[Fact(Skip = "Needs update for new architecture")]` to failing tests
 2. Document required changes in test comments
 3. Keep passing tests running
 
 ### Proper Fix (Medium Term)
+
 1. Update detector test constructors with proper mock dependencies
 2. Rewrite signal-based tests for new architecture:
-   - Use current signal types from `Mostlylucid.BotDetection.Orchestration`
-   - Update to match `BlackboardState` signal model
-   - Remove references to deprecated lane-based architecture
+    - Use current signal types from `Mostlylucid.BotDetection.Orchestration`
+    - Update to match `BlackboardState` signal model
+    - Remove references to deprecated lane-based architecture
 3. Update response signal tests for new API
 
 ## Architecture Changes Summary
@@ -69,18 +79,22 @@ Several detectors now require additional constructor parameters:
 ### Old → New
 
 **Detector Results:**
+
 - `BotProbability` → `Confidence`
 - `Reasons[0]` (string) → `Reasons` (List<DetectionReason>)
 
 **Signals:**
+
 - Lane-based (`BehavioralLane`, `SpectralLane`) → Blackboard-based
 - `OperationCompleteSignal` → Removed (use blackboard state)
 - `SignalPatternMatcher` → Simplified pattern matching
 
 **Escalation:**
+
 - `EscalationRule`, `EscalatorConfig` → Simplified escalation via `SignatureEscalatorAtom`
 
 **Response Analysis:**
+
 - Complex signal structure → Simplified required properties
 - Explicit header/timing → Body-focused analysis
 

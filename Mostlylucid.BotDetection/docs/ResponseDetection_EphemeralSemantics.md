@@ -61,7 +61,8 @@ public async Task HandleRequestAsync(HttpContext context)
 }
 ```
 
-**Key Point**: The sink is **scoped** (not ephemeral). Coordinators are **ephemeral atoms** that raise signals into the sink.
+**Key Point**: The sink is **scoped** (not ephemeral). Coordinators are **ephemeral atoms** that raise signals into the
+sink.
 
 ### Process-Scoped Sink (Global)
 
@@ -83,7 +84,8 @@ public class Startup
 }
 ```
 
-**Key Point**: The global sink is **long-lived**. Signature atoms that raise signals into it are **ephemeral** (LRU evicted).
+**Key Point**: The global sink is **long-lived**. Signature atoms that raise signals into it are **ephemeral** (LRU
+evicted).
 
 ## Ephemeral Atoms
 
@@ -166,7 +168,8 @@ New request from "new-scanner-bot":
 → scanner-bot-1 stays (frequently accessed)
 ```
 
-**Auto-Specialization**: The cache naturally focuses on **problematic signatures** (high volume scanners, bots) while letting inactive users evict.
+**Auto-Specialization**: The cache naturally focuses on **problematic signatures** (high volume scanners, bots) while
+letting inactive users evict.
 
 ## Signal Persistence
 
@@ -252,6 +255,7 @@ T=54ms:  SignatureAtom["abc123"] receives signal from globalSink
 ```
 
 **Key Points**:
+
 - **Coordinators die** (ephemeral atoms)
 - **operationSink dies** (scoped)
 - **globalSink persists** (process-scoped)
@@ -338,6 +342,7 @@ public class SignatureProfileAtom
 ```
 
 **Lifecycle**:
+
 1. Atom created → Loads historical signals from sink
 2. Atom processes operations → Emits signals to sink
 3. Atom evicted → Frees memory (window + lanes)
@@ -345,27 +350,30 @@ public class SignatureProfileAtom
 
 ## Summary
 
-| Component | Lifetime | Scope | Ephemeral? |
-|-----------|----------|-------|------------|
-| **OperationSignalSink** | Per-request | Request-scoped | No (scoped) |
-| **GlobalSignalSink** | Process | Process-scoped | No (long-lived) |
-| **RequestCoordinator** | Request detection | Atom | Yes (dies fast) |
-| **ResponseCoordinator** | Response analysis | Atom | Yes (dies after response) |
-| **SignatureProfileAtom** | Until LRU eviction | Atom | Yes (LRU evicted) |
-| **Signals in sink** | Until sink TTL/scope | Sink-owned | No (persist in sink) |
+| Component                | Lifetime             | Scope          | Ephemeral?                |
+|--------------------------|----------------------|----------------|---------------------------|
+| **OperationSignalSink**  | Per-request          | Request-scoped | No (scoped)               |
+| **GlobalSignalSink**     | Process              | Process-scoped | No (long-lived)           |
+| **RequestCoordinator**   | Request detection    | Atom           | Yes (dies fast)           |
+| **ResponseCoordinator**  | Response analysis    | Atom           | Yes (dies after response) |
+| **SignatureProfileAtom** | Until LRU eviction   | Atom           | Yes (LRU evicted)         |
+| **Signals in sink**      | Until sink TTL/scope | Sink-owned     | No (persist in sink)      |
 
-**Key Insight**: Atoms are ephemeral (LRU evicted), but the **signals they raise persist** in sinks. Important signatures naturally stay in LRU, unimportant ones evict, but their signals remain available for learning.
+**Key Insight**: Atoms are ephemeral (LRU evicted), but the **signals they raise persist** in sinks. Important
+signatures naturally stay in LRU, unimportant ones evict, but their signals remain available for learning.
 
 ## Auto-Specialization via LRU
 
 The LRU cache provides **automatic specialization**:
 
 **High-Activity Signatures** (bots, scanners):
+
 - Generate many operations → Frequent cache access
 - Stay at top of LRU → Never evicted
 - Atom stays in memory → Fast analysis
 
 **Low-Activity Signatures** (normal users):
+
 - Generate few operations → Infrequent cache access
 - Fall to bottom of LRU → Evicted
 - Atom freed → Memory saved

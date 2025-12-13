@@ -1,13 +1,12 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
-using Mostlylucid.Ephemeral;
 using Mostlylucid.BotDetection.Services;
+using Mostlylucid.Ephemeral;
 
 namespace Mostlylucid.BotDetection.Data;
 
 /// <summary>
 ///     Pattern reputation cache using ephemeral signal patterns.
-///
 ///     Key features over InMemoryPatternReputationCache:
 ///     - Uses ephemeral SignalSink for observability of reputation changes
 ///     - Hot key tracking: frequently accessed patterns get extended lifetime
@@ -17,43 +16,29 @@ namespace Mostlylucid.BotDetection.Data;
 /// </summary>
 public sealed class EphemeralPatternReputationCache : IPatternReputationCache, IAsyncDisposable
 {
-    private readonly ILogger<EphemeralPatternReputationCache> _logger;
-    private readonly PatternReputationUpdater _updater;
-    private readonly ILearnedPatternStore? _patternStore;
     private readonly ConcurrentDictionary<string, CacheEntry> _cache = new();
-
-    // Ephemeral signal sink for reputation change observability
-    private readonly SignalSink _signals;
 
     // Background decay coordinator
     private readonly EphemeralWorkCoordinator<DecayWork> _decayCoordinator;
 
+    // Configuration
+    private readonly int _hotAccessThreshold;
+    private readonly TimeSpan _hotKeyExtension;
+    private readonly ILogger<EphemeralPatternReputationCache> _logger;
+    private readonly int _maxPatterns;
+    private readonly ILearnedPatternStore? _patternStore;
+
     // Background persistence coordinator for batched SQLite writes
     private readonly EphemeralWorkCoordinator<PersistWork>? _persistCoordinator;
+
+    // Ephemeral signal sink for reputation change observability
+    private readonly SignalSink _signals;
+    private readonly PatternReputationUpdater _updater;
+    private int _accessCount;
 
     // Tracking
     private DateTimeOffset _lastDecaySweep = DateTimeOffset.UtcNow;
     private DateTimeOffset _lastGc = DateTimeOffset.UtcNow;
-    private int _accessCount;
-
-    // Configuration
-    private readonly int _hotAccessThreshold;
-    private readonly TimeSpan _hotKeyExtension;
-    private readonly int _maxPatterns;
-
-    // Signal constants
-    public static class ReputationSignals
-    {
-        public const string PatternCreated = "reputation.created";
-        public const string PatternUpdated = "reputation.updated";
-        public const string StateChanged = "reputation.state_changed";
-        public const string HotKey = "reputation.hot_key";
-        public const string Evicted = "reputation.evicted";
-        public const string DecaySweepStarted = "reputation.decay_sweep_started";
-        public const string DecaySweepCompleted = "reputation.decay_sweep_completed";
-        public const string GcStarted = "reputation.gc_started";
-        public const string GcCompleted = "reputation.gc_completed";
-    }
 
     public EphemeralPatternReputationCache(
         ILogger<EphemeralPatternReputationCache> logger,
@@ -72,8 +57,8 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
 
         // Global signal sink for reputation changes
         _signals = new SignalSink(
-            maxCapacity: 5000,
-            maxAge: TimeSpan.FromMinutes(30));
+            5000,
+            TimeSpan.FromMinutes(30));
 
         // Background decay coordinator - single-threaded sequential processing
         _decayCoordinator = new EphemeralWorkCoordinator<DecayWork>(
@@ -102,12 +87,8 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
 
         // Background persistence coordinator for batched SQLite writes (avoids file locks)
         if (_patternStore != null)
-        {
             _persistCoordinator = new EphemeralWorkCoordinator<PersistWork>(
-                async (work, ct) =>
-                {
-                    await ExecutePersistBatchAsync(work.Reputations, ct);
-                },
+                async (work, ct) => { await ExecutePersistBatchAsync(work.Reputations, ct); },
                 new EphemeralOptions
                 {
                     MaxConcurrency = 1, // Single writer to avoid SQLite locks
@@ -115,25 +96,25 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
                     Signals = _signals,
                     OnSignal = evt => { }
                 });
-        }
     }
-
-    /// <summary>
-    ///     Get recent reputation change signals for observability.
-    /// </summary>
-    public IReadOnlyList<SignalEvent> GetRecentSignals() => _signals.Sense();
-
-    /// <summary>
-    ///     Get signals matching a pattern (e.g., "reputation.state_changed:*").
-    /// </summary>
-    public IReadOnlyList<SignalEvent> GetSignals(Func<SignalEvent, bool> predicate) =>
-        _signals.Sense(predicate);
 
     /// <summary>
     ///     Check if any pattern recently changed state.
     /// </summary>
     public bool HasRecentStateChanges =>
         _signals.Detect(evt => evt.StartsWith(ReputationSignals.StateChanged));
+
+    public async ValueTask DisposeAsync()
+    {
+        _decayCoordinator.Complete();
+        await _decayCoordinator.DisposeAsync();
+
+        if (_persistCoordinator != null)
+        {
+            _persistCoordinator.Complete();
+            await _persistCoordinator.DisposeAsync();
+        }
+    }
 
     public PatternReputation? Get(string patternId)
     {
@@ -150,9 +131,7 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
             entry.HotUntil = DateTimeOffset.UtcNow + _hotKeyExtension;
 
             if (ShouldSample())
-            {
                 _signals.Raise($"{ReputationSignals.HotKey}:{patternId}:{entry.Reputation.PatternType}");
-            }
         }
 
         return entry.Reputation;
@@ -175,10 +154,7 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
                 StateChangedAt = DateTimeOffset.UtcNow
             };
 
-            if (ShouldSample())
-            {
-                _signals.Raise($"{ReputationSignals.PatternCreated}:{patternId}:{patternType}");
-            }
+            if (ShouldSample()) _signals.Raise($"{ReputationSignals.PatternCreated}:{patternId}:{patternType}");
 
             return new CacheEntry(reputation);
         });
@@ -189,9 +165,7 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
 
         // Enforce max size - schedule eviction in background
         if (_cache.Count > _maxPatterns)
-        {
             _ = _decayCoordinator.TryEnqueue(new DecayWork(DecayWorkType.EvictCold, _cache.Count - _maxPatterns));
-        }
 
         return entry.Reputation;
     }
@@ -215,9 +189,7 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
 
         // Emit signals for updates
         if (ShouldSample())
-        {
             _signals.Raise($"{ReputationSignals.PatternUpdated}:{reputation.PatternId}:{reputation.BotScore:F2}");
-        }
 
         // State change is always signaled (important for monitoring)
         if (reputation.State != oldState)
@@ -250,113 +222,10 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
         return _decayCoordinator.EnqueueAsync(new DecayWork(DecayWorkType.DecaySweep), ct).AsTask();
     }
 
-    private Task ExecuteDecaySweepAsync(CancellationToken ct)
-    {
-        _signals.Raise($"{ReputationSignals.DecaySweepStarted}:{_cache.Count}");
-
-        var updated = 0;
-        var stateChanges = 0;
-
-        foreach (var (id, entry) in _cache.ToArray())
-        {
-            if (ct.IsCancellationRequested) break;
-
-            var oldState = entry.Reputation.State;
-            var decayed = _updater.ApplyTimeDecay(entry.Reputation);
-
-            if (decayed != entry.Reputation)
-            {
-                entry.Reputation = decayed;
-                entry.IsDirty = true; // Mark as needing persistence after decay
-                updated++;
-
-                if (decayed.State != oldState)
-                {
-                    stateChanges++;
-                    _signals.Raise($"{ReputationSignals.StateChanged}:{id}:{oldState}:{decayed.State}");
-                }
-            }
-        }
-
-        _lastDecaySweep = DateTimeOffset.UtcNow;
-
-        _signals.Raise($"{ReputationSignals.DecaySweepCompleted}:{updated}:{stateChanges}");
-
-        if (updated > 0)
-        {
-            _logger.LogDebug("Decay sweep updated {Count} patterns, {StateChanges} state changes", updated, stateChanges);
-        }
-
-        return Task.CompletedTask;
-    }
-
     public Task GarbageCollectAsync(CancellationToken ct = default)
     {
         // Queue GC for background processing
         return _decayCoordinator.EnqueueAsync(new DecayWork(DecayWorkType.GarbageCollect), ct).AsTask();
-    }
-
-    private Task ExecuteGarbageCollectAsync(CancellationToken ct)
-    {
-        _signals.Raise($"{ReputationSignals.GcStarted}:{_cache.Count}");
-
-        var removed = 0;
-
-        foreach (var (id, entry) in _cache.ToArray())
-        {
-            if (ct.IsCancellationRequested) break;
-
-            // Hot keys survive GC
-            if (entry.HotUntil > DateTimeOffset.UtcNow)
-                continue;
-
-            if (_updater.IsEligibleForGc(entry.Reputation))
-            {
-                if (_cache.TryRemove(id, out _))
-                {
-                    removed++;
-                    _signals.Raise($"{ReputationSignals.Evicted}:{id}:gc");
-                }
-            }
-        }
-
-        _lastGc = DateTimeOffset.UtcNow;
-
-        _signals.Raise($"{ReputationSignals.GcCompleted}:{removed}");
-
-        if (removed > 0)
-        {
-            _logger.LogInformation("Garbage collected {Count} stale patterns", removed);
-        }
-
-        return Task.CompletedTask;
-    }
-
-    private void EvictColdestPatterns(int count)
-    {
-        // Get coldest patterns (low access count, oldest last access, not hot)
-        var coldest = _cache
-            .Where(e => e.Value.HotUntil < DateTimeOffset.UtcNow) // Not hot
-            .Where(e => !e.Value.Reputation.IsManual) // Not manual
-            .Where(e => e.Value.Reputation.State == ReputationState.Neutral) // Only neutral
-            .OrderBy(e => e.Value.AccessCount)
-            .ThenBy(e => e.Value.LastAccess)
-            .Take(count)
-            .Select(e => e.Key)
-            .ToList();
-
-        foreach (var key in coldest)
-        {
-            if (_cache.TryRemove(key, out _))
-            {
-                _signals.Raise($"{ReputationSignals.Evicted}:{key}:cold");
-            }
-        }
-
-        if (coldest.Count > 0)
-        {
-            _logger.LogDebug("Evicted {Count} cold patterns", coldest.Count);
-        }
     }
 
     public async Task PersistAsync(CancellationToken ct = default)
@@ -372,71 +241,11 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
                 .Select(e => e.Reputation)
                 .ToList();
 
-            if (dirtyPatterns.Count > 0)
-            {
-                await _persistCoordinator.EnqueueAsync(new PersistWork(dirtyPatterns), ct);
-            }
+            if (dirtyPatterns.Count > 0) await _persistCoordinator.EnqueueAsync(new PersistWork(dirtyPatterns), ct);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to queue patterns for persistence");
-        }
-    }
-
-    private async Task ExecutePersistBatchAsync(IReadOnlyList<PatternReputation> reputations, CancellationToken ct)
-    {
-        try
-        {
-            var saved = 0;
-
-            foreach (var reputation in reputations)
-            {
-                if (ct.IsCancellationRequested) break;
-
-                // Convert PatternReputation to LearnedSignature
-                var signature = new LearnedSignature
-                {
-                    PatternId = reputation.PatternId,
-                    SignatureType = reputation.PatternType,
-                    Pattern = reputation.Pattern,
-                    Confidence = reputation.BotScore,
-                    Occurrences = (int)Math.Round(reputation.Support),
-                    FirstSeen = reputation.FirstSeen,
-                    LastSeen = reputation.LastSeen,
-                    Action = reputation.State switch
-                    {
-                        ReputationState.ManuallyBlocked => LearnedPatternAction.Full,
-                        ReputationState.ConfirmedBad => LearnedPatternAction.Full,
-                        ReputationState.Suspect => LearnedPatternAction.ScoreOnly,
-                        ReputationState.Neutral => LearnedPatternAction.LogOnly,
-                        ReputationState.ConfirmedGood => LearnedPatternAction.LogOnly,
-                        ReputationState.ManuallyAllowed => LearnedPatternAction.LogOnly,
-                        _ => LearnedPatternAction.LogOnly
-                    },
-                    BotType = null,
-                    BotName = null,
-                    Source = "ReputationCache"
-                };
-
-                await _patternStore!.UpsertAsync(signature, ct);
-
-                // Clear dirty flag after successful persistence
-                if (_cache.TryGetValue(reputation.PatternId, out var entry))
-                {
-                    entry.IsDirty = false;
-                }
-
-                saved++;
-            }
-
-            if (saved > 0)
-            {
-                _logger.LogDebug("Persisted {Count} pattern reputations to SQLite", saved);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to persist pattern reputation batch");
         }
     }
 
@@ -483,14 +292,12 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
                     Notes = null
                 };
 
-                _cache[signature.PatternId] = new CacheEntry(reputation, isDirty: false); // Loaded from DB, no need to persist immediately
+                _cache[signature.PatternId] =
+                    new CacheEntry(reputation, false); // Loaded from DB, no need to persist immediately
                 loaded++;
             }
 
-            if (loaded > 0)
-            {
-                _logger.LogInformation("Loaded {Count} pattern reputations from SQLite", loaded);
-            }
+            if (loaded > 0) _logger.LogInformation("Loaded {Count} pattern reputations from SQLite", loaded);
         }
         catch (Exception ex)
         {
@@ -523,6 +330,163 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
     }
 
     /// <summary>
+    ///     Get recent reputation change signals for observability.
+    /// </summary>
+    public IReadOnlyList<SignalEvent> GetRecentSignals()
+    {
+        return _signals.Sense();
+    }
+
+    /// <summary>
+    ///     Get signals matching a pattern (e.g., "reputation.state_changed:*").
+    /// </summary>
+    public IReadOnlyList<SignalEvent> GetSignals(Func<SignalEvent, bool> predicate)
+    {
+        return _signals.Sense(predicate);
+    }
+
+    private Task ExecuteDecaySweepAsync(CancellationToken ct)
+    {
+        _signals.Raise($"{ReputationSignals.DecaySweepStarted}:{_cache.Count}");
+
+        var updated = 0;
+        var stateChanges = 0;
+
+        foreach (var (id, entry) in _cache.ToArray())
+        {
+            if (ct.IsCancellationRequested) break;
+
+            var oldState = entry.Reputation.State;
+            var decayed = _updater.ApplyTimeDecay(entry.Reputation);
+
+            if (decayed != entry.Reputation)
+            {
+                entry.Reputation = decayed;
+                entry.IsDirty = true; // Mark as needing persistence after decay
+                updated++;
+
+                if (decayed.State != oldState)
+                {
+                    stateChanges++;
+                    _signals.Raise($"{ReputationSignals.StateChanged}:{id}:{oldState}:{decayed.State}");
+                }
+            }
+        }
+
+        _lastDecaySweep = DateTimeOffset.UtcNow;
+
+        _signals.Raise($"{ReputationSignals.DecaySweepCompleted}:{updated}:{stateChanges}");
+
+        if (updated > 0)
+            _logger.LogDebug("Decay sweep updated {Count} patterns, {StateChanges} state changes", updated,
+                stateChanges);
+
+        return Task.CompletedTask;
+    }
+
+    private Task ExecuteGarbageCollectAsync(CancellationToken ct)
+    {
+        _signals.Raise($"{ReputationSignals.GcStarted}:{_cache.Count}");
+
+        var removed = 0;
+
+        foreach (var (id, entry) in _cache.ToArray())
+        {
+            if (ct.IsCancellationRequested) break;
+
+            // Hot keys survive GC
+            if (entry.HotUntil > DateTimeOffset.UtcNow)
+                continue;
+
+            if (_updater.IsEligibleForGc(entry.Reputation))
+                if (_cache.TryRemove(id, out _))
+                {
+                    removed++;
+                    _signals.Raise($"{ReputationSignals.Evicted}:{id}:gc");
+                }
+        }
+
+        _lastGc = DateTimeOffset.UtcNow;
+
+        _signals.Raise($"{ReputationSignals.GcCompleted}:{removed}");
+
+        if (removed > 0) _logger.LogInformation("Garbage collected {Count} stale patterns", removed);
+
+        return Task.CompletedTask;
+    }
+
+    private void EvictColdestPatterns(int count)
+    {
+        // Get coldest patterns (low access count, oldest last access, not hot)
+        var coldest = _cache
+            .Where(e => e.Value.HotUntil < DateTimeOffset.UtcNow) // Not hot
+            .Where(e => !e.Value.Reputation.IsManual) // Not manual
+            .Where(e => e.Value.Reputation.State == ReputationState.Neutral) // Only neutral
+            .OrderBy(e => e.Value.AccessCount)
+            .ThenBy(e => e.Value.LastAccess)
+            .Take(count)
+            .Select(e => e.Key)
+            .ToList();
+
+        foreach (var key in coldest)
+            if (_cache.TryRemove(key, out _))
+                _signals.Raise($"{ReputationSignals.Evicted}:{key}:cold");
+
+        if (coldest.Count > 0) _logger.LogDebug("Evicted {Count} cold patterns", coldest.Count);
+    }
+
+    private async Task ExecutePersistBatchAsync(IReadOnlyList<PatternReputation> reputations, CancellationToken ct)
+    {
+        try
+        {
+            var saved = 0;
+
+            foreach (var reputation in reputations)
+            {
+                if (ct.IsCancellationRequested) break;
+
+                // Convert PatternReputation to LearnedSignature
+                var signature = new LearnedSignature
+                {
+                    PatternId = reputation.PatternId,
+                    SignatureType = reputation.PatternType,
+                    Pattern = reputation.Pattern,
+                    Confidence = reputation.BotScore,
+                    Occurrences = (int)Math.Round(reputation.Support),
+                    FirstSeen = reputation.FirstSeen,
+                    LastSeen = reputation.LastSeen,
+                    Action = reputation.State switch
+                    {
+                        ReputationState.ManuallyBlocked => LearnedPatternAction.Full,
+                        ReputationState.ConfirmedBad => LearnedPatternAction.Full,
+                        ReputationState.Suspect => LearnedPatternAction.ScoreOnly,
+                        ReputationState.Neutral => LearnedPatternAction.LogOnly,
+                        ReputationState.ConfirmedGood => LearnedPatternAction.LogOnly,
+                        ReputationState.ManuallyAllowed => LearnedPatternAction.LogOnly,
+                        _ => LearnedPatternAction.LogOnly
+                    },
+                    BotType = null,
+                    BotName = null,
+                    Source = "ReputationCache"
+                };
+
+                await _patternStore!.UpsertAsync(signature, ct);
+
+                // Clear dirty flag after successful persistence
+                if (_cache.TryGetValue(reputation.PatternId, out var entry)) entry.IsDirty = false;
+
+                saved++;
+            }
+
+            if (saved > 0) _logger.LogDebug("Persisted {Count} pattern reputations to SQLite", saved);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist pattern reputation batch");
+        }
+    }
+
+    /// <summary>
     ///     Get ephemeral-specific stats including hot key info.
     /// </summary>
     public EphemeralReputationStats GetEphemeralStats()
@@ -548,27 +512,23 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
         return count % 10 == 0;
     }
 
-    public async ValueTask DisposeAsync()
+    // Signal constants
+    public static class ReputationSignals
     {
-        _decayCoordinator.Complete();
-        await _decayCoordinator.DisposeAsync();
-
-        if (_persistCoordinator != null)
-        {
-            _persistCoordinator.Complete();
-            await _persistCoordinator.DisposeAsync();
-        }
+        public const string PatternCreated = "reputation.created";
+        public const string PatternUpdated = "reputation.updated";
+        public const string StateChanged = "reputation.state_changed";
+        public const string HotKey = "reputation.hot_key";
+        public const string Evicted = "reputation.evicted";
+        public const string DecaySweepStarted = "reputation.decay_sweep_started";
+        public const string DecaySweepCompleted = "reputation.decay_sweep_completed";
+        public const string GcStarted = "reputation.gc_started";
+        public const string GcCompleted = "reputation.gc_completed";
     }
 
     // Internal cache entry with access tracking
     private sealed class CacheEntry
     {
-        public PatternReputation Reputation { get; set; }
-        public DateTimeOffset LastAccess { get; set; }
-        public DateTimeOffset HotUntil { get; set; }
-        public int AccessCount { get; set; }
-        public bool IsDirty { get; set; }
-
         public CacheEntry(PatternReputation reputation, bool isDirty = true)
         {
             Reputation = reputation;
@@ -577,6 +537,12 @@ public sealed class EphemeralPatternReputationCache : IPatternReputationCache, I
             HotUntil = DateTimeOffset.MinValue;
             AccessCount = 1;
         }
+
+        public PatternReputation Reputation { get; set; }
+        public DateTimeOffset LastAccess { get; set; }
+        public DateTimeOffset HotUntil { get; set; }
+        public int AccessCount { get; set; }
+        public bool IsDirty { get; set; }
     }
 
     private readonly record struct DecayWork(DecayWorkType Type, int Count = 0);

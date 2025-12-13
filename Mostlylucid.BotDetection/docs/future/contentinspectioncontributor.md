@@ -1,4 +1,5 @@
-﻿Here we go — a **Content Inspector** spec that plugs cleanly into your existing semantic firewall / botdetection / gateway ideas, with as many detectors & “contributors” as I can cram in without turning it into an RFC.
+﻿Here we go — a **Content Inspector** spec that plugs cleanly into your existing semantic firewall / botdetection /
+gateway ideas, with as many detectors & “contributors” as I can cram in without turning it into an RFC.
 
 ---
 
@@ -17,7 +18,8 @@ Introduce a **Content Inspector** component at the proxy/gateway layer that:
     * assist compliance (PII, secrets, risky content),
     * support future RAG / analytics.
 
-The inspector is purely **observational + feature-extracting** in this spec. Rewriting / blocking is done by separate policy layers that consume these features.
+The inspector is purely **observational + feature-extracting** in this spec. Rewriting / blocking is done by separate
+policy layers that consume these features.
 
 ---
 
@@ -217,7 +219,8 @@ Below: all the detector types that make sense here. Each is one implementation o
 * Inspect `Content-Type` and sniff first bytes.
 * Set flags / features:
 
-    * `content.is_json`, `content.is_html`, `content.is_xml`, `content.is_graphql`, `content.is_sql_like`, `content.is_text`, `content.is_binary`.
+    * `content.is_json`, `content.is_html`, `content.is_xml`, `content.is_graphql`, `content.is_sql_like`,
+      `content.is_text`, `content.is_binary`.
 * Detect GraphQL:
 
     * `{ query: "...", variables: {...} }`
@@ -715,7 +718,8 @@ Top-level config idea:
 
     * redact configured field names,
     * optionally hash identifiers.
-* **Forensics:** Store only summaries & structured signals where possible; raw content only in strict, short-retention stores.
+* **Forensics:** Store only summaries & structured signals where possible; raw content only in strict, short-retention
+  stores.
 * **Configurable:** Make it trivially easy to **turn off** heavy or sensitive detectors per route / segment.
 
 ---

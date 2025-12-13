@@ -14,10 +14,10 @@ namespace Mostlylucid.BotDetection.Services;
 public class BotListUpdateService : BackgroundService
 {
     private readonly IBotListDatabase _database;
-    private readonly ICompiledPatternCache? _patternCache;
-    private readonly BotDetectionMetrics? _metrics;
     private readonly ILogger<BotListUpdateService> _logger;
+    private readonly BotDetectionMetrics? _metrics;
     private readonly BotDetectionOptions _options;
+    private readonly ICompiledPatternCache? _patternCache;
     private int _consecutiveFailures;
     private DateTime? _lastSuccessfulUpdate;
 
@@ -156,11 +156,9 @@ public class BotListUpdateService : BackgroundService
                 var timeUntilUpdate = nextUpdate - DateTime.UtcNow;
 
                 if (_options.LogPerformanceMetrics)
-                {
                     _logger.LogDebug(
                         "Bot lists are up to date (last update: {LastUpdate:u}). Next update in {Hours:F1} hours",
                         lastUpdate.Value, timeUntilUpdate.TotalHours);
-                }
             }
         }
         catch (OperationCanceledException)
@@ -181,7 +179,6 @@ public class BotListUpdateService : BackgroundService
         var maxRetries = _options.MaxDownloadRetries;
 
         for (var attempt = 1; attempt <= maxRetries; attempt++)
-        {
             try
             {
                 _logger.LogDebug("Starting bot list update (attempt {Attempt}/{MaxRetries})", attempt, maxRetries);
@@ -215,14 +212,7 @@ public class BotListUpdateService : BackgroundService
                         "Bot list update attempt {Attempt}/{MaxRetries} failed. Retrying in {Seconds} seconds...",
                         attempt, maxRetries, retryDelay.TotalSeconds);
 
-                    try
-                    {
-                        await Task.Delay(retryDelay, cancellationToken);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        throw;
-                    }
+                    await Task.Delay(retryDelay, cancellationToken);
                 }
                 else
                 {
@@ -232,7 +222,6 @@ public class BotListUpdateService : BackgroundService
                         maxRetries);
                 }
             }
-        }
     }
 
     private async Task UpdatePatternCacheAsync(CancellationToken cancellationToken)

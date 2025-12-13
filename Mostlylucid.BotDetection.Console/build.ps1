@@ -2,11 +2,11 @@
 # Builds AOT-compiled single-file executables for multiple platforms
 
 param(
-    [Parameter(Mandatory=$false)]
+    [Parameter(Mandatory = $false)]
     [ValidateSet('all', 'win-x64', 'win-arm64', 'linux-x64', 'linux-arm64', 'osx-x64', 'osx-arm64')]
     [string]$Target = 'all',
 
-    [Parameter(Mandatory=$false)]
+    [Parameter(Mandatory = $false)]
     [ValidateSet('Release', 'Debug')]
     [string]$Configuration = 'Release'
 )
@@ -20,7 +20,8 @@ Write-Host ""
 
 $projectPath = "Mostlylucid.BotDetection.Console.csproj"
 
-function Build-Target {
+function Build-Target
+{
     param(
         [string]$RuntimeId,
         [string]$PlatformName
@@ -31,7 +32,8 @@ function Build-Target {
     $outputPath = "bin/$Configuration/net9.0/$RuntimeId/publish"
 
     # Clean previous build
-    if (Test-Path $outputPath) {
+    if (Test-Path $outputPath)
+    {
         Remove-Item $outputPath -Recurse -Force
     }
 
@@ -48,25 +50,35 @@ function Build-Target {
         /p:OptimizationPreference=Speed `
         /p:IlcOptimizationPreference=Speed
 
-    if ($LASTEXITCODE -ne 0) {
+    if ($LASTEXITCODE -ne 0)
+    {
         Write-Host "Build failed for $PlatformName" -ForegroundColor Red
         exit 1
     }
 
     # Get file size
-    $exeName = if ($RuntimeId.StartsWith("win")) { "minigw.exe" } else { "minigw" }
+    $exeName = if ( $RuntimeId.StartsWith("win"))
+    {
+        "minigw.exe"
+    }
+    else
+    {
+        "minigw"
+    }
     $exePath = Join-Path $outputPath $exeName
 
-    if (Test-Path $exePath) {
+    if (Test-Path $exePath)
+    {
         $size = (Get-Item $exePath).Length / 1MB
-        Write-Host "✓ Built successfully: $exePath ($([math]::Round($size, 2)) MB)" -ForegroundColor Green
+        Write-Host "✓ Built successfully: $exePath ($([math]::Round($size, 2) ) MB)" -ForegroundColor Green
     }
 
     Write-Host ""
 }
 
 # Build targets
-switch ($Target) {
+switch ($Target)
+{
     'all' {
         Write-Host "Building all targets..." -ForegroundColor Cyan
         Write-Host ""
@@ -78,13 +90,26 @@ switch ($Target) {
         Build-Target "osx-arm64" "macOS ARM64 (Apple Silicon)"
     }
     default {
-        $platformName = switch ($Target) {
-            'win-x64' { "Windows x64" }
-            'win-arm64' { "Windows ARM64 (Surface Pro X)" }
-            'linux-x64' { "Linux x64" }
-            'linux-arm64' { "Linux ARM64 (Raspberry Pi)" }
-            'osx-x64' { "macOS x64 (Intel)" }
-            'osx-arm64' { "macOS ARM64 (Apple Silicon)" }
+        $platformName = switch ($Target)
+        {
+            'win-x64' {
+                "Windows x64"
+            }
+            'win-arm64' {
+                "Windows ARM64 (Surface Pro X)"
+            }
+            'linux-x64' {
+                "Linux x64"
+            }
+            'linux-arm64' {
+                "Linux ARM64 (Raspberry Pi)"
+            }
+            'osx-x64' {
+                "macOS x64 (Intel)"
+            }
+            'osx-arm64' {
+                "macOS ARM64 (Apple Silicon)"
+            }
         }
         Build-Target $Target $platformName
     }

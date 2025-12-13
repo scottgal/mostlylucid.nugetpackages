@@ -18,6 +18,11 @@ public class LlmDetectorTests : IDisposable
         _logger = new Mock<ILogger<LlmDetector>>().Object;
     }
 
+    public void Dispose()
+    {
+        // Cleanup if needed
+    }
+
     private LlmDetector CreateDetector(BotDetectionOptions? options = null)
     {
         return new LlmDetector(
@@ -25,10 +30,22 @@ public class LlmDetectorTests : IDisposable
             Options.Create(options ?? new BotDetectionOptions()));
     }
 
-    public void Dispose()
+    #region Configuration Defaults Tests
+
+    [Fact]
+    public void OllamaOptions_DefaultsAreCorrect()
     {
-        // Cleanup if needed
+        // Arrange
+        var options = new OllamaOptions();
+
+        // Assert
+        Assert.True(options.Enabled);
+        Assert.Equal("http://localhost:11434", options.Endpoint);
+        Assert.Equal("gemma3:4b", options.Model);
+        Assert.True(options.UseJsonMode);
     }
+
+    #endregion
 
     #region Enabled Configuration Tests
 
@@ -103,23 +120,6 @@ public class LlmDetectorTests : IDisposable
 
         // Assert - should gracefully handle the connection failure
         Assert.NotNull(result);
-    }
-
-    #endregion
-
-    #region Configuration Defaults Tests
-
-    [Fact]
-    public void OllamaOptions_DefaultsAreCorrect()
-    {
-        // Arrange
-        var options = new OllamaOptions();
-
-        // Assert
-        Assert.True(options.Enabled);
-        Assert.Equal("http://localhost:11434", options.Endpoint);
-        Assert.Equal("gemma3:4b", options.Model);
-        Assert.True(options.UseJsonMode);
     }
 
     #endregion

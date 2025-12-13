@@ -7,14 +7,14 @@ using Mostlylucid.BotDetection.UI.Hubs;
 namespace Mostlylucid.BotDetection.UI.Services;
 
 /// <summary>
-/// Background service that periodically broadcasts summary statistics to dashboard clients.
+///     Background service that periodically broadcasts summary statistics to dashboard clients.
 /// </summary>
 public class DashboardSummaryBroadcaster : BackgroundService
 {
-    private readonly IHubContext<StyloBotDashboardHub, IStyloBotDashboardHub> _hubContext;
     private readonly IDashboardEventStore _eventStore;
-    private readonly StyloBotDashboardOptions _options;
+    private readonly IHubContext<StyloBotDashboardHub, IStyloBotDashboardHub> _hubContext;
     private readonly ILogger<DashboardSummaryBroadcaster> _logger;
+    private readonly StyloBotDashboardOptions _options;
 
     public DashboardSummaryBroadcaster(
         IHubContext<StyloBotDashboardHub, IStyloBotDashboardHub> hubContext,
@@ -35,7 +35,6 @@ public class DashboardSummaryBroadcaster : BackgroundService
             _options.SummaryBroadcastIntervalSeconds);
 
         while (!stoppingToken.IsCancellationRequested)
-        {
             try
             {
                 var summary = await _eventStore.GetSummaryAsync();
@@ -55,7 +54,6 @@ public class DashboardSummaryBroadcaster : BackgroundService
                 _logger.LogError(ex, "Error broadcasting summary");
                 await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
             }
-        }
 
         _logger.LogInformation("Dashboard summary broadcaster stopped");
     }

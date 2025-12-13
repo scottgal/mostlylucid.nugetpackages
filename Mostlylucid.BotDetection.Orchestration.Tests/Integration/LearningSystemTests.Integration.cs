@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Models;
-using Xunit;
 using Xunit.Abstractions;
 
 namespace Mostlylucid.BotDetection.Orchestration.Tests.Integration;
@@ -26,19 +26,20 @@ public class LearningSystemTests
     {
         // Arrange
         var logger = new TestLogger<PatternReputationUpdater>();
-        var options = Microsoft.Extensions.Options.Options.Create(new BotDetectionOptions());
+        var options = Options.Create(new BotDetectionOptions());
         var updater = new PatternReputationUpdater(logger, options);
 
         // Act
         var result = updater.ApplyEvidence(
-            current: null,
-            patternId: "ua:test123",
-            patternType: "UserAgent",
-            pattern: "TestBot/1.0",
-            label: 1.0); // bot
+            null,
+            "ua:test123",
+            "UserAgent",
+            "TestBot/1.0",
+            1.0); // bot
 
         // Assert
-        _output.WriteLine($"New pattern: Score={result.BotScore:F3}, Support={result.Support:F1}, State={result.State}");
+        _output.WriteLine(
+            $"New pattern: Score={result.BotScore:F3}, Support={result.Support:F1}, State={result.State}");
         Assert.Equal(1.0, result.BotScore);
         Assert.Equal(1.0, result.Support);
         Assert.Equal(ReputationState.Neutral, result.State);
@@ -49,7 +50,7 @@ public class LearningSystemTests
     {
         // Arrange
         var logger = new TestLogger<PatternReputationUpdater>();
-        var options = Microsoft.Extensions.Options.Options.Create(new BotDetectionOptions
+        var options = Options.Create(new BotDetectionOptions
         {
             Reputation = new ReputationOptions { LearningRate = 0.2 }
         });
@@ -57,18 +58,17 @@ public class LearningSystemTests
 
         // Act - Apply multiple bot signals
         PatternReputation? rep = null;
-        for (int i = 0; i < 15; i++)
-        {
+        for (var i = 0; i < 15; i++)
             rep = updater.ApplyEvidence(
-                current: rep,
-                patternId: "ua:test123",
-                patternType: "UserAgent",
-                pattern: "TestBot/1.0",
-                label: 1.0);
-        }
+                rep,
+                "ua:test123",
+                "UserAgent",
+                "TestBot/1.0",
+                1.0);
 
         // Assert
-        _output.WriteLine($"After 15 bot signals: Score={rep!.BotScore:F3}, Support={rep.Support:F1}, State={rep.State}");
+        _output.WriteLine(
+            $"After 15 bot signals: Score={rep!.BotScore:F3}, Support={rep.Support:F1}, State={rep.State}");
         Assert.True(rep.BotScore > 0.9, $"Expected score > 0.9, got {rep.BotScore}");
         Assert.Equal(15.0, rep.Support);
         // Should be Suspect (score >= 0.6, support >= 10)
@@ -80,7 +80,7 @@ public class LearningSystemTests
     {
         // Arrange
         var logger = new TestLogger<PatternReputationUpdater>();
-        var options = Microsoft.Extensions.Options.Options.Create(new BotDetectionOptions
+        var options = Options.Create(new BotDetectionOptions
         {
             Reputation = new ReputationOptions
             {
@@ -93,18 +93,17 @@ public class LearningSystemTests
 
         // Act - Apply enough bot signals to reach ConfirmedBad
         PatternReputation? rep = null;
-        for (int i = 0; i < 60; i++)
-        {
+        for (var i = 0; i < 60; i++)
             rep = updater.ApplyEvidence(
-                current: rep,
-                patternId: "ua:test123",
-                patternType: "UserAgent",
-                pattern: "TestBot/1.0",
-                label: 1.0);
-        }
+                rep,
+                "ua:test123",
+                "UserAgent",
+                "TestBot/1.0",
+                1.0);
 
         // Assert
-        _output.WriteLine($"After 60 bot signals: Score={rep!.BotScore:F3}, Support={rep.Support:F1}, State={rep.State}");
+        _output.WriteLine(
+            $"After 60 bot signals: Score={rep!.BotScore:F3}, Support={rep.Support:F1}, State={rep.State}");
         Assert.True(rep.BotScore >= 0.9, $"Expected score >= 0.9, got {rep.BotScore}");
         Assert.True(rep.Support >= 50, $"Expected support >= 50, got {rep.Support}");
         Assert.Equal(ReputationState.ConfirmedBad, rep.State);
@@ -115,7 +114,7 @@ public class LearningSystemTests
     {
         // Arrange
         var logger = new TestLogger<PatternReputationUpdater>();
-        var options = Microsoft.Extensions.Options.Options.Create(new BotDetectionOptions
+        var options = Options.Create(new BotDetectionOptions
         {
             Reputation = new ReputationOptions { LearningRate = 0.1 }
         });
@@ -123,15 +122,15 @@ public class LearningSystemTests
 
         // Act - 80% bot, 20% human
         PatternReputation? rep = null;
-        for (int i = 0; i < 100; i++)
+        for (var i = 0; i < 100; i++)
         {
             var label = i % 5 != 0 ? 1.0 : 0.0; // 80% bot
             rep = updater.ApplyEvidence(
-                current: rep,
-                patternId: "ua:test123",
-                patternType: "UserAgent",
-                pattern: "TestBot/1.0",
-                label: label);
+                rep,
+                "ua:test123",
+                "UserAgent",
+                "TestBot/1.0",
+                label);
         }
 
         // Assert
@@ -146,7 +145,7 @@ public class LearningSystemTests
     {
         // Arrange
         var logger = new TestLogger<PatternReputationUpdater>();
-        var options = Microsoft.Extensions.Options.Options.Create(new BotDetectionOptions
+        var options = Options.Create(new BotDetectionOptions
         {
             Reputation = new ReputationOptions
             {
@@ -186,7 +185,7 @@ public class LearningSystemTests
     {
         // Arrange
         var logger = new TestLogger<PatternReputationUpdater>();
-        var options = Microsoft.Extensions.Options.Options.Create(new BotDetectionOptions());
+        var options = Options.Create(new BotDetectionOptions());
         var updater = new PatternReputationUpdater(logger, options);
 
         var manualPattern = new PatternReputation
@@ -202,14 +201,15 @@ public class LearningSystemTests
 
         // Act - Try to apply human signals
         var result = updater.ApplyEvidence(
-            current: manualPattern,
-            patternId: manualPattern.PatternId,
-            patternType: manualPattern.PatternType,
-            pattern: manualPattern.Pattern,
-            label: 0.0); // human signal
+            manualPattern,
+            manualPattern.PatternId,
+            manualPattern.PatternType,
+            manualPattern.Pattern,
+            0.0); // human signal
 
         // Assert
-        _output.WriteLine($"Manual blocked pattern after human signal: Score={result.BotScore:F3}, State={result.State}");
+        _output.WriteLine(
+            $"Manual blocked pattern after human signal: Score={result.BotScore:F3}, State={result.State}");
         Assert.Equal(ReputationState.ManuallyBlocked, result.State);
         Assert.Equal(1.0, result.BotScore); // Unchanged
     }
@@ -219,7 +219,7 @@ public class LearningSystemTests
     {
         // Arrange
         var logger = new TestLogger<PatternReputationUpdater>();
-        var options = Microsoft.Extensions.Options.Options.Create(new BotDetectionOptions
+        var options = Options.Create(new BotDetectionOptions
         {
             Reputation = new ReputationOptions
             {
@@ -266,7 +266,8 @@ public class LearningSystemTests
         // Assert
         Assert.True(updater.IsEligibleForGc(oldNeutralPattern), "Old neutral pattern should be GC eligible");
         Assert.False(updater.IsEligibleForGc(recentPattern), "Recent pattern should not be GC eligible");
-        Assert.False(updater.IsEligibleForGc(oldSuspectPattern), "Old suspect pattern should not be GC eligible (GcOnlyNeutral)");
+        Assert.False(updater.IsEligibleForGc(oldSuspectPattern),
+            "Old suspect pattern should not be GC eligible (GcOnlyNeutral)");
 
         _output.WriteLine("GC eligibility tests passed");
     }
@@ -277,7 +278,7 @@ public class LearningSystemTests
         // Arrange
         var logger = new TestLogger<InMemoryPatternReputationCache>();
         var updaterLogger = new TestLogger<PatternReputationUpdater>();
-        var options = Microsoft.Extensions.Options.Options.Create(new BotDetectionOptions());
+        var options = Options.Create(new BotDetectionOptions());
         var updater = new PatternReputationUpdater(updaterLogger, options);
         var cache = new InMemoryPatternReputationCache(logger, updater);
 
@@ -297,7 +298,7 @@ public class LearningSystemTests
         // Arrange
         var logger = new TestLogger<InMemoryPatternReputationCache>();
         var updaterLogger = new TestLogger<PatternReputationUpdater>();
-        var options = Microsoft.Extensions.Options.Options.Create(new BotDetectionOptions());
+        var options = Options.Create(new BotDetectionOptions());
         var updater = new PatternReputationUpdater(updaterLogger, options);
         var cache = new InMemoryPatternReputationCache(logger, updater);
 
@@ -321,7 +322,7 @@ public class LearningSystemTests
         // Arrange
         var logger = new TestLogger<InMemoryPatternReputationCache>();
         var updaterLogger = new TestLogger<PatternReputationUpdater>();
-        var options = Microsoft.Extensions.Options.Options.Create(new BotDetectionOptions());
+        var options = Options.Create(new BotDetectionOptions());
         var updater = new PatternReputationUpdater(updaterLogger, options);
         var cache = new InMemoryPatternReputationCache(logger, updater);
 
@@ -351,7 +352,8 @@ public class LearningSystemTests
         Assert.Equal(1, stats.SuspectCount);
         Assert.Equal(1, stats.ConfirmedBadCount);
 
-        _output.WriteLine($"Stats: Total={stats.TotalPatterns}, Neutral={stats.NeutralCount}, Suspect={stats.SuspectCount}, Bad={stats.ConfirmedBadCount}");
+        _output.WriteLine(
+            $"Stats: Total={stats.TotalPatterns}, Neutral={stats.NeutralCount}, Suspect={stats.SuspectCount}, Bad={stats.ConfirmedBadCount}");
     }
 
     [Fact]
@@ -359,7 +361,7 @@ public class LearningSystemTests
     {
         // Arrange
         var logger = new TestLogger<PatternReputationUpdater>();
-        var options = Microsoft.Extensions.Options.Options.Create(new BotDetectionOptions
+        var options = Options.Create(new BotDetectionOptions
         {
             Reputation = new ReputationOptions
             {
@@ -372,29 +374,25 @@ public class LearningSystemTests
 
         // Build up a bad reputation first
         PatternReputation? rep = null;
-        for (int i = 0; i < 60; i++)
-        {
+        for (var i = 0; i < 60; i++)
             rep = updater.ApplyEvidence(
-                current: rep,
-                patternId: "ua:rehab",
-                patternType: "UserAgent",
-                pattern: "RehabBot/1.0",
-                label: 1.0);
-        }
+                rep,
+                "ua:rehab",
+                "UserAgent",
+                "RehabBot/1.0",
+                1.0);
 
         _output.WriteLine($"After 60 bot signals: Score={rep!.BotScore:F3}, State={rep.State}");
         Assert.Equal(ReputationState.ConfirmedBad, rep.State);
 
         // Now rehabilitate with human signals
-        for (int i = 0; i < 150; i++)
-        {
+        for (var i = 0; i < 150; i++)
             rep = updater.ApplyEvidence(
-                current: rep,
-                patternId: "ua:rehab",
-                patternType: "UserAgent",
-                pattern: "RehabBot/1.0",
-                label: 0.0); // human signal
-        }
+                rep,
+                "ua:rehab",
+                "UserAgent",
+                "RehabBot/1.0",
+                0.0); // human signal
 
         // Assert
         _output.WriteLine($"After rehabilitation: Score={rep.BotScore:F3}, State={rep.State}");
@@ -409,9 +407,18 @@ public class LearningSystemTests
 /// </summary>
 public class TestLogger<T> : ILogger<T>
 {
-    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-    public bool IsEnabled(LogLevel logLevel) => true;
-    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+    {
+        return null;
+    }
+
+    public bool IsEnabled(LogLevel logLevel)
+    {
+        return true;
+    }
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+        Func<TState, Exception?, string> formatter)
     {
         // No-op for tests
     }

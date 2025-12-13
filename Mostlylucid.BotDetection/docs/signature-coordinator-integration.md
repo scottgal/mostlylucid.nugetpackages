@@ -2,7 +2,8 @@
 
 ## Summary
 
-Successfully integrated the refactored SignatureCoordinator into the BlackboardOrchestrator detection pipeline. The coordinator now tracks signatures across multiple requests using ephemeral.complete patterns.
+Successfully integrated the refactored SignatureCoordinator into the BlackboardOrchestrator detection pipeline. The
+coordinator now tracks signatures across multiple requests using ephemeral.complete patterns.
 
 ## Changes Made
 
@@ -11,6 +12,7 @@ Successfully integrated the refactored SignatureCoordinator into the BlackboardO
 **File:** `Orchestration/BlackboardOrchestrator.cs`
 
 #### Constructor Changes
+
 ```csharp
 public BlackboardOrchestrator(
     // ... existing parameters ...
@@ -22,6 +24,7 @@ public BlackboardOrchestrator(
 ```
 
 #### Detection Pipeline Integration
+
 ```csharp
 // After detection completes (line 555-578)
 if (_signatureCoordinator != null)
@@ -49,6 +52,7 @@ if (_signatureCoordinator != null)
 ```
 
 #### Signature Hashing Method
+
 ```csharp
 /// <summary>
 ///     Compute privacy-preserving signature hash from client IP.
@@ -71,11 +75,13 @@ private static string ComputeSignatureHash(HttpContext httpContext)
 **File:** `Mostlylucid.BotDetection.Demo/appsettings.json`
 
 **Problem:**
+
 - LLM timeout: 15 seconds (`AiDetection.TimeoutMs`)
 - Orchestrator timeout: 5 seconds (default)
 - Result: LLM always times out in `demo` policy
 
 **Fix:**
+
 ```json
 "demo": {
   "Description": "DEMO - full pipeline sync for demonstration",
@@ -145,21 +151,25 @@ private static string ComputeSignatureHash(HttpContext httpContext)
 ## Key Design Decisions
 
 ### 1. Fire-and-Forget Pattern
+
 **Why:** Don't block request completion waiting for signature recording
 **How:** Use `_ = Task` without await
 **Benefit:** Zero latency impact on user-facing requests
 
 ### 2. Privacy-Preserving Hashing
+
 **Why:** Comply with privacy regulations (GDPR, CCPA)
 **How:** XxHash64 of IP address (non-reversible, deterministic)
 **Benefit:** Track patterns without storing PII
 
 ### 3. Error Handling
+
 **Why:** Signature recording failures shouldn't break detection
 **How:** Try-catch with warning log
 **Benefit:** Graceful degradation if SignatureCoordinator unavailable
 
 ### 4. Optional Dependency
+
 **Why:** Allow systems without cross-request tracking
 **How:** Nullable injection `SignatureCoordinator?`
 **Benefit:** Backward compatible, opt-in feature
@@ -179,6 +189,7 @@ private static string ComputeSignatureHash(HttpContext httpContext)
 ```
 
 **Expected Logs:**
+
 ```
 info: Mostlylucid.BotDetection.Orchestration.SignatureCoordinator[0]
       SignatureCoordinator initialized: window=00:15:00, maxSignatures=1000, ttl=00:30:00
@@ -203,6 +214,7 @@ dbug: Mostlylucid.BotDetection.Orchestration.SignatureCoordinator[0]
 ```
 
 **Expected Logs:**
+
 ```
 dbug: Mostlylucid.BotDetection.Orchestration.SignatureCoordinator[0]
       signature.update: E3C9A7B5F2D1E8A4, requests=2, score=0.15, aberrant=false
@@ -225,6 +237,7 @@ dbug: Mostlylucid.BotDetection.Orchestration.SignatureCoordinator[0]
 ```
 
 **Expected Logs:**
+
 ```
 warn: Mostlylucid.BotDetection.Orchestration.SignatureCoordinator[0]
       Aberration detected for signature E3C9A7B5F2D1E8A4: score=0.85, requests=6,
@@ -232,6 +245,7 @@ warn: Mostlylucid.BotDetection.Orchestration.SignatureCoordinator[0]
 ```
 
 **Signals Emitted:**
+
 - `signature.aberration` with payload containing full aberration details
 
 ## Testing Checklist
@@ -242,13 +256,13 @@ warn: Mostlylucid.BotDetection.Orchestration.SignatureCoordinator[0]
 - ✅ Fire-and-forget RecordRequestAsync call
 - ✅ Privacy-preserving IP hashing
 - ⏳ **Runtime testing needed:**
-  - [ ] SignatureCoordinator initialization log appears
-  - [ ] First request creates new tracking atom
-  - [ ] Subsequent requests reuse cached atom
-  - [ ] Cross-request metrics computed
-  - [ ] Aberration detection triggers after 5+ requests
-  - [ ] Signals emitted correctly
-  - [ ] No performance impact on request latency
+    - [ ] SignatureCoordinator initialization log appears
+    - [ ] First request creates new tracking atom
+    - [ ] Subsequent requests reuse cached atom
+    - [ ] Cross-request metrics computed
+    - [ ] Aberration detection triggers after 5+ requests
+    - [ ] Signals emitted correctly
+    - [ ] No performance impact on request latency
 
 ## Configuration
 
@@ -274,17 +288,20 @@ No configuration changes needed! Uses existing settings:
 ## Performance Impact
 
 ### Request Latency: **ZERO**
+
 - Fire-and-forget pattern
 - No await on RecordRequestAsync
 - Signature recording happens async in background
 
 ### Memory: **~100 MB maximum**
+
 - SlidingCacheAtom: 1000 signatures max
 - Each signature: ~100 KB (100 requests × ~1 KB)
 - Total: 1000 × 100 KB = 100 MB
 - Auto-eviction via LRU + TTL keeps it bounded
 
 ### CPU: **Minimal**
+
 - XxHash64: ~10-50ns per hash
 - KeyedSequentialAtom: O(1) enqueue
 - Per-signature processing: <1ms for 100-request window
@@ -312,4 +329,5 @@ No configuration changes needed! Uses existing settings:
 ✅ **Error-Resilient**
 ⏳ **Ready for Runtime Testing**
 
-The SignatureCoordinator is now fully integrated into the detection pipeline and ready to track cross-request patterns using ephemeral.complete's SlidingCacheAtom and KeyedSequentialAtom patterns!
+The SignatureCoordinator is now fully integrated into the detection pipeline and ready to track cross-request patterns
+using ephemeral.complete's SlidingCacheAtom and KeyedSequentialAtom patterns!

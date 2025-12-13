@@ -18,9 +18,9 @@ namespace Mostlylucid.BotDetection.Detectors;
 public class ClientSideDetector : IDetector
 {
     private readonly ILogger<ClientSideDetector> _logger;
+    private readonly BotDetectionMetrics? _metrics;
     private readonly BotDetectionOptions _options;
     private readonly IBrowserFingerprintStore _store;
-    private readonly BotDetectionMetrics? _metrics;
 
     public ClientSideDetector(
         ILogger<ClientSideDetector> logger,
@@ -44,10 +44,7 @@ public class ClientSideDetector : IDetector
         var stopwatch = Stopwatch.StartNew();
         var result = new DetectorResult();
 
-        if (!_options.ClientSide.Enabled)
-        {
-            return Task.FromResult(result);
-        }
+        if (!_options.ClientSide.Enabled) return Task.FromResult(result);
 
         try
         {
@@ -61,16 +58,13 @@ public class ClientSideDetector : IDetector
                 // privacy tool, or API call. This is NOT suspicious by itself.
                 // Missing data ≠ malicious - treat as neutral.
                 if (_options.ClientSide.Enabled)
-                {
                     result.Reasons.Add(new DetectionReason
                     {
                         Category = "ClientSide",
                         Detail = "No browser fingerprint available (awaiting JS execution)",
                         ConfidenceImpact = 0 // Neutral - absence of data is not evidence
                     });
-                    // No confidence adjustment - neutral signal
-                }
-
+                // No confidence adjustment - neutral signal
                 stopwatch.Stop();
                 return Task.FromResult(result);
             }
@@ -123,21 +117,20 @@ public class ClientSideDetector : IDetector
                 result.Reasons.Add(new DetectionReason
                 {
                     Category = "ClientSide",
-                    Detail = $"Fingerprint inconsistencies detected (score: {fingerprint.FingerprintConsistencyScore}/100)",
+                    Detail =
+                        $"Fingerprint inconsistencies detected (score: {fingerprint.FingerprintConsistencyScore}/100)",
                     ConfidenceImpact = consistencyImpact
                 });
             }
 
             // Add specific reasons from fingerprint analysis
             foreach (var reason in fingerprint.Reasons.Take(3)) // Limit to top 3
-            {
                 result.Reasons.Add(new DetectionReason
                 {
                     Category = "ClientSide",
                     Detail = reason,
                     ConfidenceImpact = 0.1
                 });
-            }
 
             // Cap confidence at 1.0
             result.Confidence = Math.Min(1.0, result.Confidence);

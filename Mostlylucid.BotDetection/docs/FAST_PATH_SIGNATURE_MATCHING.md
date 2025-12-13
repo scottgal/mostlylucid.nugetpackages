@@ -2,7 +2,8 @@
 
 ## Overview
 
-The `FastPathSignatureMatcher` provides **first-hit signature detection** using multi-factor weighted scoring to identify returning clients while **guarding against false positives**.
+The `FastPathSignatureMatcher` provides **first-hit signature detection** using multi-factor weighted scoring to
+identify returning clients while **guarding against false positives**.
 
 ## Architecture
 
@@ -65,21 +66,21 @@ RESPONSE SENT
 
 These are available IMMEDIATELY on first request:
 
-| Factor | Source | Weight | Purpose |
-|--------|--------|--------|---------|
-| **Primary** | HMAC(IP + UA) | 100% | Exact match - both IP and UA identical |
-| **IP** | HMAC(IP) | 50% | Handles UA changes (browser updates) |
-| **UA** | HMAC(User-Agent) | 50% | Handles IP changes (mobile, dynamic ISP) |
-| **IP Subnet** | HMAC(IP /24) | 30% | Network-level grouping (datacenter detection) |
+| Factor        | Source           | Weight | Purpose                                       |
+|---------------|------------------|--------|-----------------------------------------------|
+| **Primary**   | HMAC(IP + UA)    | 100%   | Exact match - both IP and UA identical        |
+| **IP**        | HMAC(IP)         | 50%    | Handles UA changes (browser updates)          |
+| **UA**        | HMAC(User-Agent) | 50%    | Handles IP changes (mobile, dynamic ISP)      |
+| **IP Subnet** | HMAC(IP /24)     | 30%    | Network-level grouping (datacenter detection) |
 
 ## Signature Factors (Client-Side Postback)
 
 These come LATER via async postback:
 
-| Factor | Source | Weight | Purpose |
-|--------|--------|--------|---------|
-| **ClientSide** | HMAC(Canvas+WebGL+AudioContext) | 80% | Hardware fingerprint (most stable) |
-| **Plugin** | HMAC(Plugins+Extensions+Fonts) | 60% | Browser configuration (stable) |
+| Factor         | Source                          | Weight | Purpose                            |
+|----------------|---------------------------------|--------|------------------------------------|
+| **ClientSide** | HMAC(Canvas+WebGL+AudioContext) | 80%    | Hardware fingerprint (most stable) |
+| **Plugin**     | HMAC(Plugins+Extensions+Fonts)  | 60%    | Browser configuration (stable)     |
 
 **CRITICAL**: Client-side factors are NOT available during first-hit matching!
 They're added via postback AFTER the response is sent.
@@ -89,6 +90,7 @@ They're added via postback AFTER the response is sent.
 ### Match Rules (Priority Order)
 
 **Rule 1: Primary Signature Match**
+
 ```
 IF Primary matches:
   → Confidence = 100%
@@ -97,6 +99,7 @@ IF Primary matches:
 ```
 
 **Rule 2: IP + UA Both Match**
+
 ```
 IF IP matches AND UA matches:
   → Confidence = 100% (50% + 50%)
@@ -105,6 +108,7 @@ IF IP matches AND UA matches:
 ```
 
 **Rule 3: Two Factors with Combined Weight ≥100%**
+
 ```
 IF 2+ factors match AND combined weight ≥100%:
   → Confidence = weight / 100
@@ -113,6 +117,7 @@ IF 2+ factors match AND combined weight ≥100%:
 ```
 
 **Rule 4: Three+ Factors with Combined Weight ≥80%**
+
 ```
 IF 3+ factors match AND combined weight ≥80%:
   → Confidence = weight / 100
@@ -121,6 +126,7 @@ IF 3+ factors match AND combined weight ≥80%:
 ```
 
 **Rule 5: Insufficient Confidence**
+
 ```
 IF fewer factors OR weight <80%:
   → Confidence = 0
@@ -391,17 +397,20 @@ async function getCanvasFingerprint() {
 ## Performance Characteristics
 
 ### Fast-Path Hit (Signature Matches)
+
 - **Latency**: ~2-5ms (database lookup + hash comparison)
 - **Detectors Skipped**: 10-20 expensive detectors (saves ~50-200ms)
 - **Cache Hit Rate**: ~80-90% for returning clients
 - **False Positive Rate**: <0.1% (weighted scoring prevents accidental matches)
 
 ### Fast-Path Miss (No Signature Match)
+
 - **Latency**: ~2-5ms overhead
 - **Detectors Run**: Full pipeline (no performance penalty vs. no fast-path)
 - **New Client**: Signature stored for next request
 
 ### Client-Side Postback
+
 - **Timing**: Async after response sent (non-blocking)
 - **Latency**: ~10-50ms (fingerprint generation + POST)
 - **Frequency**: Once per signature (cached after first postback)
@@ -410,6 +419,7 @@ async function getCanvasFingerprint() {
 ## Summary
 
 **Fast-Path Signature Matching provides:**
+
 - ✅ **Instant detection** for returning clients (2-5ms vs. 50-200ms)
 - ✅ **Multi-factor scoring** with weighted confidence (avoids false positives)
 - ✅ **Server-side factors first** (IP+UA immediate, client-side via postback)
@@ -417,4 +427,5 @@ async function getCanvasFingerprint() {
 - ✅ **Progressive enhancement** (client-side factors improve accuracy over time)
 - ✅ **Zero PII** (all factors are HMAC-SHA256 hashed, non-reversible)
 
-**Key Insight**: The system starts with 4 server-side factors (good accuracy) and progressively gains 2 client-side factors via postback (excellent accuracy), providing robust matching while never storing raw PII.
+**Key Insight**: The system starts with 4 server-side factors (good accuracy) and progressively gains 2 client-side
+factors via postback (excellent accuracy), providing robust matching while never storing raw PII.

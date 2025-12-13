@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -36,46 +37,13 @@ public class BotDetectionMiddleware(
     ILogger<BotDetectionMiddleware> logger,
     IOptions<BotDetectionOptions> options)
 {
-    #region HttpContext Item Keys
-
-    /// <summary>Full BotDetectionResult object</summary>
-    public const string BotDetectionResultKey = "BotDetectionResult";
-
-    /// <summary>Full AggregatedEvidence from blackboard orchestrator</summary>
-    public const string AggregatedEvidenceKey = "BotDetection.AggregatedEvidence";
-
-    /// <summary>Boolean: true if request is from a bot</summary>
-    public const string IsBotKey = "BotDetection.IsBot";
-
-    /// <summary>Double: confidence score (0.0-1.0)</summary>
-    public const string BotConfidenceKey = "BotDetection.Confidence";
-
-    /// <summary>BotType?: the detected bot type</summary>
-    public const string BotTypeKey = "BotDetection.BotType";
-
-    /// <summary>String?: the detected bot name</summary>
-    public const string BotNameKey = "BotDetection.BotName";
-
-    /// <summary>String?: primary detection category (e.g., "UserAgent", "IP", "Header")</summary>
-    public const string BotCategoryKey = "BotDetection.Category";
-
-    /// <summary>List&lt;DetectionReason&gt;: all detection reasons</summary>
-    public const string DetectionReasonsKey = "BotDetection.Reasons";
-
-    /// <summary>String: name of the policy used for this request</summary>
-    public const string PolicyNameKey = "BotDetection.PolicyName";
-
-    /// <summary>PolicyAction?: action taken by policy (if any)</summary>
-    public const string PolicyActionKey = "BotDetection.PolicyAction";
-
-    #endregion
-
     // Default test mode simulations - used as fallback when options don't contain the mode
     private static readonly Dictionary<string, string> DefaultTestModeSimulations =
         new(StringComparer.OrdinalIgnoreCase)
         {
             // Human browser
-            ["human"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            ["human"] =
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 
             // Generic bots
             ["bot"] = "bot/1.0 (+http://example.com/bot)",
@@ -87,13 +55,15 @@ public class BotDetectionMiddleware(
             // Scrapers and tools
             ["scrapy"] = "Scrapy/2.11 (+https://scrapy.org)",
             ["curl"] = "curl/8.4.0",
-            ["puppeteer"] = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/120.0.0.0 Safari/537.36",
+            ["puppeteer"] =
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/120.0.0.0 Safari/537.36",
 
             // Malicious patterns (known bad actors)
             ["malicious"] = "sqlmap/1.7 (http://sqlmap.org)",
 
             // AI/LLM crawlers
-            ["gptbot"] = "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+            ["gptbot"] =
+                "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
             ["claudebot"] = "ClaudeBot/1.0; +https://www.anthropic.com/claude-bot",
 
             // Social media bots
@@ -161,7 +131,8 @@ public class BotDetectionMiddleware(
             var testMode = context.Request.Headers["ml-bot-test-mode"].FirstOrDefault();
             if (!string.IsNullOrEmpty(testMode))
             {
-                await HandleTestModeWithRealDetection(context, testMode, orchestrator, policyRegistry, actionPolicyRegistry);
+                await HandleTestModeWithRealDetection(context, testMode, orchestrator, policyRegistry,
+                    actionPolicyRegistry);
                 return;
             }
         }
@@ -178,10 +149,7 @@ public class BotDetectionMiddleware(
         LogDetectionResult(context, aggregatedResult, policy.Name);
 
         // Add response headers if enabled
-        if (_options.ResponseHeaders.Enabled)
-        {
-            AddResponseHeaders(context, aggregatedResult, policy.Name);
-        }
+        if (_options.ResponseHeaders.Enabled) AddResponseHeaders(context, aggregatedResult, policy.Name);
 
         // Check for triggered action policy first (takes precedence over built-in actions)
         if (!string.IsNullOrEmpty(aggregatedResult.TriggeredActionPolicyName))
@@ -196,10 +164,8 @@ public class BotDetectionMiddleware(
                 var actionResult = await actionPolicy.ExecuteAsync(context, aggregatedResult, context.RequestAborted);
 
                 if (!actionResult.Continue)
-                {
                     // Action policy handled the response - don't continue pipeline
                     return;
-                }
                 // Action policy allows continuation - fall through to next middleware
             }
             else
@@ -229,6 +195,157 @@ public class BotDetectionMiddleware(
         // Continue pipeline
         await _next(context);
     }
+
+    #region Response Headers
+
+    private void AddResponseHeaders(
+        HttpContext context,
+        AggregatedEvidence aggregated,
+        string policyName)
+    {
+        var headerConfig = _options.ResponseHeaders;
+        var prefix = headerConfig.HeaderPrefix;
+
+        // Always add policy name if configured
+        if (headerConfig.IncludePolicyName) context.Response.Headers.TryAdd($"{prefix}Policy", policyName);
+
+        // Risk score (always included)
+        context.Response.Headers.TryAdd($"{prefix}Risk-Score", aggregated.BotProbability.ToString("F3"));
+        context.Response.Headers.TryAdd($"{prefix}Risk-Band", aggregated.RiskBand.ToString());
+
+        if (headerConfig.IncludeConfidence)
+            context.Response.Headers.TryAdd($"{prefix}Confidence", aggregated.Confidence.ToString("F3"));
+
+        if (headerConfig.IncludeDetectors && aggregated.ContributingDetectors.Count > 0)
+            context.Response.Headers.TryAdd($"{prefix}Detectors",
+                string.Join(",", aggregated.ContributingDetectors));
+
+        if (headerConfig.IncludeProcessingTime)
+            context.Response.Headers.TryAdd($"{prefix}Processing-Ms",
+                aggregated.TotalProcessingTimeMs.ToString("F1"));
+
+        if (aggregated.PolicyAction.HasValue)
+            context.Response.Headers.TryAdd($"{prefix}Action", aggregated.PolicyAction.Value.ToString());
+
+        if (aggregated.PrimaryBotName != null && headerConfig.IncludeBotName)
+            context.Response.Headers.TryAdd($"{prefix}Bot-Name", aggregated.PrimaryBotName);
+
+        if (aggregated.EarlyExit)
+        {
+            context.Response.Headers.TryAdd($"{prefix}Early-Exit", "true");
+            if (aggregated.EarlyExitVerdict.HasValue)
+                context.Response.Headers.TryAdd($"{prefix}Verdict", aggregated.EarlyExitVerdict.Value.ToString());
+        }
+
+        // Include AI status for calibration visibility
+        context.Response.Headers.TryAdd($"{prefix}Ai-Ran", aggregated.AiRan.ToString().ToLowerInvariant());
+
+        // Full JSON result if enabled (useful for debugging)
+        if (headerConfig.IncludeFullJson)
+        {
+            var jsonResult = new
+            {
+                risk = aggregated.BotProbability,
+                confidence = aggregated.Confidence,
+                riskBand = aggregated.RiskBand.ToString(),
+                policy = policyName,
+                aiRan = aggregated.AiRan,
+                detectors = aggregated.ContributingDetectors,
+                categories = aggregated.CategoryBreakdown.ToDictionary(
+                    kv => kv.Key,
+                    kv => kv.Value.Score)
+            };
+            var json = JsonSerializer.Serialize(jsonResult);
+            // Base64 encode to avoid header encoding issues
+            var base64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
+            context.Response.Headers.TryAdd($"{prefix}Result-Json", base64);
+        }
+    }
+
+    #endregion
+
+    #region Detection Logging
+
+    private void LogDetectionResult(
+        HttpContext context,
+        AggregatedEvidence aggregated,
+        string policyName)
+    {
+        // Always log at Information level for visibility
+        // LogAllRequests controls whether to log human traffic (low risk)
+        // LogDetailedReasons controls whether to include detection reasons
+
+        var riskScore = aggregated.BotProbability;
+        var riskBand = aggregated.RiskBand;
+        var isLikelyBot = riskScore >= _options.BotThreshold;
+
+        // For low-risk (likely human) requests, only log if LogAllRequests is true
+        if (!isLikelyBot && !_options.LogAllRequests) return;
+
+        var path = context.Request.Path;
+        var method = context.Request.Method;
+        var botName = aggregated.PrimaryBotName ?? "unknown";
+        var detectors = string.Join(",", aggregated.ContributingDetectors);
+
+        if (_options.LogDetailedReasons && aggregated.Contributions.Count > 0)
+        {
+            // Detailed logging with reasons
+            var topReasons = aggregated.Contributions
+                .OrderByDescending(c => Math.Abs(c.ConfidenceDelta))
+                .Take(3)
+                .Select(c => $"{c.Category}:{c.ConfidenceDelta:+0.00;-0.00}")
+                .ToList();
+
+            _logger.LogInformation(
+                "Bot detection: {Method} {Path} -> risk={Risk:F2} ({RiskBand}), bot={BotName}, policy={Policy}, " +
+                "detectors=[{Detectors}], reasons=[{Reasons}], time={Time:F1}ms",
+                method, path, riskScore, riskBand, botName, policyName,
+                detectors, string.Join(", ", topReasons), aggregated.TotalProcessingTimeMs);
+        }
+        else
+        {
+            // Simple logging
+            _logger.LogInformation(
+                "Bot detection: {Method} {Path} -> risk={Risk:F2} ({RiskBand}), bot={BotName}, policy={Policy}, time={Time:F1}ms",
+                method, path, riskScore, riskBand, botName, policyName, aggregated.TotalProcessingTimeMs);
+        }
+    }
+
+    #endregion
+
+    #region HttpContext Item Keys
+
+    /// <summary>Full BotDetectionResult object</summary>
+    public const string BotDetectionResultKey = "BotDetectionResult";
+
+    /// <summary>Full AggregatedEvidence from blackboard orchestrator</summary>
+    public const string AggregatedEvidenceKey = "BotDetection.AggregatedEvidence";
+
+    /// <summary>Boolean: true if request is from a bot</summary>
+    public const string IsBotKey = "BotDetection.IsBot";
+
+    /// <summary>Double: confidence score (0.0-1.0)</summary>
+    public const string BotConfidenceKey = "BotDetection.Confidence";
+
+    /// <summary>BotType?: the detected bot type</summary>
+    public const string BotTypeKey = "BotDetection.BotType";
+
+    /// <summary>String?: the detected bot name</summary>
+    public const string BotNameKey = "BotDetection.BotName";
+
+    /// <summary>String?: primary detection category (e.g., "UserAgent", "IP", "Header")</summary>
+    public const string BotCategoryKey = "BotDetection.Category";
+
+    /// <summary>List&lt;DetectionReason&gt;: all detection reasons</summary>
+    public const string DetectionReasonsKey = "BotDetection.Reasons";
+
+    /// <summary>String: name of the policy used for this request</summary>
+    public const string PolicyNameKey = "BotDetection.PolicyName";
+
+    /// <summary>PolicyAction?: action taken by policy (if any)</summary>
+    public const string PolicyActionKey = "BotDetection.PolicyAction";
+
+    #endregion
 
     #region Policy Resolution
 
@@ -311,20 +428,16 @@ public class BotDetectionMiddleware(
     {
         // Check ExcludedPaths first (complete bypass)
         foreach (var excludedPath in _options.ExcludedPaths)
-        {
             if (path.StartsWithSegments(excludedPath, StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogDebug("Skipping bot detection for {Path} (ExcludedPaths)", path);
                 return true;
             }
-        }
 
         // Also check ResponseHeaders.SkipPaths for backward compatibility
         foreach (var skipPath in _options.ResponseHeaders.SkipPaths)
-        {
             if (path.StartsWithSegments(skipPath, StringComparison.OrdinalIgnoreCase))
                 return true;
-        }
 
         return false;
     }
@@ -337,13 +450,11 @@ public class BotDetectionMiddleware(
         overrideAction = null;
 
         foreach (var (pattern, action) in _options.PathOverrides)
-        {
             if (MatchesPathPattern(path, pattern))
             {
                 overrideAction = action;
                 return true;
             }
-        }
 
         return false;
     }
@@ -380,147 +491,9 @@ public class BotDetectionMiddleware(
         }
 
         // Simple prefix match (e.g., "/api/public" matches "/api/public" and "/api/public/anything")
-        if (!pattern.Contains('*'))
-        {
-            return pathValue.StartsWith(pattern, StringComparison.OrdinalIgnoreCase);
-        }
+        if (!pattern.Contains('*')) return pathValue.StartsWith(pattern, StringComparison.OrdinalIgnoreCase);
 
         return false;
-    }
-
-    #endregion
-
-    #region Response Headers
-
-    private void AddResponseHeaders(
-        HttpContext context,
-        AggregatedEvidence aggregated,
-        string policyName)
-    {
-        var headerConfig = _options.ResponseHeaders;
-        var prefix = headerConfig.HeaderPrefix;
-
-        // Always add policy name if configured
-        if (headerConfig.IncludePolicyName)
-        {
-            context.Response.Headers.TryAdd($"{prefix}Policy", policyName);
-        }
-
-        // Risk score (always included)
-        context.Response.Headers.TryAdd($"{prefix}Risk-Score", aggregated.BotProbability.ToString("F3"));
-        context.Response.Headers.TryAdd($"{prefix}Risk-Band", aggregated.RiskBand.ToString());
-
-        if (headerConfig.IncludeConfidence)
-        {
-            context.Response.Headers.TryAdd($"{prefix}Confidence", aggregated.Confidence.ToString("F3"));
-        }
-
-        if (headerConfig.IncludeDetectors && aggregated.ContributingDetectors.Count > 0)
-        {
-            context.Response.Headers.TryAdd($"{prefix}Detectors",
-                string.Join(",", aggregated.ContributingDetectors));
-        }
-
-        if (headerConfig.IncludeProcessingTime)
-        {
-            context.Response.Headers.TryAdd($"{prefix}Processing-Ms",
-                aggregated.TotalProcessingTimeMs.ToString("F1"));
-        }
-
-        if (aggregated.PolicyAction.HasValue)
-        {
-            context.Response.Headers.TryAdd($"{prefix}Action", aggregated.PolicyAction.Value.ToString());
-        }
-
-        if (aggregated.PrimaryBotName != null && headerConfig.IncludeBotName)
-        {
-            context.Response.Headers.TryAdd($"{prefix}Bot-Name", aggregated.PrimaryBotName);
-        }
-
-        if (aggregated.EarlyExit)
-        {
-            context.Response.Headers.TryAdd($"{prefix}Early-Exit", "true");
-            if (aggregated.EarlyExitVerdict.HasValue)
-            {
-                context.Response.Headers.TryAdd($"{prefix}Verdict", aggregated.EarlyExitVerdict.Value.ToString());
-            }
-        }
-
-        // Include AI status for calibration visibility
-        context.Response.Headers.TryAdd($"{prefix}Ai-Ran", aggregated.AiRan.ToString().ToLowerInvariant());
-
-        // Full JSON result if enabled (useful for debugging)
-        if (headerConfig.IncludeFullJson)
-        {
-            var jsonResult = new
-            {
-                risk = aggregated.BotProbability,
-                confidence = aggregated.Confidence,
-                riskBand = aggregated.RiskBand.ToString(),
-                policy = policyName,
-                aiRan = aggregated.AiRan,
-                detectors = aggregated.ContributingDetectors,
-                categories = aggregated.CategoryBreakdown.ToDictionary(
-                    kv => kv.Key,
-                    kv => kv.Value.Score)
-            };
-            var json = JsonSerializer.Serialize(jsonResult);
-            // Base64 encode to avoid header encoding issues
-            var base64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
-            context.Response.Headers.TryAdd($"{prefix}Result-Json", base64);
-        }
-    }
-
-    #endregion
-
-    #region Detection Logging
-
-    private void LogDetectionResult(
-        HttpContext context,
-        AggregatedEvidence aggregated,
-        string policyName)
-    {
-        // Always log at Information level for visibility
-        // LogAllRequests controls whether to log human traffic (low risk)
-        // LogDetailedReasons controls whether to include detection reasons
-
-        var riskScore = aggregated.BotProbability;
-        var riskBand = aggregated.RiskBand;
-        var isLikelyBot = riskScore >= _options.BotThreshold;
-
-        // For low-risk (likely human) requests, only log if LogAllRequests is true
-        if (!isLikelyBot && !_options.LogAllRequests)
-        {
-            return;
-        }
-
-        var path = context.Request.Path;
-        var method = context.Request.Method;
-        var botName = aggregated.PrimaryBotName ?? "unknown";
-        var detectors = string.Join(",", aggregated.ContributingDetectors);
-
-        if (_options.LogDetailedReasons && aggregated.Contributions.Count > 0)
-        {
-            // Detailed logging with reasons
-            var topReasons = aggregated.Contributions
-                .OrderByDescending(c => Math.Abs(c.ConfidenceDelta))
-                .Take(3)
-                .Select(c => $"{c.Category}:{c.ConfidenceDelta:+0.00;-0.00}")
-                .ToList();
-
-            _logger.LogInformation(
-                "Bot detection: {Method} {Path} -> risk={Risk:F2} ({RiskBand}), bot={BotName}, policy={Policy}, " +
-                "detectors=[{Detectors}], reasons=[{Reasons}], time={Time:F1}ms",
-                method, path, riskScore, riskBand, botName, policyName,
-                detectors, string.Join(", ", topReasons), aggregated.TotalProcessingTimeMs);
-        }
-        else
-        {
-            // Simple logging
-            _logger.LogInformation(
-                "Bot detection: {Method} {Path} -> risk={Risk:F2} ({RiskBand}), bot={BotName}, policy={Policy}, time={Time:F1}ms",
-                method, path, riskScore, riskBand, botName, policyName, aggregated.TotalProcessingTimeMs);
-        }
     }
 
     #endregion
@@ -583,10 +556,10 @@ public class BotDetectionMiddleware(
                 context.Response.StatusCode = statusCode;
                 context.Response.ContentType = "application/json";
                 await context.Response.WriteAsJsonAsync(new BlockedResponse(
-                    Error: "Access denied",
-                    Reason: "Request blocked by bot detection",
-                    RiskScore: riskScore,
-                    Policy: policy.Name
+                    "Access denied",
+                    "Request blocked by bot detection",
+                    riskScore,
+                    policy.Name
                 ));
                 break;
 
@@ -600,9 +573,9 @@ public class BotDetectionMiddleware(
                 context.Response.Headers["X-Bot-Challenge"] = "required";
                 context.Response.ContentType = "application/json";
                 await context.Response.WriteAsJsonAsync(new ChallengeResponse(
-                    Error: "Challenge required",
-                    ChallengeType: _options.Throttling.ChallengeType,
-                    RiskScore: riskScore
+                    "Challenge required",
+                    _options.Throttling.ChallengeType,
+                    riskScore
                 ));
                 break;
 
@@ -637,10 +610,7 @@ public class BotDetectionMiddleware(
         }
 
         // Scale delay by risk score if configured
-        if (throttleConfig.ScaleByRisk)
-        {
-            delay = (int)(delay * (1 + riskScore));
-        }
+        if (throttleConfig.ScaleByRisk) delay = (int)(delay * (1 + riskScore));
 
         // Cap at max delay
         delay = Math.Min(delay, throttleConfig.MaxDelaySeconds);
@@ -649,10 +619,7 @@ public class BotDetectionMiddleware(
         context.Response.Headers["Retry-After"] = delay.ToString();
 
         // Add jitter indication header (helps with debugging, doesn't reveal exact algorithm)
-        if (throttleConfig.EnableJitter)
-        {
-            context.Response.Headers["X-Retry-Jitter"] = "applied";
-        }
+        if (throttleConfig.EnableJitter) context.Response.Headers["X-Retry-Jitter"] = "applied";
 
         context.Response.ContentType = "application/json";
 
@@ -703,20 +670,12 @@ public class BotDetectionMiddleware(
         // Get simulated User-Agent from options first, then fallback to defaults
         string? simulatedUserAgent = null;
         if (_options.TestModeSimulations.TryGetValue(testMode, out var configuredUa))
-        {
             simulatedUserAgent = configuredUa;
-        }
-        else if (DefaultTestModeSimulations.TryGetValue(testMode, out var defaultUa))
-        {
-            simulatedUserAgent = defaultUa;
-        }
+        else if (DefaultTestModeSimulations.TryGetValue(testMode, out var defaultUa)) simulatedUserAgent = defaultUa;
 
         // Override the User-Agent header temporarily for detection
         var originalUserAgent = context.Request.Headers.UserAgent.ToString();
-        if (!string.IsNullOrEmpty(simulatedUserAgent))
-        {
-            context.Request.Headers.UserAgent = simulatedUserAgent;
-        }
+        if (!string.IsNullOrEmpty(simulatedUserAgent)) context.Request.Headers.UserAgent = simulatedUserAgent;
 
         AggregatedEvidence? aggregatedResult = null;
         DetectionPolicy? policy = null;
@@ -735,10 +694,7 @@ public class BotDetectionMiddleware(
             context.Response.Headers.TryAdd("X-Test-Mode", "true");
             context.Response.Headers.TryAdd("X-Test-Simulated-UA", simulatedUserAgent ?? "none");
 
-            if (_options.ResponseHeaders.Enabled)
-            {
-                AddResponseHeaders(context, aggregatedResult, policy.Name);
-            }
+            if (_options.ResponseHeaders.Enabled) AddResponseHeaders(context, aggregatedResult, policy.Name);
 
             _logger.LogInformation(
                 "Test mode result: BotProbability={Probability:P0}, Detectors={Count}, Processing={Ms:F1}ms, ActionPolicy={ActionPolicy}",
@@ -766,10 +722,8 @@ public class BotDetectionMiddleware(
                 var actionResult = await actionPolicy.ExecuteAsync(context, aggregatedResult, context.RequestAborted);
 
                 if (!actionResult.Continue)
-                {
                     // Action policy handled the response - don't continue pipeline
                     return;
-                }
             }
             else
             {
@@ -797,8 +751,8 @@ public class BotDetectionMiddleware(
     }
 
     /// <summary>
-    /// Handles custom User-Agent testing via ml-bot-test-ua header.
-    /// Allows testing with any arbitrary User-Agent string.
+    ///     Handles custom User-Agent testing via ml-bot-test-ua header.
+    ///     Allows testing with any arbitrary User-Agent string.
     /// </summary>
     private async Task HandleCustomUaDetection(
         HttpContext context,
@@ -830,10 +784,7 @@ public class BotDetectionMiddleware(
             context.Response.Headers.TryAdd("X-Test-Mode", "custom-ua");
             context.Response.Headers.TryAdd("X-Test-Custom-UA", customUa);
 
-            if (_options.ResponseHeaders.Enabled)
-            {
-                AddResponseHeaders(context, aggregatedResult, policy.Name);
-            }
+            if (_options.ResponseHeaders.Enabled) AddResponseHeaders(context, aggregatedResult, policy.Name);
 
             _logger.LogInformation(
                 "Custom UA test result: BotProbability={Probability:P0}, Detectors={Count}, Processing={Ms:F1}ms, ActionPolicy={ActionPolicy}",
@@ -861,10 +812,8 @@ public class BotDetectionMiddleware(
                 var actionResult = await actionPolicy.ExecuteAsync(context, aggregatedResult, context.RequestAborted);
 
                 if (!actionResult.Continue)
-                {
                     // Action policy handled the response - don't continue pipeline
                     return;
-                }
             }
             else
             {
@@ -973,8 +922,8 @@ public class BotDetectionMiddleware(
         {
             IsBot = isBot,
             ConfidenceScore = result.BotProbability,
-            BotType = isBot ? result.PrimaryBotType : null,  // Only set BotType if actually a bot
-            BotName = isBot ? result.PrimaryBotName : null,  // Only set BotName if actually a bot
+            BotType = isBot ? result.PrimaryBotType : null, // Only set BotType if actually a bot
+            BotName = isBot ? result.PrimaryBotName : null, // Only set BotName if actually a bot
             Reasons = result.Contributions.Select(c => new DetectionReason
             {
                 Category = c.Category,

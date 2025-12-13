@@ -2,7 +2,8 @@
 
 ## Overview
 
-The **SignatureCoordinator** is a singleton service that tracks request signatures across multiple HTTP requests to detect aberrant behavior patterns. It forms the foundation of the new signal-driven, multi-coordinator architecture.
+The **SignatureCoordinator** is a singleton service that tracks request signatures across multiple HTTP requests to
+detect aberrant behavior patterns. It forms the foundation of the new signal-driven, multi-coordinator architecture.
 
 ## Architecture: Two-Tier Coordination
 
@@ -35,21 +36,27 @@ The **SignatureCoordinator** is a singleton service that tracks request signatur
 ## Key Concepts
 
 ### 1. Signatures
+
 A **signature** is a privacy-preserving hash of the client identity (IP + salt):
+
 - **Deterministic:** Same IP always produces same signature
 - **Non-reversible:** Cannot recover IP from signature
 - **Salted:** Configurable salt for multi-tenant isolation
 - **Example:** `"A3F5B9C2D8E1F4A7"` (16-character hex)
 
 ### 2. Tracking Window
+
 The coordinator maintains a **sliding window** of signatures:
+
 - **Capacity:** 1000 signatures (configurable via `MaxSignaturesInWindow`)
 - **Duration:** 15 minutes (configurable via `SignatureWindow`)
 - **Eviction:** LRU (Least Recently Used) when capacity is exceeded
 - **Per-Signature Limit:** 100 requests per signature (prevents memory exhaustion)
 
 ### 3. Signature Atoms
+
 Each tracked signature has its own **SignatureTrackingAtom**:
+
 ```csharp
 SignatureTrackingAtom
 ├── Signature Hash (key)
@@ -67,28 +74,36 @@ SignatureTrackingAtom
 ```
 
 ### 4. Cross-Request Intelligence
+
 The coordinator analyzes patterns **across requests** for each signature:
 
 #### Path Entropy (Shannon)
+
 ```
 H = -Σ(p * log2(p))
 ```
+
 - Detects scanning behavior (high entropy > 3.0)
 - Detects repetitive loops (low entropy)
 
 #### Timing Coefficient of Variation
+
 ```
 CV = σ / μ
 ```
+
 - Detects too-regular timing (CV < 0.15 = bot-like)
 - Natural humans have CV 0.3-0.8
 
 #### Average Bot Probability
+
 - Tracks average detection confidence across all requests
 - High average (>0.6) indicates persistent bot behavior
 
 #### Aberration Score
+
 Weighted combination of cross-request metrics:
+
 ```csharp
 score = 0
 if (avgBotProb > 0.6)       score += 0.3 * avgBotProb
@@ -115,6 +130,7 @@ await signatureCoordinator.RecordRequestAsync(
 ```
 
 **What Happens:**
+
 1. Gets or creates `SignatureTrackingAtom` for the signature
 2. Records the request in the atom's sliding window
 3. Evicts old requests (outside 15-minute window)
@@ -181,30 +197,33 @@ Console.WriteLine($"Aberrant Signatures: {aberrant}");
 
 ### Configuration Options
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `MaxSignaturesInWindow` | Maximum signatures to track (LRU eviction) | 1000 |
-| `SignatureWindow` | Time window for tracking requests | 15 minutes |
-| `MaxRequestsPerSignature` | Max requests per signature (prevents flooding) | 100 |
-| `MinRequestsForAberrationDetection` | Minimum requests before analysis | 5 |
-| `AberrationScoreThreshold` | Score threshold for aberration | 0.7 |
+| Option                              | Description                                    | Default    |
+|-------------------------------------|------------------------------------------------|------------|
+| `MaxSignaturesInWindow`             | Maximum signatures to track (LRU eviction)     | 1000       |
+| `SignatureWindow`                   | Time window for tracking requests              | 15 minutes |
+| `MaxRequestsPerSignature`           | Max requests per signature (prevents flooding) | 100        |
+| `MinRequestsForAberrationDetection` | Minimum requests before analysis               | 5          |
+| `AberrationScoreThreshold`          | Score threshold for aberration                 | 0.7        |
 
 ## Memory & Performance
 
 ### Memory Footprint
 
 **Per Signature:**
+
 ```
 SignatureTrackingAtom: ~2 KB base
 + (100 requests × ~1 KB) = ~100 KB per signature
 ```
 
 **Total Memory:**
+
 ```
 1000 signatures × 100 KB = ~100 MB maximum
 ```
 
 **With Eviction:**
+
 - LRU eviction keeps memory bounded
 - Signatures outside 15-minute window auto-evicted
 - Old requests within signature auto-evicted
@@ -212,12 +231,14 @@ SignatureTrackingAtom: ~2 KB base
 ### Performance
 
 **RecordRequestAsync:**
+
 - O(1) signature lookup (ConcurrentDictionary)
 - O(1) request recording (LinkedList append)
 - O(n) behavior computation (n = requests in window, max 100)
 - **Total:** <1ms per request for 100-request signatures
 
 **Thread Safety:**
+
 - Per-signature semaphore (no global lock)
 - Parallel requests to different signatures = no contention
 - Requests to same signature = sequential (but fast)
@@ -225,6 +246,7 @@ SignatureTrackingAtom: ~2 KB base
 ## Use Cases
 
 ### 1. Distributed Scanning Detection
+
 **Pattern:** Bot distributes scanning across time to evade rate limits
 
 ```
@@ -244,6 +266,7 @@ Cross-Request Analysis:
 ```
 
 ### 2. Slow Scraper Detection
+
 **Pattern:** Bot requests same endpoint repeatedly over time
 
 ```
@@ -260,6 +283,7 @@ Cross-Request Analysis:
 ```
 
 ### 3. Normal User Pattern
+
 **Pattern:** Human browsing naturally
 
 ```
@@ -313,28 +337,33 @@ if (behavior?.IsAberrant == true)
 ## Benefits
 
 ### 1. Bypasses Per-Request Evasion
+
 - Bots that look "normal" in single requests
 - Distributes scanning to avoid rate limits
 - Hides bot behavior behind legitimate patterns
 
 ### 2. Temporal Pattern Detection
+
 - Detects regularity across time
 - Identifies scanning campaigns
 - Tracks persistent bot identities
 
 ### 3. Privacy-Preserving
+
 - No IP storage - only hashed signatures
 - Configurable salt for isolation
 - Time-bounded tracking (15 minutes)
 - Automatic eviction
 
 ### 4. Memory Efficient
+
 - Bounded capacity (1000 signatures)
 - LRU eviction
 - Per-signature limits (100 requests)
 - Automatic cleanup
 
 ### 5. Fast & Scalable
+
 - O(1) lookups
 - Per-signature locking (parallel processing)
 - Minimal computation per request

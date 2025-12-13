@@ -78,15 +78,11 @@ public class BlockActionPolicy : IActionPolicy
         context.Response.ContentType = _options.ContentType;
 
         // Add custom headers
-        foreach (var header in _options.Headers)
-        {
-            context.Response.Headers.TryAdd(header.Key, header.Value);
-        }
+        foreach (var header in _options.Headers) context.Response.Headers.TryAdd(header.Key, header.Value);
 
         // Build response body
         object responseBody;
         if (_options.IncludeRiskScore)
-        {
             responseBody = new
             {
                 error = _options.Message,
@@ -95,14 +91,11 @@ public class BlockActionPolicy : IActionPolicy
                 policy = Name,
                 timestamp = DateTimeOffset.UtcNow
             };
-        }
         else
-        {
             responseBody = new
             {
                 error = _options.Message
             };
-        }
 
         await context.Response.WriteAsJsonAsync(responseBody, cancellationToken);
 
@@ -111,7 +104,7 @@ public class BlockActionPolicy : IActionPolicy
 }
 
 /// <summary>
-///     Configuration options for <see cref="BlockActionPolicy"/>.
+///     Configuration options for <see cref="BlockActionPolicy" />.
 /// </summary>
 public class BlockActionOptions
 {
@@ -139,7 +132,7 @@ public class BlockActionOptions
     ///     Useful for debugging, may want to disable in production.
     ///     Default: false
     /// </summary>
-    public bool IncludeRiskScore { get; set; } = false;
+    public bool IncludeRiskScore { get; set; }
 
     /// <summary>
     ///     Additional headers to add to the response.
@@ -183,7 +176,7 @@ public class BlockActionOptions
 }
 
 /// <summary>
-///     Factory for creating <see cref="BlockActionPolicy"/> from configuration.
+///     Factory for creating <see cref="BlockActionPolicy" /> from configuration.
 /// </summary>
 public class BlockActionPolicyFactory : IActionPolicyFactory
 {
@@ -215,12 +208,8 @@ public class BlockActionPolicyFactory : IActionPolicyFactory
             blockOptions.IncludeRiskScore = Convert.ToBoolean(includeRisk);
 
         if (options.TryGetValue("Headers", out var headers) && headers is IDictionary<string, object> headerDict)
-        {
             foreach (var kvp in headerDict)
-            {
                 blockOptions.Headers[kvp.Key] = kvp.Value?.ToString() ?? "";
-            }
-        }
 
         return new BlockActionPolicy(name, blockOptions, _logger);
     }

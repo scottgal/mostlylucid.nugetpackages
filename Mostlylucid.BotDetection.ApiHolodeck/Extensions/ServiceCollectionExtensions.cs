@@ -26,7 +26,7 @@ public static class ServiceCollectionExtensions
     ///     // Basic registration
     ///     builder.Services.AddBotDetection();
     ///     builder.Services.AddApiHolodeck();
-    ///
+    /// 
     ///     // With configuration
     ///     builder.Services.AddApiHolodeck(options =>
     ///     {
@@ -57,10 +57,8 @@ public static class ServiceCollectionExtensions
         });
 
         // Register HTTP client for ShapeBuilder LLM calls
-        services.AddHttpClient("ShapeBuilder", client =>
-        {
-            client.DefaultRequestHeaders.Add("Accept", "application/json");
-        });
+        services.AddHttpClient("ShapeBuilder",
+            client => { client.DefaultRequestHeaders.Add("Accept", "application/json"); });
 
         // Register the ShapeBuilder for intelligent API type detection
         services.AddSingleton<IShapeBuilder, ShapeBuilder>();
@@ -95,13 +93,9 @@ public static class ServiceCollectionExtensions
         // Configure shape builder options from nested section
         var shapeBuilderSection = configuration.GetSection("ShapeBuilder");
         if (shapeBuilderSection.Exists())
-        {
             services.AddOptions<ShapeBuilderOptions>().Bind(shapeBuilderSection);
-        }
         else
-        {
             services.AddOptions<ShapeBuilderOptions>();
-        }
 
         // Register HTTP clients
         services.AddHttpClient("Holodeck");

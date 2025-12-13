@@ -1,5 +1,7 @@
-﻿So architecture; we have a request coordinator and a respoinse coordinators - each of these may lave 'lanes' which do offline analysis. They share the same sink (request scoped) but the request coordinator dies instantly and the response one's type is queued by signals in the request. Shoudl I make the coordinators keyed by signature? I think that's an interesting approach like (keep 100 signals of the most recent for example to gather a whole web request shape?)
-
+﻿So architecture; we have a request coordinator and a respoinse coordinators - each of these may lave 'lanes' which do
+offline analysis. They share the same sink (request scoped) but the request coordinator dies instantly and the response
+one's type is queued by signals in the request. Shoudl I make the coordinators keyed by signature? I think that's an
+interesting approach like (keep 100 signals of the most recent for example to gather a whole web request shape?)
 
 Yeah, you’ve basically got the right instinct here — you’re just mixing two layers in your head:
 
@@ -34,12 +36,12 @@ They both share an operation-scoped signal sink:
 ├── OperationSignalSink (small window, per request)
 [ResponseCoordinator]┘
 
-
 That’s perfect for “request ↔ response handoff”.
 
 B. Signature-level “coordinators” (longer-lived)
 
-For the behaviour waveform, you don’t actually want to keep per-request coordinators around. You want a rolling window per signature:
+For the behaviour waveform, you don’t actually want to keep per-request coordinators around. You want a rolling window
+per signature:
 
 Keyed by: SignatureId or clientKey
 
@@ -70,9 +72,9 @@ I’d do it like this:
 [OperationSignalSink] --(summary signals)--> [GlobalSignalSink]
 
 [SignatureProfileAtom] listening on GlobalSignalSink:
+
 - maintains per-signature windows (last 100 ops)
 - runs AdvancedBehavioral, SpectralBehavioral, etc.
-
 
 So:
 
@@ -123,15 +125,18 @@ For behavioural waveform: yes, conceptually → keep a per-signature window, exa
 
 In practice:
 
-You probably don’t want a heavyweight coordinator object per signature — you already have BehavioralPatternAnalyzer doing this cheaply via caches.
+You probably don’t want a heavyweight coordinator object per signature — you already have BehavioralPatternAnalyzer
+doing this cheaply via caches.
 
-You can describe that analyzer + its per-client window as a “virtual coordinator keyed by signature”, and that’s a good way to think about it.
+You can describe that analyzer + its per-client window as a “virtual coordinator keyed by signature”, and that’s a good
+way to think about it.
 
 So:
 
 Operation coordinators: real Ephemeral coordinators, per request.
 
-Signature coordinators: implemented as analyzer/state keyed by signature (window of last N signals), fed by relayed summary signals from operations.
+Signature coordinators: implemented as analyzer/state keyed by signature (window of last N signals), fed by relayed
+summary signals from operations.
 
 4. The clean flow in one picture
    HTTP Request
@@ -153,7 +158,6 @@ Signature coordinators: implemented as analyzer/state keyed by signature (window
     - runs AdvancedBehavioral, SpectralBehavioral, etc.
     - emits SignatureBehaviorSignal (risk, waveform shape)
 
-
 That gives you:
 
 tight request→response coordination,
@@ -165,4 +169,5 @@ all wired through signals, not hard dependencies.
 If you want, next step I can sketch:
 
 a tiny SignatureBehaviorSignal + SignatureProfileAtom spec,
-so your existing analyzers become an explicit “signature coordinator” layer instead of just “stuff hanging off IMemoryCache”.
+so your existing analyzers become an explicit “signature coordinator” layer instead of just “stuff hanging off
+IMemoryCache”.

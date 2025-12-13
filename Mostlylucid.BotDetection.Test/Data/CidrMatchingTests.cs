@@ -48,11 +48,11 @@ public class CidrMatchingTests
     #region Non-Octet Boundary Tests (the fixed bug)
 
     [Theory]
-    [InlineData("192.168.0.1", "192.168.0.0/23", true)]   // First subnet
+    [InlineData("192.168.0.1", "192.168.0.0/23", true)] // First subnet
     [InlineData("192.168.0.254", "192.168.0.0/23", true)]
-    [InlineData("192.168.1.1", "192.168.0.0/23", true)]   // Second subnet
+    [InlineData("192.168.1.1", "192.168.0.0/23", true)] // Second subnet
     [InlineData("192.168.1.254", "192.168.0.0/23", true)]
-    [InlineData("192.168.2.1", "192.168.0.0/23", false)]  // Outside range
+    [InlineData("192.168.2.1", "192.168.0.0/23", false)] // Outside range
     [InlineData("192.168.3.1", "192.168.0.0/23", false)]
     public void IsIpInRange_Slash23_MatchesTwoSubnets(string ip, string cidr, bool expected)
     {
@@ -61,7 +61,7 @@ public class CidrMatchingTests
     }
 
     [Theory]
-    [InlineData("192.168.1.0", "192.168.1.0/25", true)]   // First half
+    [InlineData("192.168.1.0", "192.168.1.0/25", true)] // First half
     [InlineData("192.168.1.127", "192.168.1.0/25", true)]
     [InlineData("192.168.1.128", "192.168.1.0/25", false)] // Second half (different subnet)
     [InlineData("192.168.1.255", "192.168.1.0/25", false)]
@@ -72,9 +72,9 @@ public class CidrMatchingTests
     }
 
     [Theory]
-    [InlineData("192.168.1.128", "192.168.1.128/25", true)]  // Second half
+    [InlineData("192.168.1.128", "192.168.1.128/25", true)] // Second half
     [InlineData("192.168.1.255", "192.168.1.128/25", true)]
-    [InlineData("192.168.1.0", "192.168.1.128/25", false)]   // First half (different subnet)
+    [InlineData("192.168.1.0", "192.168.1.128/25", false)] // First half (different subnet)
     [InlineData("192.168.1.127", "192.168.1.128/25", false)]
     public void IsIpInRange_Slash25_SecondHalf_MatchesCorrectly(string ip, string cidr, bool expected)
     {
@@ -125,7 +125,7 @@ public class CidrMatchingTests
     }
 
     [Theory]
-    [InlineData("192.168.1.1", "192.168.1.1", false)]  // Missing prefix
+    [InlineData("192.168.1.1", "192.168.1.1", false)] // Missing prefix
     [InlineData("192.168.1.1", "invalid", false)]
     [InlineData("192.168.1.1", "", false)]
     [InlineData("192.168.1.1", "192.168.1.0/abc", false)]
@@ -141,7 +141,7 @@ public class CidrMatchingTests
     #region AWS/Azure/GCP IP Ranges (Real-world examples)
 
     [Theory]
-    [InlineData("3.0.0.1", "3.0.0.0/15", true)]   // AWS
+    [InlineData("3.0.0.1", "3.0.0.0/15", true)] // AWS
     [InlineData("3.1.255.255", "3.0.0.0/15", true)]
     [InlineData("3.2.0.0", "3.0.0.0/15", false)]
     public void IsIpInRange_AwsRange_Slash15(string ip, string cidr, bool expected)
@@ -150,7 +150,7 @@ public class CidrMatchingTests
     }
 
     [Theory]
-    [InlineData("20.33.0.1", "20.33.0.0/16", true)]   // Azure
+    [InlineData("20.33.0.1", "20.33.0.0/16", true)] // Azure
     [InlineData("20.33.255.255", "20.33.0.0/16", true)]
     [InlineData("20.34.0.1", "20.33.0.0/16", false)]
     public void IsIpInRange_AzureRange_Slash16(string ip, string cidr, bool expected)
@@ -159,7 +159,7 @@ public class CidrMatchingTests
     }
 
     [Theory]
-    [InlineData("34.64.0.1", "34.64.0.0/10", true)]   // GCP
+    [InlineData("34.64.0.1", "34.64.0.0/10", true)] // GCP
     [InlineData("34.127.255.255", "34.64.0.0/10", true)]
     [InlineData("34.128.0.1", "34.64.0.0/10", false)]
     public void IsIpInRange_GcpRange_Slash10(string ip, string cidr, bool expected)

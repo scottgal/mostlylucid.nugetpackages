@@ -1,48 +1,43 @@
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Models;
-using Mostlylucid.Ephemeral;
 
 namespace Mostlylucid.BotDetection.Data;
 
 /// <summary>
 ///     Coordinator ATOM for managing parallel bot list updates from external sources.
-///
 ///     ARCHITECTURE:
 ///     - Uses atom pattern for coordinated lifecycle management
 ///     - Fetches ALL data sources in PARALLEL at startup
 ///     - Configuration-ready for cron-based scheduling (UpdateSchedule section)
 ///     - Fail-safe: individual source failures don't block other sources
 ///     - Non-blocking: updates happen in background, never block requests
-///
 ///     DATA SOURCES (configurable via BotDetectionOptions.DataSources):
 ///     1. Bot patterns: isbot, Matomo, crawler-user-agents
 ///     2. Datacenter IPs: AWS, GCP, Azure, Cloudflare
 ///     3. Security tools: digininja/scanner_user_agents, OWASP CoreRuleSet
-///
 ///     LIFECYCLE:
 ///     1. Startup: Parallel fetch all enabled sources (non-blocking after startup delay)
 ///     2. Schedule: Configured via UpdateSchedule.Cron (integration with scheduler external to this class)
 ///     3. Updates: Parallel fetch → update database → refresh caches
 ///     4. Disposal: Cancel in-progress work, clean up resources
-///
 ///     SCHEDULER INTEGRATION (FUTURE):
 ///     External scheduler (like Hangfire, Quartz, or custom) should call UpdateAllListsParallelAsync()
 ///     based on the cron expression in BotDetectionOptions.UpdateSchedule.Cron
 /// </summary>
 public sealed class ListUpdateCoordinatorAtom : IAsyncDisposable
 {
-    private readonly IBotListFetcher _fetcher;
     private readonly IBotListDatabase _database;
-    private readonly ICompiledPatternCache? _patternCache;
+    private readonly CancellationTokenSource _disposalCts = new();
+    private readonly IBotListFetcher _fetcher;
     private readonly ILogger<ListUpdateCoordinatorAtom> _logger;
     private readonly BotDetectionOptions _options;
-    private readonly CancellationTokenSource _disposalCts = new();
+    private readonly ICompiledPatternCache? _patternCache;
+    private int _consecutiveFailures;
 
     // Update statistics
     private DateTime? _lastSuccessfulUpdate;
-    private int _consecutiveFailures;
-    private int _totalPatternsFetched;
     private int _totalIpRangesFetched;
+    private int _totalPatternsFetched;
     private int _totalSecurityToolsFetched;
 
     public ListUpdateCoordinatorAtom(
@@ -57,6 +52,19 @@ public sealed class ListUpdateCoordinatorAtom : IAsyncDisposable
         _logger = logger;
         _options = options;
         _patternCache = patternCache;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _logger.LogDebug("Disposing list update coordinator");
+
+        // Cancel any in-progress work
+        _disposalCts.Cancel();
+
+        // Cleanup resources
+        _disposalCts.Dispose();
+
+        await Task.CompletedTask;
     }
 
     /// <summary>
@@ -93,19 +101,14 @@ public sealed class ListUpdateCoordinatorAtom : IAsyncDisposable
 
         // Initial parallel fetch at startup (if configured)
         if (schedule?.RunOnStartup ?? true)
-        {
             await UpdateAllListsParallelAsync(cancellationToken);
-        }
         else
-        {
             _logger.LogInformation("RunOnStartup=false - skipping initial update, waiting for scheduler");
-        }
     }
 
     /// <summary>
     ///     Fetches and updates ALL data sources in parallel.
     ///     Fail-safe: individual source failures logged but don't block others.
-    ///
     ///     PUBLIC for external scheduler integration - call this method from your cron scheduler
     ///     based on the configured BotDetectionOptions.UpdateSchedule.Cron expression.
     /// </summary>
@@ -241,7 +244,8 @@ public sealed class ListUpdateCoordinatorAtom : IAsyncDisposable
             // Security tool patterns are cached in-memory by the SecurityToolContributor
             // No database storage needed (they're lightweight and change infrequently)
 
-            _logger.LogInformation("Updated security tool patterns: {Count} total patterns", _totalSecurityToolsFetched);
+            _logger.LogInformation("Updated security tool patterns: {Count} total patterns",
+                _totalSecurityToolsFetched);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -272,19 +276,6 @@ public sealed class ListUpdateCoordinatorAtom : IAsyncDisposable
             ScheduleTimezone = schedule?.Timezone,
             IsHealthy = _consecutiveFailures < 3
         };
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        _logger.LogDebug("Disposing list update coordinator");
-
-        // Cancel any in-progress work
-        _disposalCts.Cancel();
-
-        // Cleanup resources
-        _disposalCts.Dispose();
-
-        await Task.CompletedTask;
     }
 }
 

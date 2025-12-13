@@ -1,31 +1,28 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
-using Mostlylucid.BotDetection.Events;
-using Mostlylucid.BotDetection.Models;
 
 namespace Mostlylucid.BotDetection.Learning;
 
 /// <summary>
-/// Keyed learning coordinator - allows parallel learning workflows by signal type.
-///
-/// Architecture:
-/// - Multiple learning workflows can run in parallel, keyed by signal type
-/// - Each key (e.g., "ua.pattern", "ip.reputation", "tls.fingerprint") has its own queue
-/// - Prevents a slow learner from blocking fast learners
-/// - Thread-safe and non-blocking from request path
-///
-/// Example keys:
-/// - "ua.pattern" - User-Agent pattern learning
-/// - "ip.reputation" - IP reputation updates
-/// - "tls.ja3" - JA3 fingerprint learning
-/// - "behavior.waveform" - Behavioral waveform pattern extraction
-/// - "heuristic.weights" - Heuristic weight updates
+///     Keyed learning coordinator - allows parallel learning workflows by signal type.
+///     Architecture:
+///     - Multiple learning workflows can run in parallel, keyed by signal type
+///     - Each key (e.g., "ua.pattern", "ip.reputation", "tls.fingerprint") has its own queue
+///     - Prevents a slow learner from blocking fast learners
+///     - Thread-safe and non-blocking from request path
+///     Example keys:
+///     - "ua.pattern" - User-Agent pattern learning
+///     - "ip.reputation" - IP reputation updates
+///     - "tls.ja3" - JA3 fingerprint learning
+///     - "behavior.waveform" - Behavioral waveform pattern extraction
+///     - "heuristic.weights" - Heuristic weight updates
 /// </summary>
 public interface ILearningCoordinator
 {
     /// <summary>
-    /// Submit a learning task for a specific signal key.
-    /// Non-blocking - returns immediately.
+    ///     Submit a learning task for a specific signal key.
+    ///     Non-blocking - returns immediately.
     /// </summary>
     /// <param name="signalKey">Learning workflow key (e.g., "ua.pattern", "ip.reputation")</param>
     /// <param name="learningTask">The learning task to execute</param>
@@ -33,23 +30,23 @@ public interface ILearningCoordinator
     bool TrySubmitLearning(string signalKey, LearningTask learningTask);
 
     /// <summary>
-    /// Get statistics for a specific learning key.
+    ///     Get statistics for a specific learning key.
     /// </summary>
     KeyedLearningStats? GetStats(string signalKey);
 
     /// <summary>
-    /// Get all active learning keys and their stats.
+    ///     Get all active learning keys and their stats.
     /// </summary>
     IReadOnlyDictionary<string, KeyedLearningStats> GetAllStats();
 
     /// <summary>
-    /// Shutdown the coordinator gracefully.
+    ///     Shutdown the coordinator gracefully.
     /// </summary>
     Task ShutdownAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>
-/// A learning task to be executed asynchronously.
+///     A learning task to be executed asynchronously.
 /// </summary>
 public class LearningTask
 {
@@ -82,7 +79,7 @@ public class LearningTask
 }
 
 /// <summary>
-/// Types of learning operations.
+///     Types of learning operations.
 /// </summary>
 public enum LearningOperationType
 {
@@ -109,7 +106,7 @@ public enum LearningOperationType
 }
 
 /// <summary>
-/// Statistics for a keyed learning workflow.
+///     Statistics for a keyed learning workflow.
 /// </summary>
 public class KeyedLearningStats
 {
@@ -125,18 +122,18 @@ public class KeyedLearningStats
 }
 
 /// <summary>
-/// Keyed learning coordinator implementation using per-key background processors.
+///     Keyed learning coordinator implementation using per-key background processors.
 /// </summary>
 public class LearningCoordinator : ILearningCoordinator, IDisposable
 {
-    private readonly ILogger<LearningCoordinator> _logger;
     private readonly IEnumerable<IKeyedLearningHandler> _handlers;
-    private readonly ConcurrentDictionary<string, KeyedLearningQueue> _queues = new();
-    private readonly ConcurrentDictionary<string, KeyedLearningStats> _stats = new();
-    private readonly SemaphoreSlim _shutdownLock = new(1, 1);
+    private readonly ILogger<LearningCoordinator> _logger;
     private readonly int _maxQueueSize;
-    private bool _isShuttingDown;
+    private readonly ConcurrentDictionary<string, KeyedLearningQueue> _queues = new();
+    private readonly SemaphoreSlim _shutdownLock = new(1, 1);
+    private readonly ConcurrentDictionary<string, KeyedLearningStats> _stats = new();
     private bool _disposed;
+    private bool _isShuttingDown;
 
     public LearningCoordinator(
         ILogger<LearningCoordinator> logger,
@@ -146,6 +143,20 @@ public class LearningCoordinator : ILearningCoordinator, IDisposable
         _logger = logger;
         _handlers = handlers;
         _maxQueueSize = maxQueueSize;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        _isShuttingDown = true;
+        _shutdownLock.Dispose();
+
+        foreach (var queue in _queues.Values) queue.Dispose();
+
+        _queues.Clear();
     }
 
     public bool TrySubmitLearning(string signalKey, LearningTask learningTask)
@@ -189,6 +200,58 @@ public class LearningCoordinator : ILearningCoordinator, IDisposable
             signalKey, queue.Count, _maxQueueSize);
 
         return false;
+    }
+
+    public KeyedLearningStats? GetStats(string signalKey)
+    {
+        return _stats.TryGetValue(signalKey, out var stats) ? stats : null;
+    }
+
+    public IReadOnlyDictionary<string, KeyedLearningStats> GetAllStats()
+    {
+        return _stats.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+    }
+
+    public async Task ShutdownAsync(CancellationToken cancellationToken = default)
+    {
+        await _shutdownLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_isShuttingDown)
+                return;
+
+            _logger.LogInformation("Learning coordinator shutting down...");
+            _isShuttingDown = true;
+
+            // Wait for queues to drain (with timeout)
+            var drainTimeout = TimeSpan.FromSeconds(30);
+            var stopwatch = Stopwatch.StartNew();
+
+            foreach (var kvp in _queues)
+            {
+                var remaining = drainTimeout - stopwatch.Elapsed;
+                if (remaining <= TimeSpan.Zero)
+                {
+                    _logger.LogWarning(
+                        "Shutdown timeout exceeded, {Count} queues may have pending tasks",
+                        _queues.Count);
+                    break;
+                }
+
+                while (kvp.Value.Count > 0 && stopwatch.Elapsed < drainTimeout)
+                    await Task.Delay(100, cancellationToken);
+
+                _logger.LogInformation(
+                    "Queue {SignalKey} drained ({Completed} tasks completed)",
+                    kvp.Key, _stats[kvp.Key].TotalTasksCompleted);
+            }
+
+            _logger.LogInformation("Learning coordinator shutdown complete");
+        }
+        finally
+        {
+            _shutdownLock.Release();
+        }
     }
 
     private async Task ProcessQueueAsync(string signalKey, KeyedLearningQueue queue)
@@ -242,7 +305,6 @@ public class LearningCoordinator : ILearningCoordinator, IDisposable
 
             // Execute all relevant handlers (could be parallel if independent)
             foreach (var handler in relevantHandlers)
-            {
                 try
                 {
                     await handler.HandleAsync(signalKey, task, CancellationToken.None);
@@ -253,7 +315,6 @@ public class LearningCoordinator : ILearningCoordinator, IDisposable
                         "Handler {Handler} failed for signal key {SignalKey}",
                         handler.GetType().Name, signalKey);
                 }
-            }
 
             // Update stats
             var elapsed = (DateTimeOffset.UtcNow - startTime).TotalMilliseconds;
@@ -281,89 +342,18 @@ public class LearningCoordinator : ILearningCoordinator, IDisposable
             stats.QueuedTasks = _queues[signalKey].Count;
         }
     }
-
-    public KeyedLearningStats? GetStats(string signalKey)
-    {
-        return _stats.TryGetValue(signalKey, out var stats) ? stats : null;
-    }
-
-    public IReadOnlyDictionary<string, KeyedLearningStats> GetAllStats()
-    {
-        return _stats.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
-    }
-
-    public async Task ShutdownAsync(CancellationToken cancellationToken = default)
-    {
-        await _shutdownLock.WaitAsync(cancellationToken);
-        try
-        {
-            if (_isShuttingDown)
-                return;
-
-            _logger.LogInformation("Learning coordinator shutting down...");
-            _isShuttingDown = true;
-
-            // Wait for queues to drain (with timeout)
-            var drainTimeout = TimeSpan.FromSeconds(30);
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-
-            foreach (var kvp in _queues)
-            {
-                var remaining = drainTimeout - stopwatch.Elapsed;
-                if (remaining <= TimeSpan.Zero)
-                {
-                    _logger.LogWarning(
-                        "Shutdown timeout exceeded, {Count} queues may have pending tasks",
-                        _queues.Count);
-                    break;
-                }
-
-                while (kvp.Value.Count > 0 && stopwatch.Elapsed < drainTimeout)
-                {
-                    await Task.Delay(100, cancellationToken);
-                }
-
-                _logger.LogInformation(
-                    "Queue {SignalKey} drained ({Completed} tasks completed)",
-                    kvp.Key, _stats[kvp.Key].TotalTasksCompleted);
-            }
-
-            _logger.LogInformation("Learning coordinator shutdown complete");
-        }
-        finally
-        {
-            _shutdownLock.Release();
-        }
-    }
-
-    public void Dispose()
-    {
-        if (_disposed)
-            return;
-
-        _disposed = true;
-        _isShuttingDown = true;
-        _shutdownLock.Dispose();
-
-        foreach (var queue in _queues.Values)
-        {
-            queue.Dispose();
-        }
-
-        _queues.Clear();
-    }
 }
 
 /// <summary>
-/// Thread-safe queue for a specific signal key.
+///     Thread-safe queue for a specific signal key.
 /// </summary>
 internal class KeyedLearningQueue : IDisposable
 {
-    private readonly string _signalKey;
+    private readonly ILogger _logger;
+    private readonly int _maxSize;
     private readonly ConcurrentQueue<LearningTask> _queue = new();
     private readonly SemaphoreSlim _semaphore;
-    private readonly int _maxSize;
-    private readonly ILogger _logger;
+    private readonly string _signalKey;
     private int _currentCount;
     private bool _disposed;
 
@@ -376,6 +366,15 @@ internal class KeyedLearningQueue : IDisposable
     }
 
     public int Count => _currentCount;
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        _semaphore.Dispose();
+    }
 
     public bool TryEnqueue(LearningTask task)
     {
@@ -409,29 +408,20 @@ internal class KeyedLearningQueue : IDisposable
 
         return null;
     }
-
-    public void Dispose()
-    {
-        if (_disposed)
-            return;
-
-        _disposed = true;
-        _semaphore.Dispose();
-    }
 }
 
 /// <summary>
-/// Handler for keyed learning operations.
+///     Handler for keyed learning operations.
 /// </summary>
 public interface IKeyedLearningHandler
 {
     /// <summary>
-    /// Check if this handler can process the given signal key and operation type.
+    ///     Check if this handler can process the given signal key and operation type.
     /// </summary>
     bool CanHandle(string signalKey, LearningOperationType operationType);
 
     /// <summary>
-    /// Handle the learning task for the given signal key.
+    ///     Handle the learning task for the given signal key.
     /// </summary>
     Task HandleAsync(string signalKey, LearningTask task, CancellationToken cancellationToken = default);
 }

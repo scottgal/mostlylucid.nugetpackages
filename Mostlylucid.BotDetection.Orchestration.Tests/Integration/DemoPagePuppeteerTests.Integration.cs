@@ -1,5 +1,6 @@
+using System.Net;
 using PuppeteerSharp;
-using Xunit;
+using PuppeteerSharp.Media;
 using Xunit.Abstractions;
 
 namespace Mostlylucid.BotDetection.Orchestration.Tests.Integration;
@@ -16,10 +17,10 @@ namespace Mostlylucid.BotDetection.Orchestration.Tests.Integration;
 [Trait("Category", "Puppeteer")]
 public class DemoPagePuppeteerTests : IAsyncLifetime
 {
-    private readonly ITestOutputHelper _output;
-    private IBrowser? _browser;
     private const string DemoUrl = "http://localhost:5000";
     private const string BotTestPageUrl = $"{DemoUrl}/bot-test";
+    private readonly ITestOutputHelper _output;
+    private IBrowser? _browser;
 
     public DemoPagePuppeteerTests(ITestOutputHelper output)
     {
@@ -46,8 +47,13 @@ public class DemoPagePuppeteerTests : IAsyncLifetime
         });
     }
 
+    public async Task DisposeAsync()
+    {
+        if (_browser != null) await _browser.CloseAsync();
+    }
+
     /// <summary>
-    /// Sets up test mode header to bypass bot detection for functional tests.
+    ///     Sets up test mode header to bypass bot detection for functional tests.
     /// </summary>
     private static async Task SetTestModeHeaders(IPage page, string mode = "disable")
     {
@@ -55,14 +61,6 @@ public class DemoPagePuppeteerTests : IAsyncLifetime
         {
             ["ml-bot-test-mode"] = mode
         });
-    }
-
-    public async Task DisposeAsync()
-    {
-        if (_browser != null)
-        {
-            await _browser.CloseAsync();
-        }
     }
 
     #region Bot Detection Verification Tests
@@ -78,7 +76,7 @@ public class DemoPagePuppeteerTests : IAsyncLifetime
         _output.WriteLine($"Response status: {response.Status}");
 
         // Headless Chrome UA is detected as bot, should be blocked (403)
-        Assert.Equal(System.Net.HttpStatusCode.Forbidden, response.Status);
+        Assert.Equal(HttpStatusCode.Forbidden, response.Status);
 
         var content = await response.TextAsync();
         _output.WriteLine($"Response content:\n{content}");
@@ -96,7 +94,7 @@ public class DemoPagePuppeteerTests : IAsyncLifetime
         var response = await page.GoToAsync($"{DemoUrl}/bot-detection/check");
 
         // The endpoint should block due to bot detection
-        Assert.Equal(System.Net.HttpStatusCode.Forbidden, response.Status);
+        Assert.Equal(HttpStatusCode.Forbidden, response.Status);
 
         var content = await response.TextAsync();
         _output.WriteLine($"Detection check response:\n{content}");
@@ -118,7 +116,7 @@ public class DemoPagePuppeteerTests : IAsyncLifetime
         _output.WriteLine($"Protected endpoint status: {response.Status}");
 
         // Should be blocked as unverified bot
-        Assert.Equal(System.Net.HttpStatusCode.Forbidden, response.Status);
+        Assert.Equal(HttpStatusCode.Forbidden, response.Status);
     }
 
     #endregion
@@ -291,10 +289,10 @@ public class DemoPagePuppeteerTests : IAsyncLifetime
 [Trait("Category", "Puppeteer")]
 public class StealthModePuppeteerTests : IAsyncLifetime
 {
-    private readonly ITestOutputHelper _output;
-    private IBrowser? _browser;
     private const string DemoUrl = "http://localhost:5000";
     private const string BotTestPageUrl = $"{DemoUrl}/bot-test";
+    private readonly ITestOutputHelper _output;
+    private IBrowser? _browser;
 
     public StealthModePuppeteerTests(ITestOutputHelper output)
     {
@@ -322,10 +320,7 @@ public class StealthModePuppeteerTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        if (_browser != null)
-        {
-            await _browser.CloseAsync();
-        }
+        if (_browser != null) await _browser.CloseAsync();
     }
 
     [Fact]
@@ -345,7 +340,7 @@ public class StealthModePuppeteerTests : IAsyncLifetime
 
         // Even with stealth attempts, should still be blocked
         // (HeadlessChrome UA is detected regardless)
-        Assert.Equal(System.Net.HttpStatusCode.Forbidden, response.Status);
+        Assert.Equal(HttpStatusCode.Forbidden, response.Status);
     }
 
     [Fact]
@@ -375,8 +370,8 @@ public class StealthModePuppeteerTests : IAsyncLifetime
 
         // Could be 200 (passed) or 403 (other detection caught it)
         Assert.True(
-            response.Status == System.Net.HttpStatusCode.OK ||
-            response.Status == System.Net.HttpStatusCode.Forbidden,
+            response.Status == HttpStatusCode.OK ||
+            response.Status == HttpStatusCode.Forbidden,
             $"Expected 200 or 403, got {response.Status}");
     }
 }
@@ -384,20 +379,15 @@ public class StealthModePuppeteerTests : IAsyncLifetime
 /// <summary>
 ///     Screenshot generator for documentation.
 ///     Run these tests to update the documentation screenshots after UI changes.
-///
 ///     Usage: dotnet test --filter "Category=Screenshots" -- pass the demo app URL if not localhost:5000
-///
 ///     Screenshots are saved to: docs/screenshots/
 /// </summary>
 [Trait("Category", "Screenshots")]
 [Trait("Category", "Integration")]
 public class ScreenshotGenerator : IAsyncLifetime
 {
-    private readonly ITestOutputHelper _output;
-    private IBrowser? _browser;
     private const string DemoUrl = "http://localhost:5000";
     private const string BotTestPageUrl = $"{DemoUrl}/bot-test";
-    private string _screenshotDir = null!;
 
     /// <summary>
     ///     Bot types with actual User-Agent strings for full pipeline detection.
@@ -441,8 +431,12 @@ public class ScreenshotGenerator : IAsyncLifetime
 
         // Monitoring
         ("Mozilla/5.0 (compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
-            "uptimerobot", "UptimeRobot monitoring service"),
+            "uptimerobot", "UptimeRobot monitoring service")
     };
+
+    private readonly ITestOutputHelper _output;
+    private IBrowser? _browser;
+    private string _screenshotDir = null!;
 
     public ScreenshotGenerator(ITestOutputHelper output)
     {
@@ -479,10 +473,7 @@ public class ScreenshotGenerator : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        if (_browser != null)
-        {
-            await _browser.CloseAsync();
-        }
+        if (_browser != null) await _browser.CloseAsync();
     }
 
     private static string? FindRepoRoot(string startDir)
@@ -494,6 +485,7 @@ public class ScreenshotGenerator : IAsyncLifetime
                 return dir.FullName;
             dir = dir.Parent;
         }
+
         return null;
     }
 
@@ -511,7 +503,6 @@ public class ScreenshotGenerator : IAsyncLifetime
         var failed = new List<string>();
 
         foreach (var (userAgent, name, description) in BotTypes)
-        {
             try
             {
                 _output.WriteLine($"Generating screenshot for: {name} ({description})");
@@ -522,29 +513,21 @@ public class ScreenshotGenerator : IAsyncLifetime
 
                 // Add realistic headers for human browser
                 if (name == "human")
-                {
                     await page.SetExtraHttpHeadersAsync(new Dictionary<string, string>
                     {
                         ["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
                         ["Accept-Language"] = "en-US,en;q=0.9",
                         ["Accept-Encoding"] = "gzip, deflate, br"
                     });
-                }
                 else
-                {
                     // Clear extra headers for bots
                     await page.SetExtraHttpHeadersAsync(new Dictionary<string, string>());
-                }
 
                 // Navigate and wait for content
                 var response = await page.GoToAsync(BotTestPageUrl, WaitUntilNavigation.Networkidle0);
 
-                if (!response.Ok)
-                {
-                    _output.WriteLine($"  Warning: Got status {response.Status} for {name}");
-                    // If blocked, still take a screenshot showing the blocked state
-                }
-
+                if (!response.Ok) _output.WriteLine($"  Warning: Got status {response.Status} for {name}");
+                // If blocked, still take a screenshot showing the blocked state
                 // Wait for detection signals to populate
                 await Task.Delay(800);
 
@@ -555,12 +538,12 @@ public class ScreenshotGenerator : IAsyncLifetime
                 await page.ScreenshotAsync(filepath, new ScreenshotOptions
                 {
                     Type = ScreenshotType.Png,
-                    Clip = new PuppeteerSharp.Media.Clip
+                    Clip = new Clip
                     {
                         X = 0,
                         Y = 120, // Start below title/buttons
                         Width = 1200,
-                        Height = 600  // Stats + Result + some signals
+                        Height = 600 // Stats + Result + some signals
                     }
                 });
 
@@ -572,7 +555,6 @@ public class ScreenshotGenerator : IAsyncLifetime
                 _output.WriteLine($"  ERROR: {ex.Message}");
                 failed.Add(name);
             }
-        }
 
         _output.WriteLine($"\nGenerated {generated.Count} screenshots, {failed.Count} failed");
         _output.WriteLine($"Screenshots saved to: {_screenshotDir}");
@@ -600,7 +582,7 @@ public class ScreenshotGenerator : IAsyncLifetime
         await page.ScreenshotAsync(filepath, new ScreenshotOptions
         {
             Type = ScreenshotType.Png,
-            Clip = new PuppeteerSharp.Media.Clip
+            Clip = new Clip
             {
                 X = 0,
                 Y = 120, // Skip header/buttons
@@ -621,10 +603,13 @@ public class ScreenshotGenerator : IAsyncLifetime
     {
         var comparisons = new[]
         {
-            ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36", "human", "Human Visitor"),
-            ("Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)", "googlebot", "Search Engine Bot"),
+            ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36", "human",
+                "Human Visitor"),
+            ("Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)", "googlebot",
+                "Search Engine Bot"),
             ("Scrapy/2.5.0 (+https://scrapy.org)", "scrapy", "Scraper Bot"),
-            ("Mozilla/5.0 AppleWebKit/537.36 (compatible; GPTBot/1.0; +https://openai.com/gptbot)", "gptbot", "AI Crawler")
+            ("Mozilla/5.0 AppleWebKit/537.36 (compatible; GPTBot/1.0; +https://openai.com/gptbot)", "gptbot",
+                "AI Crawler")
         };
 
         await using var page = await _browser!.NewPageAsync();
@@ -636,17 +621,13 @@ public class ScreenshotGenerator : IAsyncLifetime
 
             // Add realistic headers for human
             if (name == "human")
-            {
                 await page.SetExtraHttpHeadersAsync(new Dictionary<string, string>
                 {
                     ["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                     ["Accept-Language"] = "en-US,en;q=0.9"
                 });
-            }
             else
-            {
                 await page.SetExtraHttpHeadersAsync(new Dictionary<string, string>());
-            }
 
             await page.GoToAsync(BotTestPageUrl, WaitUntilNavigation.Networkidle0);
             await Task.Delay(500);
@@ -657,7 +638,7 @@ public class ScreenshotGenerator : IAsyncLifetime
             await page.ScreenshotAsync(filepath, new ScreenshotOptions
             {
                 Type = ScreenshotType.Png,
-                Clip = new PuppeteerSharp.Media.Clip
+                Clip = new Clip
                 {
                     X = 0,
                     Y = 120,
@@ -694,13 +675,9 @@ public class ScreenshotGenerator : IAsyncLifetime
         {
             var cardElement = await page.QuerySelectorAsync(".card:has(.signals-list)");
             if (cardElement != null)
-            {
                 await cardElement.ScreenshotAsync(filepath);
-            }
             else
-            {
                 await signalsElement.ScreenshotAsync(filepath);
-            }
         }
         else
         {
@@ -708,7 +685,7 @@ public class ScreenshotGenerator : IAsyncLifetime
             await page.ScreenshotAsync(filepath, new ScreenshotOptions
             {
                 Type = ScreenshotType.Png,
-                Clip = new PuppeteerSharp.Media.Clip
+                Clip = new Clip
                 {
                     X = 0,
                     Y = 500,
@@ -757,7 +734,7 @@ public class ScreenshotGenerator : IAsyncLifetime
             await page.ScreenshotAsync(filepath, new ScreenshotOptions
             {
                 Type = ScreenshotType.Png,
-                Clip = new PuppeteerSharp.Media.Clip
+                Clip = new Clip
                 {
                     X = 0,
                     Y = 120,

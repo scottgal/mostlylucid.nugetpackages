@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Http;
 using Mostlylucid.BotDetection.Detectors;
-using Mostlylucid.BotDetection.Models;
 
 namespace Mostlylucid.BotDetection.Events;
 

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Models;
@@ -12,7 +13,6 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 ///     - Accept compressed content (gzip, br)
 ///     - Cache static resources (CSS, JS, images)
 ///     - Don't request the same resource multiple times in rapid succession
-///
 ///     Bots often:
 ///     - Never send cache validation headers
 ///     - Request same resources repeatedly without caching
@@ -20,8 +20,8 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// </summary>
 public class CacheBehaviorContributor : ContributingDetectorBase
 {
-    private readonly ILogger<CacheBehaviorContributor> _logger;
     private readonly IMemoryCache _cache;
+    private readonly ILogger<CacheBehaviorContributor> _logger;
 
     public CacheBehaviorContributor(
         ILogger<CacheBehaviorContributor> logger,
@@ -86,7 +86,6 @@ public class CacheBehaviorContributor : ContributingDetectorBase
 
         // 2. No compression support (very rare for modern browsers)
         if (!supportsCompression && !string.IsNullOrEmpty(acceptEncoding))
-        {
             contributions.Add(new DetectionContribution
             {
                 DetectorName = Name,
@@ -97,7 +96,6 @@ public class CacheBehaviorContributor : ContributingDetectorBase
                 Signals = ImmutableDictionary<string, object>.Empty
                     .Add(SignalKeys.CompressionSupported, false)
             });
-        }
 
         // 3. Rapid repeated requests for the same resource
         var timingKey = $"cache_timing:{clientIp}:{path}";
@@ -144,24 +142,22 @@ public class CacheBehaviorContributor : ContributingDetectorBase
 
             // Browser should use cache validation on at least 30% of static resource revisits
             if (profile.StaticResourceRequests > 5 && cacheValidationRate < 0.3)
-            {
                 contributions.Add(new DetectionContribution
                 {
                     DetectorName = Name,
                     Category = "CacheBehavior",
                     ConfidenceDelta = 0.3,
                     Weight = 1.5,
-                    Reason = $"Low cache validation rate: {cacheValidationRate:P0} ({profile.RequestsWithCacheValidation}/{profile.StaticResourceRequests} static requests)",
+                    Reason =
+                        $"Low cache validation rate: {cacheValidationRate:P0} ({profile.RequestsWithCacheValidation}/{profile.StaticResourceRequests} static requests)",
                     Signals = ImmutableDictionary<string, object>.Empty
                         .Add(SignalKeys.CacheBehaviorAnomaly, true)
                         .Add("CacheValidationRate", cacheValidationRate)
                 });
-            }
         }
 
         // 5. Positive signal: Good cache behavior
         if (contributions.Count == 0 && hasCacheValidation && supportsCompression)
-        {
             contributions.Add(new DetectionContribution
             {
                 DetectorName = Name,
@@ -173,7 +169,6 @@ public class CacheBehaviorContributor : ContributingDetectorBase
                     .Add(SignalKeys.CacheValidationMissing, false)
                     .Add(SignalKeys.CompressionSupported, true)
             });
-        }
 
         return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
     }
@@ -201,7 +196,7 @@ public class CacheBehaviorContributor : ContributingDetectorBase
         };
     }
 
-    private string? GetClientIp(Microsoft.AspNetCore.Http.HttpContext context)
+    private string? GetClientIp(HttpContext context)
     {
         return context.Request.Headers["X-Forwarded-For"].FirstOrDefault()?.Split(',')[0].Trim()
                ?? context.Connection.RemoteIpAddress?.ToString();

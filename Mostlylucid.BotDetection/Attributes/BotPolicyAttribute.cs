@@ -10,22 +10,19 @@ namespace Mostlylucid.BotDetection.Attributes;
 ///     // Apply strict policy to entire controller
 ///     [BotPolicy("strict")]
 ///     public class PaymentController : Controller { }
-///
 ///     // Apply different policies per action
 ///     public class AccountController : Controller
 ///     {
-///         [BotPolicy("strict")]
-///         public IActionResult Login() { }
-///
-///         [BotPolicy("relaxed")]
-///         public IActionResult PublicProfile() { }
+///     [BotPolicy("strict")]
+///     public IActionResult Login() { }
+///     [BotPolicy("relaxed")]
+///     public IActionResult PublicProfile() { }
 ///     }
-///
 ///     // Override action policy for specific endpoint
 ///     [BotPolicy("strict", ActionPolicy = "throttle-stealth")]
 ///     public IActionResult ProtectedApi() { }
 /// </example>
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 public class BotPolicyAttribute : Attribute, IFilterMetadata
 {
     /// <summary>
@@ -92,16 +89,14 @@ public class BotPolicyAttribute : Attribute, IFilterMetadata
 ///     // Simple detector with defaults
 ///     [BotDetector("UserAgent")]
 ///     public IActionResult QuickCheck() { }
-///
 ///     // Detector with custom weight and threshold
 ///     [BotDetector("Behavioral", Weight = 2.0, BlockThreshold = 0.8)]
 ///     public IActionResult RateLimitedEndpoint() { }
-///
 ///     // Multiple detectors inline
 ///     [BotDetector("UserAgent,Header,Ip", BlockAction = BotBlockAction.Throttle)]
 ///     public IActionResult MultiDetector() { }
 /// </example>
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 public class BotDetectorAttribute : Attribute, IFilterMetadata
 {
     /// <summary>
@@ -177,8 +172,10 @@ public class BotDetectorAttribute : Attribute, IFilterMetadata
     /// <summary>
     ///     Gets the list of detector names.
     /// </summary>
-    public IReadOnlyList<string> GetDetectorList() =>
-        Detectors.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    public IReadOnlyList<string> GetDetectorList()
+    {
+        return Detectors.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    }
 }
 
 /// <summary>
@@ -188,7 +185,7 @@ public class BotDetectorAttribute : Attribute, IFilterMetadata
 ///     [SkipBotDetection]
 ///     public IActionResult HealthCheck() { }
 /// </example>
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 public class SkipBotDetectionAttribute : Attribute, IFilterMetadata
 {
 }
@@ -202,16 +199,14 @@ public class SkipBotDetectionAttribute : Attribute, IFilterMetadata
 ///     [BotPolicy("strict")]
 ///     [BotAction("block-hard")]
 ///     public IActionResult Login() { }
-///
 ///     // Use alone (applies to all detection policies on this endpoint)
 ///     [BotAction("throttle-stealth")]
 ///     public IActionResult Api() { }
-///
 ///     // Multiple actions based on risk level (using custom transitions)
 ///     [BotAction("challenge", FallbackAction = "block")]
 ///     public IActionResult Checkout() { }
 /// </example>
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 public class BotActionAttribute : Attribute, IFilterMetadata
 {
     /// <summary>

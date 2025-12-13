@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -20,18 +22,18 @@ namespace Mostlylucid.BotDetection.Detectors;
 /// </summary>
 public class LlmDetector : IDetector, IDisposable
 {
+    private static readonly TimeSpan ContextLengthCacheDuration = TimeSpan.FromHours(1);
     private readonly SemaphoreSlim _fileLock = new(1, 1);
+    private readonly HttpClient _httpClient;
     private readonly string _learnedPatternsPath;
     private readonly ILogger<LlmDetector> _logger;
-    private readonly BotDetectionOptions _options;
     private readonly BotDetectionMetrics? _metrics;
-    private readonly HttpClient _httpClient;
+    private readonly BotDetectionOptions _options;
+    private DateTime _contextLengthFetchedAt = DateTime.MinValue;
     private bool _disposed;
 
     // Cached model context length (fetched once from Ollama /api/show)
     private int? _modelContextLength;
-    private DateTime _contextLengthFetchedAt = DateTime.MinValue;
-    private static readonly TimeSpan ContextLengthCacheDuration = TimeSpan.FromHours(1);
 
     public LlmDetector(
         ILogger<LlmDetector> logger,
@@ -102,7 +104,8 @@ public class LlmDetector : IDetector, IDisposable
             }
 
             stopwatch.Stop();
-            _metrics?.RecordDetection(result.Confidence, result.Confidence > _options.BotThreshold, stopwatch.Elapsed, Name);
+            _metrics?.RecordDetection(result.Confidence, result.Confidence > _options.BotThreshold, stopwatch.Elapsed,
+                Name);
         }
         catch (Exception ex)
         {
@@ -124,10 +127,7 @@ public class LlmDetector : IDetector, IDisposable
     {
         if (_disposed) return;
 
-        if (disposing)
-        {
-            _fileLock.Dispose();
-        }
+        if (disposing) _fileLock.Dispose();
 
         _disposed = true;
     }
@@ -159,7 +159,7 @@ public class LlmDetector : IDetector, IDisposable
             var json = await response.Content.ReadAsStringAsync(ct);
             // Look for num_ctx in modelfile or parameters
             // Format: "PARAMETER num_ctx 4096" or "num_ctx": 4096
-            var numCtxMatch = System.Text.RegularExpressions.Regex.Match(json, @"num_ctx["":\s]+(\d+)");
+            var numCtxMatch = Regex.Match(json, @"num_ctx["":\s]+(\d+)");
             if (numCtxMatch.Success && int.TryParse(numCtxMatch.Groups[1].Value, out var ctx))
             {
                 _modelContextLength = ctx;
@@ -211,10 +211,7 @@ public class LlmDetector : IDetector, IDisposable
         var evidence = context.Items[BotDetectionMiddleware.AggregatedEvidenceKey] as AggregatedEvidence;
 
         // Heuristic probability is the key signal - put it first
-        if (evidence != null)
-        {
-            sb.Append($"prob={evidence.BotProbability:F2}\n");
-        }
+        if (evidence != null) sb.Append($"prob={evidence.BotProbability:F2}\n");
 
         // Core request data - ultra compact
         var ua = context.Request.Headers.UserAgent.ToString();
@@ -316,7 +313,9 @@ public class LlmDetector : IDetector, IDisposable
             // Check if response is empty (Ollama may have failed silently)
             if (string.IsNullOrWhiteSpace(response))
             {
-                _logger.LogWarning("LLM returned empty response. Ollama may have failed to generate output for model '{Model}'", model);
+                _logger.LogWarning(
+                    "LLM returned empty response. Ollama may have failed to generate output for model '{Model}'",
+                    model);
                 return new LlmAnalysis { IsBot = false, Confidence = 0.0, Reasoning = "Analysis failed" };
             }
 
@@ -325,7 +324,8 @@ public class LlmDetector : IDetector, IDisposable
                 (response.Contains("model", StringComparison.OrdinalIgnoreCase) ||
                  response.Contains("failed", StringComparison.OrdinalIgnoreCase)))
             {
-                _logger.LogError("Ollama returned an error: {Response}", response.Length > 500 ? response[..500] + "..." : response);
+                _logger.LogError("Ollama returned an error: {Response}",
+                    response.Length > 500 ? response[..500] + "..." : response);
                 return new LlmAnalysis { IsBot = false, Confidence = 0.0, Reasoning = "Analysis failed" };
             }
 
@@ -344,7 +344,8 @@ public class LlmDetector : IDetector, IDisposable
                 var analysisResult = JsonSerializer.Deserialize<LlmAnalysisJson>(cleanedResponse, jsonOptions);
                 if (analysisResult != null)
                 {
-                    _logger.LogDebug("LLM response parsed: isBot={IsBot}, confidence={Confidence}, reasoning={Reasoning}",
+                    _logger.LogDebug(
+                        "LLM response parsed: isBot={IsBot}, confidence={Confidence}, reasoning={Reasoning}",
                         analysisResult.IsBot, analysisResult.Confidence, analysisResult.Reasoning);
                     return CreateAnalysis(analysisResult);
                 }
@@ -365,7 +366,8 @@ public class LlmDetector : IDetector, IDisposable
                     var analysisResult = JsonSerializer.Deserialize<LlmAnalysisJson>(jsonText, jsonOptions);
                     if (analysisResult != null)
                     {
-                        _logger.LogDebug("LLM response extracted and parsed: isBot={IsBot}, confidence={Confidence}, reasoning={Reasoning}",
+                        _logger.LogDebug(
+                            "LLM response extracted and parsed: isBot={IsBot}, confidence={Confidence}, reasoning={Reasoning}",
                             analysisResult.IsBot, analysisResult.Confidence, analysisResult.Reasoning);
                         return CreateAnalysis(analysisResult);
                     }
@@ -380,28 +382,37 @@ public class LlmDetector : IDetector, IDisposable
             var partialResult = TryExtractPartialJson(cleanedResponse);
             if (partialResult != null)
             {
-                _logger.LogDebug("LLM response partially parsed from truncated JSON: isBot={IsBot}, confidence={Confidence}",
+                _logger.LogDebug(
+                    "LLM response partially parsed from truncated JSON: isBot={IsBot}, confidence={Confidence}",
                     partialResult.IsBot, partialResult.Confidence);
                 return partialResult;
             }
 
-            _logger.LogWarning("LLM returned invalid JSON (model '{Model}' may need a better prompt). Response: {Response}", model, response.Length > 500 ? response[..500] + "..." : response);
+            _logger.LogWarning(
+                "LLM returned invalid JSON (model '{Model}' may need a better prompt). Response: {Response}", model,
+                response.Length > 500 ? response[..500] + "..." : response);
         }
         catch (OperationCanceledException)
         {
-            _logger.LogWarning("LLM analysis timed out after {Timeout}ms. Consider increasing AiDetection.TimeoutMs (current: {Timeout}ms)", timeout, timeout);
+            _logger.LogWarning(
+                "LLM analysis timed out after {Timeout}ms. Consider increasing AiDetection.TimeoutMs (current: {Timeout}ms)",
+                timeout, timeout);
         }
-        catch (HttpRequestException httpEx) when (httpEx.StatusCode == System.Net.HttpStatusCode.NotFound)
+        catch (HttpRequestException httpEx) when (httpEx.StatusCode == HttpStatusCode.NotFound)
         {
-            _logger.LogError("Ollama model '{Model}' not found at {Endpoint}. Run 'ollama pull {Model}' to download it", model, endpoint, model);
+            _logger.LogError("Ollama model '{Model}' not found at {Endpoint}. Run 'ollama pull {Model}' to download it",
+                model, endpoint, model);
         }
-        catch (HttpRequestException httpEx) when (httpEx.StatusCode == System.Net.HttpStatusCode.InternalServerError)
+        catch (HttpRequestException httpEx) when (httpEx.StatusCode == HttpStatusCode.InternalServerError)
         {
-            _logger.LogError("Ollama server error (500) at {Endpoint}. Check Ollama logs - the model '{Model}' may have failed to load or run out of memory", endpoint, model);
+            _logger.LogError(
+                "Ollama server error (500) at {Endpoint}. Check Ollama logs - the model '{Model}' may have failed to load or run out of memory",
+                endpoint, model);
         }
         catch (HttpRequestException httpEx)
         {
-            _logger.LogError(httpEx, "Ollama HTTP error ({StatusCode}) at {Endpoint}. Is Ollama running?", (int?)httpEx.StatusCode ?? 0, endpoint);
+            _logger.LogError(httpEx, "Ollama HTTP error ({StatusCode}) at {Endpoint}. Is Ollama running?",
+                (int?)httpEx.StatusCode ?? 0, endpoint);
         }
         catch (Exception ex)
         {
@@ -430,42 +441,36 @@ public class LlmDetector : IDetector, IDisposable
     private static LlmAnalysis? TryExtractPartialJson(string text)
     {
         // Look for isBot value with regex
-        var isBotMatch = System.Text.RegularExpressions.Regex.Match(
+        var isBotMatch = Regex.Match(
             text,
             @"""?is_?bot""?\s*:\s*(true|false|""?(\d+)""?)",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            RegexOptions.IgnoreCase);
 
         if (!isBotMatch.Success)
             return null;
 
         bool isBot;
         if (isBotMatch.Groups[2].Success)
-        {
             // Numeric value: 0 = false, anything else = true
             isBot = isBotMatch.Groups[2].Value != "0";
-        }
         else
-        {
             isBot = isBotMatch.Groups[1].Value.Equals("true", StringComparison.OrdinalIgnoreCase);
-        }
 
         // Try to extract confidence
-        var confidenceMatch = System.Text.RegularExpressions.Regex.Match(
+        var confidenceMatch = Regex.Match(
             text,
             @"""?confidence""?\s*:\s*""?(\d+\.?\d*)""?",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            RegexOptions.IgnoreCase);
 
-        double confidence = isBot ? 0.7 : 0.3; // Default if not found
+        var confidence = isBot ? 0.7 : 0.3; // Default if not found
         if (confidenceMatch.Success && double.TryParse(confidenceMatch.Groups[1].Value, out var parsedConf))
-        {
             confidence = parsedConf > 1 ? parsedConf / 100.0 : parsedConf; // Handle percentage vs decimal
-        }
 
         // Try to extract reasoning
-        var reasoningMatch = System.Text.RegularExpressions.Regex.Match(
+        var reasoningMatch = Regex.Match(
             text,
             @"""?reasoning""?\s*:\s*""([^""]+)",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            RegexOptions.IgnoreCase);
 
         var reasoning = reasoningMatch.Success
             ? reasoningMatch.Groups[1].Value + " (partial response)"
@@ -553,21 +558,14 @@ public class LlmDetector : IDetector, IDisposable
             // Find the end of the first line (after ```json or ```)
             var firstNewline = trimmed.IndexOf('\n');
             if (firstNewline > 0)
-            {
                 trimmed = trimmed[(firstNewline + 1)..];
-            }
             else
-            {
                 // Just ``` on one line, skip it
                 trimmed = trimmed[3..];
-            }
         }
 
         // Handle ``` at the end
-        if (trimmed.EndsWith("```"))
-        {
-            trimmed = trimmed[..^3];
-        }
+        if (trimmed.EndsWith("```")) trimmed = trimmed[..^3];
 
         return trimmed.Trim();
     }

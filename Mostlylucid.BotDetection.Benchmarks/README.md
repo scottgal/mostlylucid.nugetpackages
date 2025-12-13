@@ -4,11 +4,13 @@ Performance benchmarks for the Mostlylucid bot detection request processing pipe
 
 ## Overview
 
-This project benchmarks the bot detection pipeline with **predictable, deterministic scenarios** (no AI/LLM randomness) to identify performance hotspots.
+This project benchmarks the bot detection pipeline with **predictable, deterministic scenarios** (no AI/LLM randomness)
+to identify performance hotspots.
 
 ## What's Benchmarked
 
 ### Full Pipeline Scenarios
+
 These benchmarks test the complete bot detection pipeline end-to-end:
 
 - **Human request**: Typical website visitor with browser headers
@@ -17,6 +19,7 @@ These benchmarks test the complete bot detection pipeline end-to-end:
 - **Datacenter bot**: Browser UA from AWS datacenter IP
 
 Each scenario runs through:
+
 - BlackboardOrchestrator wave-based execution
 - All enabled detectors (UserAgent, IP, Header, Behavioral, etc.)
 - Evidence aggregation
@@ -67,12 +70,14 @@ BenchmarkDotNet will output:
 ### What to Look For
 
 **Performance Hotspots:**
+
 - Operations taking >10ms in the fast path
 - High GC allocations (Gen0 > 0.01 per op)
 - High memory allocations (>10KB per request)
 - High standard deviation (unpredictable performance)
 
 **Expected Baselines:**
+
 - Full pipeline (no AI): <50ms
 - Memory allocation: <20KB per request
 
@@ -126,6 +131,7 @@ dotnet run -c Release --join
 ## Output Files
 
 Results are saved to `BenchmarkDotNet.Artifacts/results/`:
+
 - `*.html` - Visual report
 - `*.csv` - Raw data
 - `*.md` - Markdown summary

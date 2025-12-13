@@ -1,12 +1,17 @@
 ﻿# Feature Specification: RAG‑Enhanced ONNX Contributor
 
 ## Overview
-Introduce a **Retrieval‑Augmented Generation (RAG) layer** into the bot detection pipeline. This layer enriches request signatures with contextual embeddings and clusters them across instances. An **ONNX contributor** provides low‑latency classification of cluster similarity, enabling adaptive routing and shared memory across servers.
+
+Introduce a **Retrieval‑Augmented Generation (RAG) layer** into the bot detection pipeline. This layer enriches request
+signatures with contextual embeddings and clusters them across instances. An **ONNX contributor** provides low‑latency
+classification of cluster similarity, enabling adaptive routing and shared memory across servers.
 
 ---
 
 ## Goals
-- **Adaptive clustering**: Group similar behavioural signatures (e.g., UA anomalies, header quirks, rate patterns) across servers.
+
+- **Adaptive clustering**: Group similar behavioural signatures (e.g., UA anomalies, header quirks, rate patterns)
+  across servers.
 - **Low‑latency inference**: Use ONNX runtime for millisecond‑scale embedding and classification.
 - **Shared immune memory**: Registry of clusters acts as distributed memory, propagating detections across instances.
 - **Explainability**: Contributions logged as JSON scorecards with cluster IDs, confidence, and reasons.
@@ -15,6 +20,7 @@ Introduce a **Retrieval‑Augmented Generation (RAG) layer** into the bot detect
 ---
 
 ## Architecture
+
 1. **Trigger Conditions**
     - Fires after basic detectors and heuristics have contributed.
     - Requires at least one behavioural or header signal.
@@ -45,6 +51,7 @@ Introduce a **Retrieval‑Augmented Generation (RAG) layer** into the bot detect
 ---
 
 ## Security & Trust
+
 - **Reputational weighting**: Contributions from instances weighted by historical accuracy.
 - **Cryptographic signing**: Registry entries signed to prevent poisoning.
 - **Decay policies**: Clusters expire after configurable TTL to avoid stale detections.
@@ -53,6 +60,7 @@ Introduce a **Retrieval‑Augmented Generation (RAG) layer** into the bot detect
 ---
 
 ## Performance Targets
+
 - **Embedding generation**: < 10ms per request (MiniLM ONNX baseline).
 - **Cluster lookup**: < 50ms with vector index (FAISS or equivalent).
 - **Contributor runtime**: < 100ms end‑to‑end.
@@ -61,10 +69,13 @@ Introduce a **Retrieval‑Augmented Generation (RAG) layer** into the bot detect
 ---
 
 ## Future Extensions
+
 - **Federated registries**: Multiple registries with trust weighting.
 - **Adaptive pipeline routing**: Requests dynamically routed to detector pairs based on cluster shape.
 - **Explainable dashboards**: Visualize cluster evolution and cross‑instance propagation.
 
 ---
 
-This spec positions the ONNX + RAG layer as the **memory + adaptive intelligence tier** in your immune‑system architecture: fast path for innate checks, heuristics for lightweight adaptation, ONNX + RAG for shared memory, and LLMs for deep reasoning.
+This spec positions the ONNX + RAG layer as the **memory + adaptive intelligence tier** in your immune‑system
+architecture: fast path for innate checks, heuristics for lightweight adaptation, ONNX + RAG for shared memory, and LLMs
+for deep reasoning.

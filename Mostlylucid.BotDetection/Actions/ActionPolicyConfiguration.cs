@@ -12,14 +12,17 @@ namespace Mostlylucid.BotDetection.Actions;
 ///     <para>
 ///         This abstract class is inherited by:
 ///         <list type="bullet">
-///             <item><see cref="ActionPolicyConfig"/> - Configuration for action policies (Block, Throttle, Challenge, etc.)</item>
-///             <item><see cref="Policies.DetectionPolicyConfig"/> - Configuration for detection policies</item>
-///             <item><see cref="Models.DetectorConfig"/> - Configuration for individual detectors</item>
+///             <item>
+///                 <see cref="ActionPolicyConfig" /> - Configuration for action policies (Block, Throttle, Challenge,
+///                 etc.)
+///             </item>
+///             <item><see cref="Policies.DetectionPolicyConfig" /> - Configuration for detection policies</item>
+///             <item><see cref="Models.DetectorConfig" /> - Configuration for individual detectors</item>
 ///         </list>
 ///     </para>
 ///     <para>
 ///         All properties support both JSON configuration (appsettings.json) and code configuration.
-///         The <see cref="Metadata"/> dictionary allows for custom extensibility without modifying the base classes.
+///         The <see cref="Metadata" /> dictionary allows for custom extensibility without modifying the base classes.
 ///     </para>
 /// </remarks>
 /// <example>
@@ -78,7 +81,7 @@ public abstract class BaseComponentConfig
 /// <summary>
 ///     Configuration for a named action policy.
 ///     Supports full JSON and code configuration for all action policy types.
-///     Inherits common extensibility properties from <see cref="BaseComponentConfig"/>.
+///     Inherits common extensibility properties from <see cref="BaseComponentConfig" />.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -86,7 +89,7 @@ public abstract class BaseComponentConfig
 ///         They are separate from detection policies (WHAT/WHEN) for maximum composability.
 ///     </para>
 ///     <para>
-///         Supported action types (via <see cref="Type"/> property):
+///         Supported action types (via <see cref="Type" /> property):
 ///         <list type="bullet">
 ///             <item><b>Block</b> - Return error status code (403, 429, etc.)</item>
 ///             <item><b>Throttle</b> - Add delay before response, with jitter and risk scaling</item>
@@ -129,7 +132,6 @@ public abstract class BaseComponentConfig
 ///       }
 ///     }
 ///     </code>
-///
 ///     Code configuration:
 ///     <code>
 ///     options.ActionPolicies["myThrottle"] = new ActionPolicyConfig

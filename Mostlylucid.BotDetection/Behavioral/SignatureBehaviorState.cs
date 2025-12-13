@@ -2,7 +2,6 @@ namespace Mostlylucid.BotDetection.Behavioral;
 
 /// <summary>
 ///     Behavioral waveform snapshot captured from a signature's activity over time.
-///
 ///     This represents the measurable characteristics of how a client behaves across
 ///     multiple requests, used for:
 ///     - Behavioral analysis and anomaly detection
@@ -14,8 +13,10 @@ public sealed record SignatureBehaviorState
 {
     /// <summary>
     ///     Path entropy - measures unpredictability of URL selection.
-    ///     Low values (< 0.5) suggest sequential/deterministic behavior.
-    ///     High values (> 3.0) suggest exploratory/scanning behavior.
+    ///     Low values (
+    ///     < 0.5) suggest sequential/ deterministic behavior.
+    ///         High values (>
+    ///         3.0) suggest exploratory/scanning behavior.
     /// </summary>
     public double PathEntropy { get; init; }
 
@@ -28,8 +29,10 @@ public sealed record SignatureBehaviorState
 
     /// <summary>
     ///     Coefficient of Variation (CV) - stddev / mean of inter-request times.
-    ///     Low values (< 0.3) suggest consistent timing (bots).
-    ///     High values (> 0.7) suggest variable human timing.
+    ///     Low values (
+    ///     < 0.3) suggest consistent timing ( bots).
+    ///         High values (>
+    ///         0.7) suggest variable human timing.
     /// </summary>
     public double CoefficientOfVariation { get; init; }
 
@@ -56,8 +59,9 @@ public sealed record SignatureBehaviorState
 
     /// <summary>
     ///     Spectral entropy - complexity of timing frequency spectrum.
-    ///     Low values (< 0.4) suggest simple periodic patterns (bots).
-    ///     High values suggest complex human timing.
+    ///     Low values (
+    ///     < 0.4) suggest simple periodic patterns ( bots).
+    ///         High values suggest complex human timing.
     /// </summary>
     public double SpectralEntropy { get; init; }
 

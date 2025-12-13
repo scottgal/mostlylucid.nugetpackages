@@ -111,17 +111,18 @@ services.AddSingleton<IContributingDetector>(sp =>
 
 Each contribution affects the final bot probability:
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `DetectorName` | string | Name of the contributing detector |
-| `Category` | string | Category (UserAgent, Header, Ip, Behavioral, AI) |
-| `ConfidenceDelta` | double | Change in bot probability (-1.0 to +1.0) |
-| `Weight` | double | Importance multiplier (default: 1.0) |
-| `Reason` | string | Human-readable explanation |
-| `Signal` | string | Signal name for event-driven logic |
-| `Metadata` | dict | Additional data for downstream processing |
+| Property          | Type   | Description                                      |
+|-------------------|--------|--------------------------------------------------|
+| `DetectorName`    | string | Name of the contributing detector                |
+| `Category`        | string | Category (UserAgent, Header, Ip, Behavioral, AI) |
+| `ConfidenceDelta` | double | Change in bot probability (-1.0 to +1.0)         |
+| `Weight`          | double | Importance multiplier (default: 1.0)             |
+| `Reason`          | string | Human-readable explanation                       |
+| `Signal`          | string | Signal name for event-driven logic               |
+| `Metadata`        | dict   | Additional data for downstream processing        |
 
 **ConfidenceDelta values:**
+
 - Positive: increases bot probability
 - Negative: decreases bot probability (more human-like)
 - Range: -1.0 to +1.0
@@ -572,16 +573,16 @@ Individual detectors can also be configured:
 
 ## 8. Extension Points Summary
 
-| Interface | Purpose | Registration |
-|-----------|---------|--------------|
-| `IContributingDetector` | Add detection signals | `services.AddSingleton<IContributingDetector, MyDetector>()` |
-| `IActionPolicy` | Custom response handling | `services.AddSingleton<IActionPolicy, MyPolicy>()` |
-| `IActionPolicyFactory` | Create policies from config | `services.AddSingleton<IActionPolicyFactory, MyFactory>()` |
-| `IChallengeHandler` | Custom challenge logic | `services.AddSingleton<IChallengeHandler, MyHandler>()` |
-| `ILearningEventHandler` | React to detection events | `services.AddSingleton<ILearningEventHandler, MyHandler>()` |
-| `ILearnedPatternStore` | Custom pattern storage | `services.AddSingleton<ILearnedPatternStore, MyStore>()` |
-| `IBotSignalListener` | Real-time signal handling | `services.AddTransient<IBotSignalListener, MyListener>()` |
-| `IPatternReputationCache` | Custom reputation storage | `services.AddSingleton<IPatternReputationCache, MyCache>()` |
+| Interface                 | Purpose                     | Registration                                                 |
+|---------------------------|-----------------------------|--------------------------------------------------------------|
+| `IContributingDetector`   | Add detection signals       | `services.AddSingleton<IContributingDetector, MyDetector>()` |
+| `IActionPolicy`           | Custom response handling    | `services.AddSingleton<IActionPolicy, MyPolicy>()`           |
+| `IActionPolicyFactory`    | Create policies from config | `services.AddSingleton<IActionPolicyFactory, MyFactory>()`   |
+| `IChallengeHandler`       | Custom challenge logic      | `services.AddSingleton<IChallengeHandler, MyHandler>()`      |
+| `ILearningEventHandler`   | React to detection events   | `services.AddSingleton<ILearningEventHandler, MyHandler>()`  |
+| `ILearnedPatternStore`    | Custom pattern storage      | `services.AddSingleton<ILearnedPatternStore, MyStore>()`     |
+| `IBotSignalListener`      | Real-time signal handling   | `services.AddTransient<IBotSignalListener, MyListener>()`    |
+| `IPatternReputationCache` | Custom reputation storage   | `services.AddSingleton<IPatternReputationCache, MyCache>()`  |
 
 ---
 

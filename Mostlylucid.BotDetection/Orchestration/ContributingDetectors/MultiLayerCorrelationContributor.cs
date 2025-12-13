@@ -7,16 +7,13 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// <summary>
 ///     Multi-layer identity correlation contributor.
 ///     Analyzes consistency across multiple detection layers to identify sophisticated bots.
-///
 ///     Best-in-breed approach:
 ///     - Cross-layer consistency analysis (TLS + TCP + HTTP/2 + Headers)
 ///     - OS fingerprint correlation (TCP TTL vs User-Agent claimed OS)
 ///     - Browser fingerprint correlation (TLS + HTTP/2 vs User-Agent claimed browser)
 ///     - Geographic correlation (IP geolocation vs language headers)
 ///     - Temporal correlation (timing patterns across layers)
-///
 ///     This runs in a later wave after all fingerprinting contributors have completed.
-///
 ///     Raises signals for final waveform analysis:
 ///     - correlation.os_mismatch
 ///     - correlation.browser_mismatch
@@ -132,7 +129,8 @@ public class MultiLayerCorrelationContributor : ContributingDetectorBase
 
             // 5. Datacenter + Browser Claims = Suspicious
             if (ipIsDatacenter && !string.IsNullOrEmpty(userAgentBrowser) &&
-                (userAgentBrowser.Contains("Chrome") || userAgentBrowser.Contains("Firefox") || userAgentBrowser.Contains("Safari")))
+                (userAgentBrowser.Contains("Chrome") || userAgentBrowser.Contains("Firefox") ||
+                 userAgentBrowser.Contains("Safari")))
             {
                 anomalyCount++;
                 anomalyLayers.Add("IP-Browser");
@@ -146,32 +144,27 @@ public class MultiLayerCorrelationContributor : ContributingDetectorBase
 
             // 6. Calculate overall consistency score
             var totalLayers = 5; // OS, Browser, TLS, Geo, IP-Browser
-            var consistencyScore = 1.0 - ((double)anomalyCount / totalLayers);
+            var consistencyScore = 1.0 - (double)anomalyCount / totalLayers;
             signals.Add("correlation.consistency_score", consistencyScore);
             signals.Add("correlation.anomaly_count", anomalyCount);
             signals.Add("correlation.anomaly_layers", string.Join(",", anomalyLayers));
 
             // High anomaly count = very suspicious
             if (anomalyCount >= 3)
-            {
                 contributions.Add(DetectionContribution.Bot(
                     Name, "Correlation", 0.85,
                     $"Multiple layer mismatches detected ({anomalyCount}/{totalLayers}): {string.Join(", ", anomalyLayers)}",
                     BotType.MaliciousBot,
                     weight: 2.0));
-            }
             else if (anomalyCount >= 2)
-            {
                 contributions.Add(DetectionContribution.Bot(
                     Name, "Correlation", 0.6,
                     $"Cross-layer inconsistencies: {string.Join(", ", anomalyLayers)}",
                     BotType.Scraper,
                     weight: 1.5));
-            }
 
             // 7. Perfect consistency across all layers = likely human
             if (anomalyCount == 0 && !string.IsNullOrEmpty(tcpOsHint) && !string.IsNullOrEmpty(userAgentOs))
-            {
                 contributions.Add(new DetectionContribution
                 {
                     DetectorName = Name,
@@ -181,8 +174,6 @@ public class MultiLayerCorrelationContributor : ContributingDetectorBase
                     Reason = "Perfect cross-layer consistency (OS, Browser, TLS, Geo all match)",
                     Signals = signals.ToImmutable()
                 });
-            }
-
         }
         catch (Exception ex)
         {
@@ -263,9 +254,9 @@ public class MultiLayerCorrelationContributor : ContributingDetectorBase
 
         // Modern browsers (Chrome 80+, Firefox 75+, Safari 13+) should use TLS 1.2+
         var isModernBrowser = userAgentBrowser.Contains("Chrome") ||
-                             userAgentBrowser.Contains("Firefox") ||
-                             userAgentBrowser.Contains("Safari") ||
-                             userAgentBrowser.Contains("Edge");
+                              userAgentBrowser.Contains("Firefox") ||
+                              userAgentBrowser.Contains("Safari") ||
+                              userAgentBrowser.Contains("Edge");
 
         var isOldTls = tlsProtocol.Contains("Tls") && !tlsProtocol.Contains("Tls12") && !tlsProtocol.Contains("Tls13");
 
@@ -304,7 +295,8 @@ public class MultiLayerCorrelationContributor : ContributingDetectorBase
 
         if (languageCountryMap.TryGetValue(ipCountry, out var expectedLanguages))
         {
-            var mismatch = !expectedLanguages.Any(lang => primaryLang.StartsWith(lang, StringComparison.OrdinalIgnoreCase));
+            var mismatch =
+                !expectedLanguages.Any(lang => primaryLang.StartsWith(lang, StringComparison.OrdinalIgnoreCase));
             signals.Add("correlation.geo_mismatch", mismatch);
             return mismatch;
         }
@@ -343,10 +335,7 @@ public class MultiLayerCorrelationContributor : ContributingDetectorBase
 
     private static T? GetSignal<T>(BlackboardState state, string signalName)
     {
-        if (state.Signals.TryGetValue(signalName, out var value) && value is T typedValue)
-        {
-            return typedValue;
-        }
+        if (state.Signals.TryGetValue(signalName, out var value) && value is T typedValue) return typedValue;
         return default;
     }
 }

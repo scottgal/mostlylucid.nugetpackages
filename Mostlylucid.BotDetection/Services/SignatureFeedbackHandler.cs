@@ -37,8 +37,8 @@ namespace Mostlylucid.BotDetection.Services;
 public class SignatureFeedbackHandler : ILearningEventHandler
 {
     private readonly ILogger<SignatureFeedbackHandler> _logger;
-    private readonly IWeightStore _weightStore;
     private readonly BotDetectionOptions _options;
+    private readonly IWeightStore _weightStore;
 
     public SignatureFeedbackHandler(
         ILogger<SignatureFeedbackHandler> logger,
@@ -100,22 +100,18 @@ public class SignatureFeedbackHandler : ILearningEventHandler
         // Use label if available; for high-confidence events, botProbability in metadata is more accurate
         var wasBot = evt.Label ?? false;
         if (evt.Metadata?.TryGetValue("botProbability", out var probObj) == true && probObj is double botProb)
-        {
             wasBot = botProb >= 0.5;
-        }
 
         // Extract signatures from metadata
         var signatures = ExtractSignatures(evt);
 
         foreach (var (sigType, signature) in signatures)
-        {
             await _weightStore.RecordObservationAsync(
                 sigType,
                 signature,
                 wasBot,
                 evt.Confidence.Value,
                 ct);
-        }
 
         _logger.LogDebug(
             "High-confidence detection: {Count} signatures updated, wasBot={WasBot}, confidence={Confidence:F2}",
@@ -131,22 +127,18 @@ public class SignatureFeedbackHandler : ILearningEventHandler
         // Use botProbability from metadata for accurate bot/human determination
         var wasBot = evt.Label ?? false;
         if (evt.Metadata?.TryGetValue("botProbability", out var probObj) == true && probObj is double botProb)
-        {
             wasBot = botProb >= 0.5;
-        }
 
         var signatures = ExtractSignatures(evt);
 
         // Use lower weight for full detections (less confident)
         foreach (var (sigType, signature) in signatures)
-        {
             await _weightStore.RecordObservationAsync(
                 sigType,
                 signature,
                 wasBot,
                 evt.Confidence.Value * 0.5, // Reduce weight
                 ct);
-        }
     }
 
     private async Task HandleSignatureFeedback(LearningEvent evt, CancellationToken ct)
@@ -163,9 +155,7 @@ public class SignatureFeedbackHandler : ILearningEventHandler
         // since most traffic is human
         var wasBot = evt.Label;
         if (!wasBot.HasValue && evt.Metadata?.TryGetValue("wasBot", out var wbObj) == true)
-        {
             wasBot = wbObj is bool wb ? wb : null;
-        }
 
         await _weightStore.RecordObservationAsync(
             sigType,
@@ -189,7 +179,6 @@ public class SignatureFeedbackHandler : ILearningEventHandler
         var signatures = ExtractSignatures(evt);
 
         foreach (var (sigType, signature) in signatures)
-        {
             // User feedback gets high confidence
             await _weightStore.UpdateWeightAsync(
                 sigType,
@@ -198,7 +187,6 @@ public class SignatureFeedbackHandler : ILearningEventHandler
                 0.9, // High confidence from user feedback
                 1,
                 ct);
-        }
 
         _logger.LogInformation(
             "User feedback processed: wasBot={WasBot}, correct={Correct}, signatures={Count}",
@@ -251,10 +239,7 @@ public class SignatureFeedbackHandler : ILearningEventHandler
         }
 
         // Pattern from event
-        if (!string.IsNullOrEmpty(evt.Pattern))
-        {
-            signatures.Add((SignatureTypes.CombinedSignature, evt.Pattern));
-        }
+        if (!string.IsNullOrEmpty(evt.Pattern)) signatures.Add((SignatureTypes.CombinedSignature, evt.Pattern));
 
         return signatures;
     }
@@ -288,9 +273,7 @@ public class SignatureFeedbackHandler : ILearningEventHandler
         if (userAgent.Contains("bot", StringComparison.OrdinalIgnoreCase) ||
             userAgent.Contains("spider", StringComparison.OrdinalIgnoreCase) ||
             userAgent.Contains("crawler", StringComparison.OrdinalIgnoreCase))
-        {
             sb.Append("bot:");
-        }
 
         // Add length bucket for uniqueness
         sb.Append($"len{userAgent.Length / 50}");
@@ -310,19 +293,13 @@ public class SignatureFeedbackHandler : ILearningEventHandler
         {
             // IPv4 - take first 3 octets
             var parts = ip.Split('.');
-            if (parts.Length >= 3)
-            {
-                return $"{parts[0]}.{parts[1]}.{parts[2]}.0/24";
-            }
+            if (parts.Length >= 3) return $"{parts[0]}.{parts[1]}.{parts[2]}.0/24";
         }
         else if (ip.Contains(':'))
         {
             // IPv6 - take first 3 segments
             var parts = ip.Split(':');
-            if (parts.Length >= 3)
-            {
-                return $"{parts[0]}:{parts[1]}:{parts[2]}::/48";
-            }
+            if (parts.Length >= 3) return $"{parts[0]}:{parts[1]}:{parts[2]}::/48";
         }
 
         return ip; // Fallback to exact IP
@@ -340,14 +317,10 @@ public class SignatureFeedbackHandler : ILearningEventHandler
         // Replace IDs with placeholders
         // e.g., /api/users/123 -> /api/users/{id}
         var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        for (int i = 0; i < parts.Length; i++)
-        {
+        for (var i = 0; i < parts.Length; i++)
             if (int.TryParse(parts[i], out _) ||
                 Guid.TryParse(parts[i], out _))
-            {
                 parts[i] = "{id}";
-            }
-        }
 
         return "/" + string.Join("/", parts);
     }

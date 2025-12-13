@@ -66,14 +66,14 @@ var scenario = new BdfScenario
 - **Scenarios**: Complete behavioral description with metadata and expectations
 - **Phases**: Stages of the attack with distinct timing/navigation patterns
 - **Timing Modes**:
-  - `fixed` - Perfectly periodic (timer-driven bots)
-  - `jittered` - Normally distributed delays (human-like or jittered bots)
-  - `burst` - Short bursts with pauses (aggressive scrapers)
+    - `fixed` - Perfectly periodic (timer-driven bots)
+    - `jittered` - Normally distributed delays (human-like or jittered bots)
+    - `burst` - Short bursts with pauses (aggressive scrapers)
 - **Navigation Modes**:
-  - `ui_graph` - Follows UI links (human-like)
-  - `sequential` - Deterministic path iteration (scrapers)
-  - `random` - Weighted random selection (fuzzing)
-  - `scanner` - Attack path discovery (security scanners)
+    - `ui_graph` - Follows UI links (human-like)
+    - `sequential` - Deterministic path iteration (scrapers)
+    - `random` - Weighted random selection (fuzzing)
+    - `scanner` - Attack path discovery (security scanners)
 
 ### 2. Signature Behavior State (`SignatureBehaviorState.cs`)
 
@@ -109,14 +109,14 @@ var behaviorState = new SignatureBehaviorState
 
 **Interpretation Thresholds** (from `SignatureToBdfMapperOptions`):
 
-| Metric | Bot-like | Human-like |
-|--------|----------|------------|
-| PathEntropy | < 0.5 (sequential) | > 3.0 (exploratory) |
-| TimingEntropy | < 0.3 (periodic) | > 0.7 (variable) |
-| CoefficientOfVariation | < 0.3 (consistent) | > 0.7 (variable) |
-| SpectralPeakToNoise | > 4.0 (timer-driven) | < 2.0 (irregular) |
-| NavAnomalyScore | > 0.6 (scanner) | < 0.3 (normal) |
-| AffordanceFollowThrough | < 0.4 (programmatic) | > 0.8 (UI-driven) |
+| Metric                  | Bot-like             | Human-like          |
+|-------------------------|----------------------|---------------------|
+| PathEntropy             | < 0.5 (sequential)   | > 3.0 (exploratory) |
+| TimingEntropy           | < 0.3 (periodic)     | > 0.7 (variable)    |
+| CoefficientOfVariation  | < 0.3 (consistent)   | > 0.7 (variable)    |
+| SpectralPeakToNoise     | > 4.0 (timer-driven) | < 2.0 (irregular)   |
+| NavAnomalyScore         | > 0.6 (scanner)      | < 0.3 (normal)      |
+| AffordanceFollowThrough | < 0.4 (programmatic) | > 0.8 (UI-driven)   |
 
 ### 3. Signature-to-BDF Mapper (`SignatureToBdfMapper.cs`)
 
@@ -157,15 +157,15 @@ public class MyService
 **Mapping Logic:**
 
 - **Timing Detection**:
-  - High spectral peak + low spectral entropy → `fixed` timing (periodic bot)
-  - High burst score → `burst` timing (aggressive scraper)
-  - Otherwise → `jittered` timing with CV-based jitter
+    - High spectral peak + low spectral entropy → `fixed` timing (periodic bot)
+    - High burst score → `burst` timing (aggressive scraper)
+    - Otherwise → `jittered` timing with CV-based jitter
 
 - **Navigation Detection**:
-  - High path entropy + high nav anomaly → `scanner` mode (attack paths)
-  - Low path entropy + high nav anomaly → `sequential` mode (deterministic scraper)
-  - High affordance ratio + low nav anomaly → `ui_graph` mode (human-like)
-  - Otherwise → `random` mode
+    - High path entropy + high nav anomaly → `scanner` mode (attack paths)
+    - Low path entropy + high nav anomaly → `sequential` mode (deterministic scraper)
+    - High affordance ratio + low nav anomaly → `ui_graph` mode (human-like)
+    - Otherwise → `random` mode
 
 ### 4. Explanation Formatter (`SignatureExplanationFormatter.cs`)
 
@@ -218,7 +218,8 @@ Raw Metrics:
 - AffordanceFollowThrough: 0.15
 ```
 
-**Consistency:** The formatter uses the same `SignatureToBdfMapperOptions` thresholds as the mapper, ensuring technical scenarios and user-facing explanations speak the same language.
+**Consistency:** The formatter uses the same `SignatureToBdfMapperOptions` thresholds as the mapper, ensuring technical
+scenarios and user-facing explanations speak the same language.
 
 ### 5. BDF Runner (`BdfRunner.cs`)
 
@@ -495,7 +496,8 @@ public async Task DetectionRegression_KnownScenarios_ClassifiedCorrectly(string 
 
 ### Scenario doesn't match expected behavior
 
-Check threshold configuration in `SignatureToBdfMapperOptions`. Thresholds may need tuning based on your traffic patterns.
+Check threshold configuration in `SignatureToBdfMapperOptions`. Thresholds may need tuning based on your traffic
+patterns.
 
 ### Runner timing is inaccurate
 
@@ -503,7 +505,8 @@ Ensure `BaseRateRps` and `JitterStdDevSeconds` are realistic values. Very high R
 
 ### Explanation doesn't match mapper output
 
-Verify both use the same `SignatureToBdfMapperOptions` instance. They should be registered as singleton with shared configuration.
+Verify both use the same `SignatureToBdfMapperOptions` instance. They should be registered as singleton with shared
+configuration.
 
 ## Future Enhancements
 

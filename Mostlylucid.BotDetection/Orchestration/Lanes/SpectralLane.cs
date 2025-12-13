@@ -8,11 +8,14 @@ namespace Mostlylucid.BotDetection.Orchestration.Lanes;
 /// </summary>
 internal sealed class SpectralLane : AnalysisLaneBase
 {
-    public SpectralLane(SignalSink sink) : base(sink) { }
+    public SpectralLane(SignalSink sink) : base(sink)
+    {
+    }
 
     public override string Name => "spectral";
 
-    public override Task AnalyzeAsync(IReadOnlyList<OperationCompleteSignal> window, CancellationToken cancellationToken = default)
+    public override Task AnalyzeAsync(IReadOnlyList<OperationCompleteSignal> window,
+        CancellationToken cancellationToken = default)
     {
         if (window.Count == 0)
         {

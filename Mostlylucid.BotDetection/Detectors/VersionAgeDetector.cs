@@ -33,6 +33,75 @@ public partial class VersionAgeDetector : IDetector
     private readonly VersionAgeOptions _options;
     private readonly IBrowserVersionService _versionService;
 
+    public VersionAgeDetector(
+        ILogger<VersionAgeDetector> logger,
+        IOptions<BotDetectionOptions> options,
+        IBrowserVersionService versionService)
+    {
+        _logger = logger;
+        _options = options.Value.VersionAge;
+        _versionService = versionService;
+    }
+
+    public string Name => "Version Age Detector";
+
+    /// <summary>Stage 0: Raw signal extraction - no dependencies</summary>
+    public DetectorStage Stage => DetectorStage.RawSignals;
+
+    public async Task<DetectorResult> DetectAsync(HttpContext context, CancellationToken cancellationToken = default)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var result = new DetectorResult();
+
+        if (!_options.Enabled) return result;
+
+        var userAgent = context.Request.Headers.UserAgent.ToString();
+
+        if (string.IsNullOrWhiteSpace(userAgent)) return result; // Let UserAgentDetector handle missing UA
+
+        try
+        {
+            var (browserName, browserVersion) = ExtractBrowserVersion(userAgent);
+            var (osName, osVersion) = ExtractOsVersion(userAgent);
+
+            // Check browser version age
+            if (_options.CheckBrowserVersion && browserName != null && browserVersion.HasValue)
+                await CheckBrowserVersionAge(browserName, browserVersion.Value, result, cancellationToken);
+
+            // Check OS version age
+            if (_options.CheckOsVersion && osName != null) CheckOsVersionAge(osName, osVersion, result);
+
+            // Check for impossible combinations
+            if (browserName != null && browserVersion.HasValue && osName != null)
+                CheckImpossibleCombination(browserName, browserVersion.Value, osName, osVersion, userAgent, result);
+
+            // Add combined boost if both browser AND OS are outdated
+            if (result.Reasons.Any(r => r.Category == "BrowserVersion") &&
+                result.Reasons.Any(r => r.Category == "OsVersion"))
+            {
+                result.Confidence += _options.CombinedOutdatedBoost;
+                result.Reasons.Add(new DetectionReason
+                {
+                    Category = "VersionAge",
+                    Detail = "Both browser AND OS are outdated - suspicious combination",
+                    ConfidenceImpact = _options.CombinedOutdatedBoost
+                });
+            }
+
+            stopwatch.Stop();
+            _logger.LogDebug(
+                "Version age detection completed in {ElapsedMs}ms. Browser: {Browser} v{BrowserVersion}, OS: {Os}. Confidence: {Confidence:F2}",
+                stopwatch.ElapsedMilliseconds, browserName ?? "unknown", browserVersion?.ToString() ?? "?",
+                osName ?? "unknown", result.Confidence);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error during version age detection for UA: {UserAgent}", userAgent);
+        }
+
+        return result;
+    }
+
     // Pre-compiled regex for extracting browser versions from User-Agent
     [GeneratedRegex(@"Chrome/(\d+)", RegexOptions.Compiled)]
     private static partial Regex ChromeVersionRegex();
@@ -65,88 +134,6 @@ public partial class VersionAgeDetector : IDetector
     [GeneratedRegex(@"iPhone OS (\d+)|iPad.*OS (\d+)", RegexOptions.Compiled)]
     private static partial Regex IosVersionRegex();
 
-    public VersionAgeDetector(
-        ILogger<VersionAgeDetector> logger,
-        IOptions<BotDetectionOptions> options,
-        IBrowserVersionService versionService)
-    {
-        _logger = logger;
-        _options = options.Value.VersionAge;
-        _versionService = versionService;
-    }
-
-    public string Name => "Version Age Detector";
-
-    /// <summary>Stage 0: Raw signal extraction - no dependencies</summary>
-    public DetectorStage Stage => DetectorStage.RawSignals;
-
-    public async Task<DetectorResult> DetectAsync(HttpContext context, CancellationToken cancellationToken = default)
-    {
-        var stopwatch = Stopwatch.StartNew();
-        var result = new DetectorResult();
-
-        if (!_options.Enabled)
-        {
-            return result;
-        }
-
-        var userAgent = context.Request.Headers.UserAgent.ToString();
-
-        if (string.IsNullOrWhiteSpace(userAgent))
-        {
-            return result; // Let UserAgentDetector handle missing UA
-        }
-
-        try
-        {
-            var (browserName, browserVersion) = ExtractBrowserVersion(userAgent);
-            var (osName, osVersion) = ExtractOsVersion(userAgent);
-
-            // Check browser version age
-            if (_options.CheckBrowserVersion && browserName != null && browserVersion.HasValue)
-            {
-                await CheckBrowserVersionAge(browserName, browserVersion.Value, result, cancellationToken);
-            }
-
-            // Check OS version age
-            if (_options.CheckOsVersion && osName != null)
-            {
-                CheckOsVersionAge(osName, osVersion, result);
-            }
-
-            // Check for impossible combinations
-            if (browserName != null && browserVersion.HasValue && osName != null)
-            {
-                CheckImpossibleCombination(browserName, browserVersion.Value, osName, osVersion, userAgent, result);
-            }
-
-            // Add combined boost if both browser AND OS are outdated
-            if (result.Reasons.Any(r => r.Category == "BrowserVersion") &&
-                result.Reasons.Any(r => r.Category == "OsVersion"))
-            {
-                result.Confidence += _options.CombinedOutdatedBoost;
-                result.Reasons.Add(new DetectionReason
-                {
-                    Category = "VersionAge",
-                    Detail = "Both browser AND OS are outdated - suspicious combination",
-                    ConfidenceImpact = _options.CombinedOutdatedBoost
-                });
-            }
-
-            stopwatch.Stop();
-            _logger.LogDebug(
-                "Version age detection completed in {ElapsedMs}ms. Browser: {Browser} v{BrowserVersion}, OS: {Os}. Confidence: {Confidence:F2}",
-                stopwatch.ElapsedMilliseconds, browserName ?? "unknown", browserVersion?.ToString() ?? "?",
-                osName ?? "unknown", result.Confidence);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Error during version age detection for UA: {UserAgent}", userAgent);
-        }
-
-        return result;
-    }
-
     private async Task CheckBrowserVersionAge(string browserName, int browserVersion, DetectorResult result,
         CancellationToken ct)
     {
@@ -173,7 +160,8 @@ public partial class VersionAgeDetector : IDetector
             result.Reasons.Add(new DetectionReason
             {
                 Category = "BrowserVersion",
-                Detail = $"{browserName} v{browserVersion} is {versionAge} versions behind (latest: {latestVersion.Value})",
+                Detail =
+                    $"{browserName} v{browserVersion} is {versionAge} versions behind (latest: {latestVersion.Value})",
                 ConfidenceImpact = _options.BrowserSeverelyOutdatedConfidence
             });
             _logger.LogDebug("Severely outdated browser: {Browser} v{Version} ({Age} versions behind)",
@@ -186,7 +174,8 @@ public partial class VersionAgeDetector : IDetector
             result.Reasons.Add(new DetectionReason
             {
                 Category = "BrowserVersion",
-                Detail = $"{browserName} v{browserVersion} is {versionAge} versions behind (latest: {latestVersion.Value})",
+                Detail =
+                    $"{browserName} v{browserVersion} is {versionAge} versions behind (latest: {latestVersion.Value})",
                 ConfidenceImpact = _options.BrowserModeratelyOutdatedConfidence
             });
         }
@@ -197,7 +186,8 @@ public partial class VersionAgeDetector : IDetector
             result.Reasons.Add(new DetectionReason
             {
                 Category = "BrowserVersion",
-                Detail = $"{browserName} v{browserVersion} is {versionAge} versions behind (latest: {latestVersion.Value})",
+                Detail =
+                    $"{browserName} v{browserVersion} is {versionAge} versions behind (latest: {latestVersion.Value})",
                 ConfidenceImpact = _options.BrowserSlightlyOutdatedConfidence
             });
         }
@@ -210,13 +200,11 @@ public partial class VersionAgeDetector : IDetector
         // Find matching OS age classification
         string? ageCategory = null;
         foreach (var (pattern, category) in _options.OsAgeClassification)
-        {
             if (osKey.Contains(pattern, StringComparison.OrdinalIgnoreCase))
             {
                 ageCategory = category;
                 break;
             }
-        }
 
         if (ageCategory == null)
         {
@@ -263,9 +251,7 @@ public partial class VersionAgeDetector : IDetector
     {
         // Check if browser version is too new for the reported OS
         foreach (var (osPattern, maxBrowserVersion) in _options.MinBrowserVersionByOs)
-        {
             if (userAgent.Contains(osPattern, StringComparison.OrdinalIgnoreCase))
-            {
                 // This OS can only run up to maxBrowserVersion of Chrome-family browsers
                 if (browserName is "Chrome" or "Edge" or "Brave" or "Opera" && browserVersion > maxBrowserVersion)
                 {
@@ -274,7 +260,8 @@ public partial class VersionAgeDetector : IDetector
                     result.Reasons.Add(new DetectionReason
                     {
                         Category = "ImpossibleCombination",
-                        Detail = $"Impossible: {browserName} v{browserVersion} cannot run on {osPattern} (max supported: v{maxBrowserVersion})",
+                        Detail =
+                            $"Impossible: {browserName} v{browserVersion} cannot run on {osPattern} (max supported: v{maxBrowserVersion})",
                         ConfidenceImpact = _options.ImpossibleCombinationConfidence
                     });
                     _logger.LogInformation(
@@ -282,8 +269,6 @@ public partial class VersionAgeDetector : IDetector
                         browserName, browserVersion, osPattern);
                     return;
                 }
-            }
-        }
     }
 
     private static (string? BrowserName, int? Version) ExtractBrowserVersion(string userAgent)

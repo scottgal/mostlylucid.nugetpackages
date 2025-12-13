@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Orchestration;
 
 namespace Mostlylucid.BotDetection.Dashboard;
@@ -225,14 +224,19 @@ public static class DetectionRecordFactory
 
             // Metadata
             ServerHost = options.IncludeServerHost ? Environment.MachineName : null,
-            YarpCluster = state.HttpContext.Items.TryGetValue("Yarp.Cluster", out var cluster) ? cluster?.ToString() : null,
-            YarpDestination = state.HttpContext.Items.TryGetValue("Yarp.Destination", out var dest) ? dest?.ToString() : null,
+            YarpCluster = state.HttpContext.Items.TryGetValue("Yarp.Cluster", out var cluster)
+                ? cluster?.ToString()
+                : null,
+            YarpDestination = state.HttpContext.Items.TryGetValue("Yarp.Destination", out var dest)
+                ? dest?.ToString()
+                : null,
             Escalated = state.HttpContext.Items.ContainsKey("BotDetection.Escalated"),
             SchemaVersion = 1
         };
     }
 
-    private static ImmutableDictionary<string, object> FilterImportantSignals(IReadOnlyDictionary<string, object> signals)
+    private static ImmutableDictionary<string, object> FilterImportantSignals(
+        IReadOnlyDictionary<string, object> signals)
     {
         // Only include signals that are safe for dashboard display (no PII)
         var allowedPrefixes = new[] { "ua.", "header.", "client.", "geo.", "ip.", "behavioral." };
@@ -243,8 +247,8 @@ public static class DetectionRecordFactory
 
         return signals
             .Where(s => allowedPrefixes.Any(p => s.Key.StartsWith(p, StringComparison.OrdinalIgnoreCase))
-                     && !blockedKeys.Contains(s.Key))
-            .Take(50)  // Limit to 50 signals
+                        && !blockedKeys.Contains(s.Key))
+            .Take(50) // Limit to 50 signals
             .ToImmutableDictionary();
     }
 }

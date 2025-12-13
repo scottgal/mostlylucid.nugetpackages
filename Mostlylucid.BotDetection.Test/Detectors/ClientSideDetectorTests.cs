@@ -1,11 +1,9 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Moq;
-using Mostlylucid.BotDetection.Detectors;
 using Mostlylucid.BotDetection.ClientSide;
+using Mostlylucid.BotDetection.Detectors;
 using Mostlylucid.BotDetection.Models;
-using Xunit;
 
 namespace Mostlylucid.BotDetection.Test.Detectors;
 
@@ -39,10 +37,7 @@ public class ClientSideDetectorTests
 
         // Assert
         // May or may not detect - depends on other signals
-        if (result != null)
-        {
-            Assert.True(result.Confidence >= 0);
-        }
+        if (result != null) Assert.True(result.Confidence >= 0);
     }
 
     [Fact]
@@ -72,10 +67,7 @@ public class ClientSideDetectorTests
 
         // Assert
         // May or may not detect - depends on detector implementation
-        if (result != null)
-        {
-            Assert.True(result.Confidence >= 0);
-        }
+        if (result != null) Assert.True(result.Confidence >= 0);
     }
 
     [Theory]
@@ -92,10 +84,7 @@ public class ClientSideDetectorTests
 
         // Assert
         // ClientSideDetector may not detect these - they're better caught by other detectors
-        if (result != null)
-        {
-            Assert.True(result.Confidence >= 0);
-        }
+        if (result != null) Assert.True(result.Confidence >= 0);
     }
 
     [Fact]

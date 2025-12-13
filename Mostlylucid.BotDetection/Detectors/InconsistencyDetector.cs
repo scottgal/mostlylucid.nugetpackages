@@ -16,8 +16,8 @@ namespace Mostlylucid.BotDetection.Detectors;
 public partial class InconsistencyDetector : IDetector
 {
     private readonly ILogger<InconsistencyDetector> _logger;
-    private readonly BotDetectionOptions _options;
     private readonly BotDetectionMetrics? _metrics;
+    private readonly BotDetectionOptions _options;
 
     public InconsistencyDetector(
         ILogger<InconsistencyDetector> logger,
@@ -83,7 +83,6 @@ public partial class InconsistencyDetector : IDetector
             // === Check 3: Browser claims vs headers ===
             if (uaClaims.ClaimsChrome && !headers.ContainsKey("Sec-Fetch-Mode") &&
                 !headers.ContainsKey("sec-ch-ua"))
-            {
                 // Modern Chrome always sends these headers
                 if (uaClaims.ChromeVersion >= 73)
                 {
@@ -95,7 +94,6 @@ public partial class InconsistencyDetector : IDetector
                         ConfidenceImpact = 0.15
                     });
                 }
-            }
 
             // === Check 4: Accept-Language vs UA language hints ===
             if (!string.IsNullOrEmpty(acceptLanguage) && !string.IsNullOrEmpty(userAgent))
@@ -143,10 +141,8 @@ public partial class InconsistencyDetector : IDetector
             // === Check 7: Referer inconsistencies ===
             var referer = headers.Referer.ToString();
             if (!string.IsNullOrEmpty(referer))
-            {
                 // Check if referer domain makes sense
                 if (Uri.TryCreate(referer, UriKind.Absolute, out var refererUri))
-                {
                     // Suspicious: Referer from localhost or internal IPs
                     if (refererUri.Host == "localhost" || refererUri.Host.StartsWith("192.168.") ||
                         refererUri.Host.StartsWith("10.") || refererUri.Host.StartsWith("172."))
@@ -159,8 +155,6 @@ public partial class InconsistencyDetector : IDetector
                             ConfidenceImpact = 0.3
                         });
                     }
-                }
-            }
 
             // === Check 8: Bot UA with residential-looking accept headers ===
             if (IsBotUserAgent(userAgent) && !string.IsNullOrEmpty(acceptLanguage) &&
@@ -180,20 +174,16 @@ public partial class InconsistencyDetector : IDetector
             result.Confidence = Math.Min(1.0, result.Confidence);
 
             // Set bot type if significant inconsistencies found
-            if (result.Confidence >= 0.3)
-            {
-                result.BotType = BotType.Scraper;
-            }
+            if (result.Confidence >= 0.3) result.BotType = BotType.Scraper;
 
             stopwatch.Stop();
-            _metrics?.RecordDetection(result.Confidence, result.Confidence > _options.BotThreshold, stopwatch.Elapsed, Name);
+            _metrics?.RecordDetection(result.Confidence, result.Confidence > _options.BotThreshold, stopwatch.Elapsed,
+                Name);
 
             if (result.Reasons.Count > 0)
-            {
                 _logger.LogDebug(
                     "Inconsistency detection found {Count} issues, total score: {Score:F2}",
                     result.Reasons.Count, result.Confidence);
-            }
         }
         catch (Exception ex)
         {
@@ -229,10 +219,7 @@ public partial class InconsistencyDetector : IDetector
         if (claims.ClaimsChrome)
         {
             var match = ChromeVersionRegex().Match(userAgent);
-            if (match.Success && int.TryParse(match.Groups[1].Value, out var version))
-            {
-                claims.ChromeVersion = version;
-            }
+            if (match.Success && int.TryParse(match.Groups[1].Value, out var version)) claims.ChromeVersion = version;
         }
 
         // Browser name for logging
@@ -250,16 +237,10 @@ public partial class InconsistencyDetector : IDetector
         var langs = acceptLanguage.ToLowerInvariant();
 
         // Check for Chinese bot claiming English UA
-        if (ua.Contains("baidu") && !langs.Contains("zh"))
-        {
-            return "Baidu bot with non-Chinese Accept-Language";
-        }
+        if (ua.Contains("baidu") && !langs.Contains("zh")) return "Baidu bot with non-Chinese Accept-Language";
 
         // Russian search engine with non-Russian language
-        if (ua.Contains("yandex") && !langs.Contains("ru"))
-        {
-            return "Yandex bot with non-Russian Accept-Language";
-        }
+        if (ua.Contains("yandex") && !langs.Contains("ru")) return "Yandex bot with non-Russian Accept-Language";
 
         return null;
     }

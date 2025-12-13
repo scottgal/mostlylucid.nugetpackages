@@ -1,5 +1,5 @@
+using System.Runtime.CompilerServices;
 using System.Threading.Channels;
-using Mostlylucid.BotDetection.Models;
 
 namespace Mostlylucid.BotDetection.Events;
 
@@ -73,7 +73,10 @@ public class DetectionSignal
     /// <summary>
     ///     Get typed value
     /// </summary>
-    public T? GetValue<T>() => Value is T typed ? typed : default;
+    public T? GetValue<T>()
+    {
+        return Value is T typed ? typed : default;
+    }
 }
 
 /// <summary>
@@ -82,9 +85,9 @@ public class DetectionSignal
 public class DetectionSignalBus : IDetectionSignalBus
 {
     private readonly Channel<DetectionSignal> _channel;
-    private readonly Dictionary<string, DetectionSignal> _signals = new();
-    private readonly object _lock = new();
     private readonly TaskCompletionSource _completionSource = new();
+    private readonly object _lock = new();
+    private readonly Dictionary<string, DetectionSignal> _signals = new();
     private bool _completed;
 
     public DetectionSignalBus()
@@ -109,13 +112,11 @@ public class DetectionSignalBus : IDetectionSignalBus
 
     public async IAsyncEnumerable<DetectionSignal> Subscribe(
         IReadOnlySet<string> requiredSignalKeys,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         await foreach (var signal in _channel.Reader.ReadAllAsync(cancellationToken))
-        {
             if (requiredSignalKeys.Contains(signal.Key))
                 yield return signal;
-        }
     }
 
     public async Task<IReadOnlyDictionary<string, DetectionSignal>> WaitForSignalsAsync(
@@ -132,10 +133,8 @@ public class DetectionSignalBus : IDetectionSignalBus
         lock (_lock)
         {
             foreach (var key in requiredSignalKeys)
-            {
                 if (_signals.TryGetValue(key, out var signal))
                     received[key] = signal;
-            }
         }
 
         // If we have all, return immediately
@@ -146,7 +145,6 @@ public class DetectionSignalBus : IDetectionSignalBus
         try
         {
             await foreach (var signal in _channel.Reader.ReadAllAsync(cts.Token))
-            {
                 if (requiredSignalKeys.Contains(signal.Key))
                 {
                     received[signal.Key] = signal;
@@ -154,9 +152,9 @@ public class DetectionSignalBus : IDetectionSignalBus
                     if (received.Count == requiredSignalKeys.Count)
                         return received;
                 }
-            }
         }
-        catch (OperationCanceledException) when (cts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (cts.IsCancellationRequested &&
+                                                 !cancellationToken.IsCancellationRequested)
         {
             // Timeout - return what we have
         }

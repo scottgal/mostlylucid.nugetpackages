@@ -12,8 +12,6 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// </summary>
 public class IpContributor : ContributingDetectorBase
 {
-    private readonly ILogger<IpContributor> _logger;
-
     // Common datacenter/cloud provider IP ranges (sample)
     private static readonly (string Name, string[] Prefixes)[] DatacenterRanges =
     [
@@ -29,9 +27,13 @@ public class IpContributor : ContributingDetectorBase
 
     // Local/private IP ranges (includes "localhost" as a string)
     private static readonly string[] LocalPrefixes =
-        ["127.", "10.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.", "172.21.",
-         "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.", "172.28.",
-         "172.29.", "172.30.", "172.31.", "192.168.", "::1", "fe80:", "localhost"];
+    [
+        "127.", "10.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.", "172.21.",
+        "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.", "172.28.",
+        "172.29.", "172.30.", "172.31.", "192.168.", "::1", "fe80:", "localhost"
+    ];
+
+    private readonly ILogger<IpContributor> _logger;
 
     public IpContributor(ILogger<IpContributor> logger)
     {
@@ -58,10 +60,13 @@ public class IpContributor : ContributingDetectorBase
         if (string.IsNullOrEmpty(clientIp))
         {
             contributions.Add(DetectionContribution.Bot(
-                Name, "IP", 0.6,
-                "Missing client IP address",
-                Models.BotType.Unknown)
-                with { Signals = signals.ToImmutable() });
+                    Name, "IP", 0.6,
+                    "Missing client IP address",
+                    BotType.Unknown)
+                with
+                {
+                    Signals = signals.ToImmutable()
+                });
             return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
         }
 
@@ -71,7 +76,6 @@ public class IpContributor : ContributingDetectorBase
         signals.Add(SignalKeys.IpIsLocal, isLocal);
 
         if (isLocal)
-        {
             // Loopback addresses (::1, 127.0.0.1) are typical dev/test environments - neutral
             // Other private IPs (192.168.x.x, 10.x.x.x) could be internal tools - slight indicator
             contributions.Add(new DetectionContribution
@@ -85,26 +89,25 @@ public class IpContributor : ContributingDetectorBase
                     : $"Private network IP: {MaskIp(clientIp)}",
                 Signals = signals.ToImmutable()
             });
-        }
 
         // Check for datacenter IP (skip if already identified as local/loopback)
         var isDatacenter = false;
         string? datacenterName = null;
-        if (!isLocal)
-        {
-            (isDatacenter, datacenterName) = CheckDatacenterIp(clientIp);
-        }
+        if (!isLocal) (isDatacenter, datacenterName) = CheckDatacenterIp(clientIp);
         signals.Add(SignalKeys.IpIsDatacenter, isDatacenter);
 
         if (isDatacenter)
         {
             signals.Add("ip.datacenter_name", datacenterName!);
             contributions.Add(DetectionContribution.Bot(
-                Name, "IP", 0.6,
-                $"Datacenter IP detected: {datacenterName}",
-                Models.BotType.Unknown,
-                weight: 1.2)
-                with { Signals = signals.ToImmutable() });
+                    Name, "IP", 0.6,
+                    $"Datacenter IP detected: {datacenterName}",
+                    BotType.Unknown,
+                    weight: 1.2)
+                with
+                {
+                    Signals = signals.ToImmutable()
+                });
         }
 
         // Check for IPv6 (less common for bots currently, but this varies)
@@ -113,7 +116,6 @@ public class IpContributor : ContributingDetectorBase
 
         // No bot indicators found
         if (contributions.Count == 0)
-        {
             contributions.Add(new DetectionContribution
             {
                 DetectorName = Name,
@@ -123,7 +125,6 @@ public class IpContributor : ContributingDetectorBase
                 Reason = $"IP appears normal: {MaskIp(clientIp)}",
                 Signals = signals.ToImmutable()
             });
-        }
 
         return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
     }
@@ -131,10 +132,8 @@ public class IpContributor : ContributingDetectorBase
     private static bool IsLocalIp(string ip)
     {
         foreach (var prefix in LocalPrefixes)
-        {
             if (ip.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 return true;
-        }
 
         // Also check with IPAddress parsing for accuracy
         if (IPAddress.TryParse(ip, out var addr))
@@ -153,13 +152,10 @@ public class IpContributor : ContributingDetectorBase
     private static (bool isDatacenter, string? name) CheckDatacenterIp(string ip)
     {
         foreach (var (name, prefixes) in DatacenterRanges)
-        {
-            foreach (var prefix in prefixes)
-            {
-                if (ip.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                    return (true, name);
-            }
-        }
+        foreach (var prefix in prefixes)
+            if (ip.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return (true, name);
+
         return (false, null);
     }
 

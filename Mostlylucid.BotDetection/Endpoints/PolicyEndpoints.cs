@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.DependencyInjection;
 using Mostlylucid.BotDetection.Orchestration;
 using Mostlylucid.BotDetection.Policies;
 
@@ -141,17 +140,11 @@ public static class PolicyEndpoints
         // Determine which policy to use
         DetectionPolicy policy;
         if (!string.IsNullOrEmpty(request.PolicyName))
-        {
             policy = registry.GetPolicy(request.PolicyName) ?? registry.DefaultPolicy;
-        }
         else if (!string.IsNullOrEmpty(request.Path))
-        {
             policy = registry.GetPolicyForPath(request.Path);
-        }
         else
-        {
             policy = registry.DefaultPolicy;
-        }
 
         // Run detection with the policy
         var result = await orchestrator.DetectWithPolicyAsync(httpContext, policy);
@@ -250,9 +243,9 @@ public static class PolicyEndpoints
         {
             Name = request.Name,
             Description = request.Description,
-            FastPathDetectors = [.. (request.FastPath ?? [])],
-            SlowPathDetectors = [.. (request.SlowPath ?? [])],
-            AiPathDetectors = [.. (request.AiPath ?? [])],
+            FastPathDetectors = [.. request.FastPath ?? []],
+            SlowPathDetectors = [.. request.SlowPath ?? []],
+            AiPathDetectors = [.. request.AiPath ?? []],
             UseFastPath = request.UseFastPath ?? true,
             ForceSlowPath = request.ForceSlowPath ?? false,
             EscalateToAi = request.EscalateToAi ?? false,
@@ -340,46 +333,52 @@ public static class PolicyEndpoints
 
     #region Response Models
 
-    private static PolicySummary ToPolicySummary(DetectionPolicy policy) => new()
+    private static PolicySummary ToPolicySummary(DetectionPolicy policy)
     {
-        Name = policy.Name,
-        Description = policy.Description,
-        Enabled = policy.Enabled,
-        DetectorCount = policy.FastPathDetectors.Count +
-                        policy.SlowPathDetectors.Count +
-                        policy.AiPathDetectors.Count,
-        UseFastPath = policy.UseFastPath,
-        ForceSlowPath = policy.ForceSlowPath,
-        EscalateToAi = policy.EscalateToAi
-    };
-
-    private static PolicyDetailResponse ToDetailResponse(DetectionPolicy policy) => new()
-    {
-        Name = policy.Name,
-        Description = policy.Description,
-        Enabled = policy.Enabled,
-        FastPath = policy.FastPathDetectors.ToList(),
-        SlowPath = policy.SlowPathDetectors.ToList(),
-        AiPath = policy.AiPathDetectors.ToList(),
-        UseFastPath = policy.UseFastPath,
-        ForceSlowPath = policy.ForceSlowPath,
-        EscalateToAi = policy.EscalateToAi,
-        AiEscalationThreshold = policy.AiEscalationThreshold,
-        EarlyExitThreshold = policy.EarlyExitThreshold,
-        ImmediateBlockThreshold = policy.ImmediateBlockThreshold,
-        TimeoutMs = (int)policy.Timeout.TotalMilliseconds,
-        Weights = policy.WeightOverrides.ToDictionary(kv => kv.Key, kv => kv.Value),
-        Transitions = policy.Transitions.Select(t => new TransitionResponse
+        return new PolicySummary
         {
-            WhenRiskExceeds = t.WhenRiskExceeds,
-            WhenRiskBelow = t.WhenRiskBelow,
-            WhenSignal = t.WhenSignal,
-            WhenReputationState = t.WhenReputationState,
-            GoToPolicy = t.GoToPolicy,
-            Action = t.Action?.ToString(),
-            Description = t.Description
-        }).ToList()
-    };
+            Name = policy.Name,
+            Description = policy.Description,
+            Enabled = policy.Enabled,
+            DetectorCount = policy.FastPathDetectors.Count +
+                            policy.SlowPathDetectors.Count +
+                            policy.AiPathDetectors.Count,
+            UseFastPath = policy.UseFastPath,
+            ForceSlowPath = policy.ForceSlowPath,
+            EscalateToAi = policy.EscalateToAi
+        };
+    }
+
+    private static PolicyDetailResponse ToDetailResponse(DetectionPolicy policy)
+    {
+        return new PolicyDetailResponse
+        {
+            Name = policy.Name,
+            Description = policy.Description,
+            Enabled = policy.Enabled,
+            FastPath = policy.FastPathDetectors.ToList(),
+            SlowPath = policy.SlowPathDetectors.ToList(),
+            AiPath = policy.AiPathDetectors.ToList(),
+            UseFastPath = policy.UseFastPath,
+            ForceSlowPath = policy.ForceSlowPath,
+            EscalateToAi = policy.EscalateToAi,
+            AiEscalationThreshold = policy.AiEscalationThreshold,
+            EarlyExitThreshold = policy.EarlyExitThreshold,
+            ImmediateBlockThreshold = policy.ImmediateBlockThreshold,
+            TimeoutMs = (int)policy.Timeout.TotalMilliseconds,
+            Weights = policy.WeightOverrides.ToDictionary(kv => kv.Key, kv => kv.Value),
+            Transitions = policy.Transitions.Select(t => new TransitionResponse
+            {
+                WhenRiskExceeds = t.WhenRiskExceeds,
+                WhenRiskBelow = t.WhenRiskBelow,
+                WhenSignal = t.WhenSignal,
+                WhenReputationState = t.WhenReputationState,
+                GoToPolicy = t.GoToPolicy,
+                Action = t.Action?.ToString(),
+                Description = t.Description
+            }).ToList()
+        };
+    }
 
     #endregion
 }

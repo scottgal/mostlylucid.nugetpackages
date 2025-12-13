@@ -18,7 +18,6 @@ public interface ISignatureExplanationFormatter
 
 /// <summary>
 ///     Formats signature behavior into plain English explanations for dashboards.
-///
 ///     Uses the same thresholds as SignatureToBdfMapper so behavior → BDF
 ///     and behavior → explanation speak the same language.
 /// </summary>
@@ -58,89 +57,63 @@ public sealed class SignatureExplanationFormatter : ISignatureExplanationFormatt
         // Timing patterns
         if (state.SpectralPeakToNoise >= _options.SpectralPnBot &&
             state.SpectralEntropy <= _options.SpectralEntropyBot)
-        {
             highlights.Add(
                 "Requests are sent at highly regular intervals, typical of timer-driven scripts.");
-        }
 
         if (state.BurstScore >= _options.BurstScoreHigh)
-        {
             highlights.Add(
                 "Traffic arrives in short, intense bursts rather than steady browsing sessions.");
-        }
 
         if (state.CoefficientOfVariation < _options.CoefficientOfVariationLow)
-        {
             highlights.Add(
                 "Request timing is very consistent (low variation), suggesting automated behavior.");
-        }
 
         if (state.CoefficientOfVariation > _options.CoefficientOfVariationHigh)
-        {
             highlights.Add(
                 "Request timing is highly variable, consistent with human think-time and distractions.");
-        }
 
         // Navigation patterns
         if (state.PathEntropy >= _options.PathEntropyHigh &&
             state.NavAnomalyScore >= _options.NavAnomalyHigh)
-        {
             highlights.Add(
                 "Navigation frequently jumps to unusual or non-UI paths, consistent with scanners or crawlers.");
-        }
 
         if (state.PathEntropy <= _options.PathEntropyLow &&
             state.NavAnomalyScore >= _options.NavAnomalyHigh)
-        {
             highlights.Add(
                 "URLs are accessed in sequential/deterministic patterns, typical of scraping scripts.");
-        }
 
         if (state.AffordanceFollowThroughRatio >= _options.AffordanceHigh &&
             state.NavAnomalyScore < _options.NavAnomalyHigh)
-        {
             highlights.Add(
                 "Navigation mostly follows links exposed in the UI, consistent with real users clicking around.");
-        }
 
         if (state.AffordanceFollowThroughRatio <= _options.AffordanceLow)
-        {
             highlights.Add(
                 "Most requests access URLs directly without following UI links, suggesting programmatic access.");
-        }
 
         // Error patterns
         if (state.FourOhFourRatio >= _options.FourOhFourRatioHigh)
-        {
             highlights.Add(
                 "A large fraction of requests result in 404 errors, suggesting path probing or discovery.");
-        }
 
         if (state.FiveOhOhRatio >= _options.FiveOhOhRatioHigh)
-        {
             highlights.Add(
                 "Significant number of 5xx server errors, possibly caused by aggressive request rates.");
-        }
 
         // Request rate
         if (state.AverageRps > 5.0)
-        {
             highlights.Add(
                 $"High request rate ({state.AverageRps:F1} requests/sec) exceeds typical human browsing.");
-        }
 
         if (state.AverageRps < 0.2)
-        {
             highlights.Add(
                 $"Very low request rate ({state.AverageRps:F2} requests/sec) suggests slow/passive monitoring.");
-        }
 
         // Positive indicators (if no negative highlights and low bot probability)
         if (!highlights.Any() && outcome.BotProbability < 0.3)
-        {
             highlights.Add(
                 "Request timing, navigation and error patterns all fall within normal human ranges.");
-        }
 
         // Cap at reasonable number for display
         return highlights.Take(6).ToList();
@@ -171,34 +144,24 @@ public sealed class SignatureExplanationFormatter : ISignatureExplanationFormatt
 
         // High-confidence human
         if (outcome.BotProbability <= 0.2 && state.AffordanceFollowThroughRatio >= _options.AffordanceHigh)
-        {
             return "This signature shows natural, human-like browsing behaviour.";
-        }
 
         // Specific patterns
         if (state.BurstScore >= _options.BurstScoreHigh &&
             state.PathEntropy >= _options.PathEntropyHigh)
-        {
             return "This signature shows bursty, exploratory behaviour typical of scrapers.";
-        }
 
         if (state.PathEntropy <= _options.PathEntropyLow &&
             state.SpectralPeakToNoise >= _options.SpectralPnBot)
-        {
             return "This signature shows sequential, periodic behaviour typical of systematic crawlers.";
-        }
 
         if (state.NavAnomalyScore >= _options.NavAnomalyHigh &&
             state.FourOhFourRatio >= _options.FourOhFourRatioHigh)
-        {
             return "This signature shows path-discovery behaviour typical of security scanners.";
-        }
 
         // Mixed/ambiguous
         if (outcome.BotProbability >= 0.4 && outcome.BotProbability <= 0.6)
-        {
             return "This signature shows mixed behavioural characteristics; further review may be useful.";
-        }
 
         // Default
         return outcome.IsBot

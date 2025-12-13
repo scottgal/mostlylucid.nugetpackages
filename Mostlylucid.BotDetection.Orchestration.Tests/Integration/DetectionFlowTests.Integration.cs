@@ -1,20 +1,18 @@
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Events;
 using Mostlylucid.BotDetection.Models;
-using Mostlylucid.BotDetection.Services;
+
 namespace Mostlylucid.BotDetection.Orchestration.Tests.Integration;
 
 [Trait("Category", "Integration")]
 public class DetectionFlowTests
 {
-    private readonly BotDetectionOptions _options;
-    private readonly PatternReputationUpdater _updater;
     private readonly InMemoryPatternReputationCache _cache;
     private readonly LearningEventBus _learningBus;
+    private readonly BotDetectionOptions _options;
+    private readonly PatternReputationUpdater _updater;
 
     public DetectionFlowTests()
     {
@@ -42,19 +40,19 @@ public class DetectionFlowTests
 
         // Apply bot evidence 60 times (enough to reach ConfirmedBad)
         PatternReputation? current = null;
-        for (int i = 0; i < 60; i++)
+        for (var i = 0; i < 60; i++)
         {
-            current = _updater.ApplyEvidence(current, patternId, patternType, pattern, label: 1.0);
+            current = _updater.ApplyEvidence(current, patternId, patternType, pattern, 1.0);
             _cache.Update(current);
         }
 
         var result = new
         {
-            PatternId = current!.PatternId,
+            current!.PatternId,
             State = current.State.ToString(),
             BotScore = Math.Round(current.BotScore, 2),
             Support = Math.Round(current.Support, 0),
-            CanTriggerFastAbort = current.CanTriggerFastAbort,
+            current.CanTriggerFastAbort,
             FastPathWeight = Math.Round(current.FastPathWeight, 2)
         };
 
@@ -71,10 +69,7 @@ public class DetectionFlowTests
 
         // Build up bad reputation
         PatternReputation current = null!;
-        for (int i = 0; i < 60; i++)
-        {
-            current = _updater.ApplyEvidence(current, patternId, patternType, pattern, label: 1.0);
-        }
+        for (var i = 0; i < 60; i++) current = _updater.ApplyEvidence(current, patternId, patternType, pattern, 1.0);
 
         var beforeRehab = new
         {
@@ -85,10 +80,7 @@ public class DetectionFlowTests
         };
 
         // Now apply 150 human evidence events (need 100 support to demote from ConfirmedBad)
-        for (int i = 0; i < 150; i++)
-        {
-            current = _updater.ApplyEvidence(current, patternId, patternType, pattern, label: 0.0);
-        }
+        for (var i = 0; i < 150; i++) current = _updater.ApplyEvidence(current, patternId, patternType, pattern, 0.0);
 
         var afterRehab = new
         {
@@ -150,32 +142,36 @@ public class DetectionFlowTests
 
         // Build up to ConfirmedBad
         PatternReputation current = null!;
-        for (int i = 0; i < 60; i++)
+        for (var i = 0; i < 60; i++) current = _updater.ApplyEvidence(current, patternId, patternType, pattern, 1.0);
+        states.Add(new
         {
-            current = _updater.ApplyEvidence(current, patternId, patternType, pattern, label: 1.0);
-        }
-        states.Add(new { Phase = "Built up to ConfirmedBad", State = current.State.ToString(), BotScore = Math.Round(current.BotScore, 2) });
+            Phase = "Built up to ConfirmedBad", State = current.State.ToString(),
+            BotScore = Math.Round(current.BotScore, 2)
+        });
 
         // Apply some human evidence (not enough to demote)
-        for (int i = 0; i < 30; i++)
+        for (var i = 0; i < 30; i++) current = _updater.ApplyEvidence(current, patternId, patternType, pattern, 0.0);
+        states.Add(new
         {
-            current = _updater.ApplyEvidence(current, patternId, patternType, pattern, label: 0.0);
-        }
-        states.Add(new { Phase = "After 30 human events", State = current.State.ToString(), BotScore = Math.Round(current.BotScore, 2) });
+            Phase = "After 30 human events", State = current.State.ToString(),
+            BotScore = Math.Round(current.BotScore, 2)
+        });
 
         // Apply more human evidence (still not enough - need 100 support at low score)
-        for (int i = 0; i < 40; i++)
+        for (var i = 0; i < 40; i++) current = _updater.ApplyEvidence(current, patternId, patternType, pattern, 0.0);
+        states.Add(new
         {
-            current = _updater.ApplyEvidence(current, patternId, patternType, pattern, label: 0.0);
-        }
-        states.Add(new { Phase = "After 70 human events", State = current.State.ToString(), BotScore = Math.Round(current.BotScore, 2) });
+            Phase = "After 70 human events", State = current.State.ToString(),
+            BotScore = Math.Round(current.BotScore, 2)
+        });
 
         // Now enough to demote
-        for (int i = 0; i < 50; i++)
+        for (var i = 0; i < 50; i++) current = _updater.ApplyEvidence(current, patternId, patternType, pattern, 0.0);
+        states.Add(new
         {
-            current = _updater.ApplyEvidence(current, patternId, patternType, pattern, label: 0.0);
-        }
-        states.Add(new { Phase = "After 120 human events", State = current.State.ToString(), BotScore = Math.Round(current.BotScore, 2) });
+            Phase = "After 120 human events", State = current.State.ToString(),
+            BotScore = Math.Round(current.BotScore, 2)
+        });
 
         await Verify(states);
     }
@@ -203,25 +199,24 @@ public class DetectionFlowTests
         {
             Phase = "After Manual Block",
             State = blocked.State.ToString(),
-            BotScore = blocked.BotScore,
-            IsManual = blocked.IsManual,
-            Notes = blocked.Notes
+            blocked.BotScore,
+            blocked.IsManual,
+            blocked.Notes
         };
 
         // Try to apply 100 human evidence events
         var afterEvidence = blocked;
-        for (int i = 0; i < 100; i++)
-        {
-            afterEvidence = _updater.ApplyEvidence(afterEvidence, blocked.PatternId, blocked.PatternType, blocked.Pattern, label: 0.0);
-        }
+        for (var i = 0; i < 100; i++)
+            afterEvidence = _updater.ApplyEvidence(afterEvidence, blocked.PatternId, blocked.PatternType,
+                blocked.Pattern, 0.0);
 
         var afterHumanEvidence = new
         {
             Phase = "After 100 Human Evidence Events",
             State = afterEvidence.State.ToString(),
-            BotScore = afterEvidence.BotScore,
-            IsManual = afterEvidence.IsManual,
-            Notes = afterEvidence.Notes
+            afterEvidence.BotScore,
+            afterEvidence.IsManual,
+            afterEvidence.Notes
         };
 
         // Try time decay
@@ -232,8 +227,8 @@ public class DetectionFlowTests
         {
             Phase = "After 60-day Time Decay",
             State = afterDecay.State.ToString(),
-            BotScore = afterDecay.BotScore,
-            IsManual = afterDecay.IsManual
+            afterDecay.BotScore,
+            afterDecay.IsManual
         };
 
         await Verify(new { afterBlock, afterHumanEvidence, afterTimeDecay });
@@ -248,14 +243,11 @@ public class DetectionFlowTests
 
         // Apply consistent human evidence
         PatternReputation current = null!;
-        for (int i = 0; i < 110; i++)
-        {
-            current = _updater.ApplyEvidence(current, patternId, patternType, pattern, label: 0.0);
-        }
+        for (var i = 0; i < 110; i++) current = _updater.ApplyEvidence(current, patternId, patternType, pattern, 0.0);
 
         var result = new
         {
-            PatternId = current.PatternId,
+            current.PatternId,
             State = current.State.ToString(),
             BotScore = Math.Round(current.BotScore, 2),
             Support = Math.Round(current.Support, 0),
@@ -275,16 +267,13 @@ public class DetectionFlowTests
             ("ua:bot2", "UserAgent", "Bot2/1.0", 1.0, 30),
             ("ua:human1", "UserAgent", "Human1/1.0", 0.0, 120),
             ("ip:1.2.3.4", "IP", "1.2.3.4", 1.0, 20),
-            ("ua:suspect", "UserAgent", "Suspect/1.0", 1.0, 15),
+            ("ua:suspect", "UserAgent", "Suspect/1.0", 1.0, 15)
         };
 
         foreach (var (id, type, pattern, label, count) in patterns)
         {
             PatternReputation? current = null;
-            for (int i = 0; i < count; i++)
-            {
-                current = _updater.ApplyEvidence(current, id, type, pattern, label);
-            }
+            for (var i = 0; i < count; i++) current = _updater.ApplyEvidence(current, id, type, pattern, label);
             _cache.Update(current!);
         }
 
@@ -292,11 +281,11 @@ public class DetectionFlowTests
 
         var result = new
         {
-            TotalPatterns = stats.TotalPatterns,
-            ConfirmedBadCount = stats.ConfirmedBadCount,
-            SuspectCount = stats.SuspectCount,
-            NeutralCount = stats.NeutralCount,
-            ConfirmedGoodCount = stats.ConfirmedGoodCount,
+            stats.TotalPatterns,
+            stats.ConfirmedBadCount,
+            stats.SuspectCount,
+            stats.NeutralCount,
+            stats.ConfirmedGoodCount,
             AverageBotScore = Math.Round(stats.AverageBotScore, 2)
         };
 
@@ -343,14 +332,14 @@ public class DetectionFlowTests
         {
             StalePattern = new
             {
-                PatternId = staleAfter!.PatternId,
+                staleAfter!.PatternId,
                 BotScore = Math.Round(staleAfter.BotScore, 2),
                 Support = Math.Round(staleAfter.Support, 0),
                 State = staleAfter.State.ToString()
             },
             FreshPattern = new
             {
-                PatternId = freshAfter!.PatternId,
+                freshAfter!.PatternId,
                 BotScore = Math.Round(freshAfter.BotScore, 2),
                 Support = Math.Round(freshAfter.Support, 0),
                 State = freshAfter.State.ToString()

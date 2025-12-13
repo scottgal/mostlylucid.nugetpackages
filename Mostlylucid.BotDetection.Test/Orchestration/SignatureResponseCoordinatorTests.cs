@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Mostlylucid.BotDetection.Orchestration;
-using Xunit;
 
 namespace Mostlylucid.BotDetection.Test.Orchestration;
 
@@ -28,8 +27,8 @@ public class SignatureResponseCoordinatorCacheTests
         // Act
         var cache = new SignatureResponseCoordinatorCache(
             logger,
-            maxSignatures: 1000,
-            ttl: TimeSpan.FromMinutes(15));
+            1000,
+            TimeSpan.FromMinutes(15));
 
         // Assert
         Assert.NotNull(cache);

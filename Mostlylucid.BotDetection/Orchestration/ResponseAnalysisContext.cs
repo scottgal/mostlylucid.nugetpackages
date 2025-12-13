@@ -10,6 +10,11 @@ namespace Mostlylucid.BotDetection.Orchestration;
 public sealed class ResponseAnalysisContext
 {
     /// <summary>
+    ///     HttpContext.Items key for storing this context
+    /// </summary>
+    public const string HttpContextKey = "BotDetection.ResponseAnalysisContext";
+
+    /// <summary>
     ///     Should response be analyzed at all?
     /// </summary>
     public bool EnableAnalysis { get; set; }
@@ -68,19 +73,12 @@ public sealed class ResponseAnalysisContext
     public int Priority { get; set; }
 
     /// <summary>
-    ///     HttpContext.Items key for storing this context
-    /// </summary>
-    public const string HttpContextKey = "BotDetection.ResponseAnalysisContext";
-
-    /// <summary>
     ///     Get response analysis context from HttpContext, or create default.
     /// </summary>
     public static ResponseAnalysisContext GetOrCreate(HttpContext context, string clientId)
     {
         if (context.Items.TryGetValue(HttpContextKey, out var obj) && obj is ResponseAnalysisContext existing)
-        {
             return existing;
-        }
 
         var newContext = new ResponseAnalysisContext
         {
@@ -146,6 +144,11 @@ public interface IResponseAnalysisTrigger
 public sealed record ResponseAnalysisTriggerSignal
 {
     /// <summary>
+    ///     HttpContext.Items key for collecting all trigger signals
+    /// </summary>
+    public const string HttpContextKey = "BotDetection.ResponseAnalysisTriggerSignals";
+
+    /// <summary>
     ///     Detector that emitted this trigger
     /// </summary>
     public required string DetectorName { get; init; }
@@ -181,16 +184,12 @@ public sealed record ResponseAnalysisTriggerSignal
     public IReadOnlyDictionary<string, object> Signals { get; init; } = new Dictionary<string, object>();
 
     /// <summary>
-    ///     HttpContext.Items key for collecting all trigger signals
-    /// </summary>
-    public const string HttpContextKey = "BotDetection.ResponseAnalysisTriggerSignals";
-
-    /// <summary>
     ///     Add this trigger signal to HttpContext
     /// </summary>
     public void AddToContext(HttpContext context)
     {
-        if (!context.Items.TryGetValue(HttpContextKey, out var obj) || obj is not List<ResponseAnalysisTriggerSignal> list)
+        if (!context.Items.TryGetValue(HttpContextKey, out var obj) ||
+            obj is not List<ResponseAnalysisTriggerSignal> list)
         {
             list = new List<ResponseAnalysisTriggerSignal>();
             context.Items[HttpContextKey] = list;
@@ -255,37 +254,21 @@ public static class ResponseAnalysisTriggerHelper
         context.TriggerReason = reason;
 
         // Upgrade thoroughness if requested higher
-        if (thoroughness > context.Thoroughness)
-        {
-            context.Thoroughness = thoroughness;
-        }
+        if (thoroughness > context.Thoroughness) context.Thoroughness = thoroughness;
 
         // Upgrade to inline if requested
-        if (mode == ResponseAnalysisMode.Inline && context.Mode == ResponseAnalysisMode.Async)
-        {
-            context.Mode = mode;
-        }
+        if (mode == ResponseAnalysisMode.Inline && context.Mode == ResponseAnalysisMode.Async) context.Mode = mode;
 
         // Enable streaming if requested
-        if (enableStreaming)
-        {
-            context.EnableStreaming = true;
-        }
+        if (enableStreaming) context.EnableStreaming = true;
 
         // Update priority (take maximum)
-        if (priority > context.Priority)
-        {
-            context.Priority = priority;
-        }
+        if (priority > context.Priority) context.Priority = priority;
 
         // Merge signals
         if (additionalSignals != null)
-        {
             foreach (var (key, value) in additionalSignals)
-            {
                 context.TriggerSignals[key] = value;
-            }
-        }
     }
 
     /// <summary>
@@ -297,13 +280,13 @@ public static class ResponseAnalysisTriggerHelper
         string honeypotPath)
     {
         state.TriggerResponseAnalysis(
-            detectorName: detectorName,
-            reason: $"Honeypot path accessed: {honeypotPath}",
-            thoroughness: ResponseAnalysisThoroughness.Deep,
-            mode: ResponseAnalysisMode.Inline,
-            enableStreaming: true,
-            priority: 100,
-            additionalSignals: new Dictionary<string, object>
+            detectorName,
+            $"Honeypot path accessed: {honeypotPath}",
+            ResponseAnalysisThoroughness.Deep,
+            ResponseAnalysisMode.Inline,
+            true,
+            100,
+            new Dictionary<string, object>
             {
                 ["honeypot.path"] = honeypotPath,
                 ["honeypot.hit"] = true
@@ -319,10 +302,10 @@ public static class ResponseAnalysisTriggerHelper
         string datacenterName)
     {
         state.TriggerResponseAnalysis(
-            detectorName: detectorName,
-            reason: $"Datacenter IP detected: {datacenterName}",
-            thoroughness: ResponseAnalysisThoroughness.Thorough,
-            mode: ResponseAnalysisMode.Async,
+            detectorName,
+            $"Datacenter IP detected: {datacenterName}",
+            ResponseAnalysisThoroughness.Thorough,
+            ResponseAnalysisMode.Async,
             priority: 50,
             additionalSignals: new Dictionary<string, object>
             {
@@ -340,10 +323,10 @@ public static class ResponseAnalysisTriggerHelper
         string reason)
     {
         state.TriggerResponseAnalysis(
-            detectorName: detectorName,
-            reason: reason,
-            thoroughness: ResponseAnalysisThoroughness.Standard,
-            mode: ResponseAnalysisMode.Async,
+            detectorName,
+            reason,
+            ResponseAnalysisThoroughness.Standard,
+            ResponseAnalysisMode.Async,
             priority: 25);
     }
 
@@ -367,13 +350,13 @@ public static class ResponseAnalysisTriggerHelper
         };
 
         state.TriggerResponseAnalysis(
-            detectorName: detectorName,
-            reason: $"High risk score: {riskScore:F2}",
-            thoroughness: thoroughness,
-            mode: mode,
-            enableStreaming: riskScore > 0.8,
-            priority: (int)(riskScore * 100),
-            additionalSignals: new Dictionary<string, object>
+            detectorName,
+            $"High risk score: {riskScore:F2}",
+            thoroughness,
+            mode,
+            riskScore > 0.8,
+            (int)(riskScore * 100),
+            new Dictionary<string, object>
             {
                 ["risk.score"] = riskScore,
                 ["risk.high"] = true

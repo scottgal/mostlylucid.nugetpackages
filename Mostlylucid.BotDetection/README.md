@@ -4,7 +4,8 @@
 
 Built on **StyloFlow**, the ephemeral workflow engine.
 
-Bot detection middleware for ASP.NET Core with multi-signal detection, **AI-powered classification with continuous learning**, auto-updated blocklists, YARP integration, and full observability.
+Bot detection middleware for ASP.NET Core with multi-signal detection, **AI-powered classification with continuous
+learning**, auto-updated blocklists, YARP integration, and full observability.
 
 [![NuGet](https://img.shields.io/nuget/v/mostlylucid.botdetection.svg)](https://www.nuget.org/packages/mostlylucid.botdetection)
 
@@ -22,21 +23,26 @@ Bot detection middleware for ASP.NET Core with multi-signal detection, **AI-powe
 ## Why Use This?
 
 **When commercial WAF isn't an option:**
+
 - Self-hosted apps without Cloudflare/AWS/Azure
 - Compliance requirements prohibiting third-party request inspection
 - Cost-sensitive projects where $3K+/month WAF isn't justified
 
 **When you need more than User-Agent matching:**
+
 - Bots spoofing browser User-Agents
 - Scripts missing Accept-Language, cookies, or timing signals
 - API abuse from datacenter IPs
 
 **When you want adaptive protection:**
+
 - Detection that improves over time with learning
 - Different policies per endpoint (strict for checkout, relaxed for static content)
 - Stealth throttling that bots can't detect
 
-> **Note**: For enterprise applications with stringent security requirements, consider commercial services like [Cloudflare Bot Management](https://www.cloudflare.com/products/bot-management/) or [AWS WAF Bot Control](https://aws.amazon.com/waf/features/bot-control/).
+> **Note**: For enterprise applications with stringent security requirements, consider commercial services
+> like [Cloudflare Bot Management](https://www.cloudflare.com/products/bot-management/)
+> or [AWS WAF Bot Control](https://aws.amazon.com/waf/features/bot-control/).
 
 ## Quick Start
 
@@ -94,6 +100,7 @@ app.Run();
 ```
 
 This enables:
+
 - **AI detection** with Heuristic model (sub-millisecond, learns from feedback)
 - **Learning system** that improves detection over time
 - **Stealth throttling** (bots don't know they're being slowed)
@@ -130,19 +137,19 @@ public IActionResult Index() => View();
 
 ## Detection Methods
 
-| Method | Description | Latency |
-|--------|-------------|---------|
-| **User-Agent** | Pattern matching against known bots | <1ms |
-| **Headers** | Suspicious/missing header detection | <1ms |
-| **IP** | Datacenter IP range identification | <1ms |
-| **Version Age** | Browser/OS version staleness detection | <1ms |
-| **Security Tools** | Penetration testing tool detection (Nikto, sqlmap, etc.) | <1ms |
-| **Project Honeypot** | HTTP:BL IP reputation via DNS lookup | ~100ms |
-| **Behavioral** | Rate limiting + anomaly detection | 1-5ms |
-| **Inconsistency** | Cross-signal mismatch detection | 1-5ms |
-| **Heuristic AI** | Feature-weighted classification with learning | <1ms |
-| **LLM** | Full reasoning (escalation only) | 50-500ms |
-| **HeuristicLate** | Post-AI refinement with all evidence | <1ms |
+| Method               | Description                                              | Latency  |
+|----------------------|----------------------------------------------------------|----------|
+| **User-Agent**       | Pattern matching against known bots                      | <1ms     |
+| **Headers**          | Suspicious/missing header detection                      | <1ms     |
+| **IP**               | Datacenter IP range identification                       | <1ms     |
+| **Version Age**      | Browser/OS version staleness detection                   | <1ms     |
+| **Security Tools**   | Penetration testing tool detection (Nikto, sqlmap, etc.) | <1ms     |
+| **Project Honeypot** | HTTP:BL IP reputation via DNS lookup                     | ~100ms   |
+| **Behavioral**       | Rate limiting + anomaly detection                        | 1-5ms    |
+| **Inconsistency**    | Cross-signal mismatch detection                          | 1-5ms    |
+| **Heuristic AI**     | Feature-weighted classification with learning            | <1ms     |
+| **LLM**              | Full reasoning (escalation only)                         | 50-500ms |
+| **HeuristicLate**    | Post-AI refinement with all evidence                     | <1ms     |
 
 ## AI Detection & Learning (Key Differentiator)
 
@@ -171,47 +178,49 @@ Request → Fast Detectors → Heuristic Model → Decision → Learning Bus
 }
 ```
 
-See [ai-detection.md](docs/ai-detection.md) and [learning-and-reputation.md](docs/learning-and-reputation.md) for details.
+See [ai-detection.md](docs/ai-detection.md) and [learning-and-reputation.md](docs/learning-and-reputation.md) for
+details.
 
 ## Action Policies
 
 Control HOW to respond to detected bots:
 
-| Policy | Description |
-|--------|-------------|
-| `block` | Return 403 Forbidden |
-| `throttle-stealth` | Delay response (bots don't notice) |
-| `challenge` | Present CAPTCHA or proof-of-work |
-| `redirect-honeypot` | Silent redirect to trap |
-| `logonly` | Shadow mode (log but allow) |
+| Policy              | Description                        |
+|---------------------|------------------------------------|
+| `block`             | Return 403 Forbidden               |
+| `throttle-stealth`  | Delay response (bots don't notice) |
+| `challenge`         | Present CAPTCHA or proof-of-work   |
+| `redirect-honeypot` | Silent redirect to trap            |
+| `logonly`           | Shadow mode (log but allow)        |
 
 See [action-policies.md](docs/action-policies.md) for full details.
 
 ## Documentation
 
-| Feature | Description | Docs |
-|---------|-------------|------|
-| **Configuration** | Full options reference | [configuration.md](docs/configuration.md) |
-| **AI Detection** | Heuristic model, LLM escalation, learning | [ai-detection.md](docs/ai-detection.md) |
-| **Learning & Reputation** | Pattern learning, drift detection | [learning-and-reputation.md](docs/learning-and-reputation.md) |
-| **Action Policies** | Block, throttle, challenge, redirect | [action-policies.md](docs/action-policies.md) |
-| **Detection Policies** | Path-based detection configuration | [policies.md](docs/policies.md) |
-| **Extensibility** | Custom detectors and policies | [extensibility.md](docs/extensibility.md) |
-| **User-Agent Detection** | Pattern matching with reputation | [user-agent-detection.md](docs/user-agent-detection.md) |
-| **Header Detection** | HTTP header anomaly analysis | [header-detection.md](docs/header-detection.md) |
-| **IP Detection** | Datacenter and cloud IP identification | [ip-detection.md](docs/ip-detection.md) |
-| **Version Age Detection** | Browser/OS version staleness detection | [version-age-detection.md](docs/version-age-detection.md) |
-| **Security Tools Detection** | Penetration testing tool detection | [security-tools-detection.md](docs/security-tools-detection.md) |
-| **Project Honeypot** | HTTP:BL IP reputation checking | [project-honeypot.md](docs/project-honeypot.md) |
-| **Behavioral Analysis** | Rate limiting and anomaly detection | [behavioral-analysis.md](docs/behavioral-analysis.md) |
-| **Client-Side Fingerprinting** | Headless browser detection | [client-side-fingerprinting.md](docs/client-side-fingerprinting.md) |
-| **YARP Integration** | Bot-aware reverse proxy | [yarp-integration.md](docs/yarp-integration.md) |
-| **Telemetry** | OpenTelemetry traces and metrics | [telemetry-and-metrics.md](docs/telemetry-and-metrics.md) |
-| **YARP Gateway** | Companion Docker gateway | [yarp-gateway.md](docs/yarp-gateway.md) |
+| Feature                        | Description                               | Docs                                                                |
+|--------------------------------|-------------------------------------------|---------------------------------------------------------------------|
+| **Configuration**              | Full options reference                    | [configuration.md](docs/configuration.md)                           |
+| **AI Detection**               | Heuristic model, LLM escalation, learning | [ai-detection.md](docs/ai-detection.md)                             |
+| **Learning & Reputation**      | Pattern learning, drift detection         | [learning-and-reputation.md](docs/learning-and-reputation.md)       |
+| **Action Policies**            | Block, throttle, challenge, redirect      | [action-policies.md](docs/action-policies.md)                       |
+| **Detection Policies**         | Path-based detection configuration        | [policies.md](docs/policies.md)                                     |
+| **Extensibility**              | Custom detectors and policies             | [extensibility.md](docs/extensibility.md)                           |
+| **User-Agent Detection**       | Pattern matching with reputation          | [user-agent-detection.md](docs/user-agent-detection.md)             |
+| **Header Detection**           | HTTP header anomaly analysis              | [header-detection.md](docs/header-detection.md)                     |
+| **IP Detection**               | Datacenter and cloud IP identification    | [ip-detection.md](docs/ip-detection.md)                             |
+| **Version Age Detection**      | Browser/OS version staleness detection    | [version-age-detection.md](docs/version-age-detection.md)           |
+| **Security Tools Detection**   | Penetration testing tool detection        | [security-tools-detection.md](docs/security-tools-detection.md)     |
+| **Project Honeypot**           | HTTP:BL IP reputation checking            | [project-honeypot.md](docs/project-honeypot.md)                     |
+| **Behavioral Analysis**        | Rate limiting and anomaly detection       | [behavioral-analysis.md](docs/behavioral-analysis.md)               |
+| **Client-Side Fingerprinting** | Headless browser detection                | [client-side-fingerprinting.md](docs/client-side-fingerprinting.md) |
+| **YARP Integration**           | Bot-aware reverse proxy                   | [yarp-integration.md](docs/yarp-integration.md)                     |
+| **Telemetry**                  | OpenTelemetry traces and metrics          | [telemetry-and-metrics.md](docs/telemetry-and-metrics.md)           |
+| **YARP Gateway**               | Companion Docker gateway                  | [yarp-gateway.md](docs/yarp-gateway.md)                             |
 
 ## Companion Project: YARP Gateway
 
-For edge deployments, use **[Mostlylucid.YarpGateway](../Mostlylucid.YarpGateway/)** - a lightweight Docker-first reverse proxy:
+For edge deployments, use **[Mostlylucid.YarpGateway](../Mostlylucid.YarpGateway/)** - a lightweight Docker-first
+reverse proxy:
 
 [![Docker Hub](https://img.shields.io/docker/pulls/scottgal/mostlylucid.yarpgateway?label=Docker%20Hub)](https://hub.docker.com/r/scottgal/mostlylucid.yarpgateway)
 
@@ -221,6 +230,7 @@ docker run -p 80:8080 -e DEFAULT_UPSTREAM=http://your-app:3000 scottgal/mostlylu
 ```
 
 **Why use it with BotDetection?**
+
 - Edge routing and load balancing
 - Hot-reload YARP configuration
 - Admin API for health/metrics

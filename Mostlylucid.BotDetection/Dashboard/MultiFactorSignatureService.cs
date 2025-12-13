@@ -1,19 +1,16 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
-using System.Collections.Concurrent;
 
 namespace Mostlylucid.BotDetection.Dashboard;
 
 /// <summary>
 ///     Multi-factor signature generation service for bot detection.
-///
 ///     Generates MULTIPLE privacy-safe signatures for each request:
 ///     1. Primary Signature: HMAC(IP + UA) - main identity
 ///     2. IP Signature: HMAC(IP) - handles UA changes
 ///     3. UA Signature: HMAC(UA) - handles dynamic ISPs
 ///     4. Client-Side Signature: HMAC(ClientFingerprint) - browser identity
 ///     5. Plugin Signature: HMAC(Plugins) - stable across IP/UA changes
-///
 ///     Pattern matching uses multi-factor correlation:
 ///     - Strict match: All signatures match → same client
 ///     - IP changed: UA + ClientSide + Plugins match → dynamic ISP
@@ -26,7 +23,7 @@ public sealed class MultiFactorSignatureService
     private readonly ILogger<MultiFactorSignatureService> _logger;
 
     // Configuration
-    private readonly int _minimumFactorsToMatch = 2;  // Require at least 2 factors for pattern match
+    private readonly int _minimumFactorsToMatch = 2; // Require at least 2 factors for pattern match
 
     public MultiFactorSignatureService(
         PiiHasher hasher,
@@ -64,10 +61,11 @@ public sealed class MultiFactorSignatureService
             PluginSignature = pluginSignature != null ? _hasher.ComputeSignature(pluginSignature) : null,
 
             // Additional composite signatures for different scenarios
-            IpUaSignature = _hasher.ComputeSignature(ip, userAgent),  // Same as primary
+            IpUaSignature = _hasher.ComputeSignature(ip, userAgent), // Same as primary
             IpClientSignature = clientFingerprint != null ? _hasher.ComputeSignature(ip, clientFingerprint) : null,
-            UaClientSignature = clientFingerprint != null ? _hasher.ComputeSignature(userAgent, clientFingerprint) : null,
-            IpSubnetSignature = !string.IsNullOrEmpty(ip) ? _hasher.HashIpSubnet(ip, 24) : null,
+            UaClientSignature =
+                clientFingerprint != null ? _hasher.ComputeSignature(userAgent, clientFingerprint) : null,
+            IpSubnetSignature = !string.IsNullOrEmpty(ip) ? _hasher.HashIpSubnet(ip) : null,
 
             // Metadata (non-PII)
             Timestamp = DateTime.UtcNow,
@@ -211,7 +209,7 @@ public sealed class MultiFactorSignatureService
 
     private int CountFactors(string? ip, string? ua, string? clientFp, string? pluginSig)
     {
-        int count = 0;
+        var count = 0;
         if (!string.IsNullOrEmpty(ip)) count++;
         if (!string.IsNullOrEmpty(ua)) count++;
         if (!string.IsNullOrEmpty(clientFp)) count++;
@@ -245,7 +243,7 @@ public sealed class MultiFactorSignatureService
             return MatchType.Exact;
 
         if (matchedFactors.Contains("IP") && matchedFactors.Contains("UA"))
-            return MatchType.Exact;  // Equivalent to primary
+            return MatchType.Exact; // Equivalent to primary
 
         if (matchedFactors.Contains("ClientSide") && matchedFactors.Count >= 2)
             return MatchType.ClientIdentity;

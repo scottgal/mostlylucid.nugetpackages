@@ -58,20 +58,16 @@ public class TrainingSession
 /// </summary>
 public class SessionFeatures
 {
-    [JsonPropertyName("ipSignature")]
-    public string IpSignature { get; set; } = "";
+    [JsonPropertyName("ipSignature")] public string IpSignature { get; set; } = "";
 
-    [JsonPropertyName("uaSignature")]
-    public string UaSignature { get; set; } = "";
+    [JsonPropertyName("uaSignature")] public string UaSignature { get; set; } = "";
 
     [JsonPropertyName("behaviorSignature")]
     public string BehaviorSignature { get; set; } = "";
 
-    [JsonPropertyName("fingerprintHash")]
-    public string FingerprintHash { get; set; } = "";
+    [JsonPropertyName("fingerprintHash")] public string FingerprintHash { get; set; } = "";
 
-    [JsonPropertyName("custom")]
-    public Dictionary<string, object> Custom { get; set; } = new();
+    [JsonPropertyName("custom")] public Dictionary<string, object> Custom { get; set; } = new();
 }
 
 /// <summary>
@@ -79,32 +75,23 @@ public class SessionFeatures
 /// </summary>
 public class RequestObservation
 {
-    [JsonPropertyName("timestamp")]
-    public DateTime Timestamp { get; set; }
+    [JsonPropertyName("timestamp")] public DateTime Timestamp { get; set; }
 
-    [JsonPropertyName("path")]
-    public string Path { get; set; } = "";
+    [JsonPropertyName("path")] public string Path { get; set; } = "";
 
-    [JsonPropertyName("method")]
-    public string Method { get; set; } = "";
+    [JsonPropertyName("method")] public string Method { get; set; } = "";
 
-    [JsonPropertyName("statusCode")]
-    public int StatusCode { get; set; }
+    [JsonPropertyName("statusCode")] public int StatusCode { get; set; }
 
-    [JsonPropertyName("responseTime")]
-    public int ResponseTime { get; set; }
+    [JsonPropertyName("responseTime")] public int ResponseTime { get; set; }
 
-    [JsonPropertyName("headers")]
-    public Dictionary<string, string> Headers { get; set; } = new();
+    [JsonPropertyName("headers")] public Dictionary<string, string> Headers { get; set; } = new();
 
-    [JsonPropertyName("cookies")]
-    public List<string> Cookies { get; set; } = new();
+    [JsonPropertyName("cookies")] public List<string> Cookies { get; set; } = new();
 
-    [JsonPropertyName("referrer")]
-    public string? Referrer { get; set; }
+    [JsonPropertyName("referrer")] public string? Referrer { get; set; }
 
-    [JsonPropertyName("contentLength")]
-    public int? ContentLength { get; set; }
+    [JsonPropertyName("contentLength")] public int? ContentLength { get; set; }
 }
 
 /// <summary>
@@ -112,14 +99,11 @@ public class RequestObservation
 /// </summary>
 public class DetectorResult
 {
-    [JsonPropertyName("confidence")]
-    public double Confidence { get; set; }
+    [JsonPropertyName("confidence")] public double Confidence { get; set; }
 
-    [JsonPropertyName("botType")]
-    public string? BotType { get; set; }
+    [JsonPropertyName("botType")] public string? BotType { get; set; }
 
-    [JsonPropertyName("reason")]
-    public string Reason { get; set; } = "";
+    [JsonPropertyName("reason")] public string Reason { get; set; } = "";
 }
 
 /// <summary>
@@ -127,14 +111,12 @@ public class DetectorResult
 /// </summary>
 public class SessionMetadata
 {
-    [JsonPropertyName("requestCount")]
-    public int RequestCount { get; set; }
+    [JsonPropertyName("requestCount")] public int RequestCount { get; set; }
 
     [JsonPropertyName("avgRequestInterval")]
     public double AvgRequestInterval { get; set; }
 
-    [JsonPropertyName("pathDiversity")]
-    public double PathDiversity { get; set; }
+    [JsonPropertyName("pathDiversity")] public double PathDiversity { get; set; }
 
     [JsonPropertyName("cookiePersistence")]
     public bool CookiePersistence { get; set; }
@@ -142,6 +124,5 @@ public class SessionMetadata
     [JsonPropertyName("referrerConsistency")]
     public bool ReferrerConsistency { get; set; }
 
-    [JsonPropertyName("custom")]
-    public Dictionary<string, object> Custom { get; set; } = new();
+    [JsonPropertyName("custom")] public Dictionary<string, object> Custom { get; set; } = new();
 }

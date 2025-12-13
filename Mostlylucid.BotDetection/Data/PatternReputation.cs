@@ -32,7 +32,6 @@ public enum ReputationState
 /// <summary>
 ///     Reputation data for a single pattern (UA, IP, fingerprint, behavior cluster).
 ///     Supports online learning AND time-based forgetting.
-///
 ///     Key properties:
 ///     - BotScore: 0.0 (human) to 1.0 (bot) - current belief
 ///     - Support: Effective sample count backing the score
@@ -54,7 +53,7 @@ public record PatternReputation
     public double BotScore { get; init; } = 0.5;
 
     /// <summary>Effective sample count - decays over time, increases with observations</summary>
-    public double Support { get; init; } = 0;
+    public double Support { get; init; }
 
     /// <summary>Current reputation state - determines fast-path behavior</summary>
     public ReputationState State { get; init; } = ReputationState.Neutral;
@@ -69,7 +68,7 @@ public record PatternReputation
     public DateTimeOffset StateChangedAt { get; init; } = DateTimeOffset.UtcNow;
 
     /// <summary>Whether this pattern was manually set (admin override)</summary>
-    public bool IsManual { get; init; } = false;
+    public bool IsManual { get; init; }
 
     /// <summary>Optional notes (e.g., why it was manually blocked)</summary>
     public string? Notes { get; init; }
@@ -86,12 +85,12 @@ public record PatternReputation
     /// </summary>
     public double FastPathWeight => State switch
     {
-        ReputationState.ConfirmedBad => BotScore * 1.0,      // Full weight
-        ReputationState.Suspect => BotScore * 0.5,           // Half weight
-        ReputationState.Neutral => BotScore * 0.1,           // Minimal weight
-        ReputationState.ConfirmedGood => -0.2,               // Reduces suspicion
-        ReputationState.ManuallyBlocked => 1.0,              // Always max
-        ReputationState.ManuallyAllowed => -1.0,             // Always trusted
+        ReputationState.ConfirmedBad => BotScore * 1.0, // Full weight
+        ReputationState.Suspect => BotScore * 0.5, // Half weight
+        ReputationState.Neutral => BotScore * 0.1, // Minimal weight
+        ReputationState.ConfirmedGood => -0.2, // Reduces suspicion
+        ReputationState.ManuallyBlocked => 1.0, // Always max
+        ReputationState.ManuallyAllowed => -1.0, // Always trusted
         _ => 0
     };
 
@@ -302,10 +301,7 @@ public class PatternReputationUpdater
         }
 
         // Don't update manual overrides
-        if (current.IsManual)
-        {
-            return current with { LastSeen = now };
-        }
+        if (current.IsManual) return current with { LastSeen = now };
 
         // Apply time decay first (if stale)
         var decayed = ApplyTimeDecay(current);
@@ -561,9 +557,9 @@ public class ReputationCacheStats
 /// </summary>
 public class InMemoryPatternReputationCache : IPatternReputationCache
 {
+    private readonly ConcurrentDictionary<string, PatternReputation> _cache = new();
     private readonly ILogger<InMemoryPatternReputationCache> _logger;
     private readonly PatternReputationUpdater _updater;
-    private readonly ConcurrentDictionary<string, PatternReputation> _cache = new();
     private DateTimeOffset _lastDecaySweep = DateTimeOffset.UtcNow;
     private DateTimeOffset _lastGc = DateTimeOffset.UtcNow;
 
@@ -629,10 +625,7 @@ public class InMemoryPatternReputationCache : IPatternReputationCache
 
         _lastDecaySweep = DateTimeOffset.UtcNow;
 
-        if (updated > 0)
-        {
-            _logger.LogDebug("Decay sweep updated {Count} patterns", updated);
-        }
+        if (updated > 0) _logger.LogDebug("Decay sweep updated {Count} patterns", updated);
 
         return Task.CompletedTask;
     }
@@ -646,20 +639,13 @@ public class InMemoryPatternReputationCache : IPatternReputationCache
             if (ct.IsCancellationRequested) break;
 
             if (_updater.IsEligibleForGc(rep))
-            {
                 if (_cache.TryRemove(id, out _))
-                {
                     removed++;
-                }
-            }
         }
 
         _lastGc = DateTimeOffset.UtcNow;
 
-        if (removed > 0)
-        {
-            _logger.LogInformation("Garbage collected {Count} stale patterns", removed);
-        }
+        if (removed > 0) _logger.LogInformation("Garbage collected {Count} stale patterns", removed);
 
         return Task.CompletedTask;
     }

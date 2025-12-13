@@ -9,8 +9,9 @@ AMD Ryzen 9 9950X 4.30GHz, 1 CPU, 32 logical and 16 physical cores
 IterationCount=10  RunStrategy=Throughput  WarmupCount=3  
 
 ```
-| Method                | Mean | Error |
-|---------------------- |-----:|------:|
+
+| Method                        | Mean | Error |
+|-------------------------------|-----:|------:|
 | &#39;UserAgent Detector&#39;  |   NA |    NA |
 | &#39;IP Detector&#39;         |   NA |    NA |
 | &#39;Header Detector&#39;     |   NA |    NA |
@@ -18,8 +19,8 @@ IterationCount=10  RunStrategy=Throughput  WarmupCount=3
 | &#39;Heuristic Detector&#39;  |   NA |    NA |
 
 Benchmarks with issues:
-  IndividualDetectorBenchmarks.'UserAgent Detector': Job-ORZUYQ(IterationCount=10, RunStrategy=Throughput, WarmupCount=3)
-  IndividualDetectorBenchmarks.'IP Detector': Job-ORZUYQ(IterationCount=10, RunStrategy=Throughput, WarmupCount=3)
-  IndividualDetectorBenchmarks.'Header Detector': Job-ORZUYQ(IterationCount=10, RunStrategy=Throughput, WarmupCount=3)
-  IndividualDetectorBenchmarks.'Behavioral Detector': Job-ORZUYQ(IterationCount=10, RunStrategy=Throughput, WarmupCount=3)
-  IndividualDetectorBenchmarks.'Heuristic Detector': Job-ORZUYQ(IterationCount=10, RunStrategy=Throughput, WarmupCount=3)
+IndividualDetectorBenchmarks.'UserAgent Detector': Job-ORZUYQ(IterationCount=10, RunStrategy=Throughput, WarmupCount=3)
+IndividualDetectorBenchmarks.'IP Detector': Job-ORZUYQ(IterationCount=10, RunStrategy=Throughput, WarmupCount=3)
+IndividualDetectorBenchmarks.'Header Detector': Job-ORZUYQ(IterationCount=10, RunStrategy=Throughput, WarmupCount=3)
+IndividualDetectorBenchmarks.'Behavioral Detector': Job-ORZUYQ(IterationCount=10, RunStrategy=Throughput, WarmupCount=3)
+IndividualDetectorBenchmarks.'Heuristic Detector': Job-ORZUYQ(IterationCount=10, RunStrategy=Throughput, WarmupCount=3)

@@ -1,57 +1,70 @@
 {
   "$schema": "./action-policy.schema.json",
   "_comment": "Built-in Block action policies. These are compiled into the library.",
-
   "block": {
     "Type": "Block",
     "Description": "Default block policy - returns 403 Forbidden",
-    "Tags": ["default", "production"],
+    "Tags": [
+      "default",
+      "production"
+    ],
     "StatusCode": 403,
     "Message": "Access denied",
     "IncludeHeaders": false,
     "IncludeRiskScore": false
   },
-
   "block-hard": {
     "Type": "Block",
     "Extends": "block",
     "Description": "Hard block - 403 with no information leakage",
-    "Tags": ["production", "strict", "security"],
+    "Tags": [
+      "production",
+      "strict",
+      "security"
+    ],
     "StatusCode": 403,
     "Message": "Access denied",
     "ContentType": "text/plain",
     "IncludeHeaders": false,
     "IncludeRiskScore": false
   },
-
   "block-soft": {
     "Type": "Block",
     "Extends": "block",
     "Description": "Soft block - 403 with retry hint",
-    "Tags": ["production", "gentle"],
+    "Tags": [
+      "production",
+      "gentle"
+    ],
     "StatusCode": 403,
     "Message": "Please try again later",
     "ContentType": "text/plain",
     "IncludeHeaders": true,
     "IncludeRiskScore": false
   },
-
   "block-debug": {
     "Type": "Block",
     "Extends": "block",
     "Description": "Debug block - 403 with full detection details. WARNING: Reveals detection logic!",
-    "Tags": ["development", "debug"],
+    "Tags": [
+      "development",
+      "debug"
+    ],
     "StatusCode": 403,
     "Message": "Bot detected - debug mode",
     "ContentType": "application/json",
     "IncludeHeaders": true,
     "IncludeRiskScore": true
   },
-
   "strict-block": {
     "Type": "Block",
     "Extends": "block-hard",
     "Description": "Strict block for high-confidence threats - minimal response",
-    "Tags": ["production", "strict", "security", "high-risk"]
+    "Tags": [
+      "production",
+      "strict",
+      "security",
+      "high-risk"
+    ]
   }
 }

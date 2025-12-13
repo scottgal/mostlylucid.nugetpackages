@@ -22,8 +22,6 @@ public class RiskAssessmentListener : IBotSignalListener, ISignalSubscriber
         _options = options.Value;
     }
 
-    public IEnumerable<BotSignalType> SubscribedSignals => new[] { BotSignalType.Finalising };
-
     public ValueTask OnSignalAsync(
         BotSignalType signal,
         DetectionContext context,
@@ -57,6 +55,8 @@ public class RiskAssessmentListener : IBotSignalListener, ISignalSubscriber
         return ValueTask.CompletedTask;
     }
 
+    public IEnumerable<BotSignalType> SubscribedSignals => new[] { BotSignalType.Finalising };
+
     private RiskBand ComputeRiskBand(
         double maxScore,
         double? inconsistencyScore,
@@ -81,22 +81,22 @@ public class RiskAssessmentListener : IBotSignalListener, ISignalSubscriber
         if (isDatacenter == true) boostCount++;
 
         // Multi-signal agreement can boost one level (max VeryHigh)
-        if (boostCount >= 2 && band < RiskBand.VeryHigh)
-        {
-            band = (RiskBand)((int)band + 1);
-        }
+        if (boostCount >= 2 && band < RiskBand.VeryHigh) band = (RiskBand)((int)band + 1);
 
         return band;
     }
 
-    private RecommendedAction MapRiskToAction(RiskBand band) => band switch
+    private RecommendedAction MapRiskToAction(RiskBand band)
     {
-        RiskBand.VeryHigh => RecommendedAction.Block,
-        RiskBand.High => RecommendedAction.Block,
-        RiskBand.Medium => RecommendedAction.Challenge,
-        RiskBand.Elevated => RecommendedAction.Throttle,
-        _ => RecommendedAction.Allow
-    };
+        return band switch
+        {
+            RiskBand.VeryHigh => RecommendedAction.Block,
+            RiskBand.High => RecommendedAction.Block,
+            RiskBand.Medium => RecommendedAction.Challenge,
+            RiskBand.Elevated => RecommendedAction.Throttle,
+            _ => RecommendedAction.Allow
+        };
+    }
 }
 
 // NOTE: RiskBand and RecommendedAction enums are now in Mostlylucid.BotDetection.Orchestration.DetectionContribution

@@ -11,8 +11,8 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// </summary>
 public class VersionAgeContributor : ContributingDetectorBase
 {
-    private readonly ILogger<VersionAgeContributor> _logger;
     private readonly VersionAgeDetector _detector;
+    private readonly ILogger<VersionAgeContributor> _logger;
 
     public VersionAgeContributor(
         ILogger<VersionAgeContributor> logger,
@@ -42,7 +42,6 @@ public class VersionAgeContributor : ContributingDetectorBase
             var result = await _detector.DetectAsync(state.HttpContext, cancellationToken);
 
             if (result.Reasons.Count == 0)
-            {
                 // No version age issues detected - add negative signal (human indicator)
                 contributions.Add(new DetectionContribution
                 {
@@ -54,12 +53,9 @@ public class VersionAgeContributor : ContributingDetectorBase
                     Signals = ImmutableDictionary<string, object>.Empty
                         .Add(SignalKeys.VersionAgeAnalyzed, true)
                 });
-            }
             else
-            {
                 // Convert each reason to a contribution
                 foreach (var reason in result.Reasons)
-                {
                     contributions.Add(new DetectionContribution
                     {
                         DetectorName = Name,
@@ -71,8 +67,6 @@ public class VersionAgeContributor : ContributingDetectorBase
                         Signals = ImmutableDictionary<string, object>.Empty
                             .Add(SignalKeys.VersionAgeAnalyzed, true)
                     });
-                }
-            }
         }
         catch (Exception ex)
         {

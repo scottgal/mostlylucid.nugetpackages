@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
@@ -33,7 +32,6 @@ public interface IBdfRunner
 
 /// <summary>
 ///     Executes BDF scenarios for closed-loop testing.
-///
 ///     This runner:
 ///     1. Parses BDF JSON scenarios
 ///     2. Executes phases with proper timing (fixed, jittered, burst)
@@ -198,12 +196,8 @@ public sealed class BdfRunner : IBdfRunner
 
         // Set headers
         if (clientConfig.Headers != null)
-        {
             foreach (var (key, value) in clientConfig.Headers)
-            {
                 client.DefaultRequestHeaders.TryAddWithoutValidation(key, value);
-            }
-        }
 
         return client;
     }
@@ -247,10 +241,8 @@ public sealed class BdfRunner : IBdfRunner
         var positionInBurst = requestIndex % burst.BurstSize;
 
         if (positionInBurst == 0 && requestIndex > 0)
-        {
             // Start of new burst (but not first burst)
             return TimeSpan.FromSeconds(burst.BurstIntervalSeconds);
-        }
 
         // Within burst: minimal delay
         return TimeSpan.FromMilliseconds(50);
@@ -263,10 +255,8 @@ public sealed class BdfRunner : IBdfRunner
     {
         // Check if we should go off-graph
         if (_random.NextDouble() < state.Config.OffGraphProbability)
-        {
             // Select a random path from templates (scanner behavior)
             return SelectRandomPath(state);
-        }
 
         return state.Config.Mode switch
         {
@@ -327,7 +317,7 @@ public sealed class BdfRunner : IBdfRunner
         if (path.Contains("{id}") && template.IdRange != null)
         {
             var id = template.IdRange.Min +
-                     (_random.Next(template.IdRange.Max - template.IdRange.Min + 1));
+                     _random.Next(template.IdRange.Max - template.IdRange.Min + 1);
             path = path.Replace("{id}", id.ToString());
         }
 
@@ -409,14 +399,14 @@ public sealed class BdfRunner : IBdfRunner
     /// </summary>
     private sealed class NavigationState
     {
-        public NavigationConfig Config { get; }
-        public string CurrentPath { get; set; }
-
         public NavigationState(NavigationConfig config)
         {
             Config = config;
             CurrentPath = config.StartPath;
         }
+
+        public NavigationConfig Config { get; }
+        public string CurrentPath { get; set; }
     }
 }
 

@@ -2,7 +2,6 @@ using System.Collections.Immutable;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Models;
-using Mostlylucid.BotDetection.Orchestration;
 using Mostlylucid.BotDetection.Policies;
 
 namespace Mostlylucid.BotDetection.Orchestration.Tests.Unit;
@@ -12,6 +11,25 @@ namespace Mostlylucid.BotDetection.Orchestration.Tests.Unit;
 /// </summary>
 public class PolicyTests
 {
+    #region Helper Methods
+
+    private static BlackboardState CreateState(double riskScore, Dictionary<string, object>? signals = null)
+    {
+        return new BlackboardState
+        {
+            HttpContext = null!,
+            Signals = signals ?? new Dictionary<string, object>(),
+            CurrentRiskScore = riskScore,
+            CompletedDetectors = new HashSet<string>(),
+            FailedDetectors = new HashSet<string>(),
+            Contributions = [],
+            RequestId = "test-request",
+            Elapsed = TimeSpan.Zero
+        };
+    }
+
+    #endregion
+
     #region DetectionPolicy Tests
 
     [Fact]
@@ -234,7 +252,7 @@ public class PolicyTests
         {
             Policies = new Dictionary<string, DetectionPolicyConfig>
             {
-                ["customFromConfig"] = new DetectionPolicyConfig
+                ["customFromConfig"] = new()
                 {
                     Description = "From config",
                     FastPath = ["UserAgent", "Header"],
@@ -537,25 +555,6 @@ public class PolicyTests
         // Exact match should win over wildcard
         Assert.Equal("strict", registry.GetPolicyForPath("/api/login").Name);
         Assert.Equal("default", registry.GetPolicyForPath("/api/users").Name);
-    }
-
-    #endregion
-
-    #region Helper Methods
-
-    private static BlackboardState CreateState(double riskScore, Dictionary<string, object>? signals = null)
-    {
-        return new BlackboardState
-        {
-            HttpContext = null!,
-            Signals = signals ?? new Dictionary<string, object>(),
-            CurrentRiskScore = riskScore,
-            CompletedDetectors = new HashSet<string>(),
-            FailedDetectors = new HashSet<string>(),
-            Contributions = [],
-            RequestId = "test-request",
-            Elapsed = TimeSpan.Zero
-        };
     }
 
     #endregion

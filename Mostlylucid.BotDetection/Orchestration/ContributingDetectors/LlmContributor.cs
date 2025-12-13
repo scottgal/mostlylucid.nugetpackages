@@ -13,8 +13,8 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// </summary>
 public class LlmContributor : ContributingDetectorBase
 {
-    private readonly ILogger<LlmContributor> _logger;
     private readonly LlmDetector _detector;
+    private readonly ILogger<LlmContributor> _logger;
     private readonly BotDetectionOptions _options;
 
     public LlmContributor(

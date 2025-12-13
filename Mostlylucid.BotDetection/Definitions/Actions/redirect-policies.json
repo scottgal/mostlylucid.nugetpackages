@@ -1,51 +1,62 @@
 {
   "$schema": "./action-policy.schema.json",
   "_comment": "Built-in Redirect action policies. These are compiled into the library.",
-
   "redirect": {
     "Type": "Redirect",
     "Description": "Default redirect to blocked page",
-    "Tags": ["default"],
+    "Tags": [
+      "default"
+    ],
     "TargetUrl": "/blocked",
     "Permanent": false,
     "PreserveQueryString": false,
     "IncludeReturnUrl": false,
     "AddMetadata": false
   },
-
   "redirect-honeypot": {
     "Type": "Redirect",
     "Extends": "redirect",
     "Description": "Redirect bots to honeypot for analysis and trapping",
-    "Tags": ["honeypot", "security", "research"],
+    "Tags": [
+      "honeypot",
+      "security",
+      "research"
+    ],
     "TargetUrl": "/honeypot",
     "PreserveQueryString": true,
     "AddMetadata": true
   },
-
   "redirect-tarpit": {
     "Type": "Redirect",
     "Extends": "redirect",
     "Description": "Redirect to tarpit - slow response page to waste bot resources",
-    "Tags": ["tarpit", "security", "anti-scraping"],
+    "Tags": [
+      "tarpit",
+      "security",
+      "anti-scraping"
+    ],
     "TargetUrl": "/tarpit",
     "AddMetadata": true
   },
-
   "redirect-error": {
     "Type": "Redirect",
     "Extends": "redirect",
     "Description": "Redirect to generic error page - hides bot detection from attackers",
-    "Tags": ["stealth", "security"],
+    "Tags": [
+      "stealth",
+      "security"
+    ],
     "TargetUrl": "/error",
     "StatusCode": 302
   },
-
   "redirect-challenge": {
     "Type": "Redirect",
     "Extends": "redirect",
     "Description": "Redirect to challenge page with return URL",
-    "Tags": ["challenge", "verification"],
+    "Tags": [
+      "challenge",
+      "verification"
+    ],
     "TargetUrl": "/challenge",
     "IncludeReturnUrl": true,
     "ReturnUrlParam": "returnUrl"

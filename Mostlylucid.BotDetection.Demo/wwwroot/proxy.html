@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>YARP Bot Detection Proxy Demo</title>
     <style>
         * {
@@ -250,268 +250,268 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>🤖 YARP Bot Detection Proxy</h1>
+<div class="header">
+    <h1>🤖 YARP Bot Detection Proxy</h1>
 
-        <div class="url-bar">
-            <input
-                type="text"
+    <div class="url-bar">
+        <input
                 class="url-input"
                 id="urlInput"
                 placeholder="Enter URL (e.g., www.mostlylucid.net or https://example.com)"
+                type="text"
                 value="www.mostlylucid.net"
-            />
-            <button class="load-btn" id="loadBtn" onclick="loadUrl()">Load</button>
-        </div>
-
-        <div class="loading" id="loading">Loading page and analyzing session...</div>
-
-        <div class="session-info" id="sessionInfo" style="display: none;">
-            <div class="session-header">
-                <div>
-                    <div class="session-id">Session: <span id="sessionId">--</span></div>
-                </div>
-                <div class="bot-score">
-                    <span class="score-label">Session Bot Score:</span>
-                    <div class="score-value score-human" id="botScore">0.00</div>
-                </div>
-            </div>
-
-            <div class="stats">
-                <div class="stat">
-                    <div class="stat-label">Total Requests</div>
-                    <div class="stat-value" id="totalRequests">0</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">HTML Docs</div>
-                    <div class="stat-value" id="htmlCount">0</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">Static Assets</div>
-                    <div class="stat-value" id="staticCount">0</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">Bot Type</div>
-                    <div class="stat-value" id="botType">Human</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">Session Duration</div>
-                    <div class="stat-value" id="sessionDuration">0ms</div>
-                </div>
-            </div>
-
-            <div class="requests-container">
-                <div id="requestsList"></div>
-            </div>
-        </div>
+        />
+        <button class="load-btn" id="loadBtn" onclick="loadUrl()">Load</button>
     </div>
 
-    <iframe class="content-frame" id="contentFrame"></iframe>
+    <div class="loading" id="loading">Loading page and analyzing session...</div>
 
-    <script>
-        let sessionId = null;
-        let sessionRequests = [];
-        let sessionStartTime = null;
-        let pollingInterval = null;
+    <div class="session-info" id="sessionInfo" style="display: none;">
+        <div class="session-header">
+            <div>
+                <div class="session-id">Session: <span id="sessionId">--</span></div>
+            </div>
+            <div class="bot-score">
+                <span class="score-label">Session Bot Score:</span>
+                <div class="score-value score-human" id="botScore">0.00</div>
+            </div>
+        </div>
 
-        // Generate session ID
-        function generateSessionId() {
-            return 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-label">Total Requests</div>
+                <div class="stat-value" id="totalRequests">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">HTML Docs</div>
+                <div class="stat-value" id="htmlCount">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Static Assets</div>
+                <div class="stat-value" id="staticCount">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Bot Type</div>
+                <div class="stat-value" id="botType">Human</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Session Duration</div>
+                <div class="stat-value" id="sessionDuration">0ms</div>
+            </div>
+        </div>
+
+        <div class="requests-container">
+            <div id="requestsList"></div>
+        </div>
+    </div>
+</div>
+
+<iframe class="content-frame" id="contentFrame"></iframe>
+
+<script>
+    let sessionId = null;
+    let sessionRequests = [];
+    let sessionStartTime = null;
+    let pollingInterval = null;
+
+    // Generate session ID
+    function generateSessionId() {
+        return 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    // Load URL in iframe with bot detection
+    async function loadUrl() {
+        const urlInput = document.getElementById('urlInput');
+        const loadBtn = document.getElementById('loadBtn');
+        const loading = document.getElementById('loading');
+        const sessionInfo = document.getElementById('sessionInfo');
+        const contentFrame = document.getElementById('contentFrame');
+        const requestsList = document.getElementById('requestsList');
+
+        let url = urlInput.value.trim();
+        if (!url) {
+            alert('Please enter a URL');
+            return;
         }
 
-        // Load URL in iframe with bot detection
-        async function loadUrl() {
-            const urlInput = document.getElementById('urlInput');
-            const loadBtn = document.getElementById('loadBtn');
-            const loading = document.getElementById('loading');
-            const sessionInfo = document.getElementById('sessionInfo');
-            const contentFrame = document.getElementById('contentFrame');
-            const requestsList = document.getElementById('requestsList');
+        // Normalize URL
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            url = 'https://' + url;
+        }
 
-            let url = urlInput.value.trim();
-            if (!url) {
-                alert('Please enter a URL');
-                return;
-            }
+        // CLEAR ALL STATE - this is critical!
+        sessionId = generateSessionId();
+        sessionRequests = [];
+        sessionStartTime = Date.now();
 
-            // Normalize URL
-            if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                url = 'https://' + url;
-            }
+        // Clear previous polling
+        if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+        }
 
-            // CLEAR ALL STATE - this is critical!
-            sessionId = generateSessionId();
-            sessionRequests = [];
-            sessionStartTime = Date.now();
+        // Reset UI
+        document.getElementById('sessionId').textContent = sessionId;
+        document.getElementById('botScore').textContent = '0.00';
+        document.getElementById('botScore').className = 'score-value score-human';
+        document.getElementById('totalRequests').textContent = '0';
+        document.getElementById('htmlCount').textContent = '0';
+        document.getElementById('staticCount').textContent = '0';
+        document.getElementById('botType').textContent = 'Human';
+        document.getElementById('sessionDuration').textContent = '0ms';
+        requestsList.innerHTML = '';
 
-            // Clear previous polling
-            if (pollingInterval) {
-                clearInterval(pollingInterval);
-                pollingInterval = null;
-            }
+        // Show loading state
+        loading.classList.add('active');
+        loadBtn.disabled = true;
+        sessionInfo.style.display = 'none';
 
-            // Reset UI
-            document.getElementById('sessionId').textContent = sessionId;
-            document.getElementById('botScore').textContent = '0.00';
-            document.getElementById('botScore').className = 'score-value score-human';
-            document.getElementById('totalRequests').textContent = '0';
-            document.getElementById('htmlCount').textContent = '0';
-            document.getElementById('staticCount').textContent = '0';
-            document.getElementById('botType').textContent = 'Human';
-            document.getElementById('sessionDuration').textContent = '0ms';
-            requestsList.innerHTML = '';
+        // Load URL through proxy
+        const proxyUrl = `/proxy/${url.replace(/^https?:\/\//, '')}`;
+        contentFrame.src = proxyUrl;
 
-            // Show loading state
-            loading.classList.add('active');
-            loadBtn.disabled = true;
-            sessionInfo.style.display = 'none';
-
-            // Load URL through proxy
-            const proxyUrl = `/proxy/${url.replace(/^https?:\/\//, '')}`;
-            contentFrame.src = proxyUrl;
-
-            // Wait a bit for sub-requests to complete
-            setTimeout(() => {
+        // Wait a bit for sub-requests to complete
+        setTimeout(() => {
+            pollSessionData();
+            // Poll for 5 seconds to catch all sub-requests
+            let pollCount = 0;
+            pollingInterval = setInterval(() => {
                 pollSessionData();
-                // Poll for 5 seconds to catch all sub-requests
-                let pollCount = 0;
-                pollingInterval = setInterval(() => {
-                    pollSessionData();
-                    pollCount++;
-                    if (pollCount >= 10) {
-                        clearInterval(pollingInterval);
-                    }
-                }, 500);
-            }, 1000);
-
-            // Show session info after initial delay
-            setTimeout(() => {
-                loading.classList.remove('active');
-                loadBtn.disabled = false;
-                sessionInfo.style.display = 'block';
-            }, 2000);
-        }
-
-        // Poll for session detection data
-        async function pollSessionData() {
-            if (!sessionId) return;
-
-            try {
-                // Get signature ID from bot detection (would be in response headers)
-                // For this demo, we'll use the sessionId as signatureId
-                const response = await fetch(`/api/v1/signature/${sessionId}`);
-
-                if (response.ok) {
-                    const data = await response.json();
-                    updateSessionDisplayFromSignature(data);
-                } else {
-                    // Fallback to yarp-learning endpoint
-                    const fallbackResponse = await fetch('/api/v1/yarp-learning', {
-                        headers: {
-                            'X-Session-Id': sessionId
-                        }
-                    });
-                    const fallbackData = await fallbackResponse.json();
-                    updateSessionDisplay(fallbackData);
+                pollCount++;
+                if (pollCount >= 10) {
+                    clearInterval(pollingInterval);
                 }
-            } catch (error) {
-                console.error('Failed to fetch session data:', error);
-            }
-        }
+            }, 500);
+        }, 1000);
 
-        // Update display from signature behavior data
-        function updateSessionDisplayFromSignature(data) {
-            if (!data.behavior) return;
+        // Show session info after initial delay
+        setTimeout(() => {
+            loading.classList.remove('active');
+            loadBtn.disabled = false;
+            sessionInfo.style.display = 'block';
+        }, 2000);
+    }
 
-            const behavior = data.behavior;
+    // Poll for session detection data
+    async function pollSessionData() {
+        if (!sessionId) return;
 
-            // Update bot score (use average bot probability)
-            const probability = behavior.averageBotProbability || 0;
-            const scoreEl = document.getElementById('botScore');
-            scoreEl.textContent = probability.toFixed(2);
-            scoreEl.className = 'score-value ' +
-                (probability > 0.7 ? 'score-bot' :
-                 probability > 0.3 ? 'score-suspicious' :
-                 'score-human');
+        try {
+            // Get signature ID from bot detection (would be in response headers)
+            // For this demo, we'll use the sessionId as signatureId
+            const response = await fetch(`/api/v1/signature/${sessionId}`);
 
-            // Update stats
-            document.getElementById('totalRequests').textContent = behavior.requestCount || 0;
-            document.getElementById('htmlCount').textContent =
-                (behavior.requests?.filter(r => r.path.endsWith('.html') || !r.path.includes('.')).length || 0);
-            document.getElementById('staticCount').textContent =
-                (behavior.requests?.filter(r => r.path.includes('.') && !r.path.endsWith('.html')).length || 0);
-
-            // Determine bot type
-            const botType = behavior.isAberrant ? 'Aberrant Bot' :
-                           (behavior.aberrationScore > 0.5 ? 'Suspicious' : 'Human');
-            document.getElementById('botType').textContent = botType;
-
-            // Update duration
-            const firstSeen = new Date(behavior.firstSeen);
-            const lastSeen = new Date(behavior.lastSeen);
-            const duration = lastSeen - firstSeen;
-            document.getElementById('sessionDuration').textContent = Math.round(duration) + 'ms';
-
-            // Update requests list from behavior
-            if (behavior.requests) {
-                sessionRequests = behavior.requests.map(r => ({
-                    path: r.path,
-                    type: r.path.includes('.') && !r.path.endsWith('.html') ? 'static' : 'html',
-                    confidence: r.botProbability,
-                    isBot: r.botProbability > 0.5
-                }));
-                updateRequestsList();
-            }
-        }
-
-        // Update session display
-        function updateSessionDisplay(data) {
-            const detection = data.detection || {};
-            const confidence = detection.confidence || 0;
-            const isBot = detection.isBot || false;
-            const botType = detection.botType || 'Human';
-
-            // Update bot score
-            const scoreEl = document.getElementById('botScore');
-            scoreEl.textContent = confidence.toFixed(2);
-            scoreEl.className = 'score-value ' +
-                (confidence > 0.7 ? 'score-bot' :
-                 confidence > 0.3 ? 'score-suspicious' :
-                 'score-human');
-
-            // Update stats
-            document.getElementById('botType').textContent = botType;
-
-            // Simulate request tracking (in real implementation, this would come from backend)
-            if (sessionRequests.length === 0) {
-                // Add main page request
-                sessionRequests.push({
-                    path: document.getElementById('urlInput').value,
-                    type: 'html',
-                    confidence: confidence,
-                    isBot: isBot
+            if (response.ok) {
+                const data = await response.json();
+                updateSessionDisplayFromSignature(data);
+            } else {
+                // Fallback to yarp-learning endpoint
+                const fallbackResponse = await fetch('/api/v1/yarp-learning', {
+                    headers: {
+                        'X-Session-Id': sessionId
+                    }
                 });
+                const fallbackData = await fallbackResponse.json();
+                updateSessionDisplay(fallbackData);
             }
+        } catch (error) {
+            console.error('Failed to fetch session data:', error);
+        }
+    }
 
-            const duration = Date.now() - sessionStartTime;
-            document.getElementById('sessionDuration').textContent = duration + 'ms';
-            document.getElementById('totalRequests').textContent = sessionRequests.length;
+    // Update display from signature behavior data
+    function updateSessionDisplayFromSignature(data) {
+        if (!data.behavior) return;
 
-            // Count by type
-            const htmlCount = sessionRequests.filter(r => r.type === 'html').length;
-            const staticCount = sessionRequests.filter(r => r.type === 'static').length;
+        const behavior = data.behavior;
 
-            document.getElementById('htmlCount').textContent = htmlCount;
-            document.getElementById('staticCount').textContent = staticCount;
+        // Update bot score (use average bot probability)
+        const probability = behavior.averageBotProbability || 0;
+        const scoreEl = document.getElementById('botScore');
+        scoreEl.textContent = probability.toFixed(2);
+        scoreEl.className = 'score-value ' +
+            (probability > 0.7 ? 'score-bot' :
+                probability > 0.3 ? 'score-suspicious' :
+                    'score-human');
 
-            // Update requests list
+        // Update stats
+        document.getElementById('totalRequests').textContent = behavior.requestCount || 0;
+        document.getElementById('htmlCount').textContent =
+            (behavior.requests?.filter(r => r.path.endsWith('.html') || !r.path.includes('.')).length || 0);
+        document.getElementById('staticCount').textContent =
+            (behavior.requests?.filter(r => r.path.includes('.') && !r.path.endsWith('.html')).length || 0);
+
+        // Determine bot type
+        const botType = behavior.isAberrant ? 'Aberrant Bot' :
+            (behavior.aberrationScore > 0.5 ? 'Suspicious' : 'Human');
+        document.getElementById('botType').textContent = botType;
+
+        // Update duration
+        const firstSeen = new Date(behavior.firstSeen);
+        const lastSeen = new Date(behavior.lastSeen);
+        const duration = lastSeen - firstSeen;
+        document.getElementById('sessionDuration').textContent = Math.round(duration) + 'ms';
+
+        // Update requests list from behavior
+        if (behavior.requests) {
+            sessionRequests = behavior.requests.map(r => ({
+                path: r.path,
+                type: r.path.includes('.') && !r.path.endsWith('.html') ? 'static' : 'html',
+                confidence: r.botProbability,
+                isBot: r.botProbability > 0.5
+            }));
             updateRequestsList();
         }
+    }
 
-        // Update requests list display
-        function updateRequestsList() {
-            const requestsList = document.getElementById('requestsList');
-            requestsList.innerHTML = sessionRequests.map(req => `
+    // Update session display
+    function updateSessionDisplay(data) {
+        const detection = data.detection || {};
+        const confidence = detection.confidence || 0;
+        const isBot = detection.isBot || false;
+        const botType = detection.botType || 'Human';
+
+        // Update bot score
+        const scoreEl = document.getElementById('botScore');
+        scoreEl.textContent = confidence.toFixed(2);
+        scoreEl.className = 'score-value ' +
+            (confidence > 0.7 ? 'score-bot' :
+                confidence > 0.3 ? 'score-suspicious' :
+                    'score-human');
+
+        // Update stats
+        document.getElementById('botType').textContent = botType;
+
+        // Simulate request tracking (in real implementation, this would come from backend)
+        if (sessionRequests.length === 0) {
+            // Add main page request
+            sessionRequests.push({
+                path: document.getElementById('urlInput').value,
+                type: 'html',
+                confidence: confidence,
+                isBot: isBot
+            });
+        }
+
+        const duration = Date.now() - sessionStartTime;
+        document.getElementById('sessionDuration').textContent = duration + 'ms';
+        document.getElementById('totalRequests').textContent = sessionRequests.length;
+
+        // Count by type
+        const htmlCount = sessionRequests.filter(r => r.type === 'html').length;
+        const staticCount = sessionRequests.filter(r => r.type === 'static').length;
+
+        document.getElementById('htmlCount').textContent = htmlCount;
+        document.getElementById('staticCount').textContent = staticCount;
+
+        // Update requests list
+        updateRequestsList();
+    }
+
+    // Update requests list display
+    function updateRequestsList() {
+        const requestsList = document.getElementById('requestsList');
+        requestsList.innerHTML = sessionRequests.map(req => `
                 <div class="request-item">
                     <div class="request-path" title="${req.path}">${req.path}</div>
                     <div class="request-detection">
@@ -520,19 +520,19 @@
                     </div>
                 </div>
             `).join('');
-        }
+    }
 
-        // Allow Enter key to load
-        document.getElementById('urlInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                loadUrl();
-            }
-        });
-
-        // Initial load with default URL
-        setTimeout(() => {
+    // Allow Enter key to load
+    document.getElementById('urlInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
             loadUrl();
-        }, 500);
-    </script>
+        }
+    });
+
+    // Initial load with default URL
+    setTimeout(() => {
+        loadUrl();
+    }, 500);
+</script>
 </body>
 </html>

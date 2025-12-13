@@ -94,6 +94,7 @@ signatureCoordinators[signature].ReceiveOperationSignal(signal);
 ## Per-Operation Sink (Scoped)
 
 ### Purpose
+
 - Coordinate request + response for THIS operation
 - Enable signal-based handoff (no HttpContext dependency)
 - Works with YARP (signals are serializable, HttpContext is not)
@@ -174,6 +175,7 @@ T=57ms:  OperationSink dies (scoped)
 ## Signature-Scoped Coordinator
 
 ### Purpose
+
 - Maintain cross-request state for a signature
 - Run offline analysis (lanes)
 - Learn behavior patterns
@@ -443,10 +445,10 @@ public class BotDetectionTransform : IHttpTransform
 
 ## Summary
 
-| Tier | Sink Scope | Coordinator Lifetime | Purpose |
-|------|-----------|---------------------|---------|
-| **Operation** | Per-request (scoped) | Dies when response sent | Request + Response coordination |
-| **Signature** | Per-signature (owned) | Dies when LRU evicts | Cross-request learning, lanes |
+| Tier          | Sink Scope            | Coordinator Lifetime    | Purpose                         |
+|---------------|-----------------------|-------------------------|---------------------------------|
+| **Operation** | Per-request (scoped)  | Dies when response sent | Request + Response coordination |
+| **Signature** | Per-signature (owned) | Dies when LRU evicts    | Cross-request learning, lanes   |
 
 **Escalation**: Operation → Signature via `OperationCompleteSignal` keyed by signature
 

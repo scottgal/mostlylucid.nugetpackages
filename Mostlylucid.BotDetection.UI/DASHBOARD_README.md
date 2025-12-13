@@ -60,17 +60,17 @@ Navigate to: `https://your-app.com/stylobot`
 
 ### `StyloBotDashboardOptions`
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `BasePath` | `string` | `/stylobot` | Dashboard URL path |
-| `HubPath` | `string` | `/stylobot/hub` | SignalR hub path |
-| `Enabled` | `bool` | `true` | Enable/disable dashboard |
-| `RequireAuthorizationPolicy` | `string?` | `null` | ASP.NET Core policy name |
-| `AuthorizationFilter` | `Func<HttpContext, Task<bool>>?` | `null` | Custom auth function |
-| `MaxEventsInMemory` | `int` | `1000` | In-memory event limit |
-| `SummaryBroadcastIntervalSeconds` | `int` | `5` | Summary update frequency |
-| `EnableSimulator` | `bool` | `false` | Enable test data generator |
-| `SimulatorEventsPerSecond` | `int` | `2` | Sim event rate |
+| Property                          | Type                             | Default         | Description                |
+|-----------------------------------|----------------------------------|-----------------|----------------------------|
+| `BasePath`                        | `string`                         | `/stylobot`     | Dashboard URL path         |
+| `HubPath`                         | `string`                         | `/stylobot/hub` | SignalR hub path           |
+| `Enabled`                         | `bool`                           | `true`          | Enable/disable dashboard   |
+| `RequireAuthorizationPolicy`      | `string?`                        | `null`          | ASP.NET Core policy name   |
+| `AuthorizationFilter`             | `Func<HttpContext, Task<bool>>?` | `null`          | Custom auth function       |
+| `MaxEventsInMemory`               | `int`                            | `1000`          | In-memory event limit      |
+| `SummaryBroadcastIntervalSeconds` | `int`                            | `5`             | Summary update frequency   |
+| `EnableSimulator`                 | `bool`                           | `false`         | Enable test data generator |
+| `SimulatorEventsPerSecond`        | `int`                            | `2`             | Sim event rate             |
 
 ## Authorization
 
@@ -134,6 +134,7 @@ builder.Services.AddStyloBotDashboard(
 ### Live Signatures Feed
 
 Scrolling list of unique bot signatures with:
+
 - Primary signature hash (truncated)
 - Risk band badge
 - Hit count
@@ -142,6 +143,7 @@ Scrolling list of unique bot signatures with:
 ### Detections Grid
 
 Tabulator-powered grid with:
+
 - Time, Type, Risk, Method, Path
 - Action, Probability
 - Sortable columns
@@ -152,14 +154,14 @@ Tabulator-powered grid with:
 
 All endpoints are prefixed with `BasePath` (default `/stylobot`):
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | Dashboard HTML page |
-| `/api/detections` | GET | Get detection events |
-| `/api/signatures` | GET | Get signature events |
-| `/api/summary` | GET | Get summary statistics |
-| `/api/timeseries` | GET | Get time-series data |
-| `/api/export` | GET | Export detections (CSV/JSON) |
+| Endpoint          | Method | Description                  |
+|-------------------|--------|------------------------------|
+| `/`               | GET    | Dashboard HTML page          |
+| `/api/detections` | GET    | Get detection events         |
+| `/api/signatures` | GET    | Get signature events         |
+| `/api/summary`    | GET    | Get summary statistics       |
+| `/api/timeseries` | GET    | Get time-series data         |
+| `/api/export`     | GET    | Export detections (CSV/JSON) |
 
 ### Query Parameters
 
@@ -223,6 +225,7 @@ builder.Services.AddStyloBotDashboard(options =>
 ```
 
 The simulator generates realistic:
+
 - Bot and human detections
 - Risk bands and actions
 - Signatures with hit counts
@@ -242,7 +245,8 @@ The dashboard uses DaisyUI themes. Override in your app:
 
 ### Custom Charts
 
-Extend the dashboard by modifying the embedded HTML template in `Middleware/StyloBotDashboardMiddleware.cs:DashboardHtmlTemplate.GetHtml()`.
+Extend the dashboard by modifying the embedded HTML template in
+`Middleware/StyloBotDashboardMiddleware.cs:DashboardHtmlTemplate.GetHtml()`.
 
 ### Custom Data Source
 
@@ -262,26 +266,26 @@ builder.Services.AddSingleton<IDashboardEventStore, MyCustomEventStore>();
 ### Components
 
 1. **SignalR Hub** (`StyloBotDashboardHub`)
-   - Broadcasts real-time events to clients
-   - Manages client connections
+    - Broadcasts real-time events to clients
+    - Manages client connections
 
 2. **Event Store** (`InMemoryDashboardEventStore`)
-   - Circular buffer for recent events
-   - Thread-safe, configurable size
-   - Can be replaced with persistent storage
+    - Circular buffer for recent events
+    - Thread-safe, configurable size
+    - Can be replaced with persistent storage
 
 3. **Summary Broadcaster** (`DashboardSummaryBroadcaster`)
-   - Background service
-   - Periodically calculates and broadcasts stats
+    - Background service
+    - Periodically calculates and broadcasts stats
 
 4. **Simulator** (`DashboardSimulatorService`)
-   - Generates test data
-   - Only active when `EnableSimulator = true`
+    - Generates test data
+    - Only active when `EnableSimulator = true`
 
 5. **Middleware** (`StyloBotDashboardMiddleware`)
-   - Routes dashboard requests
-   - Serves HTML and API endpoints
-   - Handles authorization
+    - Routes dashboard requests
+    - Serves HTML and API endpoints
+    - Handles authorization
 
 ### Data Flow
 
@@ -318,6 +322,7 @@ Bot Detection → Event Store → SignalR Hub → Dashboard Clients
 ### Monitoring
 
 The dashboard itself is a monitoring tool, but you should also:
+
 - Log dashboard access
 - Track SignalR connection metrics
 - Monitor memory usage of event store

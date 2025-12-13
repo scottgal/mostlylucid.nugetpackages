@@ -60,10 +60,8 @@ public static class CidrHelper
 
         // Check full bytes
         for (var i = 0; i < fullBytes; i++)
-        {
             if (ipBytes[i] != networkBytes[i])
                 return false;
-        }
 
         // Check remaining bits with proper masking
         if (remainingBits > 0 && fullBytes < ipBytes.Length)

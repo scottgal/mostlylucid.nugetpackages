@@ -16,11 +16,11 @@ namespace Mostlylucid.BotDetection.Services;
 /// </summary>
 public class ReputationMaintenanceService : BackgroundService, ILearningEventHandler
 {
-    private readonly ILogger<ReputationMaintenanceService> _logger;
     private readonly IPatternReputationCache _cache;
-    private readonly PatternReputationUpdater _updater;
-    private readonly ReputationOptions _options;
     private readonly ILearningEventBus? _learningBus;
+    private readonly ILogger<ReputationMaintenanceService> _logger;
+    private readonly ReputationOptions _options;
+    private readonly PatternReputationUpdater _updater;
 
     public ReputationMaintenanceService(
         ILogger<ReputationMaintenanceService> logger,
@@ -44,6 +44,38 @@ public class ReputationMaintenanceService : BackgroundService, ILearningEventHan
         LearningEventType.SignatureFeedback,
         LearningEventType.UserFeedback
     };
+
+    /// <summary>
+    ///     Handle learning events to update pattern reputations.
+    /// </summary>
+    public Task HandleAsync(LearningEvent evt, CancellationToken ct = default)
+    {
+        try
+        {
+            switch (evt.Type)
+            {
+                case LearningEventType.HighConfidenceDetection:
+                case LearningEventType.FullDetection:
+                case LearningEventType.MinimalDetection:
+                    HandleDetectionEvent(evt);
+                    break;
+
+                case LearningEventType.SignatureFeedback:
+                    HandleSignatureFeedback(evt);
+                    break;
+
+                case LearningEventType.UserFeedback:
+                    HandleUserFeedback(evt);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error handling learning event {Type}", evt.Type);
+        }
+
+        return Task.CompletedTask;
+    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -72,7 +104,6 @@ public class ReputationMaintenanceService : BackgroundService, ILearningEventHan
         var lastPersist = DateTimeOffset.UtcNow;
 
         while (!stoppingToken.IsCancellationRequested)
-        {
             try
             {
                 await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
@@ -114,7 +145,6 @@ public class ReputationMaintenanceService : BackgroundService, ILearningEventHan
             {
                 _logger.LogError(ex, "Error in reputation maintenance loop");
             }
-        }
 
         // Final persist on shutdown
         try
@@ -126,38 +156,6 @@ public class ReputationMaintenanceService : BackgroundService, ILearningEventHan
         {
             _logger.LogWarning(ex, "Failed to persist reputations on shutdown");
         }
-    }
-
-    /// <summary>
-    ///     Handle learning events to update pattern reputations.
-    /// </summary>
-    public Task HandleAsync(LearningEvent evt, CancellationToken ct = default)
-    {
-        try
-        {
-            switch (evt.Type)
-            {
-                case LearningEventType.HighConfidenceDetection:
-                case LearningEventType.FullDetection:
-                case LearningEventType.MinimalDetection:
-                    HandleDetectionEvent(evt);
-                    break;
-
-                case LearningEventType.SignatureFeedback:
-                    HandleSignatureFeedback(evt);
-                    break;
-
-                case LearningEventType.UserFeedback:
-                    HandleUserFeedback(evt);
-                    break;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Error handling learning event {Type}", evt.Type);
-        }
-
-        return Task.CompletedTask;
     }
 
     private void HandleDetectionEvent(LearningEvent evt)
@@ -195,7 +193,8 @@ public class ReputationMaintenanceService : BackgroundService, ILearningEventHan
         var current = _cache.GetOrCreate(patternId, signatureType ?? "Unknown", evt.Pattern);
 
         // Signature feedback is typically high-confidence bot evidence
-        var updated = _updater.ApplyEvidence(current, patternId, signatureType ?? "Unknown", evt.Pattern, 1.0, evt.Confidence ?? 0.9);
+        var updated = _updater.ApplyEvidence(current, patternId, signatureType ?? "Unknown", evt.Pattern, 1.0,
+            evt.Confidence ?? 0.9);
         _cache.Update(updated);
 
         _logger.LogDebug(
@@ -238,9 +237,7 @@ public class ReputationMaintenanceService : BackgroundService, ILearningEventHan
         // IP pattern
         if (evt.Metadata?.TryGetValue("ip", out var ipObj) == true &&
             ipObj is string ip && !string.IsNullOrEmpty(ip) && ip != "unknown")
-        {
             patterns.Add(($"ip:{ip}", "IP", ip));
-        }
 
         // Explicit pattern from event
         if (!string.IsNullOrEmpty(evt.Pattern))

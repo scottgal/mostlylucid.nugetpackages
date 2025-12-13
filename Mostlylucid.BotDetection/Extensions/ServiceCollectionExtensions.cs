@@ -15,6 +15,7 @@ using Mostlylucid.BotDetection.Metrics;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Orchestration;
 using Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
+using Mostlylucid.BotDetection.Persistence;
 using Mostlylucid.BotDetection.Policies;
 using Mostlylucid.BotDetection.Services;
 
@@ -41,12 +42,11 @@ public static class ServiceCollectionExtensions
     /// <example>
     ///     // Minimal registration (uses defaults + appsettings.json)
     ///     builder.Services.AddBotDetection();
-    ///
     ///     // With custom configuration
     ///     builder.Services.AddBotDetection(options =>
     ///     {
-    ///         options.BotThreshold = 0.8;
-    ///         options.EnableLlmDetection = true;
+    ///     options.BotThreshold = 0.8;
+    ///     options.EnableLlmDetection = true;
     ///     });
     /// </example>
     public static IServiceCollection AddBotDetection(
@@ -83,7 +83,7 @@ public static class ServiceCollectionExtensions
     /// <example>
     ///     // Bind from custom section
     ///     builder.Services.AddBotDetection(
-    ///         builder.Configuration.GetSection("MyApp:Security:BotDetection"));
+    ///     builder.Configuration.GetSection("MyApp:Security:BotDetection"));
     /// </example>
     public static IServiceCollection AddBotDetection(
         this IServiceCollection services,
@@ -173,7 +173,6 @@ public static class ServiceCollectionExtensions
     ///     - Enables LLM-based semantic analysis
     ///     - Requires Ollama to be running at the specified endpoint
     ///     - Recommended models: qwen2.5:1.5b, phi3:mini, tinyllama
-    ///
     ///     LLM detection is fail-safe: if Ollama is unavailable,
     ///     detection continues with heuristics only.
     /// </remarks>
@@ -185,11 +184,10 @@ public static class ServiceCollectionExtensions
     /// <example>
     ///     // With default Ollama settings
     ///     builder.Services.AddAdvancedBotDetection();
-    ///
     ///     // With custom endpoint and model
     ///     builder.Services.AddAdvancedBotDetection(
-    ///         ollamaEndpoint: "http://ollama-server:11434",
-    ///         model: "phi3:mini");
+    ///     ollamaEndpoint: "http://ollama-server:11434",
+    ///     model: "phi3:mini");
     /// </example>
     public static IServiceCollection AddAdvancedBotDetection(
         this IServiceCollection services,
@@ -316,17 +314,18 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<FastPathDecider>();
 
         // Register learned pattern store (SQLite-backed)
-        services.TryAddSingleton<ILearnedPatternStore, Data.SqliteLearnedPatternStore>();
+        services.TryAddSingleton<ILearnedPatternStore, SqliteLearnedPatternStore>();
 
         // Register weight store for learning feedback loop
-        services.TryAddSingleton<IWeightStore, Data.SqliteWeightStore>();
+        services.TryAddSingleton<IWeightStore, SqliteWeightStore>();
 
         // Register signature feedback handler (feeds learned patterns back to detectors)
         services.AddSingleton<ILearningEventHandler, SignatureFeedbackHandler>();
 
         // Register common user agent service (scrapes useragents.me for browser versions and common UAs)
         services.TryAddSingleton<ICommonUserAgentService, CommonUserAgentService>();
-        services.TryAddSingleton<IBrowserVersionService>(sp => (CommonUserAgentService)sp.GetRequiredService<ICommonUserAgentService>());
+        services.TryAddSingleton<IBrowserVersionService>(sp =>
+            (CommonUserAgentService)sp.GetRequiredService<ICommonUserAgentService>());
         services.AddHostedService(sp => (CommonUserAgentService)sp.GetRequiredService<ICommonUserAgentService>());
 
         // Register version age detector
@@ -432,7 +431,7 @@ public static class ServiceCollectionExtensions
         // ==========================================
 
         // Anomaly saver - writes detection events to rolling JSON files (opt-in)
-        services.AddHostedService<Persistence.AnomalySaverService>();
+        services.AddHostedService<AnomalySaverService>();
 
         // ==========================================
         // Policy System (path-based detection workflows)

@@ -7,7 +7,6 @@ using Moq;
 using Moq.Protected;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Models;
-using Xunit;
 
 namespace Mostlylucid.BotDetection.Orchestration.Tests.Unit;
 
@@ -17,8 +16,8 @@ namespace Mostlylucid.BotDetection.Orchestration.Tests.Unit;
 /// </summary>
 public class BotListFetcherSecurityToolsTests : IDisposable
 {
-    private readonly Mock<ILogger<BotListFetcher>> _loggerMock;
     private readonly IMemoryCache _cache;
+    private readonly Mock<ILogger<BotListFetcher>> _loggerMock;
     private readonly BotDetectionOptions _options;
 
     public BotListFetcherSecurityToolsTests()
@@ -233,13 +232,15 @@ uniquepattern2
         });
 
         SetupHttpResponse(handlerMock, _options.DataSources.ScannerUserAgents.Url!, jsonContent);
-        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, "uniquescanner\nUNIQUESCANNER"); // More duplicates
+        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!,
+            "uniquescanner\nUNIQUESCANNER"); // More duplicates
 
         // Act
         var patterns = await fetcher.GetSecurityToolPatternsAsync();
 
         // Assert - Should have only one uniquescanner pattern (deduplicated)
-        var uniqueScannerPatterns = patterns.Where(p => p.Pattern.Equals("uniquescanner", StringComparison.OrdinalIgnoreCase)).ToList();
+        var uniqueScannerPatterns =
+            patterns.Where(p => p.Pattern.Equals("uniquescanner", StringComparison.OrdinalIgnoreCase)).ToList();
         Assert.Single(uniqueScannerPatterns);
     }
 
@@ -307,7 +308,8 @@ uniquepattern2
         var (fetcher, handlerMock) = CreateFetcher();
 
         SetupHttpResponse(handlerMock, _options.DataSources.ScannerUserAgents.Url!, HttpStatusCode.InternalServerError);
-        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!, HttpStatusCode.InternalServerError);
+        SetupHttpResponse(handlerMock, _options.DataSources.CoreRuleSetScanners.Url!,
+            HttpStatusCode.InternalServerError);
 
         // Act
         var patterns = await fetcher.GetSecurityToolPatternsAsync();
@@ -459,7 +461,8 @@ uniquepattern2
     [InlineData("uniquegobuster/3.1", "Gobuster")]
     [InlineData("uniquehydra-http", "Hydra")]
     [InlineData("uniquemetasploit framework", "Metasploit")]
-    public async Task GetSecurityToolPatternsAsync_InfersToolNameForCoreRuleSetPatterns(string pattern, string expectedName)
+    public async Task GetSecurityToolPatternsAsync_InfersToolNameForCoreRuleSetPatterns(string pattern,
+        string expectedName)
     {
         // Arrange
         var (fetcher, handlerMock) = CreateFetcher();

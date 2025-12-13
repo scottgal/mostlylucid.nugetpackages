@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -43,16 +44,15 @@ namespace Mostlylucid.BotDetection.ApiHolodeck.Actions;
 /// </remarks>
 public class HolodeckActionPolicy : IActionPolicy
 {
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<HolodeckActionPolicy> _logger;
-    private readonly HolodeckOptions _options;
-    private readonly IShapeBuilder? _shapeBuilder;
-
     // Track requests per context for study cutoff
     private static readonly ConcurrentDictionary<string, int> _requestCounts = new();
 
     // Track context memory names per bot (for consistent fake worlds)
     private static readonly ConcurrentDictionary<string, string> _contextMemoryNames = new();
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<HolodeckActionPolicy> _logger;
+    private readonly HolodeckOptions _options;
+    private readonly IShapeBuilder? _shapeBuilder;
 
     public HolodeckActionPolicy(
         IHttpClientFactory httpClientFactory,
@@ -109,7 +109,6 @@ public class HolodeckActionPolicy : IActionPolicy
         // Analyze request shape for intelligent API simulation
         ShapeAnalysisResult? shapeResult = null;
         if (_shapeBuilder != null)
-        {
             try
             {
                 shapeResult = await _shapeBuilder.AnalyzeAsync(context, cancellationToken);
@@ -118,7 +117,6 @@ public class HolodeckActionPolicy : IActionPolicy
             {
                 _logger.LogWarning(ex, "Shape analysis failed, using defaults");
             }
-        }
 
         var shape = shapeResult?.Shape ?? "generic";
         var simulationType = shapeResult?.SimulationType ?? ApiSimulationType.RestJson;
@@ -157,9 +155,7 @@ public class HolodeckActionPolicy : IActionPolicy
 
             // Add OpenAPI spec URL if we detected a known pattern
             if (!string.IsNullOrEmpty(shapeResult?.OpenApiSpecUrl))
-            {
                 proxyRequest.Headers.TryAddWithoutValidation("X-OpenApi-Spec", shapeResult.OpenApiSpecUrl);
-            }
 
             // Add mode-specific configuration
             AddModeHeaders(proxyRequest);
@@ -174,17 +170,11 @@ public class HolodeckActionPolicy : IActionPolicy
 
             // Copy headers (except transfer-encoding which ASP.NET handles)
             foreach (var header in response.Headers)
-            {
                 if (!header.Key.Equals("Transfer-Encoding", StringComparison.OrdinalIgnoreCase))
-                {
                     context.Response.Headers[header.Key] = header.Value.ToArray();
-                }
-            }
 
             foreach (var header in response.Content.Headers)
-            {
                 context.Response.Headers[header.Key] = header.Value.ToArray();
-            }
 
             // Add holodeck indicator headers (for debugging)
             context.Response.Headers["X-Holodeck"] = "true";
@@ -240,7 +230,7 @@ public class HolodeckActionPolicy : IActionPolicy
             var nouns = new[] { "falcon", "spider", "robot", "crawler", "agent", "scraper", "hunter", "seeker" };
 
             var adj = adjectives[hash % adjectives.Length];
-            var noun = nouns[(hash / adjectives.Length) % nouns.Length];
+            var noun = nouns[hash / adjectives.Length % nouns.Length];
             var num = hash % 1000;
 
             return $"holodeck-{adj}-{noun}-{num}";
@@ -312,10 +302,8 @@ public class HolodeckActionPolicy : IActionPolicy
             request.Content = new StreamContent(context.Request.Body);
 
             if (context.Request.ContentType != null)
-            {
                 request.Content.Headers.ContentType =
-                    new System.Net.Http.Headers.MediaTypeHeaderValue(context.Request.ContentType);
-            }
+                    new MediaTypeHeaderValue(context.Request.ContentType);
         }
 
         return request;
@@ -347,10 +335,8 @@ public class HolodeckActionPolicy : IActionPolicy
 
                 // Occasionally add delays
                 if (random.NextDouble() < 0.2)
-                {
                     request.Headers.TryAddWithoutValidation("X-Simulate-Delay",
                         random.Next(1000, 5000).ToString());
-                }
 
                 break;
 
@@ -393,23 +379,16 @@ public class HolodeckActionPolicy : IActionPolicy
 
         // Generate appropriate empty response based on content type
         if (contentType?.Contains("xml", StringComparison.OrdinalIgnoreCase) == true)
-        {
             await context.Response.WriteAsync(
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?><response><data/><message>No results found</message></response>",
                 cancellationToken);
-        }
         else if (contentType?.Contains("html", StringComparison.OrdinalIgnoreCase) == true)
-        {
             await context.Response.WriteAsync(
                 "<!DOCTYPE html><html><head><title>No Results</title></head><body><h1>No Results Found</h1></body></html>",
                 cancellationToken);
-        }
         else if (contentType?.Contains("text/plain", StringComparison.OrdinalIgnoreCase) == true)
-        {
             await context.Response.WriteAsync("No results found", cancellationToken);
-        }
         else
-        {
             // Default to JSON
             await context.Response.WriteAsJsonAsync(new
             {
@@ -417,7 +396,6 @@ public class HolodeckActionPolicy : IActionPolicy
                 message = "No results found",
                 timestamp = DateTime.UtcNow
             }, cancellationToken);
-        }
 
         return new ActionResult
         {

@@ -9,8 +9,8 @@ namespace Mostlylucid.BotDetection.Demo.Hubs;
 /// </summary>
 public class SignatureHub : Hub
 {
-    private readonly SignatureStore _signatureStore;
     private readonly ILogger<SignatureHub> _logger;
+    private readonly SignatureStore _signatureStore;
 
     public SignatureHub(SignatureStore signatureStore, ILogger<SignatureHub> logger)
     {

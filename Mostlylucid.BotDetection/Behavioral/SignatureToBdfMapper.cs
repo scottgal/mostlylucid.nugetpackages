@@ -4,7 +4,6 @@ namespace Mostlylucid.BotDetection.Behavioral;
 
 /// <summary>
 ///     Maps SignatureBehaviorState to BDF scenarios for replay testing.
-///
 ///     This enables a closed-loop testing system where you can:
 ///     1. Capture real behavior from signatures
 ///     2. Generate synthetic BDF scenarios that mimic that behavior
@@ -80,7 +79,6 @@ public sealed class SignatureToBdfMapper
         // Bots with timer loops: strong spectral peak, low spectral entropy
         if (state.SpectralPeakToNoise >= _options.SpectralPnBot &&
             state.SpectralEntropy <= _options.SpectralEntropyBot)
-        {
             return new TimingConfig
             {
                 Mode = "fixed",
@@ -88,11 +86,9 @@ public sealed class SignatureToBdfMapper
                 JitterStdDevSeconds = 0.0,
                 Burst = null
             };
-        }
 
         // Bursty signatures
         if (state.BurstScore >= _options.BurstScoreHigh)
-        {
             return new TimingConfig
             {
                 Mode = "burst",
@@ -100,11 +96,10 @@ public sealed class SignatureToBdfMapper
                 JitterStdDevSeconds = 0.1,
                 Burst = new BurstConfig
                 {
-                    BurstSize = 10,             // Heuristic
+                    BurstSize = 10, // Heuristic
                     BurstIntervalSeconds = 10.0 // Heuristic
                 }
             };
-        }
 
         // Human-ish or jittered bots: jittered mode
         return new TimingConfig
@@ -132,7 +127,7 @@ public sealed class SignatureToBdfMapper
         var ratio = (cv - _options.CoefficientOfVariationLow) /
                     (_options.CoefficientOfVariationHigh - _options.CoefficientOfVariationLow);
 
-        return 0.1 + (ratio * 0.5); // 0.1 to 0.6 seconds
+        return 0.1 + ratio * 0.5; // 0.1 to 0.6 seconds
     }
 
     /// <summary>
@@ -143,7 +138,6 @@ public sealed class SignatureToBdfMapper
         // Scanner / off-graph attacker
         if (state.PathEntropy >= _options.PathEntropyHigh &&
             state.NavAnomalyScore >= _options.NavAnomalyHigh)
-        {
             return new NavigationConfig
             {
                 Mode = "scanner",
@@ -158,12 +152,10 @@ public sealed class SignatureToBdfMapper
                     new PathTemplate { Template = "/admin", Weight = 1.0 }
                 }
             };
-        }
 
         // Sequential scraper (low path entropy, high nav anomaly)
         if (state.PathEntropy <= _options.PathEntropyLow &&
             state.NavAnomalyScore >= _options.NavAnomalyHigh)
-        {
             return new NavigationConfig
             {
                 Mode = "sequential",
@@ -179,12 +171,10 @@ public sealed class SignatureToBdfMapper
                     }
                 }
             };
-        }
 
         // Normal-ish UI navigation
         if (state.AffordanceFollowThroughRatio >= _options.AffordanceHigh &&
             state.NavAnomalyScore < _options.NavAnomalyHigh)
-        {
             return new NavigationConfig
             {
                 Mode = "ui_graph",
@@ -204,7 +194,6 @@ public sealed class SignatureToBdfMapper
                     new PathTemplate { Template = "/cart", Weight = 1.0 }
                 }
             };
-        }
 
         // Weird but not full-on scanner
         var offGraphProb = state.AffordanceFollowThroughRatio <= _options.AffordanceLow ? 0.5 : 0.2;

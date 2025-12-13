@@ -10,9 +10,9 @@ namespace Mostlylucid.BotDetection.Demo.Services;
 /// </summary>
 public class SignatureStore
 {
-    private readonly ConcurrentDictionary<string, StoredSignature> _signatures = new();
-    private readonly int _maxSignatures;
     private readonly ILogger<SignatureStore> _logger;
+    private readonly int _maxSignatures;
+    private readonly ConcurrentDictionary<string, StoredSignature> _signatures = new();
 
     public SignatureStore(ILogger<SignatureStore> logger, int maxSignatures = 10000)
     {
@@ -29,10 +29,7 @@ public class SignatureStore
         if (_signatures.Count >= _maxSignatures)
         {
             var oldest = _signatures.OrderBy(kvp => kvp.Value.Timestamp).FirstOrDefault();
-            if (oldest.Key != null)
-            {
-                _signatures.TryRemove(oldest.Key, out _);
-            }
+            if (oldest.Key != null) _signatures.TryRemove(oldest.Key, out _);
         }
 
         var stored = new StoredSignature

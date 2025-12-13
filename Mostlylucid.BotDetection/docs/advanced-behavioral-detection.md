@@ -2,11 +2,14 @@
 
 ## Overview
 
-The **AdvancedBehavioral** contributor uses statistical pattern analysis to detect bots based on entropy, timing regularity, navigation patterns, and burst detection. It runs after basic behavioral detection (Priority 25 vs 20) to provide deeper insights using mathematical analysis.
+The **AdvancedBehavioral** contributor uses statistical pattern analysis to detect bots based on entropy, timing
+regularity, navigation patterns, and burst detection. It runs after basic behavioral detection (Priority 25 vs 20) to
+provide deeper insights using mathematical analysis.
 
 ## Statistical Methods
 
 ### 1. Path Entropy Analysis
+
 **Signal:** `PathEntropy`, `PathEntropyHigh`, `PathEntropyLow`
 
 Uses **Shannon Entropy** to measure randomness in URL access patterns:
@@ -18,6 +21,7 @@ H = -Σ(p * log2(p))
 Where `p` is the probability of accessing each unique path.
 
 #### High Entropy (>3.5): Random Scanning
+
 - **Confidence Delta:** 0.35
 - **Weight:** 1.3
 - **Pattern:** Client accessing many different paths with low repetition
@@ -25,6 +29,7 @@ Where `p` is the probability of accessing each unique path.
 - **Example:** `/admin`, `/wp-login.php`, `/.env`, `/config.php`, `/backup.sql`
 
 #### Low Entropy (<0.5): Too Repetitive
+
 - **Confidence Delta:** 0.25
 - **Weight:** 1.2
 - **Pattern:** Client accessing the same 1-2 paths repeatedly
@@ -32,17 +37,20 @@ Where `p` is the probability of accessing each unique path.
 - **Example:** 50 requests to `/api/data` in 2 minutes
 
 #### Moderate Entropy (0.5-3.0): Natural Browsing
+
 - **Confidence Delta:** -0.2 (reduces bot probability)
 - **Weight:** 1.0
 - **Pattern:** Variety with repetition - normal browsing behavior
 - **Interpretation:** Human exploring site naturally
 
 ### 2. Timing Entropy Analysis
+
 **Signal:** `TimingEntropy`, `TimingTooRegular`
 
 Measures randomness in inter-request timing intervals:
 
 #### Low Timing Entropy (<0.3): Too Regular
+
 - **Confidence Delta:** 0.3
 - **Weight:** 1.3
 - **Pattern:** Requests arrive at suspiciously consistent intervals
@@ -50,12 +58,15 @@ Measures randomness in inter-request timing intervals:
 - **Example:** Requests every 5.0 seconds ±0.1s
 
 **Mathematical Basis:**
+
 ```
 TimingEntropy = -Σ(freq * log2(freq))
 ```
+
 Where freq is the frequency of each interval bucket (bucketed to 100ms precision).
 
 ### 3. Timing Anomaly Detection (Z-Score)
+
 **Signal:** `TimingAnomalyZScore`, `TimingAnomalyDetected`
 
 Uses **statistical Z-scores** to detect outlier timing patterns:
@@ -65,11 +76,13 @@ Z = (x - μ) / σ
 ```
 
 Where:
+
 - `x` = current interval
 - `μ` = mean interval
 - `σ` = standard deviation
 
 #### Anomaly Detection
+
 - **Threshold:** |Z| > 3.0 (3 standard deviations)
 - **Confidence Delta:** 0.25
 - **Weight:** 1.1
@@ -77,6 +90,7 @@ Where:
 - **Interpretation:** State change in bot, rate-limit detection evasion
 
 ### 4. Coefficient of Variation (CV) - Regular Pattern Detection
+
 **Signal:** `CoefficientOfVariation`, `PatternTooRegular`
 
 Detects **too-perfect timing consistency** using statistical CV:
@@ -86,6 +100,7 @@ CV = σ / μ
 ```
 
 #### Too Regular (CV < 0.15)
+
 - **Confidence Delta:** 0.35
 - **Weight:** 1.4
 - **Pattern:** Extremely consistent timing (like a metronome)
@@ -94,10 +109,12 @@ CV = σ / μ
 - **Bots:** CV often < 0.15 (computer-generated timing)
 
 **Example:**
+
 - Human: 2.1s, 5.3s, 1.8s, 7.2s, 3.4s → CV = 0.51
 - Bot: 5.0s, 5.1s, 4.9s, 5.0s, 5.1s → CV = 0.02 ⚠️
 
 ### 5. Navigation Pattern Analysis (Markov Chain)
+
 **Signal:** `NavigationAnomalyScore`, `NavigationPatternUnusual`
 
 Uses **first-order Markov chains** to model expected path transitions:
@@ -107,22 +124,26 @@ P(page_next | page_current) = transitions[current→next] / total_transitions[cu
 ```
 
 #### Unusual Navigation
+
 - **Confidence Delta:** Variable (based on improbability)
 - **Weight:** 1.2
 - **Pattern:** Highly unlikely path transitions
 - **Example:** `/product` → `/.git/config` (nonsensical navigation)
 
 **How It Works:**
+
 1. Builds transition probability matrix from historical navigation
 2. Scores current transition against expected probabilities
 3. Flags low-probability transitions as suspicious
 
 ### 6. Burst Detection
+
 **Signal:** `BurstDetected`, `BurstSize`, `BurstDurationSeconds`
 
 Detects sudden spikes in request rate within a sliding window:
 
 #### Burst Criteria
+
 - **Window:** 30 seconds (configurable)
 - **Threshold:** >5x normal rate
 - **Confidence Delta:** 0.4
@@ -131,6 +152,7 @@ Detects sudden spikes in request rate within a sliding window:
 - **Interpretation:** Scraper in aggressive mode, DDoS attempt, rate-limit testing
 
 **Example:**
+
 - Normal rate: 2 requests/minute
 - Burst: 15 requests in 30 seconds → **Burst detected**
 
@@ -151,16 +173,17 @@ Detects sudden spikes in request rate within a sliding window:
 
 ### Configuration Options
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `EnableAdvancedPatternDetection` | Enable statistical analysis | `true` |
-| `MinRequestsForPatternAnalysis` | Minimum requests before analysis | `10` |
-| `AnalysisWindow` | Time window for data collection | 15 minutes |
-| `IdentityHashSalt` | Salt for IP address hashing (KEEP SECRET!) | Random GUID |
+| Option                           | Description                                | Default     |
+|----------------------------------|--------------------------------------------|-------------|
+| `EnableAdvancedPatternDetection` | Enable statistical analysis                | `true`      |
+| `MinRequestsForPatternAnalysis`  | Minimum requests before analysis           | `10`        |
+| `AnalysisWindow`                 | Time window for data collection            | 15 minutes  |
+| `IdentityHashSalt`               | Salt for IP address hashing (KEEP SECRET!) | Random GUID |
 
 ## Privacy & Security
 
 ### Zero PII Storage
+
 - **Hashed Identities:** Uses XxHash64 with configurable salt
 - **Deterministic:** Same IP always produces same hash (for pattern tracking)
 - **Non-Reversible:** Cannot recover IP address from hash
@@ -173,6 +196,7 @@ _analyzer.RecordRequest(clientHash, path, timestamp);
 ```
 
 ### SHORT Tracking Windows
+
 - Entries expire after `AnalysisWindow` (default 15 minutes)
 - Automatic cleanup - no long-term storage
 - Memory efficient - adapts to request pressure
@@ -190,6 +214,7 @@ This allows advanced behavioral signals to be available for later-wave detectors
 ## Example Detections
 
 ### Scanner Bot (High Path Entropy)
+
 ```
 Client: 192.168.1.100 (hashed: "A3F5B9C2D8E1F4A7")
 Paths accessed: /.env, /admin, /.git/config, /wp-admin, /backup.sql, ...
@@ -202,6 +227,7 @@ Detection:
 ```
 
 ### Scripted Bot (Too Regular Timing)
+
 ```
 Client: 10.0.0.5 (hashed: "F1A2B3C4D5E6F7A8")
 Request intervals: 5.0s, 5.1s, 4.9s, 5.0s, 5.1s, ...
@@ -214,6 +240,7 @@ Detection:
 ```
 
 ### Burst Attack
+
 ```
 Client: 172.16.0.10 (hashed: "D9E8F7A6B5C4D3E2")
 Normal rate: 3 requests/minute
@@ -227,6 +254,7 @@ Detection:
 ```
 
 ### Natural Human Behavior
+
 ```
 Client: 203.0.113.42 (hashed: "C5D4E3F2A1B0C9D8")
 Path Entropy: 1.8 (moderate variety)
@@ -244,15 +272,18 @@ Detection:
 ### Shannon Entropy Formula
 
 For a set of paths accessed:
+
 ```
 H = -Σ(p_i * log2(p_i))
 ```
 
 Where:
+
 - `p_i` = probability of accessing path i
 - `log2` = logarithm base 2 (bits of information)
 
 **Interpretation:**
+
 - H = 0: Completely predictable (one path only)
 - H = log2(N): Maximum entropy (all N paths equally likely)
 - H > 3: High entropy (>8 equally likely paths, random behavior)
@@ -269,6 +300,7 @@ Where:
 ```
 
 **Interpretation:**
+
 - |Z| < 1: Within 1σ (68% of normal data)
 - |Z| < 2: Within 2σ (95% of normal data)
 - |Z| > 3: Outlier (only 0.3% of normal data) ⚠️
@@ -284,6 +316,7 @@ Where:
 ```
 
 **Interpretation:**
+
 - CV < 0.15: Too consistent (bot-like)
 - CV 0.3-0.8: Natural human variance
 - CV > 1.0: Highly erratic (possibly legitimate, possibly misbehaving)
@@ -332,18 +365,23 @@ Check detection output for advanced behavioral signals:
 ## Use Cases
 
 ### 1. Scanner Detection
+
 High path entropy with unlikely navigation patterns reveals vulnerability scanners.
 
 ### 2. Scraper Detection
+
 Too-regular timing (low CV) identifies scripted content scrapers.
 
 ### 3. DDoS Detection
+
 Burst detection catches sudden traffic spikes from individual IPs.
 
 ### 4. Bot Framework Detection
+
 Combination of moderate entropy + low CV + timing anomalies reveals headless browsers.
 
 ### 5. API Abuse Detection
+
 Repetitive path access (low entropy) identifies API endpoint hammering.
 
 ## Best Practices

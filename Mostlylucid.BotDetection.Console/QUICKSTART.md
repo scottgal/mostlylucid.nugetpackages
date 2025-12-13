@@ -51,6 +51,7 @@ chmod +x bin/Release/net9.0/linux-x64/publish/minigw
 ```
 
 This builds:
+
 - Windows x64
 - Linux x64
 - Linux ARM64 (Raspberry Pi 4/5)
@@ -96,13 +97,13 @@ Edit `appsettings.json` (demo mode) or `appsettings.production.json` (production
 
 ## Demo vs Production
 
-| Feature | Demo Mode | Production Mode |
-|---------|-----------|-----------------|
-| Blocking | ❌ Disabled | ✅ Enabled |
-| Detectors | Fast-path only | Fast + Slow + AI |
-| Learning | ❌ Disabled | ✅ Enabled |
-| Logging | 📊 Full verbose | 📝 Concise |
-| Action | Allow all | Adaptive (block/throttle/allow) |
+| Feature   | Demo Mode       | Production Mode                 |
+|-----------|-----------------|---------------------------------|
+| Blocking  | ❌ Disabled      | ✅ Enabled                       |
+| Detectors | Fast-path only  | Fast + Slow + AI                |
+| Learning  | ❌ Disabled      | ✅ Enabled                       |
+| Logging   | 📊 Full verbose | 📝 Concise                      |
+| Action    | Allow all       | Adaptive (block/throttle/allow) |
 
 ## Deploy to Raspberry Pi
 
@@ -131,6 +132,7 @@ chmod +x minigw
 ### "Cannot execute binary file"
 
 Wrong architecture. Rebuild for correct platform:
+
 - Pi 4/5: `linux-arm64`
 - x86_64 servers: `linux-x64`
 - Windows: `win-x64`

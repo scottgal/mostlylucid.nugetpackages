@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Models;
@@ -12,6 +11,9 @@ namespace Mostlylucid.BotDetection.Policies;
 /// </summary>
 public interface IPolicyRegistry
 {
+    /// <summary>Get the default policy</summary>
+    DetectionPolicy DefaultPolicy { get; }
+
     /// <summary>Get a policy by name</summary>
     DetectionPolicy? GetPolicy(string name);
 
@@ -26,9 +28,6 @@ public interface IPolicyRegistry
 
     /// <summary>Remove a policy by name</summary>
     bool RemovePolicy(string name);
-
-    /// <summary>Get the default policy</summary>
-    DetectionPolicy DefaultPolicy { get; }
 }
 
 /// <summary>
@@ -36,29 +35,28 @@ public interface IPolicyRegistry
 /// </summary>
 public class PolicyRegistry : IPolicyRegistry
 {
-    private readonly ILogger<PolicyRegistry> _logger;
-    private readonly ConcurrentDictionary<string, DetectionPolicy> _policies = new(StringComparer.OrdinalIgnoreCase);
-    private readonly List<PathPolicyMapping> _pathMappings = [];
-    private readonly object _pathLock = new();
-    private DetectionPolicy _defaultPolicy;
-    private readonly BotDetectionOptions _options;
-
     // Default static asset file extensions
     private static readonly HashSet<string> DefaultStaticExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".js", ".mjs", ".cjs",          // JavaScript
-        ".css", ".scss", ".sass",        // Stylesheets
+        ".js", ".mjs", ".cjs", // JavaScript
+        ".css", ".scss", ".sass", // Stylesheets
         ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp", ".avif", ".bmp", // Images
         ".woff", ".woff2", ".ttf", ".eot", ".otf", // Fonts
-        ".map",                          // Source maps
-        ".json",                         // Manifests (may be static assets)
-        ".xml",                          // Sitemaps, etc.
-        ".txt",                          // robots.txt, etc.
-        ".pdf",                          // Documents
-        ".zip", ".tar", ".gz",           // Archives
+        ".map", // Source maps
+        ".json", // Manifests (may be static assets)
+        ".xml", // Sitemaps, etc.
+        ".txt", // robots.txt, etc.
+        ".pdf", // Documents
+        ".zip", ".tar", ".gz", // Archives
         ".mp4", ".webm", ".ogg", ".mp3", ".wav", // Media
-        ".wasm"                          // WebAssembly
+        ".wasm" // WebAssembly
     };
+
+    private readonly ILogger<PolicyRegistry> _logger;
+    private readonly BotDetectionOptions _options;
+    private readonly object _pathLock = new();
+    private readonly List<PathPolicyMapping> _pathMappings = [];
+    private readonly ConcurrentDictionary<string, DetectionPolicy> _policies = new(StringComparer.OrdinalIgnoreCase);
 
     public PolicyRegistry(
         ILogger<PolicyRegistry> logger,
@@ -86,10 +84,10 @@ public class PolicyRegistry : IPolicyRegistry
         LoadFromOptions(options.Value);
 
         // Fallback to "default" policy if LoadFromOptions didn't set one
-        _defaultPolicy ??= _policies.GetValueOrDefault("default") ?? DetectionPolicy.Default;
+        DefaultPolicy ??= _policies.GetValueOrDefault("default") ?? DetectionPolicy.Default;
     }
 
-    public DetectionPolicy DefaultPolicy => _defaultPolicy;
+    public DetectionPolicy DefaultPolicy { get; private set; }
 
     public DetectionPolicy? GetPolicy(string name)
     {
@@ -100,19 +98,16 @@ public class PolicyRegistry : IPolicyRegistry
     {
         // Check file extension FIRST (if enabled) - most reliable for static assets
         if (_options.UseFileExtensionStaticDetection && IsStaticAssetByExtension(path))
-        {
             if (_policies.TryGetValue("static", out var staticPolicy))
             {
                 _logger.LogDebug("Path {Path} identified as static asset by file extension", path);
                 return staticPolicy;
             }
-        }
 
         // Then check path patterns
         lock (_pathLock)
         {
             foreach (var mapping in _pathMappings)
-            {
                 if (mapping.Matches(path))
                 {
                     if (_policies.TryGetValue(mapping.PolicyName, out var policy))
@@ -125,40 +120,9 @@ public class PolicyRegistry : IPolicyRegistry
                     _logger.LogWarning("Path {Path} matched pattern {Pattern} but policy {Policy} not found",
                         path, mapping.PathPattern, mapping.PolicyName);
                 }
-            }
         }
 
-        return _defaultPolicy;
-    }
-
-    /// <summary>
-    ///     Checks if a path represents a static asset based on file extension.
-    /// </summary>
-    private bool IsStaticAssetByExtension(string path)
-    {
-        // Extract file extension from path (handles query strings and fragments)
-        var pathPart = path.Split('?', '#')[0];
-        var extension = Path.GetExtension(pathPart);
-
-        if (string.IsNullOrEmpty(extension))
-        {
-            return false;
-        }
-
-        // Check default extensions
-        if (DefaultStaticExtensions.Contains(extension))
-        {
-            return true;
-        }
-
-        // Check custom extensions from configuration
-        if (_options.StaticAssetExtensions.Any(ext =>
-            string.Equals(ext, extension, StringComparison.OrdinalIgnoreCase)))
-        {
-            return true;
-        }
-
-        return false;
+        return DefaultPolicy;
     }
 
     public IReadOnlyDictionary<string, DetectionPolicy> GetAllPolicies()
@@ -171,10 +135,7 @@ public class PolicyRegistry : IPolicyRegistry
         _policies[policy.Name] = policy;
         _logger.LogDebug("Registered policy {PolicyName}", policy.Name);
 
-        if (policy.Name.Equals("default", StringComparison.OrdinalIgnoreCase))
-        {
-            _defaultPolicy = policy;
-        }
+        if (policy.Name.Equals("default", StringComparison.OrdinalIgnoreCase)) DefaultPolicy = policy;
     }
 
     public bool RemovePolicy(string name)
@@ -186,12 +147,31 @@ public class PolicyRegistry : IPolicyRegistry
         }
 
         var removed = _policies.TryRemove(name, out _);
-        if (removed)
-        {
-            _logger.LogDebug("Removed policy {PolicyName}", name);
-        }
+        if (removed) _logger.LogDebug("Removed policy {PolicyName}", name);
 
         return removed;
+    }
+
+    /// <summary>
+    ///     Checks if a path represents a static asset based on file extension.
+    /// </summary>
+    private bool IsStaticAssetByExtension(string path)
+    {
+        // Extract file extension from path (handles query strings and fragments)
+        var pathPart = path.Split('?', '#')[0];
+        var extension = Path.GetExtension(pathPart);
+
+        if (string.IsNullOrEmpty(extension)) return false;
+
+        // Check default extensions
+        if (DefaultStaticExtensions.Contains(extension)) return true;
+
+        // Check custom extensions from configuration
+        if (_options.StaticAssetExtensions.Any(ext =>
+                string.Equals(ext, extension, StringComparison.OrdinalIgnoreCase)))
+            return true;
+
+        return false;
     }
 
     private void LoadFromOptions(BotDetectionOptions options)
@@ -210,15 +190,12 @@ public class PolicyRegistry : IPolicyRegistry
 
             // Add default static asset path mappings first (lowest priority)
             // User-defined mappings will override these due to higher specificity
-            if (options.UseDefaultStaticPathPolicies)
-            {
-                AddDefaultStaticPathMappings();
-            }
+            if (options.UseDefaultStaticPathPolicies) AddDefaultStaticPathMappings();
 
             // Add user-defined path mappings (these take precedence)
             foreach (var mapping in options.PathPolicies)
             {
-                _pathMappings.Add(new PathPolicyMapping(mapping.Key, mapping.Value, isUserDefined: true));
+                _pathMappings.Add(new PathPolicyMapping(mapping.Key, mapping.Value, true));
                 _logger.LogDebug("Registered path mapping: {Pattern} -> {Policy}",
                     mapping.Key, mapping.Value);
             }
@@ -241,7 +218,7 @@ public class PolicyRegistry : IPolicyRegistry
 
             if (_policies.TryGetValue(options.DefaultPolicyName, out var defaultPolicy))
             {
-                _defaultPolicy = defaultPolicy;
+                DefaultPolicy = defaultPolicy;
                 _logger.LogInformation("Set default policy to '{PolicyName}'", defaultPolicy.Name);
             }
             else
@@ -267,24 +244,21 @@ public class PolicyRegistry : IPolicyRegistry
         // (excludes Behavioral to avoid false positives from rapid parallel requests)
         var staticPaths = new[]
         {
-            "/js/**",       // JavaScript bundles (webpack, etc.)
-            "/css/**",      // CSS stylesheets
-            "/lib/**",      // Library files (wwwroot/lib)
-            "/fonts/**",    // Web fonts
-            "/images/**",   // Image assets
-            "/img/**",      // Image assets (alternate)
-            "/assets/**",   // General assets folder
-            "/static/**",   // Static files folder
+            "/js/**", // JavaScript bundles (webpack, etc.)
+            "/css/**", // CSS stylesheets
+            "/lib/**", // Library files (wwwroot/lib)
+            "/fonts/**", // Web fonts
+            "/images/**", // Image assets
+            "/img/**", // Image assets (alternate)
+            "/assets/**", // General assets folder
+            "/static/**", // Static files folder
             "/_content/**", // Blazor/Razor component content
-            "/dist/**",     // Distribution/build output
-            "/bundle/**",   // Bundled assets
-            "/vendor/**"    // Vendor libraries
+            "/dist/**", // Distribution/build output
+            "/bundle/**", // Bundled assets
+            "/vendor/**" // Vendor libraries
         };
 
-        foreach (var path in staticPaths)
-        {
-            _pathMappings.Add(new PathPolicyMapping(path, "static"));
-        }
+        foreach (var path in staticPaths) _pathMappings.Add(new PathPolicyMapping(path, "static"));
 
         _logger.LogDebug(
             "Added {Count} default static path mappings to 'static' policy",
@@ -295,14 +269,12 @@ public class PolicyRegistry : IPolicyRegistry
     {
         // Skip disabled policies
         if (!config.Enabled)
-        {
             return new DetectionPolicy
             {
                 Name = name,
                 Description = config.Description,
                 Enabled = false
             };
-        }
 
         // Use the ToPolicy() method from DetectionPolicyConfig
         return config.ToPolicy(name);
@@ -314,14 +286,13 @@ public class PolicyRegistry : IPolicyRegistry
 /// </summary>
 internal class PathPolicyMapping
 {
-    private readonly string _pattern;
-    private readonly bool _isWildcard;
     private readonly bool _isPrefix;
+    private readonly bool _isWildcard;
     private readonly string _normalizedPattern;
 
     public PathPolicyMapping(string pattern, string policyName, bool isUserDefined = false)
     {
-        _pattern = pattern;
+        PathPattern = pattern;
         PolicyName = policyName;
         IsUserDefined = isUserDefined;
 
@@ -337,7 +308,8 @@ internal class PathPolicyMapping
         if (!_isWildcard) Specificity += 10; // Exact matches are most specific
     }
 
-    public string PathPattern => _pattern;
+    public string PathPattern { get; }
+
     public string PolicyName { get; }
     public int Specificity { get; }
     public bool IsUserDefined { get; }
@@ -347,10 +319,7 @@ internal class PathPolicyMapping
         var normalizedPath = path.TrimEnd('/');
 
         // Exact match
-        if (!_isWildcard)
-        {
-            return string.Equals(normalizedPath, _normalizedPattern, StringComparison.OrdinalIgnoreCase);
-        }
+        if (!_isWildcard) return string.Equals(normalizedPath, _normalizedPattern, StringComparison.OrdinalIgnoreCase);
 
         // Prefix match (e.g., "/api/*" or "/api/**")
         if (_isPrefix)
@@ -371,7 +340,6 @@ internal class PathPolicyMapping
         var matchIndex = 0;
 
         while (inputIndex < input.Length)
-        {
             if (patternIndex < pattern.Length &&
                 (pattern[patternIndex] == '?' ||
                  char.ToLowerInvariant(pattern[patternIndex]) == char.ToLowerInvariant(input[inputIndex])))
@@ -395,12 +363,8 @@ internal class PathPolicyMapping
             {
                 return false;
             }
-        }
 
-        while (patternIndex < pattern.Length && pattern[patternIndex] == '*')
-        {
-            patternIndex++;
-        }
+        while (patternIndex < pattern.Length && pattern[patternIndex] == '*') patternIndex++;
 
         return patternIndex == pattern.Length;
     }

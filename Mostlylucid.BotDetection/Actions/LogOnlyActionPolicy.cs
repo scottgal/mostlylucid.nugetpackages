@@ -142,7 +142,6 @@ public class LogOnlyActionPolicy : IActionPolicy
         var action = wouldBlock ? "WOULD_BLOCK" : "WOULD_ALLOW";
 
         if (_options.LogFullEvidence)
-        {
             switch (_options.LogLevel)
             {
                 case LogLevel.Trace:
@@ -176,36 +175,29 @@ public class LogOnlyActionPolicy : IActionPolicy
 
                 case LogLevel.Warning:
                     if (wouldBlock)
-                    {
                         _logger.LogWarning(
                             "[SHADOW] {Action} request to {Path}: risk={Risk:F3}, riskBand={RiskBand}, policy={Policy}",
                             action, context.Request.Path, evidence.BotProbability, evidence.RiskBand, Name);
-                    }
                     break;
 
                 case LogLevel.Error:
                     if (evidence.BotProbability >= 0.9)
-                    {
                         _logger.LogError(
                             "[SHADOW] HIGH RISK request to {Path}: risk={Risk:F3}, policy={Policy}",
                             context.Request.Path, evidence.BotProbability, Name);
-                    }
                     break;
             }
-        }
         else
-        {
             // Simple logging
             _logger.Log(_options.LogLevel,
                 "[SHADOW] {Action} {Method} {Path}: risk={Risk:F3}, band={RiskBand}",
                 action, context.Request.Method, context.Request.Path,
                 evidence.BotProbability, evidence.RiskBand);
-        }
     }
 }
 
 /// <summary>
-///     Configuration options for <see cref="LogOnlyActionPolicy"/>.
+///     Configuration options for <see cref="LogOnlyActionPolicy" />.
 /// </summary>
 public class LogOnlyActionOptions
 {
@@ -219,20 +211,20 @@ public class LogOnlyActionOptions
     ///     Whether to log full evidence details.
     ///     Default: false
     /// </summary>
-    public bool LogFullEvidence { get; set; } = false;
+    public bool LogFullEvidence { get; set; }
 
     /// <summary>
     ///     Whether to add response headers for debugging.
     ///     Default: false
     /// </summary>
-    public bool AddResponseHeaders { get; set; } = false;
+    public bool AddResponseHeaders { get; set; }
 
     /// <summary>
     ///     Whether to include detailed headers (detectors, confidence, bot name).
     ///     Only applies if AddResponseHeaders is true.
     ///     Default: false
     /// </summary>
-    public bool IncludeDetailedHeaders { get; set; } = false;
+    public bool IncludeDetailedHeaders { get; set; }
 
     /// <summary>
     ///     Whether to add detection info to HttpContext.Items.
@@ -325,7 +317,7 @@ public class LogOnlyActionOptions
 }
 
 /// <summary>
-///     Factory for creating <see cref="LogOnlyActionPolicy"/> from configuration.
+///     Factory for creating <see cref="LogOnlyActionPolicy" /> from configuration.
 /// </summary>
 public class LogOnlyActionPolicyFactory : IActionPolicyFactory
 {
@@ -345,10 +337,8 @@ public class LogOnlyActionPolicyFactory : IActionPolicyFactory
         var logOptions = new LogOnlyActionOptions();
 
         if (options.TryGetValue("LogLevel", out var logLevel))
-        {
             if (Enum.TryParse<LogLevel>(logLevel?.ToString(), true, out var ll))
                 logOptions.LogLevel = ll;
-        }
 
         if (options.TryGetValue("LogFullEvidence", out var fullEvidence))
             logOptions.LogFullEvidence = Convert.ToBoolean(fullEvidence);

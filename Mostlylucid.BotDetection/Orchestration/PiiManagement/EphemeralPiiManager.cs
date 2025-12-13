@@ -4,7 +4,6 @@ namespace Mostlylucid.BotDetection.Orchestration.PiiManagement;
 
 /// <summary>
 ///     Manages ephemeral PII data that exists ONLY as long as detectors need it.
-///
 ///     CRITICAL: PII should NEVER be stored in signal payloads.
 ///     - Signals contain ONLY indicators (ipavailable) or hashed values (ipdetected:&lt;hash&gt;)
 ///     - Raw PII is accessed ONLY directly from BlackboardState
@@ -13,6 +12,11 @@ namespace Mostlylucid.BotDetection.Orchestration.PiiManagement;
 public sealed class EphemeralPiiManager
 {
     private readonly ConcurrentDictionary<string, PiiData> _piiStore = new();
+
+    /// <summary>
+    ///     Gets the count of currently stored PII entries (for monitoring).
+    /// </summary>
+    public int Count => _piiStore.Count;
 
     /// <summary>
     ///     Stores PII for a request.
@@ -42,11 +46,6 @@ public sealed class EphemeralPiiManager
     {
         _piiStore.TryRemove(requestId, out _);
     }
-
-    /// <summary>
-    ///     Gets the count of currently stored PII entries (for monitoring).
-    /// </summary>
-    public int Count => _piiStore.Count;
 }
 
 /// <summary>

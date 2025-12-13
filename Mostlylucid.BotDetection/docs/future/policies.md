@@ -1,8 +1,10 @@
 ﻿Path-Based Escalation Policies
 
-Path-based escalation allows you to define different detection pipelines for different parts of your application, instead of a single global policy.
+Path-based escalation allows you to define different detection pipelines for different parts of your application,
+instead of a single global policy.
 
-This enables high-friction protection where it matters (e.g. /login, /checkout) and minimal overhead where it doesn’t (e.g. /health, /rss, /public-assets).
+This enables high-friction protection where it matters (e.g. /login, /checkout) and minimal overhead where it doesn’t (
+e.g. /health, /rss, /public-assets).
 
 How It Works
 
@@ -66,7 +68,6 @@ Each detector emits:
 
 ConfidenceDelta × Weight
 
-
 You can tweak each detector’s influence without modifying code.
 
 Example
@@ -91,7 +92,8 @@ Lower weight → detector’s signal is treated as weaker
 
 Zero weight → detector effectively disables itself but still contributes signals to others
 
-Negative weight → (supported) can invert a detector’s contribution if a user really wants to bias the system in a specific direction
+Negative weight → (supported) can invert a detector’s contribution if a user really wants to bias the system in a
+specific direction
 
 Philosophy: Panacea Defaults
 
@@ -131,7 +133,6 @@ Path policies can override weights too:
 }
 }
 }
-
 
 This enables “hyper-strict” behaviour on sensitive endpoints without globally changing your system’s behaviour.
 
@@ -198,10 +199,10 @@ Example configuration:
 }
 }
 
-
 If omitted, the defaults apply.
 
 Design Goals (Open Source Philosophy)
+
 1. Stable defaults for everyone
 
 If you install the package and never touch a single setting, you get a high-quality detection engine.
@@ -283,11 +284,11 @@ They don’t upsell anything.
 They aren’t a feature flag for “enterprise edition.”
 They’re just good open-source engineering.
 
-
 olicies are no longer static configs; they're workflow components.
 
 Policies are now first-class workflow units.
-A policy is not just “which detectors to run” — it is a flow that can react to signals, branch, escalate, or delegate to other flows.
+A policy is not just “which detectors to run” — it is a flow that can react to signals, branch, escalate, or delegate to
+other flows.
 
 This transforms the detection system into a policy-driven workflow engine.
 
@@ -388,6 +389,7 @@ if (bb.Signals.ContainsKey(SignalKeys.InconsistencyDetected))
 return PolicyTransition.To("DeepInspection");
 
 Why This Is Powerful
+
 1. Composable
 
 You define small, clear policies — then combine them.
@@ -426,11 +428,9 @@ A login page might escalate quickly:
 
 FastPath → SlowPath → Behaviour → AI → Challenge
 
-
 A static asset endpoint might use a lightweight flow:
 
 FastPath → Cache
-
 
 An admin panel might force strict verification:
 
@@ -467,6 +467,5 @@ dynamically during detection.
 
 Default policies work out of the box — advanced users can build
 custom flows without modifying library code.
-
 
 If you want, I can write:

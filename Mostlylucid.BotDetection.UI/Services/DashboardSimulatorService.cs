@@ -8,24 +8,29 @@ using Mostlylucid.BotDetection.UI.Models;
 namespace Mostlylucid.BotDetection.UI.Services;
 
 /// <summary>
-/// Simulator service for generating fake bot detection events.
-/// Useful for testing the dashboard without real traffic.
-/// TODO: Integrate with LLMApi (https://github.com/scottgal/LLMApi) for more realistic mocking.
+///     Simulator service for generating fake bot detection events.
+///     Useful for testing the dashboard without real traffic.
+///     TODO: Integrate with LLMApi (https://github.com/scottgal/LLMApi) for more realistic mocking.
 /// </summary>
 public class DashboardSimulatorService : BackgroundService
 {
-    private readonly IHubContext<StyloBotDashboardHub, IStyloBotDashboardHub> _hubContext;
-    private readonly IDashboardEventStore _eventStore;
-    private readonly StyloBotDashboardOptions _options;
-    private readonly ILogger<DashboardSimulatorService> _logger;
-    private readonly Random _random = new();
-
-    private readonly string[] _paths = { "/api/products", "/api/users", "/", "/search", "/login", "/checkout", "/api/orders" };
-    private readonly string[] _botTypes = { "Crawler", "Scraper", "Scanner", "BadBot", "GoodBot" };
-    private readonly string[] _botNames = { "Googlebot", "Bingbot", "Malicious Scraper", "DDoS Bot", "SEO Crawler", "Unknown" };
-    private readonly string[] _riskBands = { "VeryLow", "Low", "Medium", "High", "VeryHigh" };
     private readonly string[] _actions = { "Allow", "Block", "Throttle", "Challenge" };
+
+    private readonly string[] _botNames =
+        { "Googlebot", "Bingbot", "Malicious Scraper", "DDoS Bot", "SEO Crawler", "Unknown" };
+
+    private readonly string[] _botTypes = { "Crawler", "Scraper", "Scanner", "BadBot", "GoodBot" };
+    private readonly IDashboardEventStore _eventStore;
+    private readonly IHubContext<StyloBotDashboardHub, IStyloBotDashboardHub> _hubContext;
+    private readonly ILogger<DashboardSimulatorService> _logger;
     private readonly string[] _methods = { "GET", "POST", "PUT", "DELETE" };
+    private readonly StyloBotDashboardOptions _options;
+
+    private readonly string[] _paths =
+        { "/api/products", "/api/users", "/", "/search", "/login", "/checkout", "/api/orders" };
+
+    private readonly Random _random = new();
+    private readonly string[] _riskBands = { "VeryLow", "Low", "Medium", "High", "VeryHigh" };
 
     public DashboardSimulatorService(
         IHubContext<StyloBotDashboardHub, IStyloBotDashboardHub> hubContext,
@@ -48,7 +53,6 @@ public class DashboardSimulatorService : BackgroundService
         var interval = TimeSpan.FromSeconds(1.0 / _options.SimulatorEventsPerSecond);
 
         while (!stoppingToken.IsCancellationRequested)
-        {
             try
             {
                 // Generate detection event
@@ -75,7 +79,6 @@ public class DashboardSimulatorService : BackgroundService
                 _logger.LogError(ex, "Error in simulator");
                 await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
             }
-        }
 
         _logger.LogInformation("Dashboard simulator stopped");
     }
@@ -84,10 +87,10 @@ public class DashboardSimulatorService : BackgroundService
     {
         var isBot = _random.NextDouble() < 0.3; // 30% bot traffic
         var botProbability = isBot
-            ? 0.7 + (_random.NextDouble() * 0.3) // 0.7-1.0
+            ? 0.7 + _random.NextDouble() * 0.3 // 0.7-1.0
             : _random.NextDouble() * 0.3; // 0-0.3
 
-        var confidence = 0.6 + (_random.NextDouble() * 0.4); // 0.6-1.0
+        var confidence = 0.6 + _random.NextDouble() * 0.4; // 0.6-1.0
         var riskBand = DetermineRiskBand(botProbability);
 
         var detection = new DashboardDetectionEvent
@@ -105,7 +108,7 @@ public class DashboardSimulatorService : BackgroundService
             Method = _methods[_random.Next(_methods.Length)],
             Path = _paths[_random.Next(_paths.Length)],
             StatusCode = DetermineStatusCode(riskBand),
-            ProcessingTimeMs = 1 + (_random.NextDouble() * 50),
+            ProcessingTimeMs = 1 + _random.NextDouble() * 50,
             IpAddress = GenerateIpAddress(),
             UserAgent = GenerateUserAgent(isBot),
             TopReasons = GenerateReasons(isBot),

@@ -16,22 +16,6 @@ namespace Mostlylucid.BotDetection.Events;
 /// </summary>
 public class SignalDrivenDetectionService
 {
-    private readonly ILogger<SignalDrivenDetectionService> _logger;
-    private readonly BotDetectionOptions _options;
-    private readonly IBotSignalBusFactory _busFactory;
-    private readonly ILearningEventBus? _learningBus;
-    private readonly BotDetectionMetrics? _metrics;
-
-    // Core analyzers (run in order, emit signals)
-    private readonly UserAgentDetector _userAgentAnalyzer;
-    private readonly HeaderDetector _headerAnalyzer;
-    private readonly IpDetector _ipAnalyzer;
-    private readonly BehavioralDetector _behavioralAnalyzer;
-    private readonly ClientSideDetector? _clientSideAnalyzer;
-    private readonly InconsistencyDetector _inconsistencyAnalyzer;
-    private readonly HeuristicDetector? _heuristicAnalyzer;
-    private readonly LlmDetector? _llmAnalyzer;
-
     // Detector names for consensus tracking
     private static readonly string[] CoreDetectors =
     [
@@ -41,6 +25,22 @@ public class SignalDrivenDetectionService
         "Behavioral Detector",
         "Inconsistency Detector"
     ];
+
+    private readonly BehavioralDetector _behavioralAnalyzer;
+    private readonly IBotSignalBusFactory _busFactory;
+    private readonly ClientSideDetector? _clientSideAnalyzer;
+    private readonly HeaderDetector _headerAnalyzer;
+    private readonly HeuristicDetector? _heuristicAnalyzer;
+    private readonly InconsistencyDetector _inconsistencyAnalyzer;
+    private readonly IpDetector _ipAnalyzer;
+    private readonly ILearningEventBus? _learningBus;
+    private readonly LlmDetector? _llmAnalyzer;
+    private readonly ILogger<SignalDrivenDetectionService> _logger;
+    private readonly BotDetectionMetrics? _metrics;
+    private readonly BotDetectionOptions _options;
+
+    // Core analyzers (run in order, emit signals)
+    private readonly UserAgentDetector _userAgentAnalyzer;
 
     public SignalDrivenDetectionService(
         ILogger<SignalDrivenDetectionService> logger,
@@ -115,13 +115,9 @@ public class SignalDrivenDetectionService
 
             // Client-side fingerprint (if enabled)
             if (_clientSideAnalyzer != null && _options.ClientSide.Enabled)
-            {
                 await RunDetectorAsync(_clientSideAnalyzer, httpContext, context, bus, ct);
-            }
             else
-            {
                 bus.ReportCompletion("Client-Side Detector", DetectorCompletionStatus.Skipped);
-            }
 
             // === Stage 1: Behavioral (depends on stage 0) ===
             await RunDetectorAsync(_behavioralAnalyzer, httpContext, context, bus, ct);
@@ -133,13 +129,9 @@ public class SignalDrivenDetectionService
             if (_options.EnableLlmDetection)
             {
                 if (_options.AiDetection.Provider == AiProvider.Heuristic && _heuristicAnalyzer != null)
-                {
                     await RunDetectorAsync(_heuristicAnalyzer, httpContext, context, bus, ct);
-                }
                 else if (_options.AiDetection.Provider == AiProvider.Ollama && _llmAnalyzer != null)
-                {
                     await RunDetectorAsync(_llmAnalyzer, httpContext, context, bus, ct);
-                }
                 bus.TryPublish(BotSignalType.AiClassificationCompleted, "Orchestrator");
             }
             else
@@ -153,10 +145,8 @@ public class SignalDrivenDetectionService
                 TimeSpan.FromMilliseconds(500), ct);
 
             if (!consensusReached)
-            {
                 _logger.LogWarning("Consensus timeout. Pending: {Pending}",
                     string.Join(", ", bus.PendingDetectors));
-            }
 
             return await FinaliseAsync(context, bus, sw, ct);
         }
@@ -233,17 +223,20 @@ public class SignalDrivenDetectionService
         }
     }
 
-    private static BotSignalType GetSignalTypeForDetector(string detectorName) => detectorName switch
+    private static BotSignalType GetSignalTypeForDetector(string detectorName)
     {
-        "User-Agent Detector" => BotSignalType.UserAgentAnalyzed,
-        "Header Detector" => BotSignalType.HeadersAnalyzed,
-        "IP Detector" => BotSignalType.IpAnalyzed,
-        "Client-Side Detector" => BotSignalType.ClientFingerprintReceived,
-        "Behavioral Detector" => BotSignalType.BehaviourSampled,
-        "Inconsistency Detector" => BotSignalType.InconsistencyUpdated,
-        "ONNX Detector" or "LLM Detector" => BotSignalType.AiClassificationCompleted,
-        _ => BotSignalType.DetectorComplete
-    };
+        return detectorName switch
+        {
+            "User-Agent Detector" => BotSignalType.UserAgentAnalyzed,
+            "Header Detector" => BotSignalType.HeadersAnalyzed,
+            "IP Detector" => BotSignalType.IpAnalyzed,
+            "Client-Side Detector" => BotSignalType.ClientFingerprintReceived,
+            "Behavioral Detector" => BotSignalType.BehaviourSampled,
+            "Inconsistency Detector" => BotSignalType.InconsistencyUpdated,
+            "ONNX Detector" or "LLM Detector" => BotSignalType.AiClassificationCompleted,
+            _ => BotSignalType.DetectorComplete
+        };
+    }
 
     private async Task<BotDetectionResult> FinaliseAsync(
         DetectionContext context,
@@ -306,9 +299,7 @@ public class SignalDrivenDetectionService
 
         // Convert scores to features
         foreach (var (name, score) in context.Scores)
-        {
             features[$"score.{name.ToLowerInvariant().Replace(" ", "_")}"] = score;
-        }
 
         // Add numeric signals as features
         foreach (var key in context.SignalKeys)

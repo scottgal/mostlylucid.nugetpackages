@@ -17,11 +17,11 @@ namespace Mostlylucid.BotDetection.Services;
 /// </summary>
 public class BotDetectionService : IBotDetectionService
 {
-    private readonly ILogger<BotDetectionService> _logger;
-    private readonly BotDetectionOptions _options;
     private readonly IMemoryCache _cache;
     private readonly IEnumerable<IDetector> _detectors;
+    private readonly ILogger<BotDetectionService> _logger;
     private readonly BotDetectionMetrics? _metrics;
+    private readonly BotDetectionOptions _options;
     private readonly BotDetectionStatistics _statistics = new();
     private readonly object _statsLock = new();
 
@@ -163,7 +163,7 @@ public class BotDetectionService : IBotDetectionService
                     _logger.LogDebug("{Detector} (stage {Stage}) confidence: {Confidence:F2}",
                         detector.Name, stage, detectorResult.Confidence);
 
-                    return (detector.Name, Result: detectorResult, Error: (Exception?)null);
+                    return (detector.Name, Result: detectorResult, Error: null);
                 }
                 catch (Exception ex)
                 {
@@ -236,9 +236,7 @@ public class BotDetectionService : IBotDetectionService
 
         // Store learnings in HttpContext for later persistence
         if (detectionContext.Learnings.Any())
-        {
             detectionContext.HttpContext.Items["BotDetection.Learnings"] = detectionContext.Learnings;
-        }
 
         return result;
     }

@@ -11,8 +11,8 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// </summary>
 public class ClientSideContributor : ContributingDetectorBase
 {
-    private readonly ILogger<ClientSideContributor> _logger;
     private readonly ClientSideDetector _detector;
+    private readonly ILogger<ClientSideContributor> _logger;
 
     public ClientSideContributor(
         ILogger<ClientSideContributor> logger,
@@ -42,19 +42,14 @@ public class ClientSideContributor : ContributingDetectorBase
             // Empty result means client-side detection is disabled or no fingerprint available
             // Don't penalize requests just because client-side data is missing
             if (result.Reasons.Count == 0)
-            {
                 // No contribution - client-side detection is disabled or no data available
                 return contributions;
-            }
 
             // Convert each reason to a contribution
             foreach (var reason in result.Reasons)
             {
                 // Skip neutral reasons (ConfidenceImpact = 0)
-                if (Math.Abs(reason.ConfidenceImpact) < 0.001)
-                {
-                    continue;
-                }
+                if (Math.Abs(reason.ConfidenceImpact) < 0.001) continue;
 
                 contributions.Add(new DetectionContribution
                 {

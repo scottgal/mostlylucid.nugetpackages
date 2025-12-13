@@ -7,8 +7,8 @@ namespace Mostlylucid.BotDetection.Orchestration.Tests.Unit;
 
 public class PatternReputationUpdaterTests
 {
-    private readonly PatternReputationUpdater _updater;
     private readonly BotDetectionOptions _options;
+    private readonly PatternReputationUpdater _updater;
 
     public PatternReputationUpdaterTests()
     {
@@ -26,11 +26,11 @@ public class PatternReputationUpdaterTests
     {
         // Act
         var result = _updater.ApplyEvidence(
-            current: null,
-            patternId: "ua:test123",
-            patternType: "UserAgent",
-            pattern: "TestBot/1.0",
-            label: 1.0);
+            null,
+            "ua:test123",
+            "UserAgent",
+            "TestBot/1.0",
+            1.0);
 
         // Assert
         Assert.Equal("ua:test123", result.PatternId);
@@ -83,10 +83,8 @@ public class PatternReputationUpdaterTests
 
         // Act - apply 20 bot evidence events
         var result = current;
-        for (int i = 0; i < 20; i++)
-        {
+        for (var i = 0; i < 20; i++)
             result = _updater.ApplyEvidence(result, result.PatternId, result.PatternType, result.Pattern, 1.0);
-        }
 
         // Assert - score should be much higher now
         Assert.True(result.BotScore > 0.8, $"Expected score > 0.8, got {result.BotScore}");
@@ -160,10 +158,8 @@ public class PatternReputationUpdaterTests
 
         // Act - apply evidence multiple times
         var result = current;
-        for (int i = 0; i < 20; i++)
-        {
+        for (var i = 0; i < 20; i++)
             result = _updater.ApplyEvidence(result, result.PatternId, result.PatternType, result.Pattern, 1.0);
-        }
 
         // Assert - support capped at 1000
         Assert.Equal(1000, result.Support);

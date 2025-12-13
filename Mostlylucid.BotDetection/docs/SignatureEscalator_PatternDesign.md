@@ -2,7 +2,8 @@
 
 ## Principle: Dynamic, Not Hardcoded
 
-The SignatureEscalatorAtom uses **pattern matching** instead of hardcoded signal names. This makes it configurable and extensible.
+The SignatureEscalatorAtom uses **pattern matching** instead of hardcoded signal names. This makes it configurable and
+extensible.
 
 ## Pattern Matcher Usage
 

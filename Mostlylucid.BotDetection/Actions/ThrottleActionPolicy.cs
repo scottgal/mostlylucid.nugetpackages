@@ -61,10 +61,14 @@ public class ThrottleActionPolicy : IActionPolicy
     private readonly ThrottleActionOptions _options;
     private readonly Random _random;
 
+    // Need to store context for exponential backoff
+    private HttpContext? context;
+
     /// <summary>
     ///     Creates a new throttle action policy with the specified options.
     /// </summary>
-    public ThrottleActionPolicy(string name, ThrottleActionOptions options, ILogger<ThrottleActionPolicy>? logger = null)
+    public ThrottleActionPolicy(string name, ThrottleActionOptions options,
+        ILogger<ThrottleActionPolicy>? logger = null)
     {
         Name = name ?? throw new ArgumentNullException(nameof(name));
         _options = options ?? throw new ArgumentNullException(nameof(options));
@@ -77,6 +81,16 @@ public class ThrottleActionPolicy : IActionPolicy
 
     /// <inheritdoc />
     public ActionType ActionType => ActionType.Throttle;
+
+    /// <inheritdoc />
+    async Task<ActionResult> IActionPolicy.ExecuteAsync(
+        HttpContext httpContext,
+        AggregatedEvidence evidence,
+        CancellationToken cancellationToken)
+    {
+        context = httpContext;
+        return await ExecuteAsync(httpContext, evidence, cancellationToken);
+    }
 
     /// <inheritdoc />
     public async Task<ActionResult> ExecuteAsync(
@@ -98,10 +112,8 @@ public class ThrottleActionPolicy : IActionPolicy
             context.Response.Headers.TryAdd("X-Throttle-Policy", Name);
 
             if (_options.IncludeRetryAfter)
-            {
                 // Retry-After in seconds
                 context.Response.Headers.TryAdd("Retry-After", Math.Ceiling(delay / 1000.0).ToString());
-            }
         }
 
         // Apply the delay
@@ -163,17 +175,11 @@ public class ThrottleActionPolicy : IActionPolicy
             // Track request count in session/context (simplified - real impl would use session)
             var key = $"throttle_{Name}_count";
             var count = 1;
-            if (context.Items.TryGetValue(key, out var countObj) && countObj is int c)
-            {
-                count = c + 1;
-            }
+            if (context.Items.TryGetValue(key, out var countObj) && countObj is int c) count = c + 1;
             context.Items[key] = count;
 
             // Apply backoff factor
-            if (count > 1)
-            {
-                baseDelay *= Math.Pow(_options.BackoffFactor, count - 1);
-            }
+            if (count > 1) baseDelay *= Math.Pow(_options.BackoffFactor, count - 1);
         }
 
         // Clamp to max delay
@@ -190,23 +196,10 @@ public class ThrottleActionPolicy : IActionPolicy
         // Ensure minimum delay
         return Math.Max(_options.MinDelayMs, (int)Math.Round(baseDelay));
     }
-
-    // Need to store context for exponential backoff
-    private HttpContext? context;
-
-    /// <inheritdoc />
-    async Task<ActionResult> IActionPolicy.ExecuteAsync(
-        HttpContext httpContext,
-        AggregatedEvidence evidence,
-        CancellationToken cancellationToken)
-    {
-        context = httpContext;
-        return await ExecuteAsync(httpContext, evidence, cancellationToken);
-    }
 }
 
 /// <summary>
-///     Configuration options for <see cref="ThrottleActionPolicy"/>.
+///     Configuration options for <see cref="ThrottleActionPolicy" />.
 /// </summary>
 public class ThrottleActionOptions
 {
@@ -249,7 +242,7 @@ public class ThrottleActionOptions
     ///     Each subsequent request from same source increases delay.
     ///     Default: false
     /// </summary>
-    public bool ExponentialBackoff { get; set; } = false;
+    public bool ExponentialBackoff { get; set; }
 
     /// <summary>
     ///     Backoff multiplier for exponential backoff.
@@ -264,7 +257,7 @@ public class ThrottleActionOptions
     ///     If true, returns StatusCode with Message.
     ///     Default: false (continue after delay)
     /// </summary>
-    public bool ReturnStatus { get; set; } = false;
+    public bool ReturnStatus { get; set; }
 
     /// <summary>
     ///     HTTP status code to return if ReturnStatus is true.
@@ -289,7 +282,7 @@ public class ThrottleActionOptions
     ///     Headers: X-Throttle-Delay, X-Throttle-Policy
     ///     Default: false
     /// </summary>
-    public bool IncludeHeaders { get; set; } = false;
+    public bool IncludeHeaders { get; set; }
 
     /// <summary>
     ///     Whether to include Retry-After header.
@@ -347,7 +340,7 @@ public class ThrottleActionOptions
 }
 
 /// <summary>
-///     Factory for creating <see cref="ThrottleActionPolicy"/> from configuration.
+///     Factory for creating <see cref="ThrottleActionPolicy" /> from configuration.
 /// </summary>
 public class ThrottleActionPolicyFactory : IActionPolicyFactory
 {

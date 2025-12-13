@@ -1,4 +1,6 @@
-﻿At a high level you’d be building **“Stylobot bouncer” modules for Caddy**, very similar in spirit to the CrowdSec Caddy bouncer (which already supports both HTTP and Layer4) – except your bouncer talks to **Stylobot** instead of CrowdSec. ([GitHub][1])
+﻿At a high level you’d be building **“Stylobot bouncer” modules for Caddy**, very similar in spirit to the CrowdSec Caddy
+bouncer (which already supports both HTTP and Layer4) – except your bouncer talks to **Stylobot** instead of
+CrowdSec. ([GitHub][1])
 
 Below is the pattern I’d use.
 
@@ -388,14 +390,16 @@ You said “YARP can’t do it” – right: YARP is HTTP(S)-only. But a Caddy s
 * **For HTTP**
 
     * Either route directly from Caddy based on Stylobot’s decision,
-    * Or send different headers to YARP so *its* clusters can behave differently (human vs bot clusters) while Caddy stays dumb.
+    * Or send different headers to YARP so *its* clusters can behave differently (human vs bot clusters) while Caddy
+      stays dumb.
 
 * **For TCP/SSH**
 
     * Use Caddy-l4 as the front door on :22 / :443 etc.
     * Stylobot guard decides: “real SSH → actual sshd; obvious scanner → honeypot / instant close”.
 
-Plus: the exact same **Stylobot decision API** and **Ephemeral signal window** powers both, so all your dashboards and learning loops still work.
+Plus: the exact same **Stylobot decision API** and **Ephemeral signal window** powers both, so all your dashboards and
+learning loops still work.
 
 ---
 
@@ -405,6 +409,9 @@ If you want, I can turn this into:
 * a first cut of the Go module code you can drop into a `xcaddy` build.
 
 [1]: https://github.com/hslatman/caddy-crowdsec-bouncer/blob/main/README.md?utm_source=chatgpt.com "caddy-crowdsec-bouncer/README.md at main"
+
 [2]: https://github.com/mholt/caddy-l4?utm_source=chatgpt.com "mholt/caddy-l4: Layer 4 (TCP/UDP) app for Caddy"
+
 [3]: https://caddyserver.com/docs/extending-caddy "Extending Caddy — Caddy Documentation"
+
 [4]: https://github.com/mholt/caddy-l4 "GitHub - mholt/caddy-l4: Layer 4 (TCP/UDP) app for Caddy"

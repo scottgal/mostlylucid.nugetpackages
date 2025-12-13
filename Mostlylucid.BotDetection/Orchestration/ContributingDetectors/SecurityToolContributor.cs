@@ -11,24 +11,22 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 ///     Security/hacking tool detection contributor for the blackboard orchestrator.
 ///     Detects penetration testing tools, vulnerability scanners, and exploit frameworks.
 ///     Runs in first wave (no dependencies) as these tools often reveal themselves immediately in UA.
-///
-///     Patterns are fetched from external sources via <see cref="IBotListFetcher"/>:
+///     Patterns are fetched from external sources via <see cref="IBotListFetcher" />:
 ///     - digininja/scanner_user_agents (JSON with metadata)
 ///     - OWASP CoreRuleSet scanners (text format)
-///
 ///     Part of the security detection layer - designed to integrate with future API honeypot systems.
 /// </summary>
 public class SecurityToolContributor : ContributingDetectorBase
 {
+    private static readonly TimeSpan PatternRefreshInterval = TimeSpan.FromHours(1);
+    private readonly IBotListFetcher _fetcher;
     private readonly ILogger<SecurityToolContributor> _logger;
     private readonly BotDetectionOptions _options;
-    private readonly IBotListFetcher _fetcher;
+    private readonly object _patternLock = new();
 
     // Cached compiled patterns
     private volatile IReadOnlyList<CompiledSecurityPattern>? _compiledPatterns;
     private DateTime _patternsLastUpdated = DateTime.MinValue;
-    private static readonly TimeSpan PatternRefreshInterval = TimeSpan.FromHours(1);
-    private readonly object _patternLock = new();
 
     public SecurityToolContributor(
         ILogger<SecurityToolContributor> logger,
@@ -52,23 +50,14 @@ public class SecurityToolContributor : ContributingDetectorBase
     {
         var userAgent = state.UserAgent;
 
-        if (string.IsNullOrWhiteSpace(userAgent))
-        {
-            return None();
-        }
+        if (string.IsNullOrWhiteSpace(userAgent)) return None();
 
         // Check if security tool detection is enabled (default: true)
-        if (!_options.SecurityTools.Enabled)
-        {
-            return None();
-        }
+        if (!_options.SecurityTools.Enabled) return None();
 
         // Get or refresh patterns
         var patterns = await GetPatternsAsync(cancellationToken);
-        if (patterns.Count == 0)
-        {
-            return None();
-        }
+        if (patterns.Count == 0) return None();
 
         // Check all patterns
         foreach (var pattern in patterns)
@@ -76,7 +65,6 @@ public class SecurityToolContributor : ContributingDetectorBase
             bool matched;
 
             if (pattern.CompiledRegex != null)
-            {
                 // Regex pattern
                 try
                 {
@@ -87,12 +75,9 @@ public class SecurityToolContributor : ContributingDetectorBase
                     _logger.LogDebug("Regex timeout for pattern: {Pattern}", pattern.Original.Pattern);
                     continue;
                 }
-            }
             else
-            {
                 // Simple substring match
                 matched = userAgent.Contains(pattern.Original.Pattern, StringComparison.OrdinalIgnoreCase);
-            }
 
             if (matched)
             {
@@ -116,17 +101,13 @@ public class SecurityToolContributor : ContributingDetectorBase
     {
         // Check if patterns need refresh
         if (_compiledPatterns != null && DateTime.UtcNow - _patternsLastUpdated < PatternRefreshInterval)
-        {
             return _compiledPatterns;
-        }
 
         lock (_patternLock)
         {
             // Double-check inside lock
             if (_compiledPatterns != null && DateTime.UtcNow - _patternsLastUpdated < PatternRefreshInterval)
-            {
                 return _compiledPatterns;
-            }
         }
 
         try
@@ -159,7 +140,6 @@ public class SecurityToolContributor : ContributingDetectorBase
             Regex? regex = null;
 
             if (pattern.IsRegex)
-            {
                 try
                 {
                     regex = new Regex(
@@ -171,7 +151,6 @@ public class SecurityToolContributor : ContributingDetectorBase
                 {
                     // Fall back to substring match
                 }
-            }
 
             compiled.Add(new CompiledSecurityPattern(pattern, regex));
         }
@@ -187,10 +166,9 @@ public class SecurityToolContributor : ContributingDetectorBase
     {
         // Security tools trigger early exit as verified bad bot
         return DetectionContribution.VerifiedBadBot(
-            Name,
-            toolName,
-            $"Security/hacking tool detected: {toolName} (Category: {category})",
-            BotType.MaliciousBot)
+                Name,
+                toolName,
+                $"Security/hacking tool detected: {toolName} (Category: {category})")
             with
             {
                 ConfidenceDelta = confidence,

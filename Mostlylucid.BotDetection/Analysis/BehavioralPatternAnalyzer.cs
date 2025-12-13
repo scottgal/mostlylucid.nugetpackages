@@ -1,5 +1,6 @@
 using System.IO.Hashing;
 using System.Text;
+using System.Text.RegularExpressions;
 using MathNet.Numerics.Statistics;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -8,14 +9,13 @@ namespace Mostlylucid.BotDetection.Analysis;
 /// <summary>
 ///     Advanced statistical analysis for behavioral pattern detection.
 ///     Uses entropy analysis, Markov chains, and time-series anomaly detection.
-///
 ///     PRIVACY NOTE: This analyzer uses hashed identities to ensure NO PII (like IP addresses)
 ///     is ever stored directly. All cache keys are derived from XxHash64 signatures.
 /// </summary>
 public class BehavioralPatternAnalyzer
 {
-    private readonly IMemoryCache _cache;
     private readonly TimeSpan _analysisWindow;
+    private readonly IMemoryCache _cache;
     private readonly string _salt;
 
     public BehavioralPatternAnalyzer(
@@ -31,10 +31,8 @@ public class BehavioralPatternAnalyzer
     /// <summary>
     ///     Creates a privacy-safe signature from an identity key (e.g., IP address).
     ///     Uses XxHash64 with a salt to create a deterministic signature.
-    ///
     ///     IMPORTANT: The signature IS the lookup key. Given the same IP + salt,
     ///     you always get the same signature, enabling lookups without storing the IP.
-    ///
     ///     Example:
     ///     - IP: "192.168.1.1" + Salt: "secret" → Signature: "A1B2C3D4E5F6G7H8"
     ///     - Later lookups with same IP + salt → Same signature → Same behavioral data
@@ -71,12 +69,8 @@ public class BehavioralPatternAnalyzer
         // Calculate Shannon entropy: H = -Σ(p * log2(p))
         var entropy = 0.0;
         foreach (var freq in frequencies.Values)
-        {
             if (freq > 0)
-            {
                 entropy -= freq * Math.Log2(freq);
-            }
-        }
 
         return entropy;
     }
@@ -92,7 +86,7 @@ public class BehavioralPatternAnalyzer
 
         // Convert to intervals in milliseconds, binned to 100ms buckets
         var intervals = new List<int>();
-        for (int i = 1; i < timings.Count; i++)
+        for (var i = 1; i < timings.Count; i++)
         {
             var intervalMs = (timings[i] - timings[i - 1]).TotalMilliseconds;
             var bucket = (int)(intervalMs / 100) * 100; // Round to 100ms buckets
@@ -107,12 +101,8 @@ public class BehavioralPatternAnalyzer
         // Shannon entropy
         var entropy = 0.0;
         foreach (var freq in frequencies.Values)
-        {
             if (freq > 0)
-            {
                 entropy -= freq * Math.Log2(freq);
-            }
-        }
 
         return entropy;
     }
@@ -130,10 +120,7 @@ public class BehavioralPatternAnalyzer
 
         // Calculate intervals
         var intervals = new List<double>();
-        for (int i = 1; i < timings.Count; i++)
-        {
-            intervals.Add((timings[i] - timings[i - 1]).TotalSeconds);
-        }
+        for (var i = 1; i < timings.Count; i++) intervals.Add((timings[i] - timings[i - 1]).TotalSeconds);
 
         // Current interval
         var currentInterval = (currentRequestTime - timings[^1]).TotalSeconds;
@@ -149,9 +136,7 @@ public class BehavioralPatternAnalyzer
 
         // Anomaly if z-score > 3 (99.7% confidence interval)
         if (zScore > 3.0)
-        {
             return (true, zScore, $"Timing anomaly: {currentInterval:F1}s vs {mean:F1}±{stdDev:F1}s (z={zScore:F1})");
-        }
 
         return (false, zScore, "Normal timing");
     }
@@ -169,15 +154,12 @@ public class BehavioralPatternAnalyzer
 
         // Build transition matrix (simplified first-order)
         var transitions = new Dictionary<string, List<string>>();
-        for (int i = 0; i < paths.Count - 1; i++)
+        for (var i = 0; i < paths.Count - 1; i++)
         {
             var from = SimplifyPath(paths[i]);
             var to = SimplifyPath(paths[i + 1]);
 
-            if (!transitions.ContainsKey(from))
-            {
-                transitions[from] = new List<string>();
-            }
+            if (!transitions.ContainsKey(from)) transitions[from] = new List<string>();
             transitions[from].Add(to);
         }
 
@@ -198,15 +180,11 @@ public class BehavioralPatternAnalyzer
 
                 // Low probability = unusual transition
                 if (probability < 0.1 && transitionCount >= 3)
-                {
                     return (0.3, $"Unusual navigation: {lastPath}→{currentSimplified} (p={probability:P0})");
-                }
 
                 // Very repetitive = bot-like
                 if (probability > 0.9 && transitionCount >= 5)
-                {
                     return (0.4, $"Highly repetitive: {lastPath}→{currentSimplified} (p={probability:P0})");
-                }
             }
         }
 
@@ -223,10 +201,7 @@ public class BehavioralPatternAnalyzer
         if (timings.Count < 10) return (false, 0, "Insufficient data");
 
         var intervals = new List<double>();
-        for (int i = 1; i < timings.Count; i++)
-        {
-            intervals.Add((timings[i] - timings[i - 1]).TotalSeconds);
-        }
+        for (var i = 1; i < timings.Count; i++) intervals.Add((timings[i] - timings[i - 1]).TotalSeconds);
 
         var mean = intervals.Mean();
         var stdDev = intervals.StandardDeviation();
@@ -239,9 +214,7 @@ public class BehavioralPatternAnalyzer
         // Very low CV (< 0.15) = too regular, likely bot
         // Human browsing typically has CV > 0.5
         if (cv < 0.15 && mean < 10)
-        {
             return (true, cv, $"Too regular timing: CV={cv:F2} (mean={mean:F1}s, σ={stdDev:F1}s)");
-        }
 
         return (false, cv, "Natural variation");
     }
@@ -264,20 +237,14 @@ public class BehavioralPatternAnalyzer
 
         // Calculate normal rate from historical data (excluding burst window)
         var historicalTimings = timings.Where(t => t < burstStart).ToList();
-        if (historicalTimings.Count < 5)
-        {
-            return (false, burstCount, TimeSpan.Zero);
-        }
+        if (historicalTimings.Count < 5) return (false, burstCount, TimeSpan.Zero);
 
         var historicalDuration = (historicalTimings[^1] - historicalTimings[0]).TotalSeconds;
         var historicalRate = historicalTimings.Count / Math.Max(1, historicalDuration);
         var burstRate = burstCount / burstWindow.TotalSeconds;
 
         // Burst if rate is > 5x historical rate
-        if (burstRate > historicalRate * 5 && burstCount >= 10)
-        {
-            return (true, burstCount, burstWindow);
-        }
+        if (burstRate > historicalRate * 5 && burstCount >= 10) return (true, burstCount, burstWindow);
 
         return (false, burstCount, TimeSpan.Zero);
     }
@@ -314,14 +281,14 @@ public class BehavioralPatternAnalyzer
     private static string SimplifyPath(string path)
     {
         // Replace numeric IDs with placeholder
-        var simplified = System.Text.RegularExpressions.Regex.Replace(path, @"\d+", "{id}");
+        var simplified = Regex.Replace(path, @"\d+", "{id}");
 
         // Replace GUIDs with placeholder
-        simplified = System.Text.RegularExpressions.Regex.Replace(
+        simplified = Regex.Replace(
             simplified,
             @"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
             "{guid}",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            RegexOptions.IgnoreCase);
 
         return simplified.ToLowerInvariant();
     }
@@ -341,10 +308,7 @@ public class BehavioralPatternAnalyzer
         paths.Add(path);
 
         // Keep last 50 paths
-        if (paths.Count > 50)
-        {
-            paths.RemoveAt(0);
-        }
+        if (paths.Count > 50) paths.RemoveAt(0);
 
         _cache.Set(pathKey, paths, _analysisWindow);
 
@@ -354,10 +318,7 @@ public class BehavioralPatternAnalyzer
         timings.Add(timestamp);
 
         // Keep last 100 timings
-        if (timings.Count > 100)
-        {
-            timings.RemoveAt(0);
-        }
+        if (timings.Count > 100) timings.RemoveAt(0);
 
         _cache.Set(timingKey, timings, _analysisWindow);
     }

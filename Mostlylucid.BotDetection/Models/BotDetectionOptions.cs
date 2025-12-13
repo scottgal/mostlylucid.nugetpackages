@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Actions;
 using Mostlylucid.BotDetection.Data;
@@ -253,17 +254,15 @@ public class BotDetectionOptions
     /// <summary>
     ///     Schedule configuration for bot list updates using cron expressions.
     ///     Supports JSON configuration with cron, timezone, signal, key, and runOnStartup.
-    ///
     ///     Example JSON:
     ///     {
-    ///       "cron": "0 2 * * *",           // 2 AM daily
-    ///       "timezone": "UTC",              // Optional, defaults to UTC
-    ///       "signal": "botlist.update",     // Signal to emit when update runs
-    ///       "key": "scheduled",             // Optional key for tracking
-    ///       "runOnStartup": true,           // Run immediately on startup
-    ///       "description": "Daily bot list refresh"
+    ///     "cron": "0 2 * * *",           // 2 AM daily
+    ///     "timezone": "UTC",              // Optional, defaults to UTC
+    ///     "signal": "botlist.update",     // Signal to emit when update runs
+    ///     "key": "scheduled",             // Optional key for tracking
+    ///     "runOnStartup": true,           // Run immediately on startup
+    ///     "description": "Daily bot list refresh"
     ///     }
-    ///
     ///     Common cron patterns:
     ///     - "0 */6 * * *"  → Every 6 hours
     ///     - "0 2 * * *"    → Daily at 2 AM
@@ -272,7 +271,7 @@ public class BotDetectionOptions
     /// </summary>
     public ListUpdateScheduleOptions? UpdateSchedule { get; set; } = new()
     {
-        Cron = "0 2 * * *",  // Default: Daily at 2 AM UTC
+        Cron = "0 2 * * *", // Default: Daily at 2 AM UTC
         Timezone = "UTC",
         Signal = "botlist.update",
         RunOnStartup = true,
@@ -598,7 +597,6 @@ public class BotDetectionOptions
     ///       }
     ///     }
     ///     </code>
-    ///
     ///     Code configuration:
     ///     <code>
     ///     options.Policies["custom"] = new DetectionPolicyConfig
@@ -622,7 +620,7 @@ public class BotDetectionOptions
     ///         The "static" policy uses minimal detection with very high thresholds.
     ///     </para>
     ///     <para>
-    ///         To disable default static file mappings, set <see cref="UseDefaultStaticPathPolicies"/> to false.
+    ///         To disable default static file mappings, set <see cref="UseDefaultStaticPathPolicies" /> to false.
     ///     </para>
     /// </remarks>
     /// <example>
@@ -773,7 +771,6 @@ public class BotDetectionOptions
     ///       }
     ///     }
     ///     </code>
-    ///
     ///     Code configuration:
     ///     <code>
     ///     services.AddBotDetection(options =>
@@ -847,7 +844,6 @@ public class BotDetectionOptions
     ///     </code>
     /// </example>
     public Dictionary<string, string> PathOverrides { get; set; } = new();
-
 }
 
 // ==========================================
@@ -872,7 +868,6 @@ public class BotDetectionOptions
 ///       }
 ///     }
 ///     </code>
-///
 ///     Code configuration:
 ///     <code>
 ///     services.Configure&lt;BotDetectionOptions&gt;(options =&gt;
@@ -893,7 +888,6 @@ public class BotDetectionOptions
 ///     - "0 2 * * 0"      → Weekly on Sunday at 2 AM
 ///     - "0 2 1 * *"      → Monthly on 1st at 2 AM
 ///     - "*/30 * * * *"   → Every 30 minutes
-///
 ///     Integration with Ephemeral:
 ///     - Uses ScheduledTasksAtom for cron-based scheduling
 ///     - Signals emitted on update completion for coordination
@@ -1105,7 +1099,6 @@ public class ClientSideOptions
 ///       ]
 ///     }
 ///     </code>
-///
 ///     Code configuration:
 ///     <code>
 ///     options.FastPath.FastPathDetectors = new List&lt;DetectorConfig&gt;
@@ -1228,7 +1221,6 @@ public class FastPathOptions
     ///     - Payment flows (/checkout, /api/payments)
     ///     - Admin endpoints (/admin/*)
     ///     - Data exports
-    ///
     ///     Matched using StartsWith (case-insensitive).
     ///     Default: empty (no forced full-path routes)
     /// </summary>
@@ -1333,16 +1325,35 @@ public class FastPathOptions
     public List<DetectorConfig> FastPathDetectors { get; set; } =
     [
         // Wave 1: Fast pattern matching (<1ms)
-        new() { Name = "User-Agent Detector", Signal = "UserAgentAnalyzed", ExpectedLatencyMs = 0.1, Wave = 1, Category = "UserAgent" },
-        new() { Name = "Header Detector", Signal = "HeadersAnalyzed", ExpectedLatencyMs = 0.1, Wave = 1, Category = "Header" },
+        new()
+        {
+            Name = "User-Agent Detector", Signal = "UserAgentAnalyzed", ExpectedLatencyMs = 0.1, Wave = 1,
+            Category = "UserAgent"
+        },
+        new()
+        {
+            Name = "Header Detector", Signal = "HeadersAnalyzed", ExpectedLatencyMs = 0.1, Wave = 1, Category = "Header"
+        },
 
         // Wave 2: Lookups and state (1-10ms)
         new() { Name = "IP Detector", Signal = "IpAnalyzed", ExpectedLatencyMs = 0.5, Wave = 2, Category = "Ip" },
-        new() { Name = "Behavioral Detector", Signal = "BehaviourSampled", ExpectedLatencyMs = 1, Wave = 2, Category = "Behavioral" },
-        new() { Name = "Client-Side Detector", Signal = "ClientFingerprintReceived", ExpectedLatencyMs = 1, Wave = 2, Category = "ClientSide" },
+        new()
+        {
+            Name = "Behavioral Detector", Signal = "BehaviourSampled", ExpectedLatencyMs = 1, Wave = 2,
+            Category = "Behavioral"
+        },
+        new()
+        {
+            Name = "Client-Side Detector", Signal = "ClientFingerprintReceived", ExpectedLatencyMs = 1, Wave = 2,
+            Category = "ClientSide"
+        },
 
         // Wave 3: Cross-signal analysis (10-50ms)
-        new() { Name = "Inconsistency Detector", Signal = "InconsistencyUpdated", ExpectedLatencyMs = 2, Wave = 3, Category = "Inconsistency" }
+        new()
+        {
+            Name = "Inconsistency Detector", Signal = "InconsistencyUpdated", ExpectedLatencyMs = 2, Wave = 3,
+            Category = "Inconsistency"
+        }
     ];
 
     /// <summary>
@@ -1356,7 +1367,7 @@ public class FastPathOptions
     ///         <list type="bullet">
     ///             <item>Fast path exits early (high confidence detection)</item>
     ///             <item>Fast path confidence is in the "grey zone"</item>
-    ///             <item>Configured signals are emitted (see <see cref="SlowPathTriggers"/>)</item>
+    ///             <item>Configured signals are emitted (see <see cref="SlowPathTriggers" />)</item>
     ///         </list>
     ///     </para>
     ///     <para>
@@ -1374,7 +1385,11 @@ public class FastPathOptions
     /// </example>
     public List<DetectorConfig> SlowPathDetectors { get; set; } =
     [
-        new() { Name = "Heuristic Detector", Signal = "HeuristicCompleted", ExpectedLatencyMs = 1, Wave = 1, Category = "Heuristic", Weight = 2.0 }
+        new()
+        {
+            Name = "Heuristic Detector", Signal = "HeuristicCompleted", ExpectedLatencyMs = 1, Wave = 1,
+            Category = "Heuristic", Weight = 2.0
+        }
     ];
 
     /// <summary>
@@ -1386,8 +1401,8 @@ public class FastPathOptions
     ///     <para>
     ///         AI path detectors are triggered by:
     ///         <list type="bullet">
-    ///             <item>Risk score exceeding <see cref="Policies.DetectionPolicyConfig.AiEscalationThreshold"/></item>
-    ///             <item>Detection policy with <see cref="Policies.DetectionPolicyConfig.EscalateToAi"/> = true</item>
+    ///             <item>Risk score exceeding <see cref="Policies.DetectionPolicyConfig.AiEscalationThreshold" /></item>
+    ///             <item>Detection policy with <see cref="Policies.DetectionPolicyConfig.EscalateToAi" /> = true</item>
     ///             <item>Policy transition with Action = "EscalateToAi"</item>
     ///         </list>
     ///     </para>
@@ -1406,13 +1421,16 @@ public class FastPathOptions
     /// </example>
     public List<DetectorConfig> AiPathDetectors { get; set; } =
     [
-        new() { Name = "LLM Detector", Signal = "LlmClassificationCompleted", ExpectedLatencyMs = 100, Wave = 1, Category = "AI", Weight = 2.5, TimeoutMs = 15000 }
+        new()
+        {
+            Name = "LLM Detector", Signal = "LlmClassificationCompleted", ExpectedLatencyMs = 100, Wave = 1,
+            Category = "AI", Weight = 2.5, TimeoutMs = 15000
+        }
     ];
 
     /// <summary>
     ///     Signals that trigger slow-path processing.
     ///     When these signals are emitted, the slow path is activated.
-    ///
     ///     Default triggers:
     ///     - HighConfidenceDetection: fast path found a likely bot
     ///     - GreyZoneDetection: uncertain result, need AI confirmation
@@ -1479,7 +1497,6 @@ public class FastPathOptions
     ///       }
     ///     }
     ///     </code>
-    ///
     ///     Code configuration:
     ///     <code>
     ///     options.FastPath.SignatureMatching.WeightIp = 60.0;  // Increase IP weight
@@ -1614,43 +1631,41 @@ public class DetectorConfig : BaseComponentConfig
 ///       Primary: ABC123... (HMAC of 192.168.1.10 + Chrome/120)
 ///       IP: DEF456...
 ///       UA: GHI789...
-///
+/// 
 ///     Employee B (same office, same browser version):
 ///       Primary: ABC456... ← DIFFERENT (subtle UA variations)
 ///       IP: DEF456... ← SAME
 ///       UA: GHI789... ← SAME
-///
+/// 
 ///     Matching:
 ///       IP matches → +50% weight
 ///       UA matches → +50% weight
 ///       Total: 100% (2 factors)
-///
+/// 
 ///     BUT Primary is DIFFERENT → This means IP+UA composite differs
 ///     Decision: ⚠️ WEAK MATCH (require client-side postback to confirm)
 ///     </code>
-///
 ///     <b>Example 2: Mobile User (IP Changes, Legitimate)</b>
 ///     <code>
 ///     Initial Request (WiFi):
 ///       Primary: ABC123...
 ///       IP: WiFi456...
 ///       UA: Mobile789...
-///
+/// 
 ///     Later Request (Cellular):
 ///       Primary: XYZ999... ← CHANGED
 ///       IP: Cell123... ← CHANGED
 ///       UA: Mobile789... ← SAME
-///
+/// 
 ///     Matching:
 ///       UA matches → +50% weight
 ///       Total: 50% (1 factor)
-///
+/// 
 ///     Decision: ❌ NO MATCH (insufficient confidence)
 ///     → Wait for client-side postback
 ///     → ClientSide fingerprint (Canvas) will be SAME
 ///     → Next request: UA + ClientSide = 130% weight → MATCH ✅
 ///     </code>
-///
 ///     <b>JSON Configuration</b>:
 ///     <code>
 ///     "FastPath": {
@@ -1872,8 +1887,8 @@ public class BehavioralOptions
 ///     </para>
 /// </remarks>
 /// <example>
-/// Example configuration in appsettings.json:
-/// <code>
+///     Example configuration in appsettings.json:
+///     <code>
 /// {
 ///   "BotDetection": {
 ///     "AnomalySaver": {
@@ -1889,9 +1904,8 @@ public class BehavioralOptions
 ///   }
 /// }
 /// </code>
-///
-/// Example output (one JSON object per line):
-/// <code>
+///     Example output (one JSON object per line):
+///     <code>
 /// {"timestamp":"2025-12-08T20:00:00Z","requestId":"abc123","botProbability":0.85,"isBot":true,"riskBand":"High","userAgent":"curl/7.68.0","ipAddress":"192.168.1.100","path":"/api/data","processingTimeMs":123.45,"contributingDetectors":["UserAgent","Behavioral"],"categoryBreakdown":{...}}
 /// {"timestamp":"2025-12-08T20:00:01Z","requestId":"def456","botProbability":0.92,"isBot":true,"riskBand":"VeryHigh","userAgent":"python-requests/2.28.0","ipAddress":"10.0.0.50","path":"/scrape","processingTimeMs":89.12,"contributingDetectors":["UserAgent","IP","Behavioral"],"categoryBreakdown":{...}}
 /// </code>
@@ -1918,7 +1932,6 @@ public class AnomalySaverOptions
     /// <remarks>
     ///     <b>File Format:</b> .jsonl extension is recommended (newline-delimited JSON).
     ///     Each line is a complete, valid JSON object for easy streaming and parsing.
-    ///
     ///     <b>Recommended Paths:</b>
     ///     - Development: "./logs/bot-detections.jsonl"
     ///     - Production: "/var/log/botdetection/detections.jsonl" (Linux)
@@ -1939,7 +1952,6 @@ public class AnomalySaverOptions
     ///     - 0.5 = Save medium-confidence and above - good for auditing borderline cases
     ///     - 0.7 = Save high-confidence bots only - reduces file size, focuses on clear bot traffic
     ///     - 0.9 = Save very-high-confidence only - minimal storage, captures only obvious bots
-    ///
     ///     Lower thresholds = more data for ML training, higher storage costs.
     ///     Higher thresholds = focused audit trail, lower storage costs.
     /// </remarks>
@@ -1954,12 +1966,10 @@ public class AnomalySaverOptions
     ///     <b>Performance Tradeoff:</b>
     ///     - Larger batches = fewer file writes, better throughput, but longer delay before flush
     ///     - Smaller batches = more file writes, lower throughput, but near-realtime logging
-    ///
     ///     <b>Recommended Values:</b>
     ///     - Low traffic (&lt;100 req/min): 10-25 events
     ///     - Medium traffic (100-1000 req/min): 50-100 events
     ///     - High traffic (&gt;1000 req/min): 100-500 events
-    ///
     ///     Events are also flushed on FlushInterval timeout, so batch size is a maximum, not a requirement.
     /// </remarks>
     public int BatchSize { get; set; } = 50;
@@ -1974,7 +1984,6 @@ public class AnomalySaverOptions
     ///     - Short interval (1-5s): Near-realtime logging, good for debugging and monitoring
     ///     - Medium interval (10-30s): Balanced approach for production
     ///     - Long interval (60s+): Maximize batching efficiency, acceptable for background analysis
-    ///
     ///     Events are guaranteed to be written within this interval OR when batch size is reached,
     ///     whichever comes first.
     /// </remarks>
@@ -1988,12 +1997,10 @@ public class AnomalySaverOptions
     /// <remarks>
     ///     <b>Rolling Strategy:</b>
     ///     Files roll when EITHER the time interval elapses OR max file size is reached.
-    ///
     ///     <b>Recommended Values:</b>
     ///     - Hourly (01:00:00): Good for high-traffic sites, manageable file sizes
     ///     - Daily (1.00:00:00): Common for production, aligns with log rotation tools
     ///     - Weekly (7.00:00:00): Low-traffic sites, reduces file proliferation
-    ///
     ///     <b>File Naming:</b>
     ///     Original: "bot-detections.jsonl"
     ///     Rolled: "bot-detections-20251208-143022.jsonl" (timestamp = UTC)
@@ -2011,13 +2018,11 @@ public class AnomalySaverOptions
     ///     - 10 MB = ~50,000-100,000 detection events (Default)
     ///     - 100 MB = ~500,000-1,000,000 detection events
     ///     - 1 GB = ~5-10 million detection events
-    ///
     ///     <b>Recommended Values:</b>
     ///     - Development: 1-10 MB (small, easy to inspect)
     ///     - Production: 10-100 MB (balance between file count and individual file size)
     ///     - High-traffic: 100 MB - 1 GB (minimize file proliferation)
     ///     - Disabled (0): Only roll on time interval
-    ///
     ///     Files are rolled when size is exceeded, even if RollingInterval hasn't elapsed.
     /// </remarks>
     public long MaxFileSizeBytes { get; set; } = 10 * 1024 * 1024; // 10 MB
@@ -2031,17 +2036,14 @@ public class AnomalySaverOptions
     ///     <b>Storage Management:</b>
     ///     Old files are automatically deleted when a new file is rolled.
     ///     Files older than (DateTime.UtcNow - RetentionDays) are removed.
-    ///
     ///     <b>Recommended Values:</b>
     ///     - 7 days: Short-term audit trail, minimal storage
     ///     - 30 days: Standard retention for compliance/debugging
     ///     - 90 days: Extended retention for trend analysis
     ///     - 365 days: Long-term retention for ML training datasets
     ///     - 0 or -1: No automatic cleanup (manual management required)
-    ///
     ///     <b>WARNING:</b> Ensure sufficient disk space for the retention period.
     ///     Estimate: (events/day) * (avg_event_size_bytes) * RetentionDays
-    ///
     ///     Example: 100K events/day * 200 bytes/event * 30 days ≈ 600 MB
     /// </remarks>
     public int RetentionDays { get; set; } = 30;
@@ -2147,6 +2149,29 @@ public class AiDetectionOptions
 public class OllamaOptions
 {
     /// <summary>
+    ///     Default compact prompt template for bot detection.
+    ///     Optimized for minimal token usage with small models.
+    ///     Uses strict JSON schema to prevent malformed output.
+    ///     Receives TOML-formatted evidence from all prior detectors.
+    ///     KEY (abbreviations in evidence):
+    ///     - H=Heuristic(trained ML model), prob=bot probability from H
+    ///     - Scores: negative=human-like, positive=bot-like
+    ///     - prob: 0.0=definitely human, 1.0=definitely bot
+    /// </summary>
+    public const string DefaultPrompt = @"Bot detector. JSON only.
+{REQUEST_INFO}
+RULES(priority order):
+1. prob<0.3→human (trust H model)
+2. prob>0.7→bot (trust H model)
+3. ua~bot/crawler/spider/scraper→bot
+4. ua~curl/wget/python/headless/sqlmap→bot
+5. referer+lang+cookies→human
+6. Chrome/Firefox/Safari+hdrs≥10→human
+7. unsure→human,conf=0.3
+TYPE:scraper|searchengine|monitor|malicious|social|good|unknown
+{""isBot"":false,""confidence"":0.8,""reasoning"":""..."",""botType"":""unknown""}";
+
+    /// <summary>
     ///     Whether Ollama LLM detection is enabled.
     ///     Default: true (but requires Ollama to be running)
     /// </summary>
@@ -2183,30 +2208,6 @@ public class OllamaOptions
     ///     Default prompt (~350 tokens) is designed for 8K context models like gemma3:1b.
     /// </summary>
     public string? CustomPrompt { get; set; }
-
-    /// <summary>
-    ///     Default compact prompt template for bot detection.
-    ///     Optimized for minimal token usage with small models.
-    ///     Uses strict JSON schema to prevent malformed output.
-    ///     Receives TOML-formatted evidence from all prior detectors.
-    ///
-    ///     KEY (abbreviations in evidence):
-    ///     - H=Heuristic(trained ML model), prob=bot probability from H
-    ///     - Scores: negative=human-like, positive=bot-like
-    ///     - prob: 0.0=definitely human, 1.0=definitely bot
-    /// </summary>
-    public const string DefaultPrompt = @"Bot detector. JSON only.
-{REQUEST_INFO}
-RULES(priority order):
-1. prob<0.3→human (trust H model)
-2. prob>0.7→bot (trust H model)
-3. ua~bot/crawler/spider/scraper→bot
-4. ua~curl/wget/python/headless/sqlmap→bot
-5. referer+lang+cookies→human
-6. Chrome/Firefox/Safari+hdrs≥10→human
-7. unsure→human,conf=0.3
-TYPE:scraper|searchengine|monitor|malicious|social|good|unknown
-{""isBot"":false,""confidence"":0.8,""reasoning"":""..."",""botType"":""unknown""}";
 }
 
 /// <summary>
@@ -2531,12 +2532,12 @@ public class VersionAgeOptions
     ///     Leave empty {} to disable version age detection when API is unavailable.
     ///     Example:
     ///     "FallbackBrowserVersions": {
-    ///       "Chrome": 143,
-    ///       "Firefox": 146
+    ///     "Chrome": 143,
+    ///     "Firefox": 146
     ///     }
     ///     Or leave empty to disable fallback:
     ///     "FallbackBrowserVersions": {}
-    ///     </summary>
+    /// </summary>
     public Dictionary<string, int> FallbackBrowserVersions { get; set; } = new();
 
     /// <summary>
@@ -2546,23 +2547,23 @@ public class VersionAgeOptions
     public Dictionary<string, string> OsAgeClassification { get; set; } = new()
     {
         // Windows
-        ["Windows NT 10.0"] = "current",      // Windows 10/11
-        ["Windows NT 6.3"] = "old",           // Windows 8.1
-        ["Windows NT 6.2"] = "old",           // Windows 8
-        ["Windows NT 6.1"] = "very_old",      // Windows 7
-        ["Windows NT 6.0"] = "ancient",       // Vista
-        ["Windows NT 5.1"] = "ancient",       // XP
-        ["Windows NT 5.0"] = "ancient",       // 2000
+        ["Windows NT 10.0"] = "current", // Windows 10/11
+        ["Windows NT 6.3"] = "old", // Windows 8.1
+        ["Windows NT 6.2"] = "old", // Windows 8
+        ["Windows NT 6.1"] = "very_old", // Windows 7
+        ["Windows NT 6.0"] = "ancient", // Vista
+        ["Windows NT 5.1"] = "ancient", // XP
+        ["Windows NT 5.0"] = "ancient", // 2000
 
         // macOS (by version number)
-        ["Mac OS X 14"] = "current",          // Sonoma
-        ["Mac OS X 13"] = "current",          // Ventura
-        ["Mac OS X 12"] = "old",              // Monterey
-        ["Mac OS X 11"] = "old",              // Big Sur
-        ["Mac OS X 10_15"] = "old",           // Catalina
-        ["Mac OS X 10_14"] = "very_old",      // Mojave
-        ["Mac OS X 10_13"] = "very_old",      // High Sierra
-        ["Mac OS X 10_12"] = "ancient",       // Sierra and older
+        ["Mac OS X 14"] = "current", // Sonoma
+        ["Mac OS X 13"] = "current", // Ventura
+        ["Mac OS X 12"] = "old", // Monterey
+        ["Mac OS X 11"] = "old", // Big Sur
+        ["Mac OS X 10_15"] = "old", // Catalina
+        ["Mac OS X 10_14"] = "very_old", // Mojave
+        ["Mac OS X 10_13"] = "very_old", // High Sierra
+        ["Mac OS X 10_12"] = "ancient", // Sierra and older
 
         // Android (major versions)
         ["Android 14"] = "current",
@@ -2597,15 +2598,15 @@ public class VersionAgeOptions
     /// </summary>
     public Dictionary<string, int> MinBrowserVersionByOs { get; set; } = new()
     {
-        ["Windows NT 5"] = 49,      // XP: Chrome stopped at 49
-        ["Windows NT 6.0"] = 49,    // Vista: Chrome stopped at 49
-        ["Windows NT 6.1"] = 109,   // Win7: Chrome stopped at 109
-        ["Mac OS X 10_9"] = 65,     // Mavericks: old Chrome limit
-        ["Mac OS X 10_10"] = 87,    // Yosemite
-        ["Mac OS X 10_11"] = 103,   // El Capitan
-        ["Android 4"] = 42,         // Very old Android
-        ["Android 5"] = 81,         // Lollipop
-        ["iOS 10"] = 49,            // Old iOS
+        ["Windows NT 5"] = 49, // XP: Chrome stopped at 49
+        ["Windows NT 6.0"] = 49, // Vista: Chrome stopped at 49
+        ["Windows NT 6.1"] = 109, // Win7: Chrome stopped at 109
+        ["Mac OS X 10_9"] = 65, // Mavericks: old Chrome limit
+        ["Mac OS X 10_10"] = 87, // Yosemite
+        ["Mac OS X 10_11"] = 103, // El Capitan
+        ["Android 4"] = 42, // Very old Android
+        ["Android 5"] = 81, // Lollipop
+        ["iOS 10"] = 49, // Old iOS
         ["iOS 11"] = 65
     };
 }
@@ -2670,17 +2671,17 @@ public class DataSourceConfig
     ///         <code>
     ///         // Global: Daily at 2 AM UTC
     ///         "UpdateSchedule": { "cron": "0 2 * * *" }
-    ///
+    /// 
     ///         // AWS IPs: Every 6 hours (changes frequently)
     ///         "AwsIpRanges": {
     ///           "UpdateSchedule": { "cron": "0 */6 * * *" }
     ///         }
-    ///
+    /// 
     ///         // Security tools: Every 2 hours (critical)
     ///         "ScannerUserAgents": {
     ///           "UpdateSchedule": { "cron": "0 */2 * * *" }
     ///         }
-    ///
+    /// 
     ///         // Browser versions: Weekly (changes slowly)
     ///         "BrowserVersions": {
     ///           "UpdateSchedule": { "cron": "0 2 * * 0" }
@@ -2720,7 +2721,8 @@ public class BotDetectionOptionsValidator : IValidateOptions<BotDetectionOptions
             errors.Add($"UpdateIntervalHours must be between 1 and 168, got {options.UpdateIntervalHours}");
 
         if (options.UpdateCheckIntervalMinutes < 5 || options.UpdateCheckIntervalMinutes > 1440)
-            errors.Add($"UpdateCheckIntervalMinutes must be between 5 and 1440, got {options.UpdateCheckIntervalMinutes}");
+            errors.Add(
+                $"UpdateCheckIntervalMinutes must be between 5 and 1440, got {options.UpdateCheckIntervalMinutes}");
 #pragma warning restore CS0618 // Type or member is obsolete
 
         // Validate Ollama settings only when using Ollama provider
@@ -2734,7 +2736,8 @@ public class BotDetectionOptionsValidator : IValidateOptions<BotDetectionOptions
         }
 
         if (options.MinConfidenceToBlock < options.BotThreshold)
-            warnings.Add($"MinConfidenceToBlock ({options.MinConfidenceToBlock}) is less than BotThreshold ({options.BotThreshold}), this may cause unexpected blocking");
+            warnings.Add(
+                $"MinConfidenceToBlock ({options.MinConfidenceToBlock}) is less than BotThreshold ({options.BotThreshold}), this may cause unexpected blocking");
 
         // Validate BehavioralOptions
         ValidateBehavioralOptions(options.Behavioral, errors, warnings);
@@ -2744,22 +2747,16 @@ public class BotDetectionOptionsValidator : IValidateOptions<BotDetectionOptions
 
         // Validate CIDR patterns
         foreach (var prefix in options.DatacenterIpPrefixes)
-        {
             if (!IsValidCidr(prefix))
                 errors.Add($"Invalid CIDR notation in DatacenterIpPrefixes: {prefix}");
-        }
 
         foreach (var ip in options.WhitelistedIps)
-        {
             if (!IsValidIpOrCidr(ip))
                 errors.Add($"Invalid IP or CIDR in WhitelistedIps: {ip}");
-        }
 
         foreach (var ip in options.BlacklistedIps)
-        {
             if (!IsValidIpOrCidr(ip))
                 errors.Add($"Invalid IP or CIDR in BlacklistedIps: {ip}");
-        }
 
         // Return errors, but log warnings
         return errors.Count > 0
@@ -2772,7 +2769,7 @@ public class BotDetectionOptionsValidator : IValidateOptions<BotDetectionOptions
         var parts = cidr.Split('/');
         if (parts.Length != 2) return false;
 
-        if (!System.Net.IPAddress.TryParse(parts[0], out _))
+        if (!IPAddress.TryParse(parts[0], out _))
             return false;
 
         if (!int.TryParse(parts[1], out var prefix))
@@ -2786,7 +2783,7 @@ public class BotDetectionOptionsValidator : IValidateOptions<BotDetectionOptions
         if (value.Contains('/'))
             return IsValidCidr(value);
 
-        return System.Net.IPAddress.TryParse(value, out _);
+        return IPAddress.TryParse(value, out _);
     }
 
     private static void ValidateBehavioralOptions(BehavioralOptions options, List<string> errors, List<string> warnings)
@@ -2803,19 +2800,24 @@ public class BotDetectionOptionsValidator : IValidateOptions<BotDetectionOptions
             errors.Add($"Behavioral.SpikeThresholdMultiplier must be >= 1.0, got {options.SpikeThresholdMultiplier}");
 
         if (options.SpikeThresholdMultiplier > 100.0)
-            warnings.Add($"Behavioral.SpikeThresholdMultiplier is very high ({options.SpikeThresholdMultiplier}), spike detection may be ineffective");
+            warnings.Add(
+                $"Behavioral.SpikeThresholdMultiplier is very high ({options.SpikeThresholdMultiplier}), spike detection may be ineffective");
 
         // New path anomaly threshold validation
         if (options.NewPathAnomalyThreshold < 0.0 || options.NewPathAnomalyThreshold > 1.0)
-            errors.Add($"Behavioral.NewPathAnomalyThreshold must be between 0.0 and 1.0, got {options.NewPathAnomalyThreshold}");
+            errors.Add(
+                $"Behavioral.NewPathAnomalyThreshold must be between 0.0 and 1.0, got {options.NewPathAnomalyThreshold}");
 
         // Warn if API key header is set but rate limit is 0
         if (!string.IsNullOrEmpty(options.ApiKeyHeader) && options.ApiKeyRateLimit == 0)
-            warnings.Add("Behavioral.ApiKeyHeader is set but ApiKeyRateLimit is 0 (will use 2x MaxRequestsPerMinute as default)");
+            warnings.Add(
+                "Behavioral.ApiKeyHeader is set but ApiKeyRateLimit is 0 (will use 2x MaxRequestsPerMinute as default)");
 
         // Warn if user ID is configured but rate limit is 0
-        if ((!string.IsNullOrEmpty(options.UserIdHeader) || !string.IsNullOrEmpty(options.UserIdClaim)) && options.UserRateLimit == 0)
-            warnings.Add("User ID tracking is configured but UserRateLimit is 0 (will use 3x MaxRequestsPerMinute as default)");
+        if ((!string.IsNullOrEmpty(options.UserIdHeader) || !string.IsNullOrEmpty(options.UserIdClaim)) &&
+            options.UserRateLimit == 0)
+            warnings.Add(
+                "User ID tracking is configured but UserRateLimit is 0 (will use 3x MaxRequestsPerMinute as default)");
     }
 
     private static void ValidateClientSideOptions(ClientSideOptions options, List<string> errors, List<string> warnings)
@@ -2828,18 +2830,21 @@ public class BotDetectionOptionsValidator : IValidateOptions<BotDetectionOptions
             errors.Add($"ClientSide.TokenLifetimeSeconds must be >= 30 seconds, got {options.TokenLifetimeSeconds}");
 
         if (options.TokenLifetimeSeconds > 86400)
-            warnings.Add($"ClientSide.TokenLifetimeSeconds is very long ({options.TokenLifetimeSeconds}s), tokens may be reused inappropriately");
+            warnings.Add(
+                $"ClientSide.TokenLifetimeSeconds is very long ({options.TokenLifetimeSeconds}s), tokens may be reused inappropriately");
 
         // Fingerprint cache validation
         if (options.FingerprintCacheDurationSeconds < 0)
-            errors.Add($"ClientSide.FingerprintCacheDurationSeconds cannot be negative, got {options.FingerprintCacheDurationSeconds}");
+            errors.Add(
+                $"ClientSide.FingerprintCacheDurationSeconds cannot be negative, got {options.FingerprintCacheDurationSeconds}");
 
         // Collection timeout validation
         if (options.CollectionTimeoutMs < 100)
             errors.Add($"ClientSide.CollectionTimeoutMs must be >= 100ms, got {options.CollectionTimeoutMs}");
 
         if (options.CollectionTimeoutMs > 30000)
-            warnings.Add($"ClientSide.CollectionTimeoutMs is very long ({options.CollectionTimeoutMs}ms), may affect user experience");
+            warnings.Add(
+                $"ClientSide.CollectionTimeoutMs is very long ({options.CollectionTimeoutMs}ms), may affect user experience");
 
         // Integrity score validation
         if (options.MinIntegrityScore < 0 || options.MinIntegrityScore > 100)
@@ -2851,13 +2856,15 @@ public class BotDetectionOptionsValidator : IValidateOptions<BotDetectionOptions
 
         // Warn if no collection methods enabled
         if (!options.CollectWebGL && !options.CollectCanvas && !options.CollectAudio)
-            warnings.Add("ClientSide detection is enabled but all collection methods (WebGL, Canvas, Audio) are disabled");
+            warnings.Add(
+                "ClientSide detection is enabled but all collection methods (WebGL, Canvas, Audio) are disabled");
 
         // Warn about production secret
         if (options.TokenSecret == "demo-secret-key-change-in-production" ||
             options.TokenSecret == "your-secret-key" ||
             options.TokenSecret?.Length < 16)
-            warnings.Add("ClientSide.TokenSecret should be a strong, unique secret in production (at least 16 characters)");
+            warnings.Add(
+                "ClientSide.TokenSecret should be a strong, unique secret in production (at least 16 characters)");
     }
 }
 
@@ -2963,7 +2970,6 @@ public class ResponseHeadersOptions
 /// <remarks>
 ///     Jitter makes the throttling response time vary randomly, preventing bots from
 ///     easily detecting they're being throttled based on consistent response times.
-///
 ///     Example with BaseDelaySeconds=60, JitterPercent=30:
 ///     - Min delay: 60 - 18 = 42 seconds
 ///     - Max delay: 60 + 18 = 78 seconds
@@ -3048,7 +3054,6 @@ public class ThrottlingOptions
 ///     Configuration for detecting security/penetration testing tools.
 ///     Identifies vulnerability scanners, exploit frameworks, and hacking tools
 ///     based on User-Agent signatures.
-///
 ///     Part of the security detection layer - designed to integrate with future
 ///     API honeypot systems (Mostlylucid.ApiHoneypot).
 /// </summary>
@@ -3132,7 +3137,6 @@ public class SecurityToolOptions
 ///     Uses DNS lookups to check IP reputation against Project Honeypot's
 ///     database of known harvesters, comment spammers, and suspicious visitors.
 ///     See: https://www.projecthoneypot.org/httpbl_api.php
-///
 ///     Requires a free API key from: https://www.projecthoneypot.org/httpbl_configure.php
 /// </summary>
 public class ProjectHoneypotOptions

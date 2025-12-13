@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -11,9 +12,9 @@ namespace Mostlylucid.BotDetection.Orchestration.Tests.Unit;
 
 public class FastPathDeciderTests
 {
-    private readonly Mock<IDetector> _mockUaDetector;
     private readonly Mock<IBotDetectionService> _mockFullDetector;
     private readonly Mock<ILearningEventBus> _mockLearningBus;
+    private readonly Mock<IDetector> _mockUaDetector;
     private readonly BotDetectionOptions _options;
 
     public FastPathDeciderTests()
@@ -44,7 +45,7 @@ public class FastPathDeciderTests
         var context = new DefaultHttpContext();
         context.Request.Headers.UserAgent = userAgent;
         context.Request.Path = path;
-        context.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("1.2.3.4");
+        context.Connection.RemoteIpAddress = IPAddress.Parse("1.2.3.4");
         context.TraceIdentifier = Guid.NewGuid().ToString();
         return context;
     }
@@ -83,7 +84,7 @@ public class FastPathDeciderTests
             opt.Enabled = true;
             opt.AlwaysRunFullOnPaths = ["/login", "/checkout"];
         });
-        var context = CreateHttpContext(userAgent: "BadBot/1.0", path: "/login");
+        var context = CreateHttpContext("BadBot/1.0", "/login");
 
         var fullResult = new BotDetectionResult
         {
@@ -115,12 +116,12 @@ public class FastPathDeciderTests
             opt.AbortThreshold = 0.95;
             opt.SampleRate = 0; // No sampling for this test
         });
-        var context = CreateHttpContext(userAgent: "BadBot/1.0");
+        var context = CreateHttpContext("BadBot/1.0");
 
         _mockUaDetector.Setup(x => x.DetectAsync(context, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DetectorResult
             {
-                                Confidence = 0.98,
+                Confidence = 0.98,
                 BotType = BotType.Scraper,
                 BotName = "BadBot",
                 Reasons = [new DetectionReason { Category = "UserAgent", Detail = "Known scraper pattern" }]
@@ -136,7 +137,8 @@ public class FastPathDeciderTests
         Assert.False(decision.ScheduledForFullAnalysis);
 
         // Full detector should NOT have been called
-        _mockFullDetector.Verify(x => x.DetectAsync(It.IsAny<HttpContext>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockFullDetector.Verify(x => x.DetectAsync(It.IsAny<HttpContext>(), It.IsAny<CancellationToken>()),
+            Times.Never);
 
         // MinimalDetection event should have been published
         _mockLearningBus.Verify(x => x.TryPublish(It.Is<LearningEvent>(e =>
@@ -153,12 +155,12 @@ public class FastPathDeciderTests
             opt.AbortThreshold = 0.95;
             opt.SampleRate = 1.0; // Always sample for this test
         });
-        var context = CreateHttpContext(userAgent: "BadBot/1.0");
+        var context = CreateHttpContext("BadBot/1.0");
 
         _mockUaDetector.Setup(x => x.DetectAsync(context, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DetectorResult
             {
-                                Confidence = 0.98,
+                Confidence = 0.98,
                 BotType = BotType.Scraper,
                 BotName = "BadBot",
                 Reasons = [new DetectionReason { Category = "UserAgent", Detail = "Known scraper pattern" }]
@@ -187,12 +189,12 @@ public class FastPathDeciderTests
             opt.Enabled = true;
             opt.AbortThreshold = 0.95;
         });
-        var context = CreateHttpContext(userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0");
+        var context = CreateHttpContext("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0");
 
         _mockUaDetector.Setup(x => x.DetectAsync(context, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DetectorResult
             {
-                                Confidence = 0.2, // Low confidence - not a bot
+                Confidence = 0.2, // Low confidence - not a bot
                 BotType = null,
                 BotName = null,
                 Reasons = new List<DetectionReason>()
@@ -227,13 +229,13 @@ public class FastPathDeciderTests
             opt.Enabled = true;
             opt.AbortThreshold = 0.95;
         });
-        var context = CreateHttpContext(userAgent: "SuspiciousBot/1.0");
+        var context = CreateHttpContext("SuspiciousBot/1.0");
 
         // UA detector returns medium confidence (below abort threshold)
         _mockUaDetector.Setup(x => x.DetectAsync(context, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DetectorResult
             {
-                                Confidence = 0.75, // Medium confidence
+                Confidence = 0.75, // Medium confidence
                 BotType = BotType.Unknown,
                 BotName = "SuspiciousBot",
                 Reasons = [new DetectionReason { Category = "UserAgent", Detail = "Suspicious pattern" }]
@@ -272,12 +274,12 @@ public class FastPathDeciderTests
             opt.AbortThreshold = 0.95;
             opt.SampleRate = 0;
         });
-        var context = CreateHttpContext(userAgent: "BadBot/1.0", path: "/api/data");
+        var context = CreateHttpContext("BadBot/1.0", "/api/data");
 
         _mockUaDetector.Setup(x => x.DetectAsync(context, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DetectorResult
             {
-                                Confidence = 0.98,
+                Confidence = 0.98,
                 BotType = BotType.Scraper,
                 BotName = "BadBot",
                 Reasons = [new DetectionReason { Category = "UserAgent", Detail = "Known scraper" }]

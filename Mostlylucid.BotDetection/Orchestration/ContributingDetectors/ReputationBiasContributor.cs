@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Models;
@@ -10,16 +11,13 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// <summary>
 ///     Early-stage contributor that queries the PatternReputationCache to provide
 ///     initial bias based on learned patterns from prior detections.
-///
 ///     This closes the learning feedback loop by ensuring that:
 ///     1. Patterns learned from prior requests (via ReputationMaintenanceService)
 ///     2. Are fed back into early detection for similar future requests
-///
 ///     Pattern types checked:
 ///     - User-Agent hash (normalized)
 ///     - IP range (/24 for IPv4, /48 for IPv6)
 ///     - Combined signature (UA + IP + Path)
-///
 ///     Runs in Wave 0 (first wave) with high priority to provide bias before
 ///     other detectors run their analysis.
 /// </summary>
@@ -37,8 +35,9 @@ public class ReputationBiasContributor : ContributingDetectorBase
     }
 
     public override string Name => "ReputationBias";
+
     public override int Priority => 45; // Run AFTER basic detectors have extracted UA/IP/Headers (Wave 0)
-                                         // But BEFORE Heuristic (50) to provide learned bias to scoring
+    // But BEFORE Heuristic (50) to provide learned bias to scoring
 
     // Trigger when we have the basic signals extracted
     public override IReadOnlyList<TriggerCondition> TriggerConditions =>
@@ -140,34 +139,28 @@ public class ReputationBiasContributor : ContributingDetectorBase
             var canAbort = contributions.Any(c =>
                 c.Signals.TryGetValue(SignalKeys.ReputationCanAbort, out var v) && v is true);
 
-            if (canAbort)
-            {
-                signals = signals.Add(SignalKeys.ReputationCanAbort, true);
-            }
+            if (canAbort) signals = signals.Add(SignalKeys.ReputationCanAbort, true);
 
             // Update signals on first contribution to contain summary
             if (contributions.Count > 0)
-            {
                 contributions[0] = contributions[0] with
                 {
                     Signals = contributions[0].Signals.AddRange(signals)
                 };
-            }
         }
 
         // Always return at least one contribution so detector shows in list
         if (contributions.Count == 0)
-        {
             contributions.Add(DetectionContribution.Neutral(Name, "No learned reputation patterns matched"));
-        }
 
         return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
     }
 
-    private (DetectionContribution? Contribution, ImmutableDictionary<string, object> Signals) CreateReputationContribution(
-        PatternReputation reputation,
-        string category,
-        string reason)
+    private (DetectionContribution? Contribution, ImmutableDictionary<string, object> Signals)
+        CreateReputationContribution(
+            PatternReputation reputation,
+            string category,
+            string reason)
     {
         var signals = ImmutableDictionary<string, object>.Empty
             .Add($"reputation.{category.ToLowerInvariant()}.state", reputation.State.ToString())
@@ -183,23 +176,20 @@ public class ReputationBiasContributor : ContributingDetectorBase
             signals = signals.Add(SignalKeys.ReputationCanAbort, true);
 
             return (DetectionContribution.VerifiedBadBot(
-                Name,
-                reputation.PatternId,
-                $"[Reputation] {reason}",
-                BotType.MaliciousBot) with
-            {
-                ConfidenceDelta = reputation.BotScore,
-                Weight = 2.5, // High weight for confirmed bad patterns
-                Signals = signals
-            }, signals);
+                    Name,
+                    reputation.PatternId,
+                    $"[Reputation] {reason}") with
+                {
+                    ConfidenceDelta = reputation.BotScore,
+                    Weight = 2.5, // High weight for confirmed bad patterns
+                    Signals = signals
+                }, signals);
         }
 
         // For non-abort cases, return weighted contribution
         if (Math.Abs(weight) < 0.01)
-        {
             // Negligible weight, skip
             return (null, ImmutableDictionary<string, object>.Empty);
-        }
 
         BotType? botType = reputation.State switch
         {
@@ -321,19 +311,13 @@ public class ReputationBiasContributor : ContributingDetectorBase
         {
             // Simplify: just take first 3 groups for /48
             var parts = ip.Split(':');
-            if (parts.Length >= 3)
-            {
-                return $"{parts[0]}:{parts[1]}:{parts[2]}::/48";
-            }
+            if (parts.Length >= 3) return $"{parts[0]}:{parts[1]}:{parts[2]}::/48";
             return ip;
         }
 
         // Handle IPv4 - normalize to /24
         var octets = ip.Split('.');
-        if (octets.Length == 4)
-        {
-            return $"{octets[0]}.{octets[1]}.{octets[2]}.0/24";
-        }
+        if (octets.Length == 4) return $"{octets[0]}.{octets[1]}.{octets[2]}.0/24";
 
         return ip;
     }
@@ -350,13 +334,13 @@ public class ReputationBiasContributor : ContributingDetectorBase
         var normalized = path.ToLowerInvariant();
 
         // Replace GUIDs
-        normalized = System.Text.RegularExpressions.Regex.Replace(
+        normalized = Regex.Replace(
             normalized,
             @"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
             "{guid}");
 
         // Replace numeric IDs
-        normalized = System.Text.RegularExpressions.Regex.Replace(
+        normalized = Regex.Replace(
             normalized,
             @"/\d+(/|$)",
             "/{id}$1");
@@ -373,4 +357,3 @@ public class ReputationBiasContributor : ContributingDetectorBase
         return Convert.ToHexString(bytes)[..16].ToLowerInvariant();
     }
 }
-

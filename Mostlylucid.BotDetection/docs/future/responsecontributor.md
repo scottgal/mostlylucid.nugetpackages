@@ -20,7 +20,8 @@ Add a **response-side detection layer** that:
 
 The core idea:
 
-> “What the backend does (401, 403, 404, 429, 5xx, etc.) is evidence about the caller’s behaviour. Capture it and close the loop.”
+> “What the backend does (401, 403, 404, 429, 5xx, etc.) is evidence about the caller’s behaviour. Capture it and close
+> the loop.”
 
 ---
 
@@ -390,6 +391,5 @@ If you want, next step I can do a **concrete C# sketch** of:
 * `ResponseSignalSink`
 * `ResponseDetector`
 * how to augment your existing `DetectionResult` with the `response` block.
-
 
 If 429 with rate limiting headers ensure we can route to throttling until it recovers etc.

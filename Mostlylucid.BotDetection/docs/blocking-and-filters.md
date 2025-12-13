@@ -112,12 +112,12 @@ bool challenge = context.ShouldChallengeRequest();
 
 ## Risk Bands
 
-| Band | Confidence | Recommended Action |
-|------|------------|-------------------|
-| Low | < 0.3 | Allow |
-| Elevated | 0.3 - 0.5 | Challenge or Throttle |
-| Medium | 0.5 - 0.7 | Challenge |
-| High | > 0.7 | Block |
+| Band     | Confidence | Recommended Action    |
+|----------|------------|-----------------------|
+| Low      | < 0.3      | Allow                 |
+| Elevated | 0.3 - 0.5  | Challenge or Throttle |
+| Medium   | 0.5 - 0.7  | Challenge             |
+| High     | > 0.7      | Block                 |
 
 ## Custom Middleware
 

@@ -104,14 +104,17 @@ The response detection system uses a **two-tier signal architecture**:
 **Purpose**: Coordinate detection for a SINGLE HTTP request/response cycle
 
 **Coordinators**:
+
 - `RequestCoordinator` - Request-side detection
 - `ResponseCoordinator` - Response-side detection
 
 **Signal Sink**: `OperationSignalSink` (scoped, shared between request/response)
 
-**Key Insight**: Request and response coordinators are **siblings**, not parent/child. They share the **same sink instance**.
+**Key Insight**: Request and response coordinators are **siblings**, not parent/child. They share the **same sink
+instance**.
 
 **Lifecycle**:
+
 ```
 T=0ms:   Request arrives
          → OperationSignalSink created
@@ -157,9 +160,11 @@ await responseCoordinator.DetectAsync(context, responseSignal);
 
 **Signal Sink**: `GlobalSignalSink` (process-level, persistent)
 
-**Key Insight**: Each signature gets its own window of operations (last 100). Signature atoms are **ephemeral** - when evicted from LRU, the sink dies too.
+**Key Insight**: Each signature gets its own window of operations (last 100). Signature atoms are **ephemeral** - when
+evicted from LRU, the sink dies too.
 
 **Lifecycle**:
+
 ```
 T=0:      SignatureProfileAtom["abc123"] created
           → Subscribes to GlobalSignalSink (filtered by signature)
@@ -338,7 +343,8 @@ public class SignatureProfileAtom
 }
 ```
 
-**Key Point**: Lanes share signals (via sink), not direct state. Each lane maintains its own internal state for its analysis.
+**Key Point**: Lanes share signals (via sink), not direct state. Each lane maintains its own internal state for its
+analysis.
 
 ## Cross-Correlation: Request ↔ Response
 
@@ -371,6 +377,7 @@ public class HoneypotResponseDetector : ResponseDetectorBase
 ```
 
 **How it works**:
+
 1. RequestCoordinator emits `request.path.honeypot = true` to OperationSignalSink
 2. RequestCoordinator dies
 3. ResponseCoordinator starts, uses **same sink instance**
@@ -416,37 +423,38 @@ var signatureCache = new SlidingCacheAtom<string, SignatureProfileAtom>(
 
 ### Operation-Level
 
-| Mode | Latency | Use Case |
-|------|---------|----------|
-| **Blocking** | 5-50ms added | Honeypots, critical paths |
-| **Async** | 0ms added | Normal requests (most common) |
+| Mode         | Latency      | Use Case                      |
+|--------------|--------------|-------------------------------|
+| **Blocking** | 5-50ms added | Honeypots, critical paths     |
+| **Async**    | 0ms added    | Normal requests (most common) |
 
 **Memory**: ~5KB per operation (signals + contributions), freed when response sent
 
 ### Signature-Level
 
-| Window Size | Memory per Signature | Eviction |
-|-------------|----------------------|----------|
-| 100 ops | ~500KB | LRU + TTL (20 min) |
-| 200 ops | ~1MB | LRU + TTL (20 min) |
+| Window Size | Memory per Signature | Eviction           |
+|-------------|----------------------|--------------------|
+| 100 ops     | ~500KB               | LRU + TTL (20 min) |
+| 200 ops     | ~1MB                 | LRU + TTL (20 min) |
 
 **CPU**: Lanes run in parallel, ~10-50ms per analysis (async, not blocking requests)
 
 ## Summary
 
-| Aspect | Operation-Level | Signature-Level |
-|--------|-----------------|-----------------|
-| **Coordinators** | Request, Response (siblings) | SignatureProfileAtom |
-| **Sink** | OperationSignalSink (scoped) | GlobalSignalSink (persistent) |
-| **Lifetime** | Per-request (ms) | Per-signature (minutes-hours) |
-| **Keyed by** | Request ID | Signature hash |
-| **Lanes** | Content, Heuristic, AI | Behavioral, Spectral, Reputation, Content |
-| **Signals** | request.*, response.* | operation.complete, signature.behavior |
-| **Shared?** | Yes (request/response share sink) | Yes (all signatures share global sink) |
-| **Ephemeral?** | Yes (dies with request) | Yes (dies with LRU eviction) |
-| **Purpose** | THIS operation | Patterns across operations |
+| Aspect           | Operation-Level                   | Signature-Level                           |
+|------------------|-----------------------------------|-------------------------------------------|
+| **Coordinators** | Request, Response (siblings)      | SignatureProfileAtom                      |
+| **Sink**         | OperationSignalSink (scoped)      | GlobalSignalSink (persistent)             |
+| **Lifetime**     | Per-request (ms)                  | Per-signature (minutes-hours)             |
+| **Keyed by**     | Request ID                        | Signature hash                            |
+| **Lanes**        | Content, Heuristic, AI            | Behavioral, Spectral, Reputation, Content |
+| **Signals**      | request.*, response.*             | operation.complete, signature.behavior    |
+| **Shared?**      | Yes (request/response share sink) | Yes (all signatures share global sink)    |
+| **Ephemeral?**   | Yes (dies with request)           | Yes (dies with LRU eviction)              |
+| **Purpose**      | THIS operation                    | Patterns across operations                |
 
 **Key Design**:
+
 - Request and response coordinators are **equal partners** sharing a sink, not parent/child
 - Blocking vs Async decided **VERY EARLY** (during request detection)
 - Signature atoms are **ephemeral** - when evicted, everything dies cleanly

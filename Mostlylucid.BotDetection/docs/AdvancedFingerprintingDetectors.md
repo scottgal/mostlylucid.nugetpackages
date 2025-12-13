@@ -1,10 +1,12 @@
 # Advanced Fingerprinting Detectors v1
 
-This document describes the newly implemented advanced bot detection techniques inspired by best-in-breed approaches from Zeek, p0f, and modern threat intelligence.
+This document describes the newly implemented advanced bot detection techniques inspired by best-in-breed approaches
+from Zeek, p0f, and modern threat intelligence.
 
 ## Overview
 
-The advanced detection suite adds five new contributors that analyze network and protocol-layer characteristics to detect sophisticated automation:
+The advanced detection suite adds five new contributors that analyze network and protocol-layer characteristics to
+detect sophisticated automation:
 
 1. **TlsFingerprintContributor** - JA3/JA4-style TLS fingerprinting
 2. **TcpIpFingerprintContributor** - TCP/IP stack fingerprinting (p0f-style)
@@ -17,16 +19,19 @@ The advanced detection suite adds five new contributors that analyze network and
 These detectors incorporate several key ideas from Zeek's architecture:
 
 ### Signal Taxonomy (from Zeek's `http.log`)
+
 - Per-request feature extraction: method, host, URI, referrer, UA, body lengths, status
 - Transaction timing and state tracking
 - This becomes our **signal schema** for behavioral waveforms
 
 ### Weird vs Notice Pattern (from `weird.log` and Notice Framework)
+
 - **Weird signals**: Low-level protocol anomalies (unusual TTL, invalid cipher, etc.)
 - **Notices**: Policy-significant detections (datacenter IP + browser UA)
 - Decouples detection from policy → detectors raise signals, policies decide actions
 
 ### Multi-Flow Aggregation
+
 - Behavioral waveform tracks patterns across multiple requests
 - Inspired by Zeek's multi-threaded exfil detection
 - Our Ephemeral coordinator layer provides similar cross-request state
@@ -34,15 +39,19 @@ These detectors incorporate several key ideas from Zeek's architecture:
 ## 1. TLS Fingerprinting (JA3/JA4 Style)
 
 ### Concept
-Analyzes TLS handshake parameters to identify client implementations. Different browsers, automation tools, and custom HTTP clients have distinct TLS "signatures".
+
+Analyzes TLS handshake parameters to identify client implementations. Different browsers, automation tools, and custom
+HTTP clients have distinct TLS "signatures".
 
 ### What It Detects
+
 - **Known bot fingerprints**: cURL, Python requests, Go net/http, headless Chrome
 - **Weak/outdated protocols**: SSL3, TLS 1.0/1.1 (modern browsers use TLS 1.2+)
 - **Cipher suite anomalies**: Export-grade ciphers, NULL ciphers, weak hash algorithms
 - **Client certificate usage**: Uncommon for browsers, common for automation
 
 ### Signals Raised
+
 ```csharp
 tls.available          : bool
 tls.protocol           : string  // "Tls12", "Tls13", etc.
@@ -56,12 +65,16 @@ tls.fingerprint_known  : bool
 ```
 
 ### Production Integration
-For full JA3 fingerprinting, integrate with reverse proxy (nginx/HAProxy) that can extract TLS handshake and pass via header:
+
+For full JA3 fingerprinting, integrate with reverse proxy (nginx/HAProxy) that can extract TLS handshake and pass via
+header:
+
 ```
 X-JA3-Hash: a3b4c5d6e7f8...
 ```
 
 ### Example Detection
+
 ```
 User-Agent: Mozilla/5.0 (Chrome 120...)
 TLS Fingerprint: e7d1b9f8... (matches cURL)
@@ -71,9 +84,12 @@ TLS Fingerprint: e7d1b9f8... (matches cURL)
 ## 2. TCP/IP Stack Fingerprinting (p0f Style)
 
 ### Concept
-Passive OS fingerprinting by analyzing TCP/IP characteristics. Different operating systems and network stacks have distinct "signatures" at the packet level.
+
+Passive OS fingerprinting by analyzing TCP/IP characteristics. Different operating systems and network stacks have
+distinct "signatures" at the packet level.
 
 ### What It Detects
+
 - **TCP window size patterns**: Windows (65535), Linux (5840), bots (4096/32768)
 - **TTL (Time To Live) values**: Linux/Mac (64), Windows (128), unusual values (30)
 - **TCP options**: Modern stacks use timestamps, SACK, window scaling
@@ -81,6 +97,7 @@ Passive OS fingerprinting by analyzing TCP/IP characteristics. Different operati
 - **MSS (Maximum Segment Size)**: Standard (1460), old/custom (536)
 
 ### Signals Raised
+
 ```csharp
 tcp.window_size        : int
 tcp.ttl                : int
@@ -95,7 +112,9 @@ ip.id_pattern          : string  // "sequential" (Windows) or "random" (Linux)
 ```
 
 ### Production Integration
+
 Requires reverse proxy configuration to capture and forward TCP/IP metadata:
+
 ```
 X-TCP-Window: 65535
 X-TCP-TTL: 64
@@ -105,6 +124,7 @@ X-IP-DF: 1
 ```
 
 ### Example Detection
+
 ```
 User-Agent: Windows NT 10.0
 TCP TTL: 64 (Linux pattern)
@@ -115,9 +135,12 @@ TCP Window: 4096 (Bot pattern)
 ## 3. HTTP/2 Fingerprinting (AKAMAI Style)
 
 ### Concept
-Analyzes HTTP/2-specific parameters: SETTINGS frame, stream priorities, pseudoheader order. Browsers have consistent HTTP/2 behavior; automation tools often differ.
+
+Analyzes HTTP/2-specific parameters: SETTINGS frame, stream priorities, pseudoheader order. Browsers have consistent
+HTTP/2 behavior; automation tools often differ.
 
 ### What It Detects
+
 - **SETTINGS frame fingerprint**: Chrome, Firefox, Safari have distinct patterns
 - **Pseudoheader order**: Standard order vs non-standard
 - **Stream priority usage**: Browsers use it, many bot libraries don't
@@ -125,6 +148,7 @@ Analyzes HTTP/2-specific parameters: SETTINGS frame, stream priorities, pseudohe
 - **Server Push support**: Modern browsers support it, bots often disable
 
 ### Signals Raised
+
 ```csharp
 h2.is_http2            : bool
 h2.settings_fingerprint: string
@@ -137,7 +161,9 @@ h2.preface_valid       : bool
 ```
 
 ### Production Integration
+
 Requires HTTP/2-aware reverse proxy to capture SETTINGS frame and stream metadata:
+
 ```
 X-HTTP2-Settings: 1:65536,2:0,3:1000,4:6291456,6:262144
 X-HTTP2-Pseudoheader-Order: method,path,scheme,authority
@@ -146,6 +172,7 @@ X-HTTP2-Push-Enabled: 1
 ```
 
 ### Example Detection
+
 ```
 User-Agent: Chrome/120...
 HTTP/2 Settings: 3:100,4:65536 (Go HTTP2 Client pattern)
@@ -155,9 +182,12 @@ HTTP/2 Settings: 3:100,4:65536 (Go HTTP2 Client pattern)
 ## 4. Multi-Layer Correlation
 
 ### Concept
-Cross-checks consistency across multiple detection layers. Legitimate browsers show perfect consistency; bots often have layer mismatches.
+
+Cross-checks consistency across multiple detection layers. Legitimate browsers show perfect consistency; bots often have
+layer mismatches.
 
 ### What It Analyzes
+
 - **OS Correlation**: TCP TTL/window → User-Agent claimed OS
 - **Browser Correlation**: HTTP/2 fingerprint → User-Agent claimed browser
 - **TLS Correlation**: TLS version → User-Agent claimed browser version
@@ -165,6 +195,7 @@ Cross-checks consistency across multiple detection layers. Legitimate browsers s
 - **IP-Browser Correlation**: Datacenter IP + browser User-Agent
 
 ### Signals Raised
+
 ```csharp
 correlation.network_os         : string
 correlation.claimed_os         : string
@@ -182,12 +213,14 @@ correlation.anomaly_layers     : string  // "OS,Browser,Geo"
 ```
 
 ### Detection Rules
+
 - **1 mismatch**: 40% confidence (minor inconsistency)
 - **2 mismatches**: 60% confidence (significant inconsistency)
 - **3+ mismatches**: 85% confidence (highly suspicious)
 - **Perfect consistency**: -25% confidence (strong human indicator)
 
 ### Example Detection
+
 ```
 TCP: Linux (TTL=64)
 User-Agent: Windows NT 10.0, Chrome 120
@@ -199,9 +232,12 @@ IP: AWS Datacenter
 ## 5. Behavioral Waveform Analysis
 
 ### Concept
-Analyzes temporal patterns across multiple requests to detect automation. Inspired by Zeek's multi-flow behavior analysis and exfil detection patterns.
+
+Analyzes temporal patterns across multiple requests to detect automation. Inspired by Zeek's multi-flow behavior
+analysis and exfil detection patterns.
 
 ### What It Analyzes
+
 - **Timing Regularity**: Too-regular intervals (CV < 0.15) = bot, natural variation (CV 0.3-2.0) = human
 - **Request Rate**: >30 req/min = scraper, 10-30 req/min = suspicious
 - **Path Diversity**: Low diversity (<30% unique) = scanning
@@ -211,6 +247,7 @@ Analyzes temporal patterns across multiple requests to detect automation. Inspir
 - **Burst Detection**: >10 requests in 10 seconds = bot burst
 
 ### Signals Raised
+
 ```csharp
 waveform.signature             : string  // Client identity hash
 waveform.interval_mean         : double  // Average time between requests
@@ -229,6 +266,7 @@ waveform.keyboard_events       : int
 ```
 
 ### Timing Analysis Math
+
 ```csharp
 // Coefficient of Variation (CV) = stddev / mean
 // CV < 0.15: Too regular (likely bot)
@@ -245,6 +283,7 @@ CV = 5.7 / 9 = 0.63 → NATURAL VARIATION → -15% human indicator
 ```
 
 ### Example Detection
+
 ```
 Request history (20 requests):
 - Interval CV: 0.08 (highly regular)
@@ -316,6 +355,7 @@ Based on benchmarks with optimized BlackboardOrchestrator:
 - **Throughput**: Maintains >30,000 requests/sec on Ryzen 9 9950X
 
 The overhead is minimal because:
+
 1. Most contributors run in parallel (Wave 0)
 2. Signal extraction is optimized (pooled collections)
 3. Fingerprint matching uses hash lookups (O(1))
@@ -324,14 +364,18 @@ The overhead is minimal because:
 ## Security Considerations
 
 ### ThreatFox Integration (TODO)
+
 The TLS contributor has a TODO to integrate with ThreatFox for known malicious JA3 fingerprints:
+
 ```
 https://threatfox.abuse.ch/export/json/recent/
 ```
 
-This will provide real-time threat intelligence for TLS fingerprints associated with malware, C2 frameworks, and other threats.
+This will provide real-time threat intelligence for TLS fingerprints associated with malware, C2 frameworks, and other
+threats.
 
 ### Privacy
+
 - All signals use privacy-safe hashing (IP addresses masked in logs)
 - No PII stored in fingerprints
 - Waveform history expires after 30 minutes
@@ -342,27 +386,28 @@ This will provide real-time threat intelligence for TLS fingerprints associated 
 ### Inspired by Zeek Frameworks
 
 1. **File Analysis** (from Zeek's file framework)
-   - Track MIME types per client
-   - Detect "this client only downloads PDFs/ZIPs" patterns
-   - Scraper/downloader detection
+    - Track MIME types per client
+    - Detect "this client only downloads PDFs/ZIPs" patterns
+    - Scraper/downloader detection
 
 2. **Service Classification** (from Zeek's conn.log)
-   - Detect protocols on non-standard ports
-   - "HTTP-looking traffic on port 8443" = tunnel/proxy
+    - Detect protocols on non-standard ports
+    - "HTTP-looking traffic on port 8443" = tunnel/proxy
 
 3. **Exfiltration Detection** (from Salesforce Zeek module)
-   - Aggregate byte counts across parallel connections
-   - Detect chopped data streams
-   - Multi-threaded data extraction
+    - Aggregate byte counts across parallel connections
+    - Detect chopped data streams
+    - Multi-threaded data extraction
 
 4. **WebSocket Analysis**
-   - Zeek doesn't have native WebSocket support yet
-   - Opportunity to be ahead: WebSocket fingerprinting
-   - Detect automation over WS connections
+    - Zeek doesn't have native WebSocket support yet
+    - Opportunity to be ahead: WebSocket fingerprinting
+    - Detect automation over WS connections
 
 ## References
 
-- **JA3 Fingerprinting**: [Salesforce Engineering Blog](https://engineering.salesforce.com/tls-fingerprinting-with-ja3-and-ja3s-247362855967)
+- **JA3 Fingerprinting
+  **: [Salesforce Engineering Blog](https://engineering.salesforce.com/tls-fingerprinting-with-ja3-and-ja3s-247362855967)
 - **p0f (Passive OS Fingerprinting)**: [lcamtuf.coredump.cx/p0f3](https://lcamtuf.coredump.cx/p0f3/)
 - **HTTP/2 Fingerprinting**: [AKAMAI Research](https://www.akamai.com/blog/security/passive-fingerprinting-http2)
 - **Zeek Documentation**: [docs.zeek.org](https://docs.zeek.org/)
@@ -370,9 +415,11 @@ This will provide real-time threat intelligence for TLS fingerprints associated 
 
 ## Testing
 
-See `Mostlylucid.BotDetection.Benchmarks` for performance tests and `Mostlylucid.BotDetection.Test` for integration tests.
+See `Mostlylucid.BotDetection.Benchmarks` for performance tests and `Mostlylucid.BotDetection.Test` for integration
+tests.
 
 Run benchmarks:
+
 ```bash
 cd Mostlylucid.BotDetection.Benchmarks
 dotnet run -c Release

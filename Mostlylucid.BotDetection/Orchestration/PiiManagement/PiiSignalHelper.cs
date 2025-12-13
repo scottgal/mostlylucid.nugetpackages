@@ -4,7 +4,6 @@ namespace Mostlylucid.BotDetection.Orchestration.PiiManagement;
 
 /// <summary>
 ///     Helper for emitting PII-related signals in a consistent, privacy-safe manner.
-///
 ///     CRITICAL PRINCIPLES:
 ///     - PII NEVER goes in signal payloads
 ///     - Signals contain ONLY boolean indicators or hashed values
@@ -14,7 +13,6 @@ public static class PiiSignalHelper
 {
     /// <summary>
     ///     Emits IP-related signals WITHOUT putting raw IP in payload.
-    ///
     ///     Signals emitted:
     ///     - "ip.available" → true (boolean indicator)
     ///     - "ip.detected" → hashed IP (non-reversible signature)
@@ -43,7 +41,6 @@ public static class PiiSignalHelper
 
     /// <summary>
     ///     Emits user agent signals WITHOUT putting raw UA in payload.
-    ///
     ///     Signals emitted:
     ///     - "ua.available" → true (boolean indicator)
     ///     - "ua.detected" → hashed UA (non-reversible signature)
@@ -67,7 +64,6 @@ public static class PiiSignalHelper
 
     /// <summary>
     ///     Emits geographic signals WITHOUT putting raw location in payload.
-    ///
     ///     Signals emitted:
     ///     - "geo.available" → true (boolean indicator)
     ///     - "geo.country_code" → actual country code (NOT PII per GDPR)
@@ -87,16 +83,10 @@ public static class PiiSignalHelper
         signals["geo.available"] = true;
 
         // Country code is NOT PII (GDPR Article 4)
-        if (!string.IsNullOrEmpty(geoData.CountryCode))
-        {
-            signals["geo.country_code"] = geoData.CountryCode;
-        }
+        if (!string.IsNullOrEmpty(geoData.CountryCode)) signals["geo.country_code"] = geoData.CountryCode;
 
         // Timezone is NOT PII but useful for behavioral analysis
-        if (!string.IsNullOrEmpty(geoData.Timezone))
-        {
-            signals["geo.timezone"] = geoData.Timezone;
-        }
+        if (!string.IsNullOrEmpty(geoData.Timezone)) signals["geo.timezone"] = geoData.Timezone;
 
         // City/region/coordinates ARE PII - hash them
         if (!string.IsNullOrEmpty(geoData.City) || !string.IsNullOrEmpty(geoData.Region))
@@ -117,7 +107,6 @@ public static class PiiSignalHelper
 
     /// <summary>
     ///     Emits session-related signals WITHOUT putting session ID in payload.
-    ///
     ///     Signals emitted:
     ///     - "session.available" → true (boolean indicator)
     ///     - "session.detected" → hashed session ID
@@ -141,7 +130,6 @@ public static class PiiSignalHelper
 
     /// <summary>
     ///     Emits locale signals WITHOUT putting raw headers in payload.
-    ///
     ///     Signals emitted:
     ///     - "locale.available" → true (boolean indicator)
     ///     - "locale.language" → primary language (NOT PII, useful for bot detection)
@@ -171,7 +159,6 @@ public static class PiiSignalHelper
 
     /// <summary>
     ///     Emits referer signals WITHOUT putting raw URL in payload.
-    ///
     ///     Signals emitted:
     ///     - "referer.available" → true (boolean indicator)
     ///     - "referer.detected" → hashed referer (URLs can be PII)
@@ -196,7 +183,6 @@ public static class PiiSignalHelper
     /// <summary>
     ///     Emits composite request signature from multiple PII sources.
     ///     This signature is deterministic but non-reversible.
-    ///
     ///     Signal emitted:
     ///     - "request.signature" → HMAC(IP|UA|Path)
     /// </summary>
@@ -209,9 +195,7 @@ public static class PiiSignalHelper
         var signals = new Dictionary<string, object>();
 
         if (!string.IsNullOrEmpty(ipAddress) || !string.IsNullOrEmpty(userAgent))
-        {
             signals["request.signature"] = hasher.CreateRequestSignature(ipAddress, userAgent, path);
-        }
 
         return signals;
     }

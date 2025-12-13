@@ -33,6 +33,7 @@ Policies support inheritance via the `Extends` property:
 ```
 
 When a policy extends another:
+
 1. All properties from the parent are inherited
 2. Child properties override parent properties
 3. Multiple levels of inheritance are supported
@@ -56,6 +57,7 @@ When policies are executed:
 ## Codegen
 
 The JSON files in this directory are:
+
 1. Embedded as resources in the assembly
 2. Loaded at startup to create built-in policies
 3. Can be overridden by user configuration

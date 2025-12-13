@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.AspNetCore.Mvc.ViewComponents;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 
@@ -20,9 +19,7 @@ public class BotDetectionDetailsTagHelper : TagHelper
         _viewComponentHelper = viewComponentHelper;
     }
 
-    [ViewContext]
-    [HtmlAttributeNotBound]
-    public ViewContext? ViewContext { get; set; }
+    [ViewContext] [HtmlAttributeNotBound] public ViewContext? ViewContext { get; set; }
 
     /// <summary>
     ///     CSS class to apply to the container
@@ -38,24 +35,15 @@ public class BotDetectionDetailsTagHelper : TagHelper
 
     public override async Task ProcessAsync(TagHelperContext context, TagHelperOutput output)
     {
-        if (ViewContext != null)
-        {
-            (_viewComponentHelper as IViewContextAware)?.Contextualize(ViewContext);
-        }
+        if (ViewContext != null) (_viewComponentHelper as IViewContextAware)?.Contextualize(ViewContext);
 
         output.TagName = "div";
         output.TagMode = TagMode.StartTagAndEndTag;
 
         // Add CSS class
         var cssClasses = "bot-detection-details";
-        if (!string.IsNullOrEmpty(CssClass))
-        {
-            cssClasses += $" {CssClass}";
-        }
-        if (Collapsed)
-        {
-            cssClasses += " collapsed";
-        }
+        if (!string.IsNullOrEmpty(CssClass)) cssClasses += $" {CssClass}";
+        if (Collapsed) cssClasses += " collapsed";
 
         output.Attributes.SetAttribute("class", cssClasses);
 

@@ -1,5 +1,3 @@
-using System.Data;
-using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -11,7 +9,6 @@ namespace Mostlylucid.BotDetection.Data;
 /// <summary>
 ///     SQLite-backed store for learned bot patterns.
 ///     Supports efficient querying by signature type, pattern matching, and confidence.
-///
 ///     Schema design:
 ///     - Separate indexed columns for common query filters (type, pattern, confidence)
 ///     - JSON column for flexible metadata storage
@@ -68,12 +65,11 @@ public class PatternStoreStats
 /// </summary>
 public class SqliteLearnedPatternStore : ILearnedPatternStore, IAsyncDisposable
 {
-    private readonly ILogger<SqliteLearnedPatternStore> _logger;
+    private const string TableName = "learned_patterns";
     private readonly string _connectionString;
     private readonly SemaphoreSlim _initLock = new(1, 1);
+    private readonly ILogger<SqliteLearnedPatternStore> _logger;
     private bool _initialized;
-
-    private const string TableName = "learned_patterns";
 
     public SqliteLearnedPatternStore(
         ILogger<SqliteLearnedPatternStore> logger,
@@ -82,58 +78,15 @@ public class SqliteLearnedPatternStore : ILearnedPatternStore, IAsyncDisposable
         _logger = logger;
 
         var dbPath = options.Value.DatabasePath
-            ?? Path.Combine(AppContext.BaseDirectory, "botdetection.db");
+                     ?? Path.Combine(AppContext.BaseDirectory, "botdetection.db");
 
         _connectionString = $"Data Source={dbPath}";
     }
 
-    private async Task EnsureInitializedAsync(CancellationToken ct)
+    public ValueTask DisposeAsync()
     {
-        if (_initialized) return;
-
-        await _initLock.WaitAsync(ct);
-        try
-        {
-            if (_initialized) return;
-
-            await using var conn = new SqliteConnection(_connectionString);
-            await conn.OpenAsync(ct);
-
-            // Create table with indexed columns for common queries
-            var sql = $@"
-                CREATE TABLE IF NOT EXISTS {TableName} (
-                    pattern_id TEXT PRIMARY KEY,
-                    signature_type TEXT NOT NULL,
-                    pattern TEXT NOT NULL,
-                    confidence REAL NOT NULL,
-                    occurrences INTEGER NOT NULL DEFAULT 1,
-                    first_seen TEXT NOT NULL,
-                    last_seen TEXT NOT NULL,
-                    action TEXT NOT NULL DEFAULT 'LogOnly',
-                    bot_type TEXT,
-                    bot_name TEXT,
-                    source TEXT,
-                    fed_back INTEGER NOT NULL DEFAULT 0,
-                    metadata TEXT
-                );
-
-                CREATE INDEX IF NOT EXISTS idx_signature_type ON {TableName}(signature_type);
-                CREATE INDEX IF NOT EXISTS idx_confidence ON {TableName}(confidence);
-                CREATE INDEX IF NOT EXISTS idx_occurrences ON {TableName}(occurrences);
-                CREATE INDEX IF NOT EXISTS idx_fed_back ON {TableName}(fed_back);
-                CREATE INDEX IF NOT EXISTS idx_last_seen ON {TableName}(last_seen);
-            ";
-
-            await using var cmd = new SqliteCommand(sql, conn);
-            await cmd.ExecuteNonQueryAsync(ct);
-
-            _initialized = true;
-            _logger.LogDebug("Learned pattern store initialized");
-        }
-        finally
-        {
-            _initLock.Release();
-        }
+        _initLock.Dispose();
+        return ValueTask.CompletedTask;
     }
 
     public async Task UpsertAsync(LearnedSignature signature, CancellationToken ct = default)
@@ -176,7 +129,8 @@ public class SqliteLearnedPatternStore : ILearnedPatternStore, IAsyncDisposable
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    public async Task<IReadOnlyList<LearnedSignature>> GetByTypeAsync(string signatureType, CancellationToken ct = default)
+    public async Task<IReadOnlyList<LearnedSignature>> GetByTypeAsync(string signatureType,
+        CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
 
@@ -195,7 +149,8 @@ public class SqliteLearnedPatternStore : ILearnedPatternStore, IAsyncDisposable
         return await ReadSignaturesAsync(cmd, ct);
     }
 
-    public async Task<IReadOnlyList<LearnedSignature>> GetByConfidenceAsync(double minConfidence, CancellationToken ct = default)
+    public async Task<IReadOnlyList<LearnedSignature>> GetByConfidenceAsync(double minConfidence,
+        CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
 
@@ -245,7 +200,8 @@ public class SqliteLearnedPatternStore : ILearnedPatternStore, IAsyncDisposable
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    public async Task<IReadOnlyList<LearnedSignature>> GetPendingFeedbackAsync(int minOccurrences, CancellationToken ct = default)
+    public async Task<IReadOnlyList<LearnedSignature>> GetPendingFeedbackAsync(int minOccurrences,
+        CancellationToken ct = default)
     {
         await EnsureInitializedAsync(ct);
 
@@ -299,10 +255,7 @@ public class SqliteLearnedPatternStore : ILearnedPatternStore, IAsyncDisposable
         cmd.Parameters.AddWithValue("@cutoff", cutoff);
 
         var deleted = await cmd.ExecuteNonQueryAsync(ct);
-        if (deleted > 0)
-        {
-            _logger.LogInformation("Cleaned up {Count} old learned patterns", deleted);
-        }
+        if (deleted > 0) _logger.LogInformation("Cleaned up {Count} old learned patterns", deleted);
     }
 
     public async Task<PatternStoreStats> GetStatsAsync(CancellationToken ct = default)
@@ -329,7 +282,6 @@ public class SqliteLearnedPatternStore : ILearnedPatternStore, IAsyncDisposable
         await using var reader = await cmd.ExecuteReaderAsync(ct);
 
         if (await reader.ReadAsync(ct))
-        {
             return new PatternStoreStats
             {
                 TotalPatterns = reader.GetInt32(0),
@@ -341,9 +293,57 @@ public class SqliteLearnedPatternStore : ILearnedPatternStore, IAsyncDisposable
                 OldestPattern = reader.IsDBNull(6) ? null : DateTimeOffset.Parse(reader.GetString(6)),
                 NewestPattern = reader.IsDBNull(7) ? null : DateTimeOffset.Parse(reader.GetString(7))
             };
-        }
 
         return new PatternStoreStats();
+    }
+
+    private async Task EnsureInitializedAsync(CancellationToken ct)
+    {
+        if (_initialized) return;
+
+        await _initLock.WaitAsync(ct);
+        try
+        {
+            if (_initialized) return;
+
+            await using var conn = new SqliteConnection(_connectionString);
+            await conn.OpenAsync(ct);
+
+            // Create table with indexed columns for common queries
+            var sql = $@"
+                CREATE TABLE IF NOT EXISTS {TableName} (
+                    pattern_id TEXT PRIMARY KEY,
+                    signature_type TEXT NOT NULL,
+                    pattern TEXT NOT NULL,
+                    confidence REAL NOT NULL,
+                    occurrences INTEGER NOT NULL DEFAULT 1,
+                    first_seen TEXT NOT NULL,
+                    last_seen TEXT NOT NULL,
+                    action TEXT NOT NULL DEFAULT 'LogOnly',
+                    bot_type TEXT,
+                    bot_name TEXT,
+                    source TEXT,
+                    fed_back INTEGER NOT NULL DEFAULT 0,
+                    metadata TEXT
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_signature_type ON {TableName}(signature_type);
+                CREATE INDEX IF NOT EXISTS idx_confidence ON {TableName}(confidence);
+                CREATE INDEX IF NOT EXISTS idx_occurrences ON {TableName}(occurrences);
+                CREATE INDEX IF NOT EXISTS idx_fed_back ON {TableName}(fed_back);
+                CREATE INDEX IF NOT EXISTS idx_last_seen ON {TableName}(last_seen);
+            ";
+
+            await using var cmd = new SqliteCommand(sql, conn);
+            await cmd.ExecuteNonQueryAsync(ct);
+
+            _initialized = true;
+            _logger.LogDebug("Learned pattern store initialized");
+        }
+        finally
+        {
+            _initLock.Release();
+        }
     }
 
     private static async Task<IReadOnlyList<LearnedSignature>> ReadSignaturesAsync(
@@ -354,7 +354,6 @@ public class SqliteLearnedPatternStore : ILearnedPatternStore, IAsyncDisposable
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
-        {
             results.Add(new LearnedSignature
             {
                 PatternId = reader.GetString(reader.GetOrdinal("pattern_id")),
@@ -380,14 +379,7 @@ public class SqliteLearnedPatternStore : ILearnedPatternStore, IAsyncDisposable
                     ? null
                     : reader.GetString(reader.GetOrdinal("source"))
             });
-        }
 
         return results;
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        _initLock.Dispose();
-        return ValueTask.CompletedTask;
     }
 }

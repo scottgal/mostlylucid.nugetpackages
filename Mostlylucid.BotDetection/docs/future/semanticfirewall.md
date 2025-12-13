@@ -1,11 +1,15 @@
 ﻿# Semantic firewall layer for protection in depth
 
 ## Overview
-A semantics-aware governance layer that sits behind traditional network firewalls and mail gateways, evaluating the meaning, intent, and risk of content flowing inbound and outbound. It orchestrates contributors (detectors, middleware) via policies, role graphs, and performance profiles to deliver customizable, explainable protection in depth.
+
+A semantics-aware governance layer that sits behind traditional network firewalls and mail gateways, evaluating the
+meaning, intent, and risk of content flowing inbound and outbound. It orchestrates contributors (detectors, middleware)
+via policies, role graphs, and performance profiles to deliver customizable, explainable protection in depth.
 
 ---
 
 ## Goals
+
 - **Intent-aware defense:** Inspect semantics (tone, toxicity, PII risk, doxing) rather than only headers and IPs.
 - **Customizable policy mesh:** Per-org, per-department, and per-role controls with granular actions.
 - **Protection in depth:** Multi-lane pipeline from lightweight rules to deep semantic reasoning.
@@ -16,7 +20,8 @@ A semantics-aware governance layer that sits behind traditional network firewall
 
 ## Architecture
 
-### Pipeline lanes get 
+### Pipeline lanes get
+
 - **Light lane:**
     - **Purpose:** Low-latency screening.
     - **Components:** Strict rules, header sanity, IP reputation cache, ASN/geo.
@@ -29,10 +34,12 @@ A semantics-aware governance layer that sits behind traditional network firewall
 
 - **Deep lane:**
     - **Purpose:** High-fidelity semantic reasoning.
-    - **Components:** Sentiment analysis, toxicity classifiers, doxing detection, PII redaction middleware, optional LLM reasoning.
+    - **Components:** Sentiment analysis, toxicity classifiers, doxing detection, PII redaction middleware, optional LLM
+      reasoning.
     - **Actions:** Block, rewrite/redact inline, escalate to human review, generate incident.
 
 ### Orchestration components
+
 - **PerformanceContributor:**
     - **Role:** Reads Prometheus; selects Lean/Balanced/Paranoid profiles; controls lane activation.
     - **Signals:** `profile:lean|balanced|paranoid`, contributor expense map, reasons.
@@ -43,7 +50,8 @@ A semantics-aware governance layer that sits behind traditional network firewall
 
 - **Role graph integration:**
     - **Source:** HR/IdP (AD/Okta).
-    - **Usage:** Department-specific policies (e.g., Legal “never log”), executive high-trust routing, Finance stricter outbound.
+    - **Usage:** Department-specific policies (e.g., Legal “never log”), executive high-trust routing, Finance stricter
+      outbound.
 
 - **Marketplace and contributor registry:**
     - **Purpose:** Discover, validate, and load audited tools; pin versions; shadow-run before activation.
@@ -58,6 +66,7 @@ A semantics-aware governance layer that sits behind traditional network firewall
 ## Capabilities
 
 ### Inbound screening
+
 - **Phishing/social engineering:**
     - **Signals:** Header anomalies, domain spoof patterns, sentiment manipulative cues.
     - **Actions:** Quarantine, enrich with indicators, alert SecOps.
@@ -71,6 +80,7 @@ A semantics-aware governance layer that sits behind traditional network firewall
     - **Actions:** Block or redact, create incident.
 
 ### Outbound screening
+
 - **PII leakage prevention:**
     - **Signals:** Email, phone, ID numbers, customer record references.
     - **Actions:** Inline redaction, route to compliance review for high-risk payloads.
@@ -88,6 +98,7 @@ A semantics-aware governance layer that sits behind traditional network firewall
 ## Policies and configurability
 
 ### Profiles and thresholds
+
 - **Lean:**
     - **Intent:** Latency-first environments.
     - **Active:** Light lane only; log and tag; medium+ trust contributors.
@@ -104,6 +115,7 @@ A semantics-aware governance layer that sits behind traditional network firewall
     - **Triggers:** Attack surge, strong toxicity/doxing/PII risk.
 
 ### Role-aware controls
+
 - **Legal:**
     - **Policy:** Never log raw content; only non-PII signatures; redaction mandatory.
     - **Actions:** Block on high-risk; require counsel approvals.
@@ -117,6 +129,7 @@ A semantics-aware governance layer that sits behind traditional network firewall
     - **Actions:** Suggest rewrites; pass with audit.
 
 ### Marketplace governance
+
 - **Install rules:**
     - **Policy:** Shadow-run contributors to collect fitness; promote on pass.
     - **Safety:** Kill switch via platform signature revocation; rollback pinned versions.
@@ -143,6 +156,7 @@ A semantics-aware governance layer that sits behind traditional network firewall
 ## C# interfaces and example contracts
 
 ### Semantic firewall engine
+
 ```csharp
 public interface ISemanticFirewall
 {
@@ -166,6 +180,7 @@ public enum Profile { Lean, Balanced, Paranoid }
 ```
 
 ### Decision and scorecard
+
 ```csharp
 public sealed class FirewallDecision
 {
@@ -190,6 +205,7 @@ public sealed class Scorecard
 ```
 
 ### Contributor contract (detector/middleware)
+
 ```csharp
 public interface ISemanticContributor
 {
@@ -214,6 +230,7 @@ public sealed class ContributorVerdict
 ```
 
 ### Policy graph engine
+
 ```csharp
 public interface IPolicyGraph
 {
@@ -272,4 +289,6 @@ public sealed class RolePolicyOverrides
 
 ---
 
-If you want, I can generate a minimal repo scaffold with the interfaces above, a manifest schema, scorecard format, and CI pipeline that enforces signing, tests, and performance benchmarks—so you can operationalize this semantic firewall layer quickly.
+If you want, I can generate a minimal repo scaffold with the interfaces above, a manifest schema, scorecard format, and
+CI pipeline that enforces signing, tests, and performance benchmarks—so you can operationalize this semantic firewall
+layer quickly.

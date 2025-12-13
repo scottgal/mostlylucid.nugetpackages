@@ -1,21 +1,20 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Mostlylucid.BotDetection.UI.Configuration;
 using Mostlylucid.BotDetection.UI.Hubs;
-using Mostlylucid.BotDetection.UI.Services;
 using Mostlylucid.BotDetection.UI.Middleware;
+using Mostlylucid.BotDetection.UI.Services;
 
 namespace Mostlylucid.BotDetection.UI.Extensions;
 
 /// <summary>
-/// Extension methods for registering Stylobot Dashboard services.
+///     Extension methods for registering Stylobot Dashboard services.
 /// </summary>
 public static class StyloBotDashboardServiceExtensions
 {
     /// <summary>
-    /// Adds Stylobot Dashboard services to the service collection.
+    ///     Adds Stylobot Dashboard services to the service collection.
     /// </summary>
     /// <param name="services">The service collection</param>
     /// <param name="configure">Configuration options</param>
@@ -37,16 +36,13 @@ public static class StyloBotDashboardServiceExtensions
         services.AddHostedService<DashboardSummaryBroadcaster>();
 
         // Simulator if enabled
-        if (options.EnableSimulator)
-        {
-            services.AddHostedService<DashboardSimulatorService>();
-        }
+        if (options.EnableSimulator) services.AddHostedService<DashboardSimulatorService>();
 
         return services;
     }
 
     /// <summary>
-    /// Maps Stylobot Dashboard endpoints (UI and SignalR hub).
+    ///     Maps Stylobot Dashboard endpoints (UI and SignalR hub).
     /// </summary>
     /// <param name="app">The application builder</param>
     /// <returns>The application builder for chaining</returns>
@@ -54,16 +50,10 @@ public static class StyloBotDashboardServiceExtensions
     {
         var options = app.ApplicationServices.GetRequiredService<StyloBotDashboardOptions>();
 
-        if (!options.Enabled)
-        {
-            return app;
-        }
+        if (!options.Enabled) return app;
 
         // Map SignalR hub
-        app.UseEndpoints(endpoints =>
-        {
-            endpoints.MapHub<StyloBotDashboardHub>(options.HubPath);
-        });
+        app.UseEndpoints(endpoints => { endpoints.MapHub<StyloBotDashboardHub>(options.HubPath); });
 
         // Use dashboard middleware for routing
         app.UseMiddleware<StyloBotDashboardMiddleware>();
@@ -72,7 +62,7 @@ public static class StyloBotDashboardServiceExtensions
     }
 
     /// <summary>
-    /// Quick setup: Adds services and middleware with authorization filter.
+    ///     Quick setup: Adds services and middleware with authorization filter.
     /// </summary>
     /// <param name="services">The service collection</param>
     /// <param name="authFilter">Authorization filter (return true to allow, false to deny)</param>

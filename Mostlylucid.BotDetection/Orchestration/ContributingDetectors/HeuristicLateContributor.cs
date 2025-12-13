@@ -32,8 +32,8 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// </remarks>
 public class HeuristicLateContributor : ContributingDetectorBase
 {
-    private readonly ILogger<HeuristicLateContributor> _logger;
     private readonly HeuristicDetector _detector;
+    private readonly ILogger<HeuristicLateContributor> _logger;
 
     public HeuristicLateContributor(
         ILogger<HeuristicLateContributor> logger,
@@ -76,10 +76,8 @@ public class HeuristicLateContributor : ContributingDetectorBase
             var result = await _detector.DetectAsync(state.HttpContext, cancellationToken);
 
             if (result.Reasons.Count == 0)
-            {
                 // Heuristic disabled or skipped
                 return contributions;
-            }
 
             // Get the reason - should now say "full" mode
             var reason = result.Reasons.First();
@@ -120,19 +118,12 @@ public class HeuristicLateContributor : ContributingDetectorBase
     {
         // Aggregate signals from blackboard state first
         var signals = new Dictionary<string, object>();
-        foreach (var signal in state.Signals)
-        {
-            signals[signal.Key] = signal.Value;
-        }
+        foreach (var signal in state.Signals) signals[signal.Key] = signal.Value;
 
         // Then overlay signals from all contributions (these take precedence)
         foreach (var contrib in state.Contributions)
-        {
-            foreach (var signal in contrib.Signals)
-            {
-                signals[signal.Key] = signal.Value;
-            }
-        }
+        foreach (var signal in contrib.Signals)
+            signals[signal.Key] = signal.Value;
 
         // Check if AI detectors contributed
         var aiDetectors = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Onnx", "Llm" };

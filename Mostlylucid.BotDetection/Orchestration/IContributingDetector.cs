@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Http;
-using Mostlylucid.BotDetection.Detectors;
 using Mostlylucid.BotDetection.Models;
 
 namespace Mostlylucid.BotDetection.Orchestration;
@@ -67,14 +66,14 @@ public interface IContributingDetector
 public abstract record TriggerCondition
 {
     /// <summary>
-    ///     Check if this condition is satisfied given the current blackboard signals.
-    /// </summary>
-    public abstract bool IsSatisfied(IReadOnlyDictionary<string, object> signals);
-
-    /// <summary>
     ///     Human-readable description of this condition
     /// </summary>
     public abstract string Description { get; }
+
+    /// <summary>
+    ///     Check if this condition is satisfied given the current blackboard signals.
+    /// </summary>
+    public abstract bool IsSatisfied(IReadOnlyDictionary<string, object> signals);
 }
 
 /// <summary>
@@ -82,10 +81,12 @@ public abstract record TriggerCondition
 /// </summary>
 public sealed record SignalExistsTrigger(string SignalKey) : TriggerCondition
 {
-    public override bool IsSatisfied(IReadOnlyDictionary<string, object> signals) =>
-        signals.ContainsKey(SignalKey);
-
     public override string Description => $"Signal '{SignalKey}' exists";
+
+    public override bool IsSatisfied(IReadOnlyDictionary<string, object> signals)
+    {
+        return signals.ContainsKey(SignalKey);
+    }
 }
 
 /// <summary>
@@ -93,12 +94,14 @@ public sealed record SignalExistsTrigger(string SignalKey) : TriggerCondition
 /// </summary>
 public sealed record SignalValueTrigger<T>(string SignalKey, T ExpectedValue) : TriggerCondition
 {
-    public override bool IsSatisfied(IReadOnlyDictionary<string, object> signals) =>
-        signals.TryGetValue(SignalKey, out var value) &&
-        value is T typed &&
-        EqualityComparer<T>.Default.Equals(typed, ExpectedValue);
-
     public override string Description => $"Signal '{SignalKey}' == {ExpectedValue}";
+
+    public override bool IsSatisfied(IReadOnlyDictionary<string, object> signals)
+    {
+        return signals.TryGetValue(SignalKey, out var value) &&
+               value is T typed &&
+               EqualityComparer<T>.Default.Equals(typed, ExpectedValue);
+    }
 }
 
 /// <summary>
@@ -109,12 +112,14 @@ public sealed record SignalPredicateTrigger<T>(
     Func<T, bool> Predicate,
     string PredicateDescription) : TriggerCondition
 {
-    public override bool IsSatisfied(IReadOnlyDictionary<string, object> signals) =>
-        signals.TryGetValue(SignalKey, out var value) &&
-        value is T typed &&
-        Predicate(typed);
-
     public override string Description => $"Signal '{SignalKey}' {PredicateDescription}";
+
+    public override bool IsSatisfied(IReadOnlyDictionary<string, object> signals)
+    {
+        return signals.TryGetValue(SignalKey, out var value) &&
+               value is T typed &&
+               Predicate(typed);
+    }
 }
 
 /// <summary>
@@ -122,10 +127,12 @@ public sealed record SignalPredicateTrigger<T>(
 /// </summary>
 public sealed record AnyOfTrigger(IReadOnlyList<TriggerCondition> Conditions) : TriggerCondition
 {
-    public override bool IsSatisfied(IReadOnlyDictionary<string, object> signals) =>
-        Conditions.Any(c => c.IsSatisfied(signals));
-
     public override string Description => $"Any of: [{string.Join(", ", Conditions.Select(c => c.Description))}]";
+
+    public override bool IsSatisfied(IReadOnlyDictionary<string, object> signals)
+    {
+        return Conditions.Any(c => c.IsSatisfied(signals));
+    }
 }
 
 /// <summary>
@@ -133,10 +140,12 @@ public sealed record AnyOfTrigger(IReadOnlyList<TriggerCondition> Conditions) : 
 /// </summary>
 public sealed record AllOfTrigger(IReadOnlyList<TriggerCondition> Conditions) : TriggerCondition
 {
-    public override bool IsSatisfied(IReadOnlyDictionary<string, object> signals) =>
-        Conditions.All(c => c.IsSatisfied(signals));
-
     public override string Description => $"All of: [{string.Join(", ", Conditions.Select(c => c.Description))}]";
+
+    public override bool IsSatisfied(IReadOnlyDictionary<string, object> signals)
+    {
+        return Conditions.All(c => c.IsSatisfied(signals));
+    }
 }
 
 /// <summary>
@@ -146,12 +155,14 @@ public sealed record DetectorCountTrigger(int MinDetectors) : TriggerCondition
 {
     public const string CompletedDetectorsSignal = "_system.completed_detectors";
 
-    public override bool IsSatisfied(IReadOnlyDictionary<string, object> signals) =>
-        signals.TryGetValue(CompletedDetectorsSignal, out var value) &&
-        value is int count &&
-        count >= MinDetectors;
-
     public override string Description => $"At least {MinDetectors} detectors completed";
+
+    public override bool IsSatisfied(IReadOnlyDictionary<string, object> signals)
+    {
+        return signals.TryGetValue(CompletedDetectorsSignal, out var value) &&
+               value is int count &&
+               count >= MinDetectors;
+    }
 }
 
 /// <summary>
@@ -161,12 +172,14 @@ public sealed record RiskThresholdTrigger(double MinScore) : TriggerCondition
 {
     public const string CurrentRiskSignal = "_system.current_risk";
 
-    public override bool IsSatisfied(IReadOnlyDictionary<string, object> signals) =>
-        signals.TryGetValue(CurrentRiskSignal, out var value) &&
-        value is double score &&
-        score >= MinScore;
-
     public override string Description => $"Risk score >= {MinScore:F2}";
+
+    public override bool IsSatisfied(IReadOnlyDictionary<string, object> signals)
+    {
+        return signals.TryGetValue(CurrentRiskSignal, out var value) &&
+               value is double score &&
+               score >= MinScore;
+    }
 }
 
 /// <summary>
@@ -174,51 +187,6 @@ public sealed record RiskThresholdTrigger(double MinScore) : TriggerCondition
 /// </summary>
 public static class Triggers
 {
-    /// <summary>
-    ///     Trigger when a signal exists
-    /// </summary>
-    public static TriggerCondition WhenSignalExists(string signalKey) =>
-        new SignalExistsTrigger(signalKey);
-
-    /// <summary>
-    ///     Trigger when a signal has a specific value
-    /// </summary>
-    public static TriggerCondition WhenSignalEquals<T>(string signalKey, T value) =>
-        new SignalValueTrigger<T>(signalKey, value);
-
-    /// <summary>
-    ///     Trigger when a signal satisfies a predicate
-    /// </summary>
-    public static TriggerCondition WhenSignal<T>(
-        string signalKey,
-        Func<T, bool> predicate,
-        string description) =>
-        new SignalPredicateTrigger<T>(signalKey, predicate, description);
-
-    /// <summary>
-    ///     Trigger when any condition is met
-    /// </summary>
-    public static TriggerCondition AnyOf(params TriggerCondition[] conditions) =>
-        new AnyOfTrigger(conditions);
-
-    /// <summary>
-    ///     Trigger when all conditions are met
-    /// </summary>
-    public static TriggerCondition AllOf(params TriggerCondition[] conditions) =>
-        new AllOfTrigger(conditions);
-
-    /// <summary>
-    ///     Trigger when enough detectors have completed
-    /// </summary>
-    public static TriggerCondition WhenDetectorCount(int min) =>
-        new DetectorCountTrigger(min);
-
-    /// <summary>
-    ///     Trigger when risk exceeds threshold
-    /// </summary>
-    public static TriggerCondition WhenRiskExceeds(double threshold) =>
-        new RiskThresholdTrigger(threshold);
-
     /// <summary>
     ///     Common: trigger when IP is from datacenter
     /// </summary>
@@ -236,12 +204,70 @@ public static class Triggers
     /// </summary>
     public static TriggerCondition WhenRiskMediumOrHigher =>
         WhenRiskExceeds(0.5);
+
+    /// <summary>
+    ///     Trigger when a signal exists
+    /// </summary>
+    public static TriggerCondition WhenSignalExists(string signalKey)
+    {
+        return new SignalExistsTrigger(signalKey);
+    }
+
+    /// <summary>
+    ///     Trigger when a signal has a specific value
+    /// </summary>
+    public static TriggerCondition WhenSignalEquals<T>(string signalKey, T value)
+    {
+        return new SignalValueTrigger<T>(signalKey, value);
+    }
+
+    /// <summary>
+    ///     Trigger when a signal satisfies a predicate
+    /// </summary>
+    public static TriggerCondition WhenSignal<T>(
+        string signalKey,
+        Func<T, bool> predicate,
+        string description)
+    {
+        return new SignalPredicateTrigger<T>(signalKey, predicate, description);
+    }
+
+    /// <summary>
+    ///     Trigger when any condition is met
+    /// </summary>
+    public static TriggerCondition AnyOf(params TriggerCondition[] conditions)
+    {
+        return new AnyOfTrigger(conditions);
+    }
+
+    /// <summary>
+    ///     Trigger when all conditions are met
+    /// </summary>
+    public static TriggerCondition AllOf(params TriggerCondition[] conditions)
+    {
+        return new AllOfTrigger(conditions);
+    }
+
+    /// <summary>
+    ///     Trigger when enough detectors have completed
+    /// </summary>
+    public static TriggerCondition WhenDetectorCount(int min)
+    {
+        return new DetectorCountTrigger(min);
+    }
+
+    /// <summary>
+    ///     Trigger when risk exceeds threshold
+    /// </summary>
+    public static TriggerCondition WhenRiskExceeds(double threshold)
+    {
+        return new RiskThresholdTrigger(threshold);
+    }
 }
 
 /// <summary>
 ///     Immutable snapshot of the blackboard state passed to detectors.
 ///     Contains all signals from prior detectors.
-///
 ///     CRITICAL PII HANDLING RULES:
 ///     - PII (IP, UA, location, etc.) is accessed ONLY via direct properties (ClientIp, UserAgent, etc.)
 ///     - PII must NEVER be placed in signal payloads
@@ -292,18 +318,6 @@ public sealed class BlackboardState
     /// </summary>
     public TimeSpan Elapsed { get; init; }
 
-    /// <summary>
-    ///     Get a typed signal value.
-    ///     IMPORTANT: Signals should NEVER contain raw PII.
-    /// </summary>
-    public T? GetSignal<T>(string key) =>
-        Signals.TryGetValue(key, out var value) && value is T typed ? typed : default;
-
-    /// <summary>
-    ///     Check if a signal exists
-    /// </summary>
-    public bool HasSignal(string key) => Signals.ContainsKey(key);
-
     // ===== PII Properties (Direct Access ONLY) =====
     //
     // CRITICAL: These properties provide direct access to PII.
@@ -344,6 +358,23 @@ public sealed class BlackboardState
     ///     IMPORTANT: Access directly from state, NEVER put in signal payload.
     /// </summary>
     public string? SessionId => HttpContext.TraceIdentifier;
+
+    /// <summary>
+    ///     Get a typed signal value.
+    ///     IMPORTANT: Signals should NEVER contain raw PII.
+    /// </summary>
+    public T? GetSignal<T>(string key)
+    {
+        return Signals.TryGetValue(key, out var value) && value is T typed ? typed : default;
+    }
+
+    /// <summary>
+    ///     Check if a signal exists
+    /// </summary>
+    public bool HasSignal(string key)
+    {
+        return Signals.ContainsKey(key);
+    }
 }
 
 /// <summary>
@@ -367,18 +398,24 @@ public abstract class ContributingDetectorBase : IContributingDetector
     /// <summary>
     ///     Helper to return a single contribution
     /// </summary>
-    protected static IReadOnlyList<DetectionContribution> Single(DetectionContribution contribution) =>
-        new[] { contribution };
+    protected static IReadOnlyList<DetectionContribution> Single(DetectionContribution contribution)
+    {
+        return new[] { contribution };
+    }
 
     /// <summary>
     ///     Helper to return multiple contributions
     /// </summary>
-    protected static IReadOnlyList<DetectionContribution> Multiple(params DetectionContribution[] contributions) =>
-        contributions;
+    protected static IReadOnlyList<DetectionContribution> Multiple(params DetectionContribution[] contributions)
+    {
+        return contributions;
+    }
 
     /// <summary>
     ///     Helper to return no contributions
     /// </summary>
-    protected static IReadOnlyList<DetectionContribution> None() =>
-        Array.Empty<DetectionContribution>();
+    protected static IReadOnlyList<DetectionContribution> None()
+    {
+        return Array.Empty<DetectionContribution>();
+    }
 }

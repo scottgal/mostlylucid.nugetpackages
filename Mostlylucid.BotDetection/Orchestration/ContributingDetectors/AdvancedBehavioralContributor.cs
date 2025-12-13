@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -14,8 +15,8 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// </summary>
 public class AdvancedBehavioralContributor : ContributingDetectorBase
 {
-    private readonly ILogger<AdvancedBehavioralContributor> _logger;
     private readonly BehavioralPatternAnalyzer _analyzer;
+    private readonly ILogger<AdvancedBehavioralContributor> _logger;
     private readonly BotDetectionOptions _options;
 
     public AdvancedBehavioralContributor(
@@ -45,9 +46,7 @@ public class AdvancedBehavioralContributor : ContributingDetectorBase
 
         // Skip if advanced pattern detection is disabled
         if (!_options.Behavioral.EnableAdvancedPatternDetection)
-        {
             return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
-        }
 
         var context = state.HttpContext;
         var clientIp = GetClientIp(context);
@@ -72,7 +71,6 @@ public class AdvancedBehavioralContributor : ContributingDetectorBase
                 // Very high entropy (>3.5) = random scanning (bot)
                 // Very low entropy (<0.5) = too repetitive (bot)
                 if (pathEntropy > 3.5)
-                {
                     contributions.Add(new DetectionContribution
                     {
                         DetectorName = Name,
@@ -84,9 +82,7 @@ public class AdvancedBehavioralContributor : ContributingDetectorBase
                             .Add("PathEntropy", pathEntropy)
                             .Add("PathEntropyHigh", true)
                     });
-                }
                 else if (pathEntropy < 0.5)
-                {
                     contributions.Add(new DetectionContribution
                     {
                         DetectorName = Name,
@@ -98,16 +94,13 @@ public class AdvancedBehavioralContributor : ContributingDetectorBase
                             .Add("PathEntropy", pathEntropy)
                             .Add("PathEntropyLow", true)
                     });
-                }
             }
 
             // 2. Timing Entropy
             var timingEntropy = _analyzer.CalculateTimingEntropy(clientIp);
             if (timingEntropy > 0)
-            {
                 // Very low timing entropy (<0.3) = too regular (bot)
                 if (timingEntropy < 0.3)
-                {
                     contributions.Add(new DetectionContribution
                     {
                         DetectorName = Name,
@@ -119,13 +112,10 @@ public class AdvancedBehavioralContributor : ContributingDetectorBase
                             .Add("TimingEntropy", timingEntropy)
                             .Add("TimingTooRegular", true)
                     });
-                }
-            }
 
             // 3. Timing Anomaly Detection
             var (isAnomaly, zScore, anomalyDesc) = _analyzer.DetectTimingAnomaly(clientIp, currentTime);
             if (isAnomaly)
-            {
                 contributions.Add(new DetectionContribution
                 {
                     DetectorName = Name,
@@ -137,12 +127,10 @@ public class AdvancedBehavioralContributor : ContributingDetectorBase
                         .Add("TimingAnomalyZScore", zScore)
                         .Add("TimingAnomalyDetected", true)
                 });
-            }
 
             // 4. Regular Pattern Detection (Coefficient of Variation)
             var (isTooRegular, cv, cvDesc) = _analyzer.DetectRegularPattern(clientIp);
             if (isTooRegular)
-            {
                 contributions.Add(new DetectionContribution
                 {
                     DetectorName = Name,
@@ -154,12 +142,10 @@ public class AdvancedBehavioralContributor : ContributingDetectorBase
                         .Add("CoefficientOfVariation", cv)
                         .Add("PatternTooRegular", true)
                 });
-            }
 
             // 5. Navigation Pattern Analysis (Markov)
             var (transitionScore, navPattern) = _analyzer.AnalyzeNavigationPattern(clientIp, currentPath);
             if (transitionScore > 0)
-            {
                 contributions.Add(new DetectionContribution
                 {
                     DetectorName = Name,
@@ -171,13 +157,11 @@ public class AdvancedBehavioralContributor : ContributingDetectorBase
                         .Add("NavigationAnomalyScore", transitionScore)
                         .Add("NavigationPatternUnusual", true)
                 });
-            }
 
             // 6. Burst Detection
             var burstWindow = TimeSpan.FromSeconds(30);
             var (isBurst, burstSize, burstDuration) = _analyzer.DetectBurstPattern(clientIp, burstWindow);
             if (isBurst)
-            {
                 contributions.Add(new DetectionContribution
                 {
                     DetectorName = Name,
@@ -190,11 +174,9 @@ public class AdvancedBehavioralContributor : ContributingDetectorBase
                         .Add("BurstSize", burstSize)
                         .Add("BurstDurationSeconds", burstDuration.TotalSeconds)
                 });
-            }
 
             // 7. Positive signal: Good patterns detected
             if (contributions.Count == 0 && pathEntropy > 0.5 && pathEntropy < 3.0 && cv > 0.3)
-            {
                 contributions.Add(new DetectionContribution
                 {
                     DetectorName = Name,
@@ -205,7 +187,6 @@ public class AdvancedBehavioralContributor : ContributingDetectorBase
                     Signals = ImmutableDictionary<string, object>.Empty
                         .Add("NaturalPatterns", true)
                 });
-            }
         }
         catch (Exception ex)
         {
@@ -215,7 +196,7 @@ public class AdvancedBehavioralContributor : ContributingDetectorBase
         return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
     }
 
-    private static string? GetClientIp(Microsoft.AspNetCore.Http.HttpContext context)
+    private static string? GetClientIp(HttpContext context)
     {
         return context.Request.Headers["X-Forwarded-For"].FirstOrDefault()?.Split(',')[0].Trim()
                ?? context.Connection.RemoteIpAddress?.ToString();

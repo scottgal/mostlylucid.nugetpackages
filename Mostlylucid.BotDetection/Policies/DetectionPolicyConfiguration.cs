@@ -10,7 +10,7 @@ namespace Mostlylucid.BotDetection.Policies;
 /// <summary>
 ///     Configuration for a named detection policy.
 ///     Policies can be assigned to paths for different detection behaviour.
-///     Inherits common extensibility properties from <see cref="BaseComponentConfig"/>.
+///     Inherits common extensibility properties from <see cref="BaseComponentConfig" />.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -67,7 +67,6 @@ namespace Mostlylucid.BotDetection.Policies;
 ///       }
 ///     }
 ///     </code>
-///
 ///     Code configuration:
 ///     <code>
 ///     services.AddBotDetection(options =>
@@ -272,18 +271,18 @@ public class DetectionPolicyConfig : BaseComponentConfig
 ///         Transitions are evaluated in order. The first matching transition is executed.
 ///         A transition can either:
 ///         <list type="bullet">
-///             <item>Execute an action policy (via <see cref="ActionPolicyName"/>)</item>
-///             <item>Execute a simple action (via <see cref="Action"/>)</item>
-///             <item>Chain to another detection policy (via <see cref="GoTo"/>)</item>
+///             <item>Execute an action policy (via <see cref="ActionPolicyName" />)</item>
+///             <item>Execute a simple action (via <see cref="Action" />)</item>
+///             <item>Chain to another detection policy (via <see cref="GoTo" />)</item>
 ///         </list>
 ///     </para>
 ///     <para>
 ///         Condition types (evaluated in this order):
 ///         <list type="number">
-///             <item><see cref="WhenSignal"/> - Signal-based (e.g., "VerifiedGoodBot")</item>
-///             <item><see cref="WhenReputationState"/> - Reputation-based (e.g., "ConfirmedBad")</item>
-///             <item><see cref="WhenRiskExceeds"/> - Risk threshold exceeded</item>
-///             <item><see cref="WhenRiskBelow"/> - Risk threshold not reached</item>
+///             <item><see cref="WhenSignal" /> - Signal-based (e.g., "VerifiedGoodBot")</item>
+///             <item><see cref="WhenReputationState" /> - Reputation-based (e.g., "ConfirmedBad")</item>
+///             <item><see cref="WhenRiskExceeds" /> - Risk threshold exceeded</item>
+///             <item><see cref="WhenRiskBelow" /> - Risk threshold not reached</item>
 ///         </list>
 ///     </para>
 /// </remarks>
@@ -360,9 +359,7 @@ public class TransitionConfig
     {
         PolicyAction? action = null;
         if (!string.IsNullOrEmpty(Action) && Enum.TryParse<PolicyAction>(Action, true, out var parsedAction))
-        {
             action = parsedAction;
-        }
 
         return new PolicyTransition
         {

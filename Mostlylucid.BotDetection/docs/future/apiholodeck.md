@@ -128,7 +128,8 @@ public class HolodeckActionExecutor : IBotActionExecutor
 }
 ```
 
-The key bit: **we pass `context={fingerprint}`** to mockllmapi’s **API Contexts** so each fingerprint gets a consistent synthetic world.
+The key bit: **we pass `context={fingerprint}`** to mockllmapi’s **API Contexts** so each fingerprint gets a consistent
+synthetic world.
 
 ---
 
@@ -137,7 +138,8 @@ The key bit: **we pass `context={fingerprint}`** to mockllmapi’s **API Context
 Map Holodeck modes onto what `mostlylucid.mockllmapi` already does:
 
 * `realistic` → vanilla `/api/mock/**` with no shape: free-form, realistic data.
-* `realistic-but-useless` → use a very generic shape (e.g. always “demo” fields), or an OpenAPI spec that doesn’t match your real one.
+* `realistic-but-useless` → use a very generic shape (e.g. always “demo” fields), or an OpenAPI spec that doesn’t match
+  your real one.
 * `strict-schema` → use `X-Response-Shape` or OpenAPI mocks (`/petstore/...`) with `IncludeShapeInResponse` turned on.
 * `chaos` → use **error simulation** and **token limits** to sporadically break things:
 
@@ -233,7 +235,8 @@ Practically, in vFuture:
 * You already have `mostlylucid.mockllmapi` running (maybe as another container).
 * In `BotDetection:ActionPolicies`, you define `"holodeck"` using type `Holodeck` or a `Redirect` to `holodeck-cluster`.
 * The behavioural router, when risk crosses a threshold, chooses that action instead of `allow`.
-* ApiHolodeck forwards the request to `/api/mock` (or `/OpenApi`, or SignalR) **with a `context` tied to the fingerprint**.
+* ApiHolodeck forwards the request to `/api/mock` (or `/OpenApi`, or SignalR) **with a `context` tied to the fingerprint
+  **.
 * The scraper/agent lives forever in a fake world until your cutoff rule has learned enough.
 
 If you want, next step I can draft:

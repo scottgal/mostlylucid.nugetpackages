@@ -9,7 +9,8 @@ Status: **Draft – Ready for implementation**
 
 # 1. **Purpose**
 
-The **Content Detection Contributor** evaluates the *response body content itself* to produce additional behavioural/semantic signals for Stylobot’s bot/human classifier.
+The **Content Detection Contributor** evaluates the *response body content itself* to produce additional
+behavioural/semantic signals for Stylobot’s bot/human classifier.
 
 It adds the ability to:
 
@@ -18,7 +19,8 @@ It adds the ability to:
 * Perform *blocking* inline content inspection for high-risk scenarios
 * Perform *async* content inspection for low-risk scenarios to avoid latency
 
-This module complements the **Response Detection Contributor** by looking **inside** the response, rather than only at status codes, headers, or patterns.
+This module complements the **Response Detection Contributor** by looking **inside** the response, rather than only at
+status codes, headers, or patterns.
 
 ---
 
@@ -410,7 +412,8 @@ The **Content Detection Contributor** adds deep semantic inspection to your pipe
 * fully configurable
 * fits perfectly with your Ephemeral + signature-based detection model
 
-It completes the “response side” of detection and enables advanced behavioural and semantic analysis without breaking TLS or adding high latency.
+It completes the “response side” of detection and enables advanced behavioural and semantic analysis without breaking
+TLS or adding high latency.
 
 ---
 

@@ -20,8 +20,8 @@ public class BehavioralDetector : IDetector
 {
     private readonly IMemoryCache _cache;
     private readonly ILogger<BehavioralDetector> _logger;
-    private readonly BotDetectionOptions _options;
     private readonly BotDetectionMetrics? _metrics;
+    private readonly BotDetectionOptions _options;
 
     public BehavioralDetector(
         ILogger<BehavioralDetector> logger,
@@ -253,7 +253,8 @@ public class BehavioralDetector : IDetector
         if (result.Confidence > 0.6) result.BotType = BotType.Scraper;
 
         stopwatch.Stop();
-        _metrics?.RecordDetection(result.Confidence, result.Confidence > _options.BotThreshold, stopwatch.Elapsed, Name);
+        _metrics?.RecordDetection(result.Confidence, result.Confidence > _options.BotThreshold, stopwatch.Elapsed,
+            Name);
 
         return Task.FromResult(result);
     }
@@ -267,24 +268,18 @@ public class BehavioralDetector : IDetector
 
         // Get fingerprint hash from context items (set by ClientSideDetector)
         if (context.Items.TryGetValue("BotDetection.FingerprintHash", out var fpHash) && fpHash is string hash)
-        {
             identities.FingerprintHash = hash;
-        }
 
         // Get API key from configured header
         var apiKeyHeader = _options.Behavioral.ApiKeyHeader;
         if (!string.IsNullOrEmpty(apiKeyHeader) &&
             context.Request.Headers.TryGetValue(apiKeyHeader, out var apiKey))
-        {
             identities.ApiKey = apiKey.ToString();
-        }
 
         // Get user ID from claims or configured header
         var userIdClaim = _options.Behavioral.UserIdClaim;
         if (!string.IsNullOrEmpty(userIdClaim) && context.User.Identity?.IsAuthenticated == true)
-        {
             identities.UserId = context.User.FindFirst(userIdClaim)?.Value;
-        }
 
         // Fallback to configured user ID header
         if (string.IsNullOrEmpty(identities.UserId))
@@ -292,9 +287,7 @@ public class BehavioralDetector : IDetector
             var userIdHeader = _options.Behavioral.UserIdHeader;
             if (!string.IsNullOrEmpty(userIdHeader) &&
                 context.Request.Headers.TryGetValue(userIdHeader, out var userId))
-            {
                 identities.UserId = userId.ToString();
-            }
         }
 
         return identities;
@@ -303,7 +296,8 @@ public class BehavioralDetector : IDetector
     /// <summary>
     ///     Checks for sudden behavior changes that might indicate account takeover or bot activity.
     /// </summary>
-    private (bool IsAnomaly, double Impact, string Description) CheckBehaviorChange(string identityKey, HttpContext context)
+    private (bool IsAnomaly, double Impact, string Description) CheckBehaviorChange(string identityKey,
+        HttpContext context)
     {
         var profileKey = $"bot_detect_profile_{identityKey}";
 
@@ -326,9 +320,7 @@ public class BehavioralDetector : IDetector
         {
             profile.SeenPaths.Add(currentPath);
             if (profile.SeenPaths.Count > 100) // Limit size
-            {
                 profile.SeenPaths.Remove(profile.SeenPaths.First());
-            }
         }
 
         // Detect anomalies
@@ -381,31 +373,13 @@ public class BehavioralDetector : IDetector
 
         var wasNew = recentPaths.Add(currentPath);
         if (recentPaths.Count > 50)
-        {
             // Remove oldest (approximate)
             recentPaths.Remove(recentPaths.First());
-        }
 
         _cache.Set(key, recentPaths, TimeSpan.FromMinutes(5));
 
         // This is a simplified check - in production you'd track this more precisely
         return wasNew ? 1.0 : 0.0;
-    }
-
-    private record RequestIdentities
-    {
-        public string IpAddress { get; set; } = "";
-        public string? FingerprintHash { get; set; }
-        public string? ApiKey { get; set; }
-        public string? UserId { get; set; }
-    }
-
-    private class BehaviorProfile
-    {
-        public int RequestCount { get; set; }
-        public DateTime FirstSeen { get; set; } = DateTime.UtcNow;
-        public DateTime LastSeen { get; set; } = DateTime.UtcNow;
-        public HashSet<string> SeenPaths { get; set; } = new();
     }
 
     private string? GetClientIp(HttpContext context)
@@ -487,5 +461,21 @@ public class BehavioralDetector : IDetector
         });
 
         return DateTime.UtcNow - sessionStart;
+    }
+
+    private record RequestIdentities
+    {
+        public string IpAddress { get; set; } = "";
+        public string? FingerprintHash { get; set; }
+        public string? ApiKey { get; set; }
+        public string? UserId { get; set; }
+    }
+
+    private class BehaviorProfile
+    {
+        public int RequestCount { get; set; }
+        public DateTime FirstSeen { get; } = DateTime.UtcNow;
+        public DateTime LastSeen { get; set; } = DateTime.UtcNow;
+        public HashSet<string> SeenPaths { get; } = new();
     }
 }

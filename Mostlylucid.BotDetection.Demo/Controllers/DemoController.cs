@@ -140,20 +140,22 @@ public class DemoController : ControllerBase
                 shouldBlock = HttpContext.ShouldBlockRequest()
             },
             // Full result
-            fullResult = result == null ? null : new
-            {
-                result.IsBot,
-                result.ConfidenceScore,
-                botType = result.BotType?.ToString(),
-                result.BotName,
-                result.ProcessingTimeMs,
-                reasons = result.Reasons.Select(r => new
+            fullResult = result == null
+                ? null
+                : new
                 {
-                    r.Category,
-                    r.Detail,
-                    r.ConfidenceImpact
-                })
-            },
+                    result.IsBot,
+                    result.ConfidenceScore,
+                    botType = result.BotType?.ToString(),
+                    result.BotName,
+                    result.ProcessingTimeMs,
+                    reasons = result.Reasons.Select(r => new
+                    {
+                        r.Category,
+                        r.Detail,
+                        r.ConfidenceImpact
+                    })
+                },
             // Request info
             requestInfo = new
             {

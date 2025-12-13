@@ -92,12 +92,12 @@ public record DetectionResult
 /// </summary>
 public class SignatureBuilder
 {
+    private readonly Dictionary<string, object> _signals = new();
+    private double _confidence;
+    private string? _detectorName;
+    private string? _reason;
     private string? _signatureHash;
     private SignatureType _type = SignatureType.IpAddress;
-    private double _confidence;
-    private Dictionary<string, object> _signals = new();
-    private string? _reason;
-    private string? _detectorName;
 
     /// <summary>
     ///     Set the signature hash (required).
@@ -140,10 +140,7 @@ public class SignatureBuilder
     /// </summary>
     public SignatureBuilder AddSignals(IReadOnlyDictionary<string, object> signals)
     {
-        foreach (var (key, value) in signals)
-        {
-            _signals[key] = value;
-        }
+        foreach (var (key, value) in signals) _signals[key] = value;
         return this;
     }
 

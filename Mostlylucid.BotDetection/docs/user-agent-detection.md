@@ -1,6 +1,7 @@
 # User-Agent Detection
 
-User-Agent detection is the first line of defense, providing fast pattern-based bot identification through multiple matching strategies.
+User-Agent detection is the first line of defense, providing fast pattern-based bot identification through multiple
+matching strategies.
 
 ## How It Works
 
@@ -48,6 +49,7 @@ User-Agent → Whitelist Check → Skip (verified bot)
 ## Whitelisted Patterns
 
 By default, verified search engine bots are whitelisted. When detected, they receive:
+
 - `Confidence: 0.0` (not a threat)
 - `BotType: VerifiedBot`
 - `BotName`: The identified bot name
@@ -66,6 +68,7 @@ services.AddBotDetection(options =>
 ### Malicious Bot Patterns
 
 Matches strings known to be associated with malicious bots:
+
 - Fake user agents claiming to be browsers
 - Known scraper signatures
 - Generic bot identifiers
@@ -76,21 +79,23 @@ Impact: +0.3 confidence per match
 
 Detects automation tools commonly used for scraping:
 
-| Framework | Impact | Bot Type |
-|-----------|--------|----------|
-| Selenium | +0.5 | Scraper |
-| Puppeteer | +0.5 | Scraper |
-| Playwright | +0.5 | Scraper |
-| PhantomJS | +0.5 | Scraper |
-| HeadlessChrome | +0.5 | Scraper |
+| Framework      | Impact | Bot Type |
+|----------------|--------|----------|
+| Selenium       | +0.5   | Scraper  |
+| Puppeteer      | +0.5   | Scraper  |
+| Playwright     | +0.5   | Scraper  |
+| PhantomJS      | +0.5   | Scraper  |
+| HeadlessChrome | +0.5   | Scraper  |
 
 ### Heuristic Checks
 
 **Short User-Agent** (< 20 characters):
+
 - Real browsers have verbose UAs
 - Impact: +0.4 confidence
 
 **URL in User-Agent**:
+
 - Common in crawler bots identifying themselves
 - Impact: +0.3 confidence
 
@@ -98,7 +103,8 @@ Detects automation tools commonly used for scraping:
 
 ### Static Patterns (Build-Time)
 
-Source-generated regex patterns compiled at build time for optimal performance. These are embedded in `BotSignatures.cs`:
+Source-generated regex patterns compiled at build time for optimal performance. These are embedded in
+`BotSignatures.cs`:
 
 ```csharp
 // Source-generated - compiled at build time
@@ -120,6 +126,7 @@ The system can download patterns from external sources on startup:
 ```
 
 Downloaded patterns are:
+
 - Compiled once with `RegexOptions.Compiled`
 - Cached in memory
 - Auto-refreshed based on interval
@@ -129,12 +136,12 @@ Downloaded patterns are:
 
 User-Agent detection is optimized for speed:
 
-| Check | Typical Time |
-|-------|--------------|
-| String contains (whitelist) | < 0.01ms |
-| String contains (patterns) | < 0.1ms |
-| Source-generated regex | < 0.5ms |
-| Compiled regex (downloaded) | < 1ms |
+| Check                       | Typical Time |
+|-----------------------------|--------------|
+| String contains (whitelist) | < 0.01ms     |
+| String contains (patterns)  | < 0.1ms      |
+| Source-generated regex      | < 0.5ms      |
+| Compiled regex (downloaded) | < 1ms        |
 
 Total typical time: **< 2ms**
 
@@ -150,26 +157,29 @@ UA matches pattern → Reputation lookup → Score adjustment
 
 Reputation states affect UA detection weight:
 
-| State | Weight Multiplier |
-|-------|-------------------|
-| ConfirmedBad | 1.0 (full weight) |
-| Suspect | 0.5 |
-| Neutral | 0.1 |
+| State         | Weight Multiplier    |
+|---------------|----------------------|
+| ConfirmedBad  | 1.0 (full weight)    |
+| Suspect       | 0.5                  |
+| Neutral       | 0.1                  |
 | ConfirmedGood | -0.5 (reduces score) |
 
 ## Common Patterns Detected
 
 ### Search Engines (Whitelisted by Default)
+
 - Googlebot, Bingbot, YandexBot, DuckDuckBot
 - Facebookbot, Twitterbot, LinkedInBot
 - Slackbot, Discordbot, TelegramBot
 
 ### Scrapers/Automation
+
 - curl, wget, python-requests, python-urllib
 - scrapy, requests, axios, node-fetch
 - Java HTTP client, Go HTTP client, OkHttp
 
 ### Suspicious Indicators
+
 - Generic bot/crawler/spider keywords
 - Missing platform details (bare Mozilla/5.0)
 - Non-standard version formats

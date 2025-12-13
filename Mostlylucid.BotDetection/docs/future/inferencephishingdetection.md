@@ -388,7 +388,8 @@ Expected response JSON:
 }
 ```
 
-The feature bundle is deliberately compact and non-sensitive. No raw passwords, minimal PII, no referrer query body needed in most cases.
+The feature bundle is deliberately compact and non-sensitive. No raw passwords, minimal PII, no referrer query body
+needed in most cases.
 
 #### 4.6.3 Implementation Details
 

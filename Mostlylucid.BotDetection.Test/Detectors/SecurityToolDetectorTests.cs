@@ -1,11 +1,9 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Moq;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Detectors;
 using Mostlylucid.BotDetection.Models;
-using Xunit;
 
 namespace Mostlylucid.BotDetection.Test.Detectors;
 
@@ -112,10 +110,7 @@ public class SecurityToolDetectorTests
         // Assert
         // SecurityToolDetector currently only checks User-Agent, not paths
         // This test documents expected future behavior
-        if (result != null)
-        {
-            Assert.True(result.Confidence >= 0);
-        }
+        if (result != null) Assert.True(result.Confidence >= 0);
     }
 
     [Theory]
@@ -135,10 +130,7 @@ public class SecurityToolDetectorTests
         // Assert
         // SecurityToolDetector currently only checks User-Agent, not query strings
         // This test documents expected future behavior
-        if (result != null)
-        {
-            Assert.True(result.Confidence >= 0);
-        }
+        if (result != null) Assert.True(result.Confidence >= 0);
     }
 
     [Fact]
@@ -154,10 +146,7 @@ public class SecurityToolDetectorTests
         // Assert
         // SecurityToolDetector currently only checks User-Agent, not custom headers
         // This test documents expected future behavior
-        if (result != null)
-        {
-            Assert.True(result.Confidence >= 0);
-        }
+        if (result != null) Assert.True(result.Confidence >= 0);
     }
 
     [Fact]
@@ -173,10 +162,7 @@ public class SecurityToolDetectorTests
         // Assert
         // SecurityToolDetector currently only checks User-Agent, not X-Forwarded-For
         // This test documents expected future behavior
-        if (result != null)
-        {
-            Assert.True(result.Confidence >= 0);
-        }
+        if (result != null) Assert.True(result.Confidence >= 0);
     }
 
     [Fact]

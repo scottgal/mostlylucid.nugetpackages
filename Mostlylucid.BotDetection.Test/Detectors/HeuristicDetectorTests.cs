@@ -18,6 +18,11 @@ public class HeuristicDetectorTests : IDisposable
         _logger = new Mock<ILogger<HeuristicDetector>>().Object;
     }
 
+    public void Dispose()
+    {
+        // Cleanup if needed
+    }
+
     private HeuristicDetector CreateDetector(BotDetectionOptions? options = null)
     {
         return new HeuristicDetector(
@@ -25,10 +30,31 @@ public class HeuristicDetectorTests : IDisposable
             Options.Create(options ?? new BotDetectionOptions()));
     }
 
-    public void Dispose()
+    #region Category Tests
+
+    [Fact]
+    public async Task DetectAsync_Heuristic_UsesCorrectCategory()
     {
-        // Cleanup if needed
+        // Arrange
+        var options = new BotDetectionOptions
+        {
+            AiDetection = new AiDetectionOptions
+            {
+                Heuristic = new HeuristicOptions { Enabled = true }
+            }
+        };
+        var detector = CreateDetector(options);
+        var context = MockHttpContext.CreateWithUserAgent("Mozilla/5.0 Chrome/120");
+
+        // Act
+        var result = await detector.DetectAsync(context);
+
+        // Assert
+        Assert.NotEmpty(result.Reasons);
+        Assert.Equal("Heuristic", result.Reasons.First().Category);
     }
+
+    #endregion
 
     #region Enabled Configuration Tests
 
@@ -94,7 +120,8 @@ public class HeuristicDetectorTests : IDisposable
         // Create a human-like request with all the expected headers
         var context = MockHttpContext.CreateWithHeaders(new Dictionary<string, string>
         {
-            ["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            ["User-Agent"] =
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             ["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             ["Accept-Language"] = "en-US,en;q=0.5",
             ["Referer"] = "https://google.com/",
@@ -162,32 +189,6 @@ public class HeuristicDetectorTests : IDisposable
         Assert.NotEmpty(result.Reasons);
         var reason = result.Reasons.First();
         Assert.True(reason.ConfidenceImpact > 0, $"Bot pattern '{userAgent}' should be detected as bot");
-    }
-
-    #endregion
-
-    #region Category Tests
-
-    [Fact]
-    public async Task DetectAsync_Heuristic_UsesCorrectCategory()
-    {
-        // Arrange
-        var options = new BotDetectionOptions
-        {
-            AiDetection = new AiDetectionOptions
-            {
-                Heuristic = new HeuristicOptions { Enabled = true }
-            }
-        };
-        var detector = CreateDetector(options);
-        var context = MockHttpContext.CreateWithUserAgent("Mozilla/5.0 Chrome/120");
-
-        // Act
-        var result = await detector.DetectAsync(context);
-
-        // Assert
-        Assert.NotEmpty(result.Reasons);
-        Assert.Equal("Heuristic", result.Reasons.First().Category);
     }
 
     #endregion

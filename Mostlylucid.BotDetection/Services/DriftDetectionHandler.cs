@@ -93,18 +93,17 @@ public class DriftStats
 ///     Handles drift detection between fast-path and full-path results.
 ///     Compares sampled fast-path decisions against full 8-layer analysis
 ///     to detect when UA-only classification is drifting from reality.
-///
 ///     Also routes feedback to appropriate detectors based on signature type.
 /// </summary>
 public class DriftDetectionHandler : ILearningEventHandler
 {
+    private readonly ConcurrentDictionary<string, LearnedSignature> _learnedPatterns = new();
+    private readonly ILearningEventBus _learningBus;
     private readonly ILogger<DriftDetectionHandler> _logger;
     private readonly FastPathOptions _options;
-    private readonly ILearningEventBus _learningBus;
 
     // In-memory sample storage (could be backed by persistent store)
     private readonly ConcurrentDictionary<string, List<DriftSample>> _samples = new();
-    private readonly ConcurrentDictionary<string, LearnedSignature> _learnedPatterns = new();
 
     public DriftDetectionHandler(
         ILogger<DriftDetectionHandler> logger,
@@ -285,15 +284,12 @@ public class DriftDetectionHandler : ILearningEventHandler
         // Use botProbability from metadata if available, otherwise fall back to Label
         var wasBot = evt.Label ?? false;
         if (evt.Metadata?.TryGetValue("botProbability", out var probObj) == true && probObj is double botProb)
-        {
             wasBot = botProb >= 0.5;
-        }
 
         // Extract signature candidates
         var signatures = ExtractSignatures(evt);
 
         foreach (var sig in signatures)
-        {
             if (_learnedPatterns.TryGetValue(sig.PatternId, out var existing))
             {
                 // Update occurrence count
@@ -306,9 +302,7 @@ public class DriftDetectionHandler : ILearningEventHandler
 
                 // Check if we should feed back
                 if (existing.Occurrences + 1 >= _options.FeedbackMinOccurrences)
-                {
                     await EmitSignatureFeedbackAsync(sig, wasBot, ct);
-                }
             }
             else
             {
@@ -319,7 +313,6 @@ public class DriftDetectionHandler : ILearningEventHandler
                     "New pattern learned: {Type} = {Pattern} (confidence={Confidence:F2}, wasBot={WasBot})",
                     sig.SignatureType, sig.Pattern, sig.Confidence, wasBot);
             }
-        }
     }
 
     /// <summary>
@@ -332,7 +325,6 @@ public class DriftDetectionHandler : ILearningEventHandler
         // User-Agent signature
         if (evt.Metadata?.TryGetValue("userAgent", out var uaObj) == true &&
             uaObj is string ua && !string.IsNullOrEmpty(ua))
-        {
             signatures.Add(new LearnedSignature
             {
                 PatternId = $"ua:{evt.Pattern}",
@@ -349,12 +341,10 @@ public class DriftDetectionHandler : ILearningEventHandler
                     : null,
                 Source = evt.Source
             });
-        }
 
         // IP signature
         if (evt.Metadata?.TryGetValue("ip", out var ipObj) == true &&
             ipObj is string ip && !string.IsNullOrEmpty(ip) && ip != "unknown")
-        {
             signatures.Add(new LearnedSignature
             {
                 PatternId = $"ip:{ip}",
@@ -367,7 +357,6 @@ public class DriftDetectionHandler : ILearningEventHandler
                 Action = LearnedPatternAction.LogOnly,
                 Source = evt.Source
             });
-        }
 
         return signatures;
     }
@@ -421,7 +410,6 @@ public class DriftDetectionHandler : ILearningEventHandler
     public IEnumerable<DriftStats> GetDriftStats()
     {
         foreach (var (uaHash, samples) in _samples)
-        {
             lock (samples)
             {
                 var completeSamples = samples
@@ -441,7 +429,6 @@ public class DriftDetectionHandler : ILearningEventHandler
                     NewestSample = completeSamples.Max(s => s.Timestamp)
                 };
             }
-        }
     }
 
     private static BotType? ParseBotType(Dictionary<string, object>? metadata)

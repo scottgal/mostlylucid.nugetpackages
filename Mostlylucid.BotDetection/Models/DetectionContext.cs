@@ -10,11 +10,11 @@ namespace Mostlylucid.BotDetection.Models;
 /// </summary>
 public class DetectionContext
 {
-    private readonly ConcurrentDictionary<string, object> _signals = new();
-    private readonly ConcurrentDictionary<string, double> _scores = new();
-    private readonly ConcurrentBag<DetectionReason> _reasons = new();
-    private readonly ConcurrentBag<LearnedSignal> _learnings = new();
     private readonly ConcurrentDictionary<string, DetectorResult> _detectorResults = new();
+    private readonly ConcurrentBag<LearnedSignal> _learnings = new();
+    private readonly ConcurrentBag<DetectionReason> _reasons = new();
+    private readonly ConcurrentDictionary<string, double> _scores = new();
+    private readonly ConcurrentDictionary<string, object> _signals = new();
 
     /// <summary>
     ///     The HTTP context being analyzed
@@ -49,7 +49,10 @@ public class DetectionContext
     /// <summary>
     ///     Check if a signal exists
     /// </summary>
-    public bool HasSignal(string key) => _signals.ContainsKey(key);
+    public bool HasSignal(string key)
+    {
+        return _signals.ContainsKey(key);
+    }
 
     /// <summary>
     ///     Get all signal keys
@@ -197,7 +200,7 @@ public class LearnedSignal
 ///     Well-known signal keys for cross-detector communication.
 ///     This is a partial class - additional keys may be defined in other files.
 /// </summary>
-public static partial class SignalKeys
+public static class SignalKeys
 {
     // Stage 0 signals (raw detection)
     public const string UserAgent = "ua.raw";

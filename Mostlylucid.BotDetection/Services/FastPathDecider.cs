@@ -46,7 +46,6 @@ public class FastPathDecision
 /// <summary>
 ///     Decides whether to run fast-path (UA-only) or full detection.
 ///     Implements abort threshold, sampling, and always-full-path logic.
-///
 ///     Key responsibilities:
 ///     - Short-circuit on high-confidence UA matches (abort threshold)
 ///     - Sample aborted requests for drift detection
@@ -55,12 +54,12 @@ public class FastPathDecision
 /// </summary>
 public class FastPathDecider
 {
-    private readonly ILogger<FastPathDecider> _logger;
-    private readonly FastPathOptions _options;
-    private readonly IDetector _uaDetector;
     private readonly IBotDetectionService _fullDetector;
     private readonly ILearningEventBus? _learningBus;
+    private readonly ILogger<FastPathDecider> _logger;
+    private readonly FastPathOptions _options;
     private readonly Random _random = new();
+    private readonly IDetector _uaDetector;
 
     public FastPathDecider(
         ILogger<FastPathDecider> logger,
@@ -84,10 +83,8 @@ public class FastPathDecider
         CancellationToken ct = default)
     {
         if (!_options.Enabled)
-        {
             // Fast path disabled - always run full detection
             return await RunFullPathAsync(httpContext, ct);
-        }
 
         var path = httpContext.Request.Path.Value ?? string.Empty;
 
@@ -104,9 +101,7 @@ public class FastPathDecider
 
         // Check for abort (high-confidence UA match)
         if (uaResult.Confidence >= _options.AbortThreshold)
-        {
             return await HandleAbortAsync(httpContext, uaResult, uaHash, path, ct);
-        }
 
         // UA not conclusive - run full detection
         return await RunFullPathAsync(httpContext, ct);
@@ -318,12 +313,8 @@ public class FastPathDecider
         };
 
         foreach (var header in relevantHeaders)
-        {
             if (headers.TryGetValue(header, out var value))
-            {
                 result[header] = value.ToString();
-            }
-        }
 
         return result;
     }

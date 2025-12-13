@@ -11,10 +11,10 @@ namespace Mostlylucid.BotDetection.Demo.Middleware;
 /// </summary>
 public class SignatureCaptureMiddleware
 {
-    private readonly RequestDelegate _next;
-    private readonly SignatureStore _signatureStore;
     private readonly SignatureBroadcaster _broadcaster;
     private readonly ILogger<SignatureCaptureMiddleware> _logger;
+    private readonly RequestDelegate _next;
+    private readonly SignatureStore _signatureStore;
 
     public SignatureCaptureMiddleware(
         RequestDelegate next,
@@ -52,10 +52,7 @@ public class SignatureCaptureMiddleware
 
                 // Broadcast to SignalR subscribers
                 var stored = _signatureStore.GetSignature(signatureId);
-                if (stored != null)
-                {
-                    await _broadcaster.BroadcastSignature(stored);
-                }
+                if (stored != null) await _broadcaster.BroadcastSignature(stored);
 
                 _logger.LogTrace(
                     "Captured signature {SignatureId} - BotProb: {BotProb:F2}",

@@ -1,14 +1,15 @@
 @page
-@model Mostlylucid.BotDetection.Demo.Pages.YarpProxyDemoModel
+@model YarpProxyDemoModel
 @{
     ViewData["Title"] = "YARP Proxy Bot Detection Demo";
 }
 
-<link rel="stylesheet" href="~/_content/Mostlylucid.BotDetection.UI/bot-detection-details.css" />
+<link rel="stylesheet" href="~/_content/Mostlylucid.BotDetection.UI/bot-detection-details.css"/>
 
 <div class="container mt-4">
     <h1>YARP Proxy Bot Detection Demo</h1>
-    <p class="lead">This page demonstrates bot detection when running behind a YARP reverse proxy (like the Console Gateway).</p>
+    <p class="lead">This page demonstrates bot detection when running behind a YARP reverse proxy (like the Console
+        Gateway).</p>
 
     <div class="alert alert-info">
         <h5>Architecture</h5>
@@ -27,7 +28,7 @@
             <span class="summary-text">Bot Detection Details</span>
         </summary>
         <div class="bot-detection-content">
-            <bot-detection-details />
+            <bot-detection-details/>
         </div>
     </details>
 
@@ -37,7 +38,8 @@
         </div>
         <div class="card-body">
             <h5>1. Gateway Detection</h5>
-            <p>The YARP gateway (Console or YarpGateway project) runs bot detection middleware and analyzes the incoming request.</p>
+            <p>The YARP gateway (Console or YarpGateway project) runs bot detection middleware and analyzes the incoming
+                request.</p>
 
             <h5>2. Header Forwarding</h5>
             <p>Detection results are serialized and forwarded to the backend app via custom headers:</p>
@@ -61,7 +63,8 @@
             <h5>4. Zero-PII Architecture</h5>
             <p>
                 All detection happens in-memory at the gateway. No raw IP addresses or user agents are stored.
-                If signatures are enabled, they use HMAC-SHA256 hashing with secret keys for privacy-safe pattern detection.
+                If signatures are enabled, they use HMAC-SHA256 hashing with secret keys for privacy-safe pattern
+                detection.
             </p>
         </div>
     </div>

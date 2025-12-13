@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -14,6 +15,11 @@ namespace Mostlylucid.BotDetection.Services;
 public interface IBrowserVersionService
 {
     /// <summary>
+    ///     Gets the last successful update time.
+    /// </summary>
+    DateTime? LastUpdated { get; }
+
+    /// <summary>
     ///     Gets the latest known major version for a browser.
     /// </summary>
     Task<int?> GetLatestVersionAsync(string browserName, CancellationToken ct = default);
@@ -22,11 +28,6 @@ public interface IBrowserVersionService
     ///     Gets all known browser versions.
     /// </summary>
     IReadOnlyDictionary<string, int> GetAllVersions();
-
-    /// <summary>
-    ///     Gets the last successful update time.
-    /// </summary>
-    DateTime? LastUpdated { get; }
 }
 
 /// <summary>
@@ -34,12 +35,11 @@ public interface IBrowserVersionService
 /// </summary>
 public class BrowserVersionService : BackgroundService, IBrowserVersionService
 {
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<BrowserVersionService> _logger;
     private readonly BotDetectionOptions _options;
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ConcurrentDictionary<string, int> _versions = new(StringComparer.OrdinalIgnoreCase);
-    private DateTime? _lastUpdated;
     private readonly SemaphoreSlim _updateLock = new(1, 1);
+    private readonly ConcurrentDictionary<string, int> _versions = new(StringComparer.OrdinalIgnoreCase);
 
     public BrowserVersionService(
         ILogger<BrowserVersionService> logger,
@@ -51,29 +51,21 @@ public class BrowserVersionService : BackgroundService, IBrowserVersionService
         _httpClientFactory = httpClientFactory;
 
         // Initialize with fallback versions
-        foreach (var (browser, version) in _options.VersionAge.FallbackBrowserVersions)
-        {
-            _versions[browser] = version;
-        }
+        foreach (var (browser, version) in _options.VersionAge.FallbackBrowserVersions) _versions[browser] = version;
     }
 
-    public DateTime? LastUpdated => _lastUpdated;
+    public DateTime? LastUpdated { get; private set; }
 
     public Task<int?> GetLatestVersionAsync(string browserName, CancellationToken ct = default)
     {
         // Normalize browser name
         var normalizedName = NormalizeBrowserName(browserName);
 
-        if (_versions.TryGetValue(normalizedName, out var version))
-        {
-            return Task.FromResult<int?>(version);
-        }
+        if (_versions.TryGetValue(normalizedName, out var version)) return Task.FromResult<int?>(version);
 
         // Try fallback
         if (_options.VersionAge.FallbackBrowserVersions.TryGetValue(normalizedName, out var fallback))
-        {
             return Task.FromResult<int?>(fallback);
-        }
 
         return Task.FromResult<int?>(null);
     }
@@ -101,7 +93,6 @@ public class BrowserVersionService : BackgroundService, IBrowserVersionService
 
         // Periodic updates
         while (!stoppingToken.IsCancellationRequested)
-        {
             try
             {
                 await Task.Delay(
@@ -118,7 +109,6 @@ public class BrowserVersionService : BackgroundService, IBrowserVersionService
             {
                 _logger.LogError(ex, "Error in browser version update loop");
             }
-        }
 
         _logger.LogInformation("Browser version service stopped");
     }
@@ -141,16 +131,14 @@ public class BrowserVersionService : BackgroundService, IBrowserVersionService
             // Source 1: useragents.me API
             if (_options.DataSources.BrowserVersions.Enabled &&
                 !string.IsNullOrEmpty(_options.DataSources.BrowserVersions.Url))
-            {
                 updated = await TryFetchFromUserAgentsMeAsync(ct);
-            }
 
             // Source 2: Fallback to whatismybrowser.com or other APIs (future)
             // Can add more sources here
 
             if (updated)
             {
-                _lastUpdated = DateTime.UtcNow;
+                LastUpdated = DateTime.UtcNow;
                 _logger.LogInformation(
                     "Browser versions updated successfully. Versions: {Versions}",
                     string.Join(", ", _versions.Select(kv => $"{kv.Key}={kv.Value}")));
@@ -242,39 +230,29 @@ public class BrowserVersionService : BackgroundService, IBrowserVersionService
     private void ExtractAndUpdateVersion(string userAgent)
     {
         // Chrome
-        var chromeMatch = System.Text.RegularExpressions.Regex.Match(userAgent, @"Chrome/(\d+)");
+        var chromeMatch = Regex.Match(userAgent, @"Chrome/(\d+)");
         if (chromeMatch.Success && int.TryParse(chromeMatch.Groups[1].Value, out var chromeVer))
-        {
             UpdateIfNewer("Chrome", chromeVer);
-        }
 
         // Edge
-        var edgeMatch = System.Text.RegularExpressions.Regex.Match(userAgent, @"Edg/(\d+)");
+        var edgeMatch = Regex.Match(userAgent, @"Edg/(\d+)");
         if (edgeMatch.Success && int.TryParse(edgeMatch.Groups[1].Value, out var edgeVer))
-        {
             UpdateIfNewer("Edge", edgeVer);
-        }
 
         // Firefox
-        var firefoxMatch = System.Text.RegularExpressions.Regex.Match(userAgent, @"Firefox/(\d+)");
+        var firefoxMatch = Regex.Match(userAgent, @"Firefox/(\d+)");
         if (firefoxMatch.Success && int.TryParse(firefoxMatch.Groups[1].Value, out var ffVer))
-        {
             UpdateIfNewer("Firefox", ffVer);
-        }
 
         // Safari
-        var safariMatch = System.Text.RegularExpressions.Regex.Match(userAgent, @"Version/(\d+).*Safari");
+        var safariMatch = Regex.Match(userAgent, @"Version/(\d+).*Safari");
         if (safariMatch.Success && int.TryParse(safariMatch.Groups[1].Value, out var safariVer))
-        {
             UpdateIfNewer("Safari", safariVer);
-        }
 
         // Opera
-        var operaMatch = System.Text.RegularExpressions.Regex.Match(userAgent, @"OPR/(\d+)");
+        var operaMatch = Regex.Match(userAgent, @"OPR/(\d+)");
         if (operaMatch.Success && int.TryParse(operaMatch.Groups[1].Value, out var operaVer))
-        {
             UpdateIfNewer("Opera", operaVer);
-        }
     }
 
     private void UpdateIfNewer(string browser, int version)

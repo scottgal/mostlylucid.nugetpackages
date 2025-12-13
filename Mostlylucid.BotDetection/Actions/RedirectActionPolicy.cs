@@ -90,10 +90,7 @@ public class RedirectActionPolicy : IActionPolicy
             context.Request.Path, targetUrl, Name, evidence.BotProbability);
 
         // Add custom headers before redirect
-        foreach (var header in _options.Headers)
-        {
-            context.Response.Headers.TryAdd(header.Key, header.Value);
-        }
+        foreach (var header in _options.Headers) context.Response.Headers.TryAdd(header.Key, header.Value);
 
         // Add metadata headers if configured
         if (_options.AddMetadata)
@@ -152,7 +149,7 @@ public class RedirectActionPolicy : IActionPolicy
 }
 
 /// <summary>
-///     Configuration options for <see cref="RedirectActionPolicy"/>.
+///     Configuration options for <see cref="RedirectActionPolicy" />.
 /// </summary>
 public class RedirectActionOptions
 {
@@ -167,19 +164,19 @@ public class RedirectActionOptions
     ///     Whether to use permanent redirect (301) vs temporary (302).
     ///     Default: false (temporary 302 redirect)
     /// </summary>
-    public bool Permanent { get; set; } = false;
+    public bool Permanent { get; set; }
 
     /// <summary>
     ///     Whether to preserve the original query string in the redirect URL.
     ///     Default: false
     /// </summary>
-    public bool PreserveQueryString { get; set; } = false;
+    public bool PreserveQueryString { get; set; }
 
     /// <summary>
     ///     Whether to include a return URL parameter.
     ///     Default: false
     /// </summary>
-    public bool IncludeReturnUrl { get; set; } = false;
+    public bool IncludeReturnUrl { get; set; }
 
     /// <summary>
     ///     Query parameter name for return URL.
@@ -191,7 +188,7 @@ public class RedirectActionOptions
     ///     Whether to add metadata headers to the response.
     ///     Default: false
     /// </summary>
-    public bool AddMetadata { get; set; } = false;
+    public bool AddMetadata { get; set; }
 
     /// <summary>
     ///     Additional headers to add to the redirect response.
@@ -247,7 +244,7 @@ public class RedirectActionOptions
 }
 
 /// <summary>
-///     Factory for creating <see cref="RedirectActionPolicy"/> from configuration.
+///     Factory for creating <see cref="RedirectActionPolicy" /> from configuration.
 /// </summary>
 public class RedirectActionPolicyFactory : IActionPolicyFactory
 {
@@ -285,12 +282,8 @@ public class RedirectActionPolicyFactory : IActionPolicyFactory
             redirectOptions.AddMetadata = Convert.ToBoolean(addMeta);
 
         if (options.TryGetValue("Headers", out var headers) && headers is IDictionary<string, object> headerDict)
-        {
             foreach (var kvp in headerDict)
-            {
                 redirectOptions.Headers[kvp.Key] = kvp.Value?.ToString() ?? "";
-            }
-        }
 
         return new RedirectActionPolicy(name, redirectOptions, _logger);
     }

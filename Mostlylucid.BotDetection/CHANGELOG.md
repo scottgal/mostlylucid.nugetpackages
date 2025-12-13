@@ -8,27 +8,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.5.0] - 2024-12-05
 
 ### Added
+
 - **SecurityToolContributor** - Detects penetration testing tools (SQLMap, Nikto, Nmap, Burp Suite, Acunetix, etc.)
 - **ProjectHoneypotContributor** - HTTP:BL IP reputation lookups via DNS with caching
 - **HeuristicLateContributor** - Post-AI refinement layer that runs after LLM for final classification
-- **Honeypot test mode** - Use `<test-honeypot:harvester|spammer|suspicious>` markers for testing without real DNS lookups
+- **Honeypot test mode** - Use `<test-honeypot:harvester|spammer|suspicious>` markers for testing without real DNS
+  lookups
 - **Security scanner patterns** - Auto-fetched from digininja/scanner_user_agents and OWASP CoreRuleSet
 - **Demo enhancements** - Interactive bot simulator with 20+ preconfigured bot types, custom UA input, honeypot buttons
-- **Integration tests** - Production security defaults verification, honeypot simulation tests, contributor registration tests
+- **Integration tests** - Production security defaults verification, honeypot simulation tests, contributor registration
+  tests
 - **New documentation** - security-tools-detection.md, project-honeypot.md, updated ai-detection.md with HeuristicLate
 
 ### Changed
+
 - **Default LLM model** upgraded to `gemma3:4b` for better reasoning accuracy
 - **LLM prompt** improved for better accuracy with smaller models
 - **Localhost IP detection** fixed - no longer incorrectly flagged as datacenter IP
 - **Detection results** flow downstream only via `HttpContext.Items` by default
 
 ### Security
+
 - **ResponseHeaders.Enabled** defaults to `false` (never leak detection details to clients)
 - **EnableTestMode** defaults to `false` (test mode must be explicitly enabled)
 - **IncludeFullJson** defaults to `false` (never expose full detection JSON)
 
 ### New Signal Keys
+
 - `security_tool.detected`, `security_tool.name`, `security_tool.category`
 - `honeypot.checked`, `honeypot.listed`, `honeypot.threat_score`, `honeypot.visitor_type`
 - `honeypot.days_since_activity`, `HoneypotTestMode`
@@ -38,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2024-12-04
 
 ### Added
+
 - **Stable release** - Production-ready bot detection middleware
 - **Heuristic AI Provider** - Sub-millisecond classification with continuous learning
 - **Composable Action Policies** - Separate detection (WHAT) from response (HOW)
@@ -47,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Full observability** - OpenTelemetry traces and metrics
 
 ### Changed
+
 - **Default LLM model** changed from `gemma3:1b` to `gemma3:4b` for better reasoning accuracy
 - **Default LLM timeout** increased from 2000ms to 15000ms for larger model and cold start
 - **LLM orchestrator timeout** fixed - LlmContributor now uses 2x `AiDetection.TimeoutMs` (was using default 2s)
@@ -57,10 +65,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Localhost IP detection improved - no longer incorrectly flagged as datacenter IP
 
 ### Removed
+
 - ONNX provider removed in favor of Heuristic provider (faster, no external dependencies)
 
 ### Migration Guide
+
 If upgrading from preview versions:
+
 1. Replace `"Provider": "Onnx"` with `"Provider": "Heuristic"` in configuration
 2. Update Ollama model if using LLM escalation: `gemma3:4b` recommended
 3. Default `TimeoutMs` is now 15000ms (15s) to handle cold start - adjust if needed
@@ -70,6 +81,7 @@ If upgrading from preview versions:
 ## [0.5.0-preview2] - 2024-11
 
 ### Added
+
 - Composable Action Policy System
 - Named action policies: block, throttle, challenge, redirect, logonly
 - `[BotAction("policy-name")]` attribute for endpoint overrides
@@ -81,6 +93,7 @@ If upgrading from preview versions:
 ## [0.5.0-preview1] - 2024-11
 
 ### Added
+
 - Policy-Based Detection with named policies
 - Path-based resolution with glob patterns
 - Built-in policies: default, strict, relaxed, allowVerifiedBots
@@ -99,6 +112,7 @@ If upgrading from preview versions:
 ## [0.0.5-preview1] - 2024-10
 
 ### Added
+
 - Client-Side Fingerprinting with BotDetectionTagHelper
 - Signed token system prevents spoofing
 - Headless browser detection
@@ -111,6 +125,7 @@ If upgrading from preview versions:
 ## [0.0.4-preview1] - 2024-10
 
 ### Added
+
 - ONNX-based detection (1-10ms latency)
 - Source-generated regex for performance
 - OpenTelemetry metrics integration
@@ -121,6 +136,7 @@ If upgrading from preview versions:
 ## [0.0.3-preview2] - 2024-10
 
 ### Fixed
+
 - Security fixes (ReDoS, CIDR validation)
 
 ---
@@ -128,6 +144,7 @@ If upgrading from preview versions:
 ## [0.0.3-preview1] - 2024-10
 
 ### Changed
+
 - Documentation improvements
 
 ---
@@ -135,6 +152,7 @@ If upgrading from preview versions:
 ## [0.0.2-preview1] - 2024-10
 
 ### Added
+
 - Background updates
 - SQLite storage
 
@@ -143,6 +161,7 @@ If upgrading from preview versions:
 ## [0.0.1-preview1] - 2024-10
 
 ### Added
+
 - Initial release
 - Basic bot detection middleware
 - User-Agent analysis

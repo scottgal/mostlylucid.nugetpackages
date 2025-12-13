@@ -1,9 +1,11 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
 using Microsoft.Extensions.Options;
+using Mostlylucid.BotDetection.Dashboard;
 using Mostlylucid.BotDetection.Events;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Policies;
@@ -211,12 +213,10 @@ public class OrchestratorOptions
 
 /// <summary>
 ///     Wave-based parallel orchestrator using blackboard architecture.
-///
 ///     Execution model:
 ///     1. Wave 0: Run all detectors with no trigger conditions (in parallel)
 ///     2. Wave N: Run all detectors whose triggers are now satisfied (in parallel)
 ///     3. Repeat until no more detectors can run, early exit, or timeout
-///
 ///     Key features:
 ///     - Parallel execution within waves
 ///     - Circuit breaker per detector
@@ -226,19 +226,18 @@ public class OrchestratorOptions
 /// </summary>
 public class BlackboardOrchestrator
 {
-    private readonly ILogger<BlackboardOrchestrator> _logger;
-    private readonly OrchestratorOptions _options;
-    private readonly IEnumerable<IContributingDetector> _detectors;
-    private readonly ILearningEventBus? _learningBus;
-    private readonly IPolicyRegistry? _policyRegistry;
-    private readonly IPolicyEvaluator? _policyEvaluator;
-    private readonly SignatureCoordinator? _signatureCoordinator;
+    // Object pool for reusing state collections
+    private static readonly ObjectPool<PooledDetectionState> StatePool = DetectionStatePoolFactory.Create();
 
     // Circuit breaker state per detector
     private readonly ConcurrentDictionary<string, CircuitState> _circuitStates = new();
-
-    // Object pool for reusing state collections
-    private static readonly ObjectPool<PooledDetectionState> StatePool = DetectionStatePoolFactory.Create();
+    private readonly IEnumerable<IContributingDetector> _detectors;
+    private readonly ILearningEventBus? _learningBus;
+    private readonly ILogger<BlackboardOrchestrator> _logger;
+    private readonly OrchestratorOptions _options;
+    private readonly IPolicyEvaluator? _policyEvaluator;
+    private readonly IPolicyRegistry? _policyRegistry;
+    private readonly SignatureCoordinator? _signatureCoordinator;
 
     public BlackboardOrchestrator(
         ILogger<BlackboardOrchestrator> logger,
@@ -319,271 +318,258 @@ public class BlackboardOrchestrator
             allPolicyDetectors.UnionWith(policy.SlowPathDetectors);
             allPolicyDetectors.UnionWith(policy.AiPathDetectors);
 
-        // Get enabled detectors (respecting circuit breakers and policy)
-        var availableDetectors = _detectors
-            .Where(d => d.IsEnabled && IsCircuitClosed(d.Name))
-            .Where(d => allPolicyDetectors.Count == 0 || allPolicyDetectors.Contains(d.Name))
-            .OrderBy(d => d.Priority)
-            .ToList();
+            // Get enabled detectors (respecting circuit breakers and policy)
+            var availableDetectors = _detectors
+                .Where(d => d.IsEnabled && IsCircuitClosed(d.Name))
+                .Where(d => allPolicyDetectors.Count == 0 || allPolicyDetectors.Contains(d.Name))
+                .OrderBy(d => d.Priority)
+                .ToList();
 
-        _logger.LogDebug(
-            "Starting detection for {RequestId} with policy {Policy}, {DetectorCount} available detectors",
-            requestId, policy.Name, availableDetectors.Count);
+            _logger.LogDebug(
+                "Starting detection for {RequestId} with policy {Policy}, {DetectorCount} available detectors",
+                requestId, policy.Name, availableDetectors.Count);
 
-        var waveNumber = 0;
+            var waveNumber = 0;
 
-        try
-        {
-            while (waveNumber < _options.MaxWaves && !cts.Token.IsCancellationRequested)
+            try
             {
-                // Build current blackboard state
-                var state = BuildState(
-                    httpContext,
-                    signals,
-                    completedDetectors.Keys,
-                    failedDetectors.Keys,
-                    aggregator,
-                    requestId,
-                    stopwatch.Elapsed);
-
-                // Find detectors that can run in this wave
-                // When BypassTriggerConditions is true, all detectors run in Wave 0
-                var readyDetectors = availableDetectors
-                    .Where(d => !ranDetectors.Contains(d.Name))
-                    .Where(d => policy.BypassTriggerConditions || CanRun(d, state.Signals))
-                    .ToArray(); // ToArray is faster than ToList for iteration
-
-                if (readyDetectors.Length == 0)
+                while (waveNumber < _options.MaxWaves && !cts.Token.IsCancellationRequested)
                 {
-                    _logger.LogDebug(
-                        "Wave {Wave}: No more detectors ready, finishing",
-                        waveNumber);
-                    break;
-                }
-
-                _logger.LogDebug(
-                    "Wave {Wave}: Running {Count} detectors: {Names}",
-                    waveNumber,
-                    readyDetectors.Length,
-                    string.Join(", ", readyDetectors.Select(d => d.Name)));
-
-                // Mark as ran (before execution to prevent re-triggering)
-                foreach (var detector in readyDetectors)
-                {
-                    ranDetectors.Add(detector.Name);
-                }
-
-                // Execute wave
-                await ExecuteWaveAsync(
-                    readyDetectors,
-                    state,
-                    aggregator,
-                    signals,
-                    completedDetectors,
-                    failedDetectors,
-                    cts.Token);
-
-                // Check for early exit - but still run policy evaluation for transitions
-                var earlyExitTriggered = false;
-                if (aggregator.ShouldEarlyExit)
-                {
-                    var exitContrib = aggregator.EarlyExitContribution!;
-                    _logger.LogInformation(
-                        "Early exit triggered by {Detector}: {Verdict} - {Reason}",
-                        exitContrib.DetectorName,
-                        exitContrib.EarlyExitVerdict,
-                        exitContrib.Reason);
-                    earlyExitTriggered = true;
-                    // Don't break yet - fall through to policy evaluation for transitions
-                }
-
-                // Update system signals for next wave (or for policy evaluation on early exit)
-                signals[DetectorCountTrigger.CompletedDetectorsSignal] = completedDetectors.Count;
-                signals[RiskThresholdTrigger.CurrentRiskSignal] = aggregator.Aggregate().BotProbability;
-
-                // Evaluate policy transitions
-                if (_policyEvaluator != null)
-                {
-                    var evalState = BuildState(
+                    // Build current blackboard state
+                    var state = BuildState(
                         httpContext,
                         signals,
-                        completedDetectors.Keys.ToHashSet(),
-                        failedDetectors.Keys.ToHashSet(),
+                        completedDetectors.Keys,
+                        failedDetectors.Keys,
                         aggregator,
                         requestId,
                         stopwatch.Elapsed);
 
-                    var evalResult = _policyEvaluator.Evaluate(policy, evalState);
+                    // Find detectors that can run in this wave
+                    // When BypassTriggerConditions is true, all detectors run in Wave 0
+                    var readyDetectors = availableDetectors
+                        .Where(d => !ranDetectors.Contains(d.Name))
+                        .Where(d => policy.BypassTriggerConditions || CanRun(d, state.Signals))
+                        .ToArray(); // ToArray is faster than ToList for iteration
 
-                    if (!evalResult.ShouldContinue)
+                    if (readyDetectors.Length == 0)
                     {
-                        // Check for action policy name first (takes precedence)
-                        if (!string.IsNullOrEmpty(evalResult.ActionPolicyName))
-                        {
-                            triggeredActionPolicyName = evalResult.ActionPolicyName;
-                            _logger.LogDebug(
-                                "Policy {Policy} triggered action policy {ActionPolicy}: {Reason}",
-                                policy.Name, evalResult.ActionPolicyName, evalResult.Reason);
-                            break;
-                        }
+                        _logger.LogDebug(
+                            "Wave {Wave}: No more detectors ready, finishing",
+                            waveNumber);
+                        break;
+                    }
 
-                        if (evalResult.Action.HasValue)
+                    _logger.LogDebug(
+                        "Wave {Wave}: Running {Count} detectors: {Names}",
+                        waveNumber,
+                        readyDetectors.Length,
+                        string.Join(", ", readyDetectors.Select(d => d.Name)));
+
+                    // Mark as ran (before execution to prevent re-triggering)
+                    foreach (var detector in readyDetectors) ranDetectors.Add(detector.Name);
+
+                    // Execute wave
+                    await ExecuteWaveAsync(
+                        readyDetectors,
+                        state,
+                        aggregator,
+                        signals,
+                        completedDetectors,
+                        failedDetectors,
+                        cts.Token);
+
+                    // Check for early exit - but still run policy evaluation for transitions
+                    var earlyExitTriggered = false;
+                    if (aggregator.ShouldEarlyExit)
+                    {
+                        var exitContrib = aggregator.EarlyExitContribution!;
+                        _logger.LogInformation(
+                            "Early exit triggered by {Detector}: {Verdict} - {Reason}",
+                            exitContrib.DetectorName,
+                            exitContrib.EarlyExitVerdict,
+                            exitContrib.Reason);
+                        earlyExitTriggered = true;
+                        // Don't break yet - fall through to policy evaluation for transitions
+                    }
+
+                    // Update system signals for next wave (or for policy evaluation on early exit)
+                    signals[DetectorCountTrigger.CompletedDetectorsSignal] = completedDetectors.Count;
+                    signals[RiskThresholdTrigger.CurrentRiskSignal] = aggregator.Aggregate().BotProbability;
+
+                    // Evaluate policy transitions
+                    if (_policyEvaluator != null)
+                    {
+                        var evalState = BuildState(
+                            httpContext,
+                            signals,
+                            completedDetectors.Keys.ToHashSet(),
+                            failedDetectors.Keys.ToHashSet(),
+                            aggregator,
+                            requestId,
+                            stopwatch.Elapsed);
+
+                        var evalResult = _policyEvaluator.Evaluate(policy, evalState);
+
+                        if (!evalResult.ShouldContinue)
                         {
-                            // Handle EscalateToAi specially - run AI detectors then continue
-                            if (evalResult.Action.Value == PolicyAction.EscalateToAi)
+                            // Check for action policy name first (takes precedence)
+                            if (!string.IsNullOrEmpty(evalResult.ActionPolicyName))
                             {
-                                // Default AI detectors if none specified in policy
-                                var knownAiDetectors = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Onnx", "Llm" };
-                                var aiDetectorNames = policy.AiPathDetectors.Count > 0
-                                    ? policy.AiPathDetectors.ToHashSet(StringComparer.OrdinalIgnoreCase)
-                                    : knownAiDetectors; // Empty = run ALL known AI detectors
-
-                                // Get AI detectors that haven't run yet
-                                var aiDetectors = _detectors
-                                    .Where(d => d.IsEnabled && IsCircuitClosed(d.Name))
-                                    .Where(d => aiDetectorNames.Contains(d.Name))
-                                    .Where(d => !ranDetectors.Contains(d.Name))
-                                    .OrderBy(d => d.Priority)
-                                    .ToList();
-
-                                if (aiDetectors.Count > 0)
-                                {
-                                    _logger.LogDebug(
-                                        "Policy {Policy} escalating to AI, running {Count} AI detectors: {Names}",
-                                        policy.Name,
-                                        aiDetectors.Count,
-                                        string.Join(", ", aiDetectors.Select(d => d.Name)));
-
-                                    // Mark as ran
-                                    foreach (var detector in aiDetectors)
-                                    {
-                                        ranDetectors.Add(detector.Name);
-                                    }
-
-                                    // Execute AI detectors
-                                    await ExecuteWaveAsync(
-                                        aiDetectors,
-                                        state,
-                                        aggregator,
-                                        signals,
-                                        completedDetectors,
-                                        failedDetectors,
-                                        cts.Token);
-
-                                    // Update signals after AI ran
-                                    signals[DetectorCountTrigger.CompletedDetectorsSignal] = completedDetectors.Count;
-                                    signals[RiskThresholdTrigger.CurrentRiskSignal] = aggregator.Aggregate().BotProbability;
-
-                                    // Continue to allow early exit check after AI
-                                    waveNumber++;
-                                    continue;
-                                }
+                                triggeredActionPolicyName = evalResult.ActionPolicyName;
+                                _logger.LogDebug(
+                                    "Policy {Policy} triggered action policy {ActionPolicy}: {Reason}",
+                                    policy.Name, evalResult.ActionPolicyName, evalResult.Reason);
+                                break;
                             }
 
-                            // For other actions (Block, Allow, Challenge), set final action and exit
-                            finalAction = evalResult.Action.Value;
-                            _logger.LogDebug(
-                                "Policy {Policy} triggered action {Action}: {Reason}",
-                                policy.Name, evalResult.Action, evalResult.Reason);
-                            break;
-                        }
-
-                        if (!string.IsNullOrEmpty(evalResult.NextPolicy) && _policyRegistry != null)
-                        {
-                            var nextPolicy = _policyRegistry.GetPolicy(evalResult.NextPolicy);
-                            if (nextPolicy != null)
+                            if (evalResult.Action.HasValue)
                             {
+                                // Handle EscalateToAi specially - run AI detectors then continue
+                                if (evalResult.Action.Value == PolicyAction.EscalateToAi)
+                                {
+                                    // Default AI detectors if none specified in policy
+                                    var knownAiDetectors = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                                        { "Onnx", "Llm" };
+                                    var aiDetectorNames = policy.AiPathDetectors.Count > 0
+                                        ? policy.AiPathDetectors.ToHashSet(StringComparer.OrdinalIgnoreCase)
+                                        : knownAiDetectors; // Empty = run ALL known AI detectors
+
+                                    // Get AI detectors that haven't run yet
+                                    var aiDetectors = _detectors
+                                        .Where(d => d.IsEnabled && IsCircuitClosed(d.Name))
+                                        .Where(d => aiDetectorNames.Contains(d.Name))
+                                        .Where(d => !ranDetectors.Contains(d.Name))
+                                        .OrderBy(d => d.Priority)
+                                        .ToList();
+
+                                    if (aiDetectors.Count > 0)
+                                    {
+                                        _logger.LogDebug(
+                                            "Policy {Policy} escalating to AI, running {Count} AI detectors: {Names}",
+                                            policy.Name,
+                                            aiDetectors.Count,
+                                            string.Join(", ", aiDetectors.Select(d => d.Name)));
+
+                                        // Mark as ran
+                                        foreach (var detector in aiDetectors) ranDetectors.Add(detector.Name);
+
+                                        // Execute AI detectors
+                                        await ExecuteWaveAsync(
+                                            aiDetectors,
+                                            state,
+                                            aggregator,
+                                            signals,
+                                            completedDetectors,
+                                            failedDetectors,
+                                            cts.Token);
+
+                                        // Update signals after AI ran
+                                        signals[DetectorCountTrigger.CompletedDetectorsSignal] =
+                                            completedDetectors.Count;
+                                        signals[RiskThresholdTrigger.CurrentRiskSignal] =
+                                            aggregator.Aggregate().BotProbability;
+
+                                        // Continue to allow early exit check after AI
+                                        waveNumber++;
+                                        continue;
+                                    }
+                                }
+
+                                // For other actions (Block, Allow, Challenge), set final action and exit
+                                finalAction = evalResult.Action.Value;
                                 _logger.LogDebug(
-                                    "Policy transition: {From} -> {To}",
-                                    policy.Name, nextPolicy.Name);
-                                policy = nextPolicy;
-                                // Continue with new policy's detectors
+                                    "Policy {Policy} triggered action {Action}: {Reason}",
+                                    policy.Name, evalResult.Action, evalResult.Reason);
+                                break;
+                            }
+
+                            if (!string.IsNullOrEmpty(evalResult.NextPolicy) && _policyRegistry != null)
+                            {
+                                var nextPolicy = _policyRegistry.GetPolicy(evalResult.NextPolicy);
+                                if (nextPolicy != null)
+                                {
+                                    _logger.LogDebug(
+                                        "Policy transition: {From} -> {To}",
+                                        policy.Name, nextPolicy.Name);
+                                    policy = nextPolicy;
+                                    // Continue with new policy's detectors
+                                }
                             }
                         }
                     }
-                }
 
-                // If early exit was triggered, stop the wave loop (but after policy evaluation)
-                if (earlyExitTriggered)
+                    // If early exit was triggered, stop the wave loop (but after policy evaluation)
+                    if (earlyExitTriggered) break;
+
+                    waveNumber++;
+
+                    // Small delay between waves to allow signals to propagate
+                    if (waveNumber < _options.MaxWaves) await Task.Delay(_options.WaveInterval, cts.Token);
+                }
+            }
+            catch (OperationCanceledException) when (cts.IsCancellationRequested &&
+                                                     !cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogWarning(
+                    "Detection timed out after {Elapsed}ms for {RequestId}",
+                    stopwatch.ElapsedMilliseconds, requestId);
+            }
+
+            var result = aggregator.Aggregate();
+
+            // Always use stopwatch for actual wall-clock time (more accurate than sum of contributions)
+            var actualProcessingTimeMs = stopwatch.Elapsed.TotalMilliseconds;
+
+            // Apply policy action and timing to result
+            // Mark EarlyExit=true when policy triggered an early action (Allow/Block before full pipeline)
+            var wasEarlyExit = finalAction.HasValue &&
+                               (finalAction.Value == PolicyAction.Allow || finalAction.Value == PolicyAction.Block) &&
+                               result.ContributingDetectors.Count < 9; // Less than full detector count
+
+            if (finalAction.HasValue || !string.IsNullOrEmpty(triggeredActionPolicyName))
+                result = result with
                 {
-                    break;
-                }
-
-                waveNumber++;
-
-                // Small delay between waves to allow signals to propagate
-                if (waveNumber < _options.MaxWaves)
+                    PolicyAction = finalAction,
+                    TriggeredActionPolicyName = triggeredActionPolicyName,
+                    PolicyName = policy.Name,
+                    TotalProcessingTimeMs = actualProcessingTimeMs,
+                    EarlyExit = wasEarlyExit || result.EarlyExit,
+                    EarlyExitVerdict = wasEarlyExit ? EarlyExitVerdict.PolicyAllowed : result.EarlyExitVerdict
+                };
+            else
+                result = result with
                 {
-                    await Task.Delay(_options.WaveInterval, cts.Token);
+                    PolicyName = policy.Name,
+                    TotalProcessingTimeMs = actualProcessingTimeMs
+                };
+
+            // Publish learning event
+            PublishLearningEvent(result, requestId, stopwatch.Elapsed);
+
+            // Record request in cross-request signature coordinator
+            if (_signatureCoordinator != null)
+                try
+                {
+                    var signature = ComputeSignatureHash(httpContext);
+                    var path = httpContext.Request.Path.ToString();
+
+                    // Fire-and-forget (don't await to avoid blocking request)
+                    _ = _signatureCoordinator.RecordRequestAsync(
+                        signature,
+                        requestId,
+                        path,
+                        result.BotProbability,
+                        signals.ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
+                        result.ContributingDetectors.ToHashSet(),
+                        cancellationToken);
                 }
-            }
-        }
-        catch (OperationCanceledException) when (cts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
-        {
-            _logger.LogWarning(
-                "Detection timed out after {Elapsed}ms for {RequestId}",
-                stopwatch.ElapsedMilliseconds, requestId);
-        }
-
-        var result = aggregator.Aggregate();
-
-        // Always use stopwatch for actual wall-clock time (more accurate than sum of contributions)
-        var actualProcessingTimeMs = stopwatch.Elapsed.TotalMilliseconds;
-
-        // Apply policy action and timing to result
-        // Mark EarlyExit=true when policy triggered an early action (Allow/Block before full pipeline)
-        var wasEarlyExit = finalAction.HasValue &&
-                           (finalAction.Value == PolicyAction.Allow || finalAction.Value == PolicyAction.Block) &&
-                           result.ContributingDetectors.Count < 9; // Less than full detector count
-
-        if (finalAction.HasValue || !string.IsNullOrEmpty(triggeredActionPolicyName))
-        {
-            result = result with
-            {
-                PolicyAction = finalAction,
-                TriggeredActionPolicyName = triggeredActionPolicyName,
-                PolicyName = policy.Name,
-                TotalProcessingTimeMs = actualProcessingTimeMs,
-                EarlyExit = wasEarlyExit || result.EarlyExit,
-                EarlyExitVerdict = wasEarlyExit ? EarlyExitVerdict.PolicyAllowed : result.EarlyExitVerdict
-            };
-        }
-        else
-        {
-            result = result with
-            {
-                PolicyName = policy.Name,
-                TotalProcessingTimeMs = actualProcessingTimeMs
-            };
-        }
-
-        // Publish learning event
-        PublishLearningEvent(result, requestId, stopwatch.Elapsed);
-
-        // Record request in cross-request signature coordinator
-        if (_signatureCoordinator != null)
-        {
-            try
-            {
-                var signature = ComputeSignatureHash(httpContext);
-                var path = httpContext.Request.Path.ToString();
-
-                // Fire-and-forget (don't await to avoid blocking request)
-                _ = _signatureCoordinator.RecordRequestAsync(
-                    signature,
-                    requestId,
-                    path,
-                    result.BotProbability,
-                    signals.ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
-                    result.ContributingDetectors.ToHashSet(),
-                    cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                // Log but don't fail request if signature recording fails
-                _logger.LogWarning(ex, "Failed to record request in SignatureCoordinator for {RequestId}", requestId);
-            }
-        }
+                catch (Exception ex)
+                {
+                    // Log but don't fail request if signature recording fails
+                    _logger.LogWarning(ex, "Failed to record request in SignatureCoordinator for {RequestId}",
+                        requestId);
+                }
 
             _logger.LogDebug(
                 "Detection complete for {RequestId}: {RiskBand} (prob={Probability:F2}, conf={Confidence:F2}) in {Elapsed}ms, {Waves} waves, {Detectors} detectors",
@@ -680,10 +666,7 @@ public class BlackboardOrchestrator
                 aggregator.AddContribution(withMetadata);
 
                 // Merge signals
-                foreach (var signal in contribution.Signals)
-                {
-                    signals[signal.Key] = signal.Value;
-                }
+                foreach (var signal in contribution.Signals) signals[signal.Key] = signal.Value;
             }
 
             completedDetectors[detector.Name] = true;
@@ -722,11 +705,9 @@ public class BlackboardOrchestrator
         RecordFailure(detector.Name);
 
         if (!detector.IsOptional)
-        {
             _logger.LogError(
                 "Required detector {Name} failed: {Reason}",
                 detector.Name, reason);
-        }
     }
 
     private static bool CanRun(IContributingDetector detector, IReadOnlyDictionary<string, object> signals)
@@ -781,6 +762,7 @@ public class BlackboardOrchestrator
                 state.State = CircuitBreakerState.HalfOpen;
                 return true;
             }
+
             return false;
         }
 
@@ -829,7 +811,7 @@ public class BlackboardOrchestrator
         // This enables the heuristic to learn good behavior patterns, not just bad ones
         var isHighConfidenceBot = result.BotProbability >= 0.8;
         var isHighConfidenceHuman = result.BotProbability <= 0.2;
-        var eventType = (isHighConfidenceBot || isHighConfidenceHuman)
+        var eventType = isHighConfidenceBot || isHighConfidenceHuman
             ? LearningEventType.HighConfidenceDetection
             : LearningEventType.FullDetection;
 
@@ -877,9 +859,9 @@ public class BlackboardOrchestrator
 
         // Use PiiHasher for HMAC-SHA256 (cryptographic, non-reversible)
         // TODO: Inject PiiHasher via constructor for proper key management
-        var tempKey = new byte[32];  // TEMPORARY - should come from config/vault
-        System.Security.Cryptography.RandomNumberGenerator.Fill(tempKey);
-        var hasher = new Dashboard.PiiHasher(tempKey);
+        var tempKey = new byte[32]; // TEMPORARY - should come from config/vault
+        RandomNumberGenerator.Fill(tempKey);
+        var hasher = new PiiHasher(tempKey);
 
         // Generate PRIMARY signature (IP + UA)
         return hasher.ComputeSignature(clientIp, userAgent);
@@ -900,7 +882,7 @@ internal class CircuitState
 
 internal enum CircuitBreakerState
 {
-    Closed,   // Normal operation
-    Open,     // Failing, reject requests
-    HalfOpen  // Trying one request to see if recovered
+    Closed, // Normal operation
+    Open, // Failing, reject requests
+    HalfOpen // Trying one request to see if recovered
 }

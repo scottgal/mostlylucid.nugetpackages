@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
+using Mostlylucid.BotDetection.Models;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 
@@ -44,13 +45,14 @@ public class HeaderContributor : ContributingDetectorBase
 
         // Missing Accept header - suspicious
         if (!hasAccept)
-        {
             contributions.Add(DetectionContribution.Bot(
-                Name, "Header", 0.4,
-                "Missing Accept header",
-                Models.BotType.Unknown)
-                with { Signals = signals.ToImmutable() });
-        }
+                    Name, "Header", 0.4,
+                    "Missing Accept header",
+                    BotType.Unknown)
+                with
+                {
+                    Signals = signals.ToImmutable()
+                });
 
         // Missing Accept-Language with browser UA
         var userAgent = state.UserAgent ?? "";
@@ -59,12 +61,10 @@ public class HeaderContributor : ContributingDetectorBase
                                 userAgent.Contains("Safari") || userAgent.Contains("Edge"));
 
         if (looksLikeBrowser && !hasAcceptLanguage)
-        {
             contributions.Add(DetectionContribution.Bot(
                 Name, "Header", 0.5,
                 "Browser User-Agent without Accept-Language",
-                Models.BotType.Scraper));
-        }
+                BotType.Scraper));
 
         // Check for proxy headers (X-Forwarded-For, Via)
         var hasXForwardedFor = headers.ContainsKey("X-Forwarded-For");
@@ -74,27 +74,22 @@ public class HeaderContributor : ContributingDetectorBase
         // Check for unusual header ordering or content
         var headerCount = headers.Count;
         if (headerCount < 3)
-        {
             contributions.Add(DetectionContribution.Bot(
                 Name, "Header", 0.6,
                 $"Very few headers ({headerCount})",
-                Models.BotType.Scraper));
-        }
+                BotType.Scraper));
 
         // Check for bot-specific headers
         if (headers.ContainsKey("X-Requested-With") &&
             headers["X-Requested-With"].ToString() == "XMLHttpRequest" &&
             !hasAcceptLanguage)
-        {
             contributions.Add(DetectionContribution.Bot(
                 Name, "Header", 0.4,
                 "AJAX request without Accept-Language",
-                Models.BotType.Scraper));
-        }
+                BotType.Scraper));
 
         // No bot indicators found
         if (contributions.Count == 0)
-        {
             contributions.Add(new DetectionContribution
             {
                 DetectorName = Name,
@@ -104,7 +99,6 @@ public class HeaderContributor : ContributingDetectorBase
                 Reason = "Headers appear normal",
                 Signals = signals.ToImmutable()
             });
-        }
 
         return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
     }

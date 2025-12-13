@@ -3,20 +3,19 @@ using Mostlylucid.BotDetection.Orchestration;
 using Mostlylucid.BotDetection.Orchestration.Escalation;
 using Mostlylucid.BotDetection.Orchestration.SignalMatching;
 using Mostlylucid.Ephemeral;
-using Xunit;
 
 namespace Mostlylucid.BotDetection.Test.Orchestration;
 
 public class SignatureEscalatorAtomTests
 {
-    private readonly SignalSink _operationSink;
+    private readonly NullLogger<SignatureResponseCoordinatorCache> _cacheLogger;
     private readonly SignatureResponseCoordinatorCache _coordinatorCache;
     private readonly NullLogger<SignatureEscalatorAtom> _logger;
-    private readonly NullLogger<SignatureResponseCoordinatorCache> _cacheLogger;
+    private readonly SignalSink _operationSink;
 
     public SignatureEscalatorAtomTests()
     {
-        _operationSink = new SignalSink(maxCapacity: 1000, maxAge: TimeSpan.FromMinutes(1));
+        _operationSink = new SignalSink(1000, TimeSpan.FromMinutes(1));
         _cacheLogger = NullLogger<SignatureResponseCoordinatorCache>.Instance;
         _coordinatorCache = new SignatureResponseCoordinatorCache(_cacheLogger);
         _logger = NullLogger<SignatureEscalatorAtom>.Instance;
@@ -94,7 +93,7 @@ public class SignatureEscalatorAtomTests
         {
             EscalationRules = new List<EscalationRule>
             {
-                new EscalationRule
+                new()
                 {
                     Name = "high_risk",
                     Priority = 90,
@@ -132,7 +131,7 @@ public class SignatureEscalatorAtomTests
         {
             EscalationRules = new List<EscalationRule>
             {
-                new EscalationRule
+                new()
                 {
                     Name = "honeypot_immediate",
                     Priority = 100,
@@ -198,7 +197,7 @@ public class SignatureEscalatorAtomTests
             AlertThreshold = 0.8,
             OperationEscalationRules = new List<EscalationRule>
             {
-                new EscalationRule
+                new()
                 {
                     Name = "high_combined",
                     Priority = 90,
@@ -259,7 +258,7 @@ public class SignalPatternMatcherTests
             ["risk"] = "request.risk"
         };
         var matcher = new SignalPatternMatcher(patterns);
-        var sink = new SignalSink(maxCapacity: 100, maxAge: TimeSpan.FromMinutes(1));
+        var sink = new SignalSink(100, TimeSpan.FromMinutes(1));
 
         sink.Raise(new SignalKey("request.risk"), "0.75");
 
@@ -280,7 +279,7 @@ public class SignalPatternMatcherTests
             ["risk"] = "request.*.risk"
         };
         var matcher = new SignalPatternMatcher(patterns);
-        var sink = new SignalSink(maxCapacity: 100, maxAge: TimeSpan.FromMinutes(1));
+        var sink = new SignalSink(100, TimeSpan.FromMinutes(1));
 
         sink.Raise(new SignalKey("request.detector.risk"), "0.75");
 
@@ -301,7 +300,7 @@ public class SignalPatternMatcherTests
             ["risk"] = "request.risk"
         };
         var matcher = new SignalPatternMatcher(patterns);
-        var sink = new SignalSink(maxCapacity: 100, maxAge: TimeSpan.FromMinutes(1));
+        var sink = new SignalSink(100, TimeSpan.FromMinutes(1));
 
         sink.Raise(new SignalKey("request.risk"), "0.50");
         Thread.Sleep(10); // Ensure different timestamps
@@ -313,9 +312,7 @@ public class SignalPatternMatcherTests
         // Assert
         Assert.NotNull(extracted);
         if (extracted.TryGetValue("risk", out var value))
-        {
-            Assert.Equal(0.75, Convert.ToDouble(value), precision: 10); // Use precision for floating point comparison
-        }
+            Assert.Equal(0.75, Convert.ToDouble(value), 10); // Use precision for floating point comparison
     }
 
     [Fact]
@@ -329,7 +326,7 @@ public class SignalPatternMatcherTests
             ["honeypot"] = "request.honeypot"
         };
         var matcher = new SignalPatternMatcher(patterns);
-        var sink = new SignalSink(maxCapacity: 100, maxAge: TimeSpan.FromMinutes(1));
+        var sink = new SignalSink(100, TimeSpan.FromMinutes(1));
 
         sink.Raise(new SignalKey("request.risk"), "0.75");
         sink.Raise(new SignalKey("response.score"), "0.80");

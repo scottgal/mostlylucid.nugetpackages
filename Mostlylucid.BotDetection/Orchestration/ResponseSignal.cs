@@ -123,8 +123,8 @@ public enum ResponseAnalysisMode
 }
 
 /// <summary>
-    ///     Trigger configuration for when response analysis should activate.
-    ///     Uses fast signature matching to decide if response coordinator should spin up.
+///     Trigger configuration for when response analysis should activate.
+///     Uses fast signature matching to decide if response coordinator should spin up.
 /// </summary>
 public sealed record ResponseAnalysisTrigger
 {
@@ -191,7 +191,13 @@ public sealed record ResponseAnalysisTrigger
 /// </summary>
 public readonly record struct StatusCodeRange(int Min, int Max)
 {
-    public bool Contains(int statusCode) => statusCode >= Min && statusCode <= Max;
+    public bool Contains(int statusCode)
+    {
+        return statusCode >= Min && statusCode <= Max;
+    }
 
-    public override string ToString() => $"{Min}-{Max}";
+    public override string ToString()
+    {
+        return $"{Min}-{Max}";
+    }
 }

@@ -3,7 +3,6 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Mostlylucid.BotDetection.ApiHolodeck.Models;
 
 namespace Mostlylucid.BotDetection.ApiHolodeck.Services;
 
@@ -77,15 +76,12 @@ public interface IShapeBuilder
 /// </summary>
 public class ShapeBuilder : IShapeBuilder
 {
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<ShapeBuilder> _logger;
-    private readonly ShapeBuilderOptions _options;
-
     // Known OpenAPI specs that can be used for realistic simulation
     private static readonly Dictionary<string, string> KnownOpenApiSpecs = new(StringComparer.OrdinalIgnoreCase)
     {
         ["petstore"] = "https://petstore.swagger.io/v2/swagger.json",
-        ["github"] = "https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json",
+        ["github"] =
+            "https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json",
         ["stripe"] = "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json",
         // Built-in holodeck schemas (embedded resources)
         ["inventory"] = "embedded:inventory-openapi.json",
@@ -94,41 +90,46 @@ public class ShapeBuilder : IShapeBuilder
     };
 
     // API domain patterns for detection
-    private static readonly Dictionary<string, (string schemaKey, ApiSimulationType type)> DomainPatterns = new(StringComparer.OrdinalIgnoreCase)
-    {
-        // Inventory/Warehouse patterns
-        ["inventory"] = ("inventory", ApiSimulationType.OpenApi),
-        ["warehouse"] = ("inventory", ApiSimulationType.OpenApi),
-        ["stock"] = ("inventory", ApiSimulationType.OpenApi),
-        ["sku"] = ("inventory", ApiSimulationType.OpenApi),
-        ["transfers"] = ("inventory", ApiSimulationType.OpenApi),
+    private static readonly Dictionary<string, (string schemaKey, ApiSimulationType type)> DomainPatterns =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            // Inventory/Warehouse patterns
+            ["inventory"] = ("inventory", ApiSimulationType.OpenApi),
+            ["warehouse"] = ("inventory", ApiSimulationType.OpenApi),
+            ["stock"] = ("inventory", ApiSimulationType.OpenApi),
+            ["sku"] = ("inventory", ApiSimulationType.OpenApi),
+            ["transfers"] = ("inventory", ApiSimulationType.OpenApi),
 
-        // E-commerce patterns
-        ["products"] = ("ecommerce", ApiSimulationType.OpenApi),
-        ["cart"] = ("ecommerce", ApiSimulationType.OpenApi),
-        ["checkout"] = ("ecommerce", ApiSimulationType.OpenApi),
-        ["orders"] = ("ecommerce", ApiSimulationType.OpenApi),
-        ["shop"] = ("ecommerce", ApiSimulationType.OpenApi),
-        ["catalog"] = ("ecommerce", ApiSimulationType.OpenApi),
+            // E-commerce patterns
+            ["products"] = ("ecommerce", ApiSimulationType.OpenApi),
+            ["cart"] = ("ecommerce", ApiSimulationType.OpenApi),
+            ["checkout"] = ("ecommerce", ApiSimulationType.OpenApi),
+            ["orders"] = ("ecommerce", ApiSimulationType.OpenApi),
+            ["shop"] = ("ecommerce", ApiSimulationType.OpenApi),
+            ["catalog"] = ("ecommerce", ApiSimulationType.OpenApi),
 
-        // CRM patterns
-        ["contacts"] = ("crm", ApiSimulationType.OpenApi),
-        ["deals"] = ("crm", ApiSimulationType.OpenApi),
-        ["leads"] = ("crm", ApiSimulationType.OpenApi),
-        ["pipeline"] = ("crm", ApiSimulationType.OpenApi),
-        ["companies"] = ("crm", ApiSimulationType.OpenApi),
-        ["activities"] = ("crm", ApiSimulationType.OpenApi),
+            // CRM patterns
+            ["contacts"] = ("crm", ApiSimulationType.OpenApi),
+            ["deals"] = ("crm", ApiSimulationType.OpenApi),
+            ["leads"] = ("crm", ApiSimulationType.OpenApi),
+            ["pipeline"] = ("crm", ApiSimulationType.OpenApi),
+            ["companies"] = ("crm", ApiSimulationType.OpenApi),
+            ["activities"] = ("crm", ApiSimulationType.OpenApi),
 
-        // HR/Employee patterns (GraphQL)
-        ["employees"] = ("employee-graphql", ApiSimulationType.GraphQL),
-        ["employee"] = ("employee-graphql", ApiSimulationType.GraphQL),
-        ["hr"] = ("employee-graphql", ApiSimulationType.GraphQL),
-        ["departments"] = ("employee-graphql", ApiSimulationType.GraphQL),
-        ["payroll"] = ("employee-graphql", ApiSimulationType.GraphQL),
-        ["leave"] = ("employee-graphql", ApiSimulationType.GraphQL),
-        ["timesheet"] = ("employee-graphql", ApiSimulationType.GraphQL),
-        ["performance"] = ("employee-graphql", ApiSimulationType.GraphQL)
-    };
+            // HR/Employee patterns (GraphQL)
+            ["employees"] = ("employee-graphql", ApiSimulationType.GraphQL),
+            ["employee"] = ("employee-graphql", ApiSimulationType.GraphQL),
+            ["hr"] = ("employee-graphql", ApiSimulationType.GraphQL),
+            ["departments"] = ("employee-graphql", ApiSimulationType.GraphQL),
+            ["payroll"] = ("employee-graphql", ApiSimulationType.GraphQL),
+            ["leave"] = ("employee-graphql", ApiSimulationType.GraphQL),
+            ["timesheet"] = ("employee-graphql", ApiSimulationType.GraphQL),
+            ["performance"] = ("employee-graphql", ApiSimulationType.GraphQL)
+        };
+
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<ShapeBuilder> _logger;
+    private readonly ShapeBuilderOptions _options;
 
     public ShapeBuilder(
         IHttpClientFactory httpClientFactory,
@@ -154,20 +155,15 @@ public class ShapeBuilder : IShapeBuilder
 
         // If LLM analysis is enabled and we're uncertain, use LLM for deeper analysis
         if (_options.EnableLlmAnalysis && heuristicResult.Confidence < _options.LlmAnalysisThreshold)
-        {
             try
             {
                 var llmResult = await AnalyzeWithLlmAsync(context, heuristicResult, cancellationToken);
-                if (llmResult != null && llmResult.Confidence > heuristicResult.Confidence)
-                {
-                    return llmResult;
-                }
+                if (llmResult != null && llmResult.Confidence > heuristicResult.Confidence) return llmResult;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "LLM shape analysis failed, using heuristics");
             }
-        }
 
         return heuristicResult;
     }
@@ -181,7 +177,6 @@ public class ShapeBuilder : IShapeBuilder
         // Check for GraphQL indicators
         if (path.Contains("graphql", StringComparison.OrdinalIgnoreCase) ||
             contentType?.Contains("application/graphql", StringComparison.OrdinalIgnoreCase) == true)
-        {
             return new ShapeAnalysisResult
             {
                 SimulationType = ApiSimulationType.GraphQL,
@@ -190,13 +185,11 @@ public class ShapeBuilder : IShapeBuilder
                 Confidence = 0.95,
                 Reasoning = "Path or content-type indicates GraphQL"
             };
-        }
 
         // Check for XML/SOAP indicators
         if (contentType?.Contains("xml", StringComparison.OrdinalIgnoreCase) == true ||
             accept?.Contains("xml", StringComparison.OrdinalIgnoreCase) == true ||
             path.Contains(".xml", StringComparison.OrdinalIgnoreCase))
-        {
             return new ShapeAnalysisResult
             {
                 SimulationType = ApiSimulationType.Xml,
@@ -205,13 +198,11 @@ public class ShapeBuilder : IShapeBuilder
                 Confidence = 0.9,
                 Reasoning = "XML content-type or accept header detected"
             };
-        }
 
         // Check for HTML requests (web scrapers)
         if (accept?.Contains("text/html", StringComparison.OrdinalIgnoreCase) == true ||
             path.EndsWith(".html", StringComparison.OrdinalIgnoreCase) ||
             path.EndsWith(".htm", StringComparison.OrdinalIgnoreCase))
-        {
             return new ShapeAnalysisResult
             {
                 SimulationType = ApiSimulationType.Html,
@@ -220,22 +211,20 @@ public class ShapeBuilder : IShapeBuilder
                 Confidence = 0.85,
                 Reasoning = "HTML accept header or extension detected"
             };
-        }
 
         // Check for known API patterns to suggest OpenAPI/GraphQL specs
         var apiMatch = MatchKnownApiPattern(path);
         if (apiMatch != null)
-        {
             return new ShapeAnalysisResult
             {
                 SimulationType = apiMatch.Value.type,
                 Shape = apiMatch.Value.shape,
                 OpenApiSpecUrl = apiMatch.Value.specUrl,
-                ContentType = apiMatch.Value.type == ApiSimulationType.GraphQL ? "application/json" : "application/json",
+                ContentType =
+                    apiMatch.Value.type == ApiSimulationType.GraphQL ? "application/json" : "application/json",
                 Confidence = 0.85,
                 Reasoning = $"Matched {apiMatch.Value.type} pattern: {apiMatch.Value.shape}"
             };
-        }
 
         // Detect REST resource patterns
         var restShape = DetectRestResourceShape(path, method);
@@ -254,17 +243,12 @@ public class ShapeBuilder : IShapeBuilder
     {
         // Check configured custom OpenAPI specs first
         foreach (var (pattern, specUrl) in _options.OpenApiSpecs)
-        {
             if (path.Contains(pattern, StringComparison.OrdinalIgnoreCase))
-            {
                 return (pattern, specUrl, ApiSimulationType.OpenApi);
-            }
-        }
 
         // Check domain patterns for built-in schemas
         var pathLower = path.ToLowerInvariant();
         foreach (var (keyword, (schemaKey, simType)) in DomainPatterns)
-        {
             if (pathLower.Contains(keyword))
             {
                 var specUrl = KnownOpenApiSpecs.TryGetValue(schemaKey, out var url)
@@ -272,20 +256,15 @@ public class ShapeBuilder : IShapeBuilder
                     : $"embedded:{schemaKey}.json";
                 return (schemaKey, specUrl, simType);
             }
-        }
 
         // Check well-known external patterns
         if (path.Contains("/pets", StringComparison.OrdinalIgnoreCase) ||
             path.Contains("/pet/", StringComparison.OrdinalIgnoreCase))
-        {
             return ("petstore", KnownOpenApiSpecs["petstore"], ApiSimulationType.OpenApi);
-        }
 
         if (path.Contains("/repos/", StringComparison.OrdinalIgnoreCase) ||
             (path.Contains("/users/", StringComparison.OrdinalIgnoreCase) && path.Contains("github")))
-        {
             return ("github", KnownOpenApiSpecs["github"], ApiSimulationType.OpenApi);
-        }
 
         return null;
     }
@@ -293,10 +272,7 @@ public class ShapeBuilder : IShapeBuilder
     private (string shape, double confidence, string reasoning) DetectRestResourceShape(string path, string method)
     {
         var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (segments.Length == 0)
-        {
-            return ("generic", 0.3, "Root path - generic response");
-        }
+        if (segments.Length == 0) return ("generic", 0.3, "Root path - generic response");
 
         // Look for common resource patterns
         var lastSegment = segments[^1];
@@ -387,19 +363,19 @@ public class ShapeBuilder : IShapeBuilder
     private static string GetSystemPrompt()
     {
         return """
-            You are an API analysis expert. Given request details, determine the most appropriate API simulation type.
-            Respond with JSON only in this format:
-            {"type":"RestJson|GraphQL|OpenApi|Xml|Html","shape":"shape-name","confidence":0.0-1.0,"reasoning":"why"}
+               You are an API analysis expert. Given request details, determine the most appropriate API simulation type.
+               Respond with JSON only in this format:
+               {"type":"RestJson|GraphQL|OpenApi|Xml|Html","shape":"shape-name","confidence":0.0-1.0,"reasoning":"why"}
 
-            Types:
-            - RestJson: Standard REST API returning JSON
-            - GraphQL: GraphQL API (detect from path/query containing 'graphql' or query structure)
-            - OpenApi: Use existing OpenAPI spec for realistic responses
-            - Xml: SOAP/XML based API
-            - Html: HTML pages (for web scrapers)
+               Types:
+               - RestJson: Standard REST API returning JSON
+               - GraphQL: GraphQL API (detect from path/query containing 'graphql' or query structure)
+               - OpenApi: Use existing OpenAPI spec for realistic responses
+               - Xml: SOAP/XML based API
+               - Html: HTML pages (for web scrapers)
 
-            Common shapes: users-list, user-detail, products-list, product-detail, search-results, auth-response, graphql, generic
-            """;
+               Common shapes: users-list, user-detail, products-list, product-detail, search-results, auth-response, graphql, generic
+               """;
     }
 
     private static string BuildLlmPrompt(HttpContext context, ShapeAnalysisResult heuristic)
@@ -414,18 +390,18 @@ public class ShapeBuilder : IShapeBuilder
         }
 
         return $"""
-            Analyze this API request:
-            Method: {context.Request.Method}
-            Path: {context.Request.Path}
-            Query: {context.Request.QueryString}
-            Content-Type: {context.Request.ContentType}
-            Accept: {context.Request.Headers.Accept}
-            Body preview: {(body.Length > 500 ? body[..500] + "..." : body)}
+                Analyze this API request:
+                Method: {context.Request.Method}
+                Path: {context.Request.Path}
+                Query: {context.Request.QueryString}
+                Content-Type: {context.Request.ContentType}
+                Accept: {context.Request.Headers.Accept}
+                Body preview: {(body.Length > 500 ? body[..500] + "..." : body)}
 
-            My heuristic guess: {heuristic.SimulationType} / {heuristic.Shape} (confidence: {heuristic.Confidence:F2})
+                My heuristic guess: {heuristic.SimulationType} / {heuristic.Shape} (confidence: {heuristic.Confidence:F2})
 
-            What API simulation type and shape should we use?
-            """;
+                What API simulation type and shape should we use?
+                """;
     }
 
     private ShapeAnalysisResult? ParseLlmResponse(string? content)

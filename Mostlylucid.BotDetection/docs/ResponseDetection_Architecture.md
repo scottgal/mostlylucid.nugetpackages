@@ -103,6 +103,7 @@ These tiers communicate through **signal sinks**, not direct dependencies.
 ### Tier 1: Operation-Level Coordinators
 
 **Characteristics**:
+
 - **Lifetime**: Single HTTP request/response cycle
 - **Scope**: One operation (request → response)
 - **Signal Sink**: `OperationSignalSink` (scoped, dies with operation)
@@ -176,11 +177,13 @@ public class ResponseCoordinator
 }
 ```
 
-**Key Point**: Request and response coordinators are **separate objects** with **separate lifecycles** but share the **same OperationSignalSink**.
+**Key Point**: Request and response coordinators are **separate objects** with **separate lifecycles** but share the *
+*same OperationSignalSink**.
 
 ### Tier 2: Signature-Level Coordinators
 
 **Characteristics**:
+
 - **Lifetime**: Minutes/hours (bounded by window)
 - **Scope**: All operations for a signature (cross-request)
 - **Signal Sink**: `GlobalSignalSink` (process-level, persistent)
@@ -237,7 +240,8 @@ public class SignatureProfileAtom
 }
 ```
 
-**Key Point**: SignatureProfileAtom is **NOT** a per-request coordinator. It's a **per-signature state machine** that accumulates operation summaries over time.
+**Key Point**: SignatureProfileAtom is **NOT** a per-request coordinator. It's a **per-signature state machine** that
+accumulates operation summaries over time.
 
 ## Lanes
 
@@ -448,15 +452,16 @@ T=1003ms: Request blocked (1ms total latency)
 
 ## Summary
 
-| Aspect | Operation-Level | Signature-Level |
-|--------|-----------------|-----------------|
-| **Coordinators** | RequestCoordinator, ResponseCoordinator | SignatureProfileAtom |
-| **Lifetime** | Per-request (ms-seconds) | Per-signature (minutes-hours) |
-| **Signal Sink** | OperationSignalSink (scoped) | GlobalSignalSink (persistent) |
-| **Purpose** | Detect THIS request/response | Detect patterns across requests |
-| **Keyed by** | Request ID | Signature hash |
-| **Lanes** | Content, Heuristic, AI | Behavioral, Spectral, Reputation, Content |
-| **Death** | When response sent | When signature evicted (TTL/LRU) |
-| **Signals** | Fine-grained (request.*, response.*) | Aggregated (signature.behavior) |
+| Aspect           | Operation-Level                         | Signature-Level                           |
+|------------------|-----------------------------------------|-------------------------------------------|
+| **Coordinators** | RequestCoordinator, ResponseCoordinator | SignatureProfileAtom                      |
+| **Lifetime**     | Per-request (ms-seconds)                | Per-signature (minutes-hours)             |
+| **Signal Sink**  | OperationSignalSink (scoped)            | GlobalSignalSink (persistent)             |
+| **Purpose**      | Detect THIS request/response            | Detect patterns across requests           |
+| **Keyed by**     | Request ID                              | Signature hash                            |
+| **Lanes**        | Content, Heuristic, AI                  | Behavioral, Spectral, Reputation, Content |
+| **Death**        | When response sent                      | When signature evicted (TTL/LRU)          |
+| **Signals**      | Fine-grained (request.*, response.*)    | Aggregated (signature.behavior)           |
 
-**Key Design**: Coordinators share signals, not state. Request/Response coordinators are siblings (same sink), not parent/child.
+**Key Design**: Coordinators share signals, not state. Request/Response coordinators are siblings (same sink), not
+parent/child.

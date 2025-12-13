@@ -2,11 +2,13 @@
 
 ## Overview
 
-The console gateway now supports **client-side bot detection** that works alongside server-side detection to validate and enhance bot detection accuracy.
+The console gateway now supports **client-side bot detection** that works alongside server-side detection to validate
+and enhance bot detection accuracy.
 
 ## How It Works
 
 ### 1. Request Flow
+
 ```
 Browser → Gateway (server-side detection) → Upstream Server
         ↓ (adds headers to response)
@@ -22,7 +24,7 @@ Browser → Gateway (server-side detection) → Upstream Server
 For every request, the gateway adds these headers to the response:
 
 - **X-Bot-Detection-Callback-Url**: URL where client-side JavaScript should POST results
-  - Example: `http://localhost:5200/api/bot-detection/client-result`
+    - Example: `http://localhost:5200/api/bot-detection/client-result`
 - **X-Bot-Detection**: Server-side bot detection result (true/false)
 - **X-Bot-Probability**: Confidence score (0.00-1.00)
 - **X-Bot-Name**: Bot name if identified (optional)
@@ -33,6 +35,7 @@ For every request, the gateway adds these headers to the response:
 **POST /api/bot-detection/client-result**
 
 Accepts JSON payload from client-side JavaScript containing:
+
 - Timestamp
 - Server detection results (echoed back)
 - Client-side fingerprinting checks
@@ -42,6 +45,7 @@ Accepts JSON payload from client-side JavaScript containing:
 ## Code Changes Made
 
 ### Program.cs:220-240
+
 Added client-side detection callback endpoint using AOT-compatible JSON:
 
 ```csharp
@@ -67,6 +71,7 @@ app.MapPost("/api/bot-detection/client-result", async (HttpContext context) =>
 ```
 
 ### Program.cs:154-197
+
 Enhanced response transform to add client-side headers:
 
 ```csharp
@@ -89,6 +94,7 @@ if (httpContext.Items.TryGetValue(BotDetectionMiddleware.BotDetectionResultKey, 
 ```
 
 ### Program.cs:48-51
+
 Added explicit web root configuration for static files (SlimBuilder doesn't set this by default):
 
 ```csharp
@@ -99,6 +105,7 @@ builder.WebHost.UseWebRoot(webRootPath);
 ```
 
 ### Mostlylucid.BotDetection.Console.csproj:31, 44-55
+
 Disabled default content items to prevent SDK conflicts with manual wwwroot inclusion:
 
 ```xml
@@ -121,6 +128,7 @@ Disabled default content items to prevent SDK conflicts with manual wwwroot incl
 ## Test Page
 
 A comprehensive test page is provided at:
+
 - **Gateway**: `wwwroot/test-client-side.html` (for reference)
 - **Demo**: `Mostlylucid.BotDetection.Demo/wwwroot/test-client-side.html` (deployed)
 
@@ -129,16 +137,17 @@ Access via: `http://localhost:5200/test-client-side.html` (when proxying to demo
 ### Test Page Features
 
 The test page demonstrates:
+
 1. Reading server-side detection headers via `fetch()` HEAD request
 2. Performing 8 client-side checks:
-   - Canvas fingerprinting
-   - WebGL vendor/renderer detection
-   - Audio Context fingerprinting
-   - Plugin enumeration
-   - Language detection
-   - Screen properties
-   - Touch capabilities
-   - Hardware concurrency
+    - Canvas fingerprinting
+    - WebGL vendor/renderer detection
+    - Audio Context fingerprinting
+    - Plugin enumeration
+    - Language detection
+    - Screen properties
+    - Touch capabilities
+    - Hardware concurrency
 3. Sending results to callback URL
 4. Displaying full detection flow with formatted JSON
 
@@ -164,6 +173,7 @@ curl -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
 ```
 
 **Expected Output:**
+
 ```
 HTTP/1.1 200 OK
 X-Bot-Detection-Callback-Url: http://localhost:5200/api/bot-detection/client-result
@@ -190,6 +200,7 @@ curl -X POST http://localhost:5200/api/bot-detection/client-result \
 ```
 
 **Expected Response:**
+
 ```json
 {"status":"accepted","message":"Client-side detection result received"}
 ```
@@ -208,11 +219,13 @@ curl -X POST http://localhost:5200/api/bot-detection/client-result \
 ⚠️ **Do NOT use anonymous types for JSON responses** - they break Native AOT compilation.
 
 **Bad (will fail with AOT):**
+
 ```csharp
 return Results.Ok(new { status = "accepted" });
 ```
 
 **Good (AOT-compatible):**
+
 ```csharp
 return Results.Text("{\"status\":\"accepted\"}", "application/json");
 ```
@@ -220,6 +233,7 @@ return Results.Text("{\"status\":\"accepted\"}", "application/json");
 ### Middleware Ordering
 
 The order matters! Current setup:
+
 1. `UseForwardedHeaders()` - Extract real client IP
 2. `UseStaticFiles()` - Serve static files (if any)
 3. `UseBotDetection()` - Run bot detection
@@ -230,20 +244,24 @@ The order matters! Current setup:
 ### Static Files in SlimBuilder
 
 `CreateSlimBuilder()` doesn't configure web root by default. Must explicitly call:
+
 ```csharp
 builder.WebHost.UseWebRoot(Path.Combine(AppContext.BaseDirectory, "wwwroot"));
 ```
 
 ### YARP Catch-All Route
 
-YARP is configured with `Path = "{**catch-all}"` which matches ALL paths. Specific endpoints MUST be mapped BEFORE `MapReverseProxy()` or they'll be proxied instead of handled locally.
+YARP is configured with `Path = "{**catch-all}"` which matches ALL paths. Specific endpoints MUST be mapped BEFORE
+`MapReverseProxy()` or they'll be proxied instead of handled locally.
 
 ## ✅ Implemented Features
 
 ### 1. Client-Side Bot Score Calculation
+
 The gateway calculates a bot score (0.0-1.0) based on client-side fingerprinting checks:
 
 **Bot Score Algorithm** (Program.cs:328-349):
+
 ```csharp
 - Missing Canvas API: +0.30 (major red flag)
 - Missing WebGL: +0.25 (very suspicious)
@@ -256,22 +274,27 @@ Bonus: If ALL checks pass → -0.20 (strong confidence it's real)
 ```
 
 ### 2. Server/Client Mismatch Detection
+
 Automatically detects conflicts between server-side and client-side verdicts:
 
 **Mismatch Criteria**:
+
 - Server says BOT (IsBot=true), but client score < 0.3 (looks human) → **MISMATCH**
 - Server says HUMAN (IsBot=false), but client score > 0.7 (looks like bot) → **MISMATCH**
 
 **Logging**: Mismatches trigger `[CLIENT-SIDE-MISMATCH]` warnings for investigation.
 
 ### 3. Learning Event Publication
+
 All client-side results are published to the `ILearningEventBus` with:
+
 - Event Type: `ClientSideValidation`
 - Label: Server's verdict (bot = true/false)
 - Confidence: Client-side bot score
 - Metadata: Full fingerprinting details (Canvas, WebGL, Audio, plugins, hardware)
 
 These events feed into the learning pipeline for:
+
 - Pattern discovery
 - False positive/negative analysis
 - Model improvement
@@ -311,6 +334,7 @@ Gateway logs client-side callbacks with prefix `[CLIENT-SIDE-CALLBACK]`:
 ### Integration Tests (2025-12-12)
 
 **Test 1: Real Browser (All Checks Pass)**
+
 ```
 Server: IsBot=False, Probability=0.25
 Client: Bot Score=0.00 (very low - indicates human)
@@ -319,6 +343,7 @@ Learning Event: Published successfully
 ```
 
 **Test 2: Headless Browser (All Checks Fail)**
+
 ```
 Server: IsBot=True, Probability=0.85
 Client: Bot Score=0.90 (very high - indicates bot)
@@ -327,6 +352,7 @@ Learning Event: Published successfully
 ```
 
 **Test 3: Mismatch Detection**
+
 ```
 Server: IsBot=True, Probability=0.75 (server thinks it's a bot)
 Client: Bot Score=0.00 (client looks human - all checks pass)
@@ -336,6 +362,7 @@ Learning Event: Published successfully with mismatch=true
 ```
 
 **Summary**: 3/3 tests passed ✅
+
 - Client-side bot scoring: Working
 - Mismatch detection: Working
 - Learning event publication: Working
@@ -345,6 +372,7 @@ Learning Event: Published successfully with mismatch=true
 
 **Date**: 2025-12-12
 **Completed**:
+
 - ✅ Client-side bot detection headers and callback endpoint
 - ✅ Client-side bot score calculation algorithm
 - ✅ Server/client mismatch detection
@@ -354,6 +382,7 @@ Learning Event: Published successfully with mismatch=true
 **Status**: ✅ Fully implemented, tested, and operational
 
 **Files Modified**:
+
 - `Mostlylucid.BotDetection.Console/Program.cs` - Callback endpoint with bot score calculation
 - `Mostlylucid.BotDetection/Events/ILearningEventBus.cs` - Added `ClientSideValidation` event type
 - `Mostlylucid.BotDetection.Console/CLIENT-SIDE-DETECTION.md` - Complete implementation documentation

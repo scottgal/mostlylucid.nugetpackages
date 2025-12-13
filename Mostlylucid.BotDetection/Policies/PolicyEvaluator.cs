@@ -1,4 +1,3 @@
-using System.Linq;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Orchestration;
 
@@ -50,37 +49,46 @@ public sealed record PolicyEvaluationResult
     public string? Reason { get; init; }
 
     /// <summary>Continue with current policy</summary>
-    public static PolicyEvaluationResult Continue() => new();
+    public static PolicyEvaluationResult Continue()
+    {
+        return new PolicyEvaluationResult();
+    }
 
     /// <summary>Transition to another policy</summary>
-    public static PolicyEvaluationResult TransitionTo(string policyName, PolicyTransition triggeredBy) =>
-        new()
+    public static PolicyEvaluationResult TransitionTo(string policyName, PolicyTransition triggeredBy)
+    {
+        return new PolicyEvaluationResult
         {
             ShouldContinue = false,
             NextPolicy = policyName,
             TriggeredBy = triggeredBy,
             Reason = $"Transition to {policyName}"
         };
+    }
 
     /// <summary>Take an immediate action</summary>
-    public static PolicyEvaluationResult TakeAction(PolicyAction action, PolicyTransition triggeredBy) =>
-        new()
+    public static PolicyEvaluationResult TakeAction(PolicyAction action, PolicyTransition triggeredBy)
+    {
+        return new PolicyEvaluationResult
         {
             ShouldContinue = false,
             Action = action,
             TriggeredBy = triggeredBy,
             Reason = $"Action: {action}"
         };
+    }
 
     /// <summary>Execute a named action policy</summary>
-    public static PolicyEvaluationResult ExecuteActionPolicy(string actionPolicyName, PolicyTransition triggeredBy) =>
-        new()
+    public static PolicyEvaluationResult ExecuteActionPolicy(string actionPolicyName, PolicyTransition triggeredBy)
+    {
+        return new PolicyEvaluationResult
         {
             ShouldContinue = false,
             ActionPolicyName = actionPolicyName,
             TriggeredBy = triggeredBy,
             Reason = $"ActionPolicy: {actionPolicyName}"
         };
+    }
 }
 
 /// <summary>
@@ -88,8 +96,8 @@ public sealed record PolicyEvaluationResult
 /// </summary>
 public class PolicyEvaluator : IPolicyEvaluator
 {
-    private readonly ILogger<PolicyEvaluator> _logger;
     private readonly Dictionary<string, double> _globalWeights;
+    private readonly ILogger<PolicyEvaluator> _logger;
 
     public PolicyEvaluator(ILogger<PolicyEvaluator> logger)
     {
@@ -104,8 +112,8 @@ public class PolicyEvaluator : IPolicyEvaluator
             ["Behavioral"] = 1.2,
             ["Inconsistency"] = 1.5,
             ["ClientSide"] = 1.3,
-            ["Heuristic"] = 2.0,  // Meta-layer that consumes all evidence
-            ["Llm"] = 2.5,        // AI/LLM escalation
+            ["Heuristic"] = 2.0, // Meta-layer that consumes all evidence
+            ["Llm"] = 2.5, // AI/LLM escalation
             ["IpReputation"] = 1.5
         };
     }
@@ -137,7 +145,6 @@ public class PolicyEvaluator : IPolicyEvaluator
         }
 
         foreach (var transition in policy.Transitions)
-        {
             if (ShouldTransition(transition, state))
             {
                 _logger.LogDebug(
@@ -147,21 +154,14 @@ public class PolicyEvaluator : IPolicyEvaluator
 
                 // ActionPolicyName takes precedence over Action
                 if (!string.IsNullOrEmpty(transition.ActionPolicyName))
-                {
                     return PolicyEvaluationResult.ExecuteActionPolicy(transition.ActionPolicyName, transition);
-                }
 
                 if (transition.Action.HasValue)
-                {
                     return PolicyEvaluationResult.TakeAction(transition.Action.Value, transition);
-                }
 
                 if (!string.IsNullOrEmpty(transition.GoToPolicy))
-                {
                     return PolicyEvaluationResult.TransitionTo(transition.GoToPolicy, transition);
-                }
             }
-        }
 
         // Check built-in thresholds
         if (state.CurrentRiskScore >= policy.ImmediateBlockThreshold)
@@ -185,7 +185,8 @@ public class PolicyEvaluator : IPolicyEvaluator
         // Skip if BypassTriggerConditions is true (all detectors including AI already ran)
         var aiAlreadyRan = policy.BypassTriggerConditions ||
                            (policy.AiPathDetectors.Count > 0 &&
-                            state.CompletedDetectors.Any(d => policy.AiPathDetectors.Contains(d, StringComparer.OrdinalIgnoreCase)));
+                            state.CompletedDetectors.Any(d =>
+                                policy.AiPathDetectors.Contains(d, StringComparer.OrdinalIgnoreCase)));
 
         if (policy.EscalateToAi &&
             state.CurrentRiskScore >= policy.AiEscalationThreshold &&
@@ -228,82 +229,65 @@ public class PolicyEvaluator : IPolicyEvaluator
     public double GetEffectiveWeight(DetectionPolicy policy, string detectorName)
     {
         // Check policy-level override first
-        if (policy.WeightOverrides.TryGetValue(detectorName, out var policyWeight))
-        {
-            return policyWeight;
-        }
+        if (policy.WeightOverrides.TryGetValue(detectorName, out var policyWeight)) return policyWeight;
 
         // Fall back to global weight
-        if (_globalWeights.TryGetValue(detectorName, out var globalWeight))
-        {
-            return globalWeight;
-        }
+        if (_globalWeights.TryGetValue(detectorName, out var globalWeight)) return globalWeight;
 
         // Default weight
         return 1.0;
     }
 
-    private static DetectionContribution? GetEarlyExitContribution(BlackboardState state) =>
-        state.Contributions.FirstOrDefault(
-            c => c.TriggerEarlyExit && c.EarlyExitVerdict.HasValue);
+    private static DetectionContribution? GetEarlyExitContribution(BlackboardState state)
+    {
+        return state.Contributions.FirstOrDefault(c => c.TriggerEarlyExit && c.EarlyExitVerdict.HasValue);
+    }
 
-    private static PolicyAction? MapEarlyExitVerdictToAction(EarlyExitVerdict verdict) =>
-        verdict switch
+    private static PolicyAction? MapEarlyExitVerdictToAction(EarlyExitVerdict verdict)
+    {
+        return verdict switch
         {
             EarlyExitVerdict.VerifiedGoodBot or
-            EarlyExitVerdict.Whitelisted or
-            EarlyExitVerdict.PolicyAllowed => PolicyAction.Allow,
+                EarlyExitVerdict.Whitelisted or
+                EarlyExitVerdict.PolicyAllowed => PolicyAction.Allow,
 
             EarlyExitVerdict.VerifiedBadBot or
-            EarlyExitVerdict.Blacklisted or
-            EarlyExitVerdict.PolicyBlocked => PolicyAction.Block,
+                EarlyExitVerdict.Blacklisted or
+                EarlyExitVerdict.PolicyBlocked => PolicyAction.Block,
 
             _ => null
         };
+    }
 
     private bool ShouldTransition(PolicyTransition transition, BlackboardState state)
     {
         // Check risk threshold conditions
         if (transition.WhenRiskExceeds.HasValue &&
             state.CurrentRiskScore < transition.WhenRiskExceeds.Value)
-        {
             return false;
-        }
 
         if (transition.WhenRiskBelow.HasValue &&
             state.CurrentRiskScore > transition.WhenRiskBelow.Value)
-        {
             return false;
-        }
 
         // Check signal conditions
         if (!string.IsNullOrEmpty(transition.WhenSignal))
         {
-            if (!state.Signals.ContainsKey(transition.WhenSignal))
-            {
-                return false;
-            }
+            if (!state.Signals.ContainsKey(transition.WhenSignal)) return false;
 
             // Check signal value if specified
             if (transition.WhenSignalValue != null)
-            {
                 if (!state.Signals.TryGetValue(transition.WhenSignal, out var signalValue) ||
                     !Equals(signalValue, transition.WhenSignalValue))
-                {
                     return false;
-                }
-            }
         }
 
         // Check reputation state
         if (!string.IsNullOrEmpty(transition.WhenReputationState))
-        {
             if (!state.Signals.TryGetValue("ReputationState", out var repState) ||
-                !string.Equals(repState?.ToString(), transition.WhenReputationState, StringComparison.OrdinalIgnoreCase))
-            {
+                !string.Equals(repState?.ToString(), transition.WhenReputationState,
+                    StringComparison.OrdinalIgnoreCase))
                 return false;
-            }
-        }
 
         return true;
     }

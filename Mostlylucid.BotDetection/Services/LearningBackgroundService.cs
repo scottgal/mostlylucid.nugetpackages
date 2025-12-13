@@ -13,9 +13,9 @@ namespace Mostlylucid.BotDetection.Services;
 public class LearningBackgroundService : BackgroundService
 {
     private readonly ILearningEventBus _eventBus;
+    private readonly IEnumerable<ILearningEventHandler> _handlers;
     private readonly ILogger<LearningBackgroundService> _logger;
     private readonly BotDetectionOptions _options;
-    private readonly IEnumerable<ILearningEventHandler> _handlers;
 
     public LearningBackgroundService(
         ILearningEventBus eventBus,
@@ -36,7 +36,6 @@ public class LearningBackgroundService : BackgroundService
         try
         {
             await foreach (var evt in _eventBus.Reader.ReadAllAsync(stoppingToken))
-            {
                 try
                 {
                     await ProcessEventAsync(evt, stoppingToken);
@@ -45,7 +44,6 @@ public class LearningBackgroundService : BackgroundService
                 {
                     _logger.LogError(ex, "Error processing learning event: {Type}", evt.Type);
                 }
-            }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -64,10 +62,7 @@ public class LearningBackgroundService : BackgroundService
             .Where(h => h.HandledEventTypes.Contains(evt.Type))
             .ToList();
 
-        foreach (var handler in relevantHandlers)
-        {
-            await handler.HandleAsync(evt, ct);
-        }
+        foreach (var handler in relevantHandlers) await handler.HandleAsync(evt, ct);
     }
 }
 
@@ -150,16 +145,11 @@ public class InferenceHandler : ILearningEventHandler
             evt.Confidence);
 
         // Store features for future training
-        if (evt.Features != null)
-        {
-            await StoreTrainingDataAsync(evt.Features, evt.Label ?? true, ct);
-        }
+        if (evt.Features != null) await StoreTrainingDataAsync(evt.Features, evt.Label ?? true, ct);
 
         // If confidence is very high, extract pattern for fast-path matching
         if (evt.Confidence >= 0.95 && !string.IsNullOrEmpty(evt.Pattern))
-        {
             await StoreLearnedPatternAsync(evt.Pattern, evt.Confidence.Value, ct);
-        }
     }
 
     private async Task RunInference(LearningEvent evt, CancellationToken ct)
@@ -201,10 +191,10 @@ public class InferenceHandler : ILearningEventHandler
 /// </summary>
 public class PatternAccumulatorHandler : ILearningEventHandler
 {
-    private readonly ILogger<PatternAccumulatorHandler> _logger;
     private readonly ILearningEventBus _eventBus;
-    private readonly Dictionary<string, int> _patternCounts = new();
     private readonly object _lock = new();
+    private readonly ILogger<PatternAccumulatorHandler> _logger;
+    private readonly Dictionary<string, int> _patternCounts = new();
 
     public PatternAccumulatorHandler(
         ILogger<PatternAccumulatorHandler> logger,
@@ -280,7 +270,7 @@ public class FeedbackHandler : ILearningEventHandler
     {
         var wasBot = evt.Label ?? false;
         var wasCorrect = evt.Metadata?.TryGetValue("detection_correct", out var correct) == true
-            && correct is bool b && b;
+                         && correct is bool b && b;
 
         _logger.LogInformation(
             "User feedback received: wasBot={WasBot}, detectionCorrect={Correct}, requestId={RequestId}",

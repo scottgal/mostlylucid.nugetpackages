@@ -2,13 +2,15 @@
 
 ## The Core Claim
 
-**"Stylobot never stores IP addresses, user agents, or locations. Only non-reversible, keyed signatures and behavior metrics are persisted.(Unless you really force it)"**
+**"Stylobot never stores IP addresses, user agents, or locations. Only non-reversible, keyed signatures and behavior
+metrics are persisted.(Unless you really force it)"**
 
 This isn't marketing fluff - it's an architectural guarantee. Here's how it works.
 
 ## The Problem with Traditional Bot Detection
 
 Most bot detection systems store:
+
 - ❌ Raw IP addresses
 - ❌ Full user agent strings
 - ❌ Geographic locations
@@ -16,6 +18,7 @@ Most bot detection systems store:
 - ❌ Behavioral fingerprints tied to PII
 
 This creates:
+
 - 📋 GDPR/CCPA compliance nightmares
 - 🎯 Honeypot targets for attackers
 - 🔍 Privacy audit failures
@@ -90,12 +93,14 @@ ipSignature = HMAC-SHA256("192.168.1.100", secretKey)[0..16]
 ```
 
 **Properties:**
+
 - ✅ Deterministic (same input → same signature)
 - ✅ One-way (signature → cannot recover input)
 - ✅ Collision-resistant (different IPs → different signatures)
 - ✅ Fast (hardware-accelerated HMAC-SHA-256)
 
 **Use Cases:**
+
 - Detecting attacks from same IP across time
 - Identifying repeat visitors (without tracking individuals)
 - Grouping by subnet for network-level patterns
@@ -116,12 +121,14 @@ behaviorSignature = HMAC-SHA256([
 ```
 
 **Properties:**
+
 - ✅ Contains NO PII by design
 - ✅ Purely behavioral "fingerprint"
 - ✅ Can be shared externally without privacy risk
 - ✅ Resistant to cosmetic changes (IP hop, UA rotation)
 
 **Use Cases:**
+
 - Identifying bot automation frameworks
 - Detecting coordinated attacks (same behavior, different IPs)
 - Machine learning features
@@ -144,6 +151,7 @@ behaviorSignature = HMAC-SHA256([
 ### Key Properties
 
 **Master Key:**
+
 - 256-bit random key generated once per deployment
 - Stored in Key Vault / KMS / secure environment variable
 - NEVER stored in the same database as signatures
@@ -160,6 +168,7 @@ tenantKey = HKDF(masterKey, info: "stylobot:tenant:acme-corp")
 ```
 
 **Result:**
+
 - Even WITH the master key, you can't reverse a signature to get the IP
 - Even WITH a leaked daily key, you can only correlate within that day
 - Even WITH a leaked tenant key, you can't correlate other tenants
@@ -170,27 +179,34 @@ tenantKey = HKDF(masterKey, info: "stylobot:tenant:acme-corp")
 
 > **"Zero-PII Storage"**
 >
-> Stylobot never persists IP addresses, user agents, or geographic locations in its detection database. All request identifiers are non-reversible, keyed signatures generated using HMAC-SHA-256 with hardware-grade random keys.
+> Stylobot never persists IP addresses, user agents, or geographic locations in its detection database. All request
+> identifiers are non-reversible, keyed signatures generated using HMAC-SHA-256 with hardware-grade random keys.
 >
-> Original PII is discarded immediately after signature generation - even our own systems cannot reconstruct it from stored data.
+> Original PII is discarded immediately after signature generation - even our own systems cannot reconstruct it from
+> stored data.
 
 > **"Behavior-First Detection"**
 >
-> Most of our correlation uses behavior-only signatures constructed purely from timing patterns, header presence, and client-side metrics - features that contain no PII by design.
+> Most of our correlation uses behavior-only signatures constructed purely from timing patterns, header presence, and
+> client-side metrics - features that contain no PII by design.
 >
-> Where session stability is needed, we derive signatures from PII using cryptographic one-way functions, but the original data is never stored or recoverable.
+> Where session stability is needed, we derive signatures from PII using cryptographic one-way functions, but the
+> original data is never stored or recoverable.
 
 > **"Time-Bounded Tracking"**
 >
-> Strict privacy mode rotates signature keys daily, preventing long-term correlation even if keys are compromised. Behavioral patterns can be analyzed within a window, but not linked across months or years.
+> Strict privacy mode rotates signature keys daily, preventing long-term correlation even if keys are compromised.
+> Behavioral patterns can be analyzed within a window, but not linked across months or years.
 
 ### For Security Audits
 
 > **Threat Model:**
 >
 > - **Attacker gains read access to database:** Only sees opaque signatures - cannot reconstruct IPs, UAs, or locations.
-> - **Attacker gains read access to key store:** Can verify signatures match IPs, but database doesn't contain IPs to check against.
-> - **Attacker gains both:** Can theoretically verify a known IP matches a signature, but cannot enumerate all IPs from signatures (rainbow table infeasible with 256-bit key).
+> - **Attacker gains read access to key store:** Can verify signatures match IPs, but database doesn't contain IPs to
+    check against.
+> - **Attacker gains both:** Can theoretically verify a known IP matches a signature, but cannot enumerate all IPs from
+    signatures (rainbow table infeasible with 256-bit key).
 > - **Attacker with daily key leak:** Can only correlate within that day's window.
 
 > **Key Rotation:**
@@ -279,6 +295,7 @@ services.AddSingleton(sp =>
 ```
 
 **Plaintext mode:**
+
 - Signatures are STILL generated and stored
 - BUT plaintext values are ALSO stored in separate columns
 - Dashboard shows both (for debugging pattern issues)
@@ -314,6 +331,7 @@ var entangledSig = hasher.HashBehavior(
 ```
 
 This creates a multi-dimensional behavioral fingerprint that's:
+
 - Resistant to single-dimension evasion
 - Stable across minor variations
 - Completely PII-free

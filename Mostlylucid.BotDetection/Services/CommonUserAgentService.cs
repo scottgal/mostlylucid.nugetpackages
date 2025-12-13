@@ -6,6 +6,7 @@ using AngleSharp.Html.Parser;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Models;
 
 namespace Mostlylucid.BotDetection.Services;
@@ -46,29 +47,12 @@ public record CommonUserAgent
 /// </summary>
 public partial class CommonUserAgentService : BackgroundService, ICommonUserAgentService
 {
+    private readonly ConcurrentDictionary<string, int> _browserVersions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<CommonUserAgentService> _logger;
     private readonly BotDetectionOptions _options;
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ConcurrentDictionary<UserAgentPlatform, List<CommonUserAgent>> _userAgents = new();
-    private readonly ConcurrentDictionary<string, int> _browserVersions = new(StringComparer.OrdinalIgnoreCase);
-    private DateTime? _lastUpdated;
     private readonly SemaphoreSlim _updateLock = new(1, 1);
-
-    // Regex patterns for browser version extraction
-    [GeneratedRegex(@"Chrome/(\d+)", RegexOptions.Compiled)]
-    private static partial Regex ChromeVersionRegex();
-
-    [GeneratedRegex(@"Firefox/(\d+)", RegexOptions.Compiled)]
-    private static partial Regex FirefoxVersionRegex();
-
-    [GeneratedRegex(@"Version/(\d+).*Safari", RegexOptions.Compiled)]
-    private static partial Regex SafariVersionRegex();
-
-    [GeneratedRegex(@"Edg/(\d+)", RegexOptions.Compiled)]
-    private static partial Regex EdgeVersionRegex();
-
-    [GeneratedRegex(@"OPR/(\d+)", RegexOptions.Compiled)]
-    private static partial Regex OperaVersionRegex();
+    private readonly ConcurrentDictionary<UserAgentPlatform, List<CommonUserAgent>> _userAgents = new();
 
     public CommonUserAgentService(
         ILogger<CommonUserAgentService> logger,
@@ -85,12 +69,10 @@ public partial class CommonUserAgentService : BackgroundService, ICommonUserAgen
 
         // Initialize with fallback versions
         foreach (var (browser, version) in _options.VersionAge.FallbackBrowserVersions)
-        {
             _browserVersions[browser] = version;
-        }
     }
 
-    public DateTime? LastUpdated => _lastUpdated;
+    public DateTime? LastUpdated { get; private set; }
 
     public IReadOnlyList<CommonUserAgent> GetCommonUserAgents(UserAgentPlatform platform)
     {
@@ -106,19 +88,30 @@ public partial class CommonUserAgentService : BackgroundService, ICommonUserAgen
     {
         var normalizedName = NormalizeBrowserName(browserName);
 
-        if (_browserVersions.TryGetValue(normalizedName, out var version))
-        {
-            return Task.FromResult<int?>(version);
-        }
+        if (_browserVersions.TryGetValue(normalizedName, out var version)) return Task.FromResult<int?>(version);
 
         // Try fallback
         if (_options.VersionAge.FallbackBrowserVersions.TryGetValue(normalizedName, out var fallback))
-        {
             return Task.FromResult<int?>(fallback);
-        }
 
         return Task.FromResult<int?>(null);
     }
+
+    // Regex patterns for browser version extraction
+    [GeneratedRegex(@"Chrome/(\d+)", RegexOptions.Compiled)]
+    private static partial Regex ChromeVersionRegex();
+
+    [GeneratedRegex(@"Firefox/(\d+)", RegexOptions.Compiled)]
+    private static partial Regex FirefoxVersionRegex();
+
+    [GeneratedRegex(@"Version/(\d+).*Safari", RegexOptions.Compiled)]
+    private static partial Regex SafariVersionRegex();
+
+    [GeneratedRegex(@"Edg/(\d+)", RegexOptions.Compiled)]
+    private static partial Regex EdgeVersionRegex();
+
+    [GeneratedRegex(@"OPR/(\d+)", RegexOptions.Compiled)]
+    private static partial Regex OperaVersionRegex();
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -138,7 +131,6 @@ public partial class CommonUserAgentService : BackgroundService, ICommonUserAgen
 
         // Periodic updates
         while (!stoppingToken.IsCancellationRequested)
-        {
             try
             {
                 await Task.Delay(
@@ -155,7 +147,6 @@ public partial class CommonUserAgentService : BackgroundService, ICommonUserAgen
             {
                 _logger.LogError(ex, "Error in common user agent update loop");
             }
-        }
 
         _logger.LogInformation("Common user agent service stopped");
     }
@@ -176,7 +167,7 @@ public partial class CommonUserAgentService : BackgroundService, ICommonUserAgen
 
             if (updated)
             {
-                _lastUpdated = DateTime.UtcNow;
+                LastUpdated = DateTime.UtcNow;
                 _logger.LogInformation(
                     "Common user agents updated successfully. Desktop: {DesktopCount}, Mobile: {MobileCount}, Browser versions: {Versions}",
                     _userAgents[UserAgentPlatform.Desktop].Count,
@@ -270,7 +261,7 @@ public partial class CommonUserAgentService : BackgroundService, ICommonUserAgen
             // Parse JSON array of {"ua": "...", "pct": 43.03}
             var options = new JsonSerializerOptions
             {
-                TypeInfoResolver = Data.BotDetectionJsonSerializerContext.Default
+                TypeInfoResolver = BotDetectionJsonSerializerContext.Default
             };
 
             var items = JsonSerializer.Deserialize<List<JsonElement>>(json, options);
@@ -278,7 +269,6 @@ public partial class CommonUserAgentService : BackgroundService, ICommonUserAgen
 
             var result = new List<CommonUserAgent>();
             foreach (var item in items)
-            {
                 if (item.TryGetProperty("ua", out var uaElement) &&
                     item.TryGetProperty("pct", out var pctElement))
                 {
@@ -286,15 +276,12 @@ public partial class CommonUserAgentService : BackgroundService, ICommonUserAgen
                     var pct = pctElement.GetDouble();
 
                     if (!string.IsNullOrEmpty(ua))
-                    {
                         result.Add(new CommonUserAgent
                         {
                             UserAgent = ua,
                             Percentage = pct
                         });
-                    }
                 }
-            }
 
             return result;
         }
@@ -312,33 +299,23 @@ public partial class CommonUserAgentService : BackgroundService, ICommonUserAgen
             // Extract versions from UA strings and update if newer
             var chromeMatch = ChromeVersionRegex().Match(ua.UserAgent);
             if (chromeMatch.Success && int.TryParse(chromeMatch.Groups[1].Value, out var chromeVer))
-            {
                 UpdateIfNewer("Chrome", chromeVer);
-            }
 
             var edgeMatch = EdgeVersionRegex().Match(ua.UserAgent);
             if (edgeMatch.Success && int.TryParse(edgeMatch.Groups[1].Value, out var edgeVer))
-            {
                 UpdateIfNewer("Edge", edgeVer);
-            }
 
             var firefoxMatch = FirefoxVersionRegex().Match(ua.UserAgent);
             if (firefoxMatch.Success && int.TryParse(firefoxMatch.Groups[1].Value, out var ffVer))
-            {
                 UpdateIfNewer("Firefox", ffVer);
-            }
 
             var safariMatch = SafariVersionRegex().Match(ua.UserAgent);
             if (safariMatch.Success && int.TryParse(safariMatch.Groups[1].Value, out var safariVer))
-            {
                 UpdateIfNewer("Safari", safariVer);
-            }
 
             var operaMatch = OperaVersionRegex().Match(ua.UserAgent);
             if (operaMatch.Success && int.TryParse(operaMatch.Groups[1].Value, out var operaVer))
-            {
                 UpdateIfNewer("Opera", operaVer);
-            }
         }
     }
 

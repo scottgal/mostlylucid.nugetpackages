@@ -153,7 +153,8 @@ Then the detector maps the model output to flags / features:
 }
 ```
 
-That gives your heuristic and forensics layer *semantic* info about what’s in the pictures, without you touching the app.
+That gives your heuristic and forensics layer *semantic* info about what’s in the pictures, without you touching the
+app.
 
 ---
 
@@ -275,4 +276,5 @@ So yeah: you’re basically turning the gateway into:
 
 > **Header + Body + Pixels inspector**, where vision is just *another* tiny module feeding your blackboard.
 
-You already have the alt text piece – this just formalises it as a `VisionContentDetector` and plugs it into the same lane as the rest of the content analysis.
+You already have the alt text piece – this just formalises it as a `VisionContentDetector` and plugs it into the same
+lane as the rest of the content analysis.

@@ -48,7 +48,7 @@ internal sealed class DetectionStatePoolPolicy : PooledObjectPolicy<PooledDetect
 internal static class DetectionStatePoolFactory
 {
     private static readonly ObjectPool<PooledDetectionState> Pool =
-        new DefaultObjectPool<PooledDetectionState>(new DetectionStatePoolPolicy(), maximumRetained: 1024);
+        new DefaultObjectPool<PooledDetectionState>(new DetectionStatePoolPolicy(), 1024);
 
     public static ObjectPool<PooledDetectionState> Create()
     {

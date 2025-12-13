@@ -1,6 +1,7 @@
 # Action Policies
 
-Action policies define **HOW** to respond when a bot is detected. They are separate from detection policies (which define **WHAT** to detect) for maximum composability.
+Action policies define **HOW** to respond when a bot is detected. They are separate from detection policies (which
+define **WHAT** to detect) for maximum composability.
 
 ## Architecture Overview
 
@@ -110,7 +111,8 @@ app.UseBotDetection();
 
 ## Integration with Learning System
 
-Action policies are tightly integrated with the learning and reputation system. When an action is taken, it feeds back into the learning loop:
+Action policies are tightly integrated with the learning and reputation system. When an action is taken, it feeds back
+into the learning loop:
 
 ```mermaid
 sequenceDiagram
@@ -135,13 +137,13 @@ sequenceDiagram
 
 ### How Actions Feed Learning
 
-| Action | Learning Effect |
-|--------|-----------------|
-| **Block** | Strong positive label (1.0) for bot patterns |
-| **Throttle** | Moderate positive label (0.7-0.9 based on risk) |
+| Action        | Learning Effect                                      |
+|---------------|------------------------------------------------------|
+| **Block**     | Strong positive label (1.0) for bot patterns         |
+| **Throttle**  | Moderate positive label (0.7-0.9 based on risk)      |
 | **Challenge** | Label based on challenge result (pass=0.0, fail=1.0) |
-| **LogOnly** | Weak label for shadow mode analysis |
-| **Allow** | Negative label (0.0) for verified good patterns |
+| **LogOnly**   | Weak label for shadow mode analysis                  |
+| **Allow**     | Negative label (0.0) for verified good patterns      |
 
 ### Enabling Learning
 
@@ -173,48 +175,48 @@ These policies are available without configuration:
 
 ### Block Policies
 
-| Name | Status | Description | Learning Impact |
-|------|--------|-------------|-----------------|
-| `block` | 403 | Default block with "Access denied" | Strong bot label |
-| `block-hard` | 403 | Minimal response | Strong bot label |
-| `block-soft` | 429 | Too Many Requests style | Strong bot label |
-| `block-debug` | 403 | Includes risk score details | Strong bot label |
+| Name          | Status | Description                        | Learning Impact  |
+|---------------|--------|------------------------------------|------------------|
+| `block`       | 403    | Default block with "Access denied" | Strong bot label |
+| `block-hard`  | 403    | Minimal response                   | Strong bot label |
+| `block-soft`  | 429    | Too Many Requests style            | Strong bot label |
+| `block-debug` | 403    | Includes risk score details        | Strong bot label |
 
 ### Throttle Policies
 
-| Name | Delay | Description | Learning Impact |
-|------|-------|-------------|-----------------|
-| `throttle` | 500-5000ms | Moderate, risk-scaled | Moderate bot label |
-| `throttle-gentle` | 200-1000ms | High jitter | Weak bot label |
-| `throttle-moderate` | 500-5000ms | Risk-scaled | Moderate bot label |
-| `throttle-aggressive` | 1-30s | Exponential backoff | Strong bot label |
-| `throttle-stealth` | 500-10000ms | No headers, high jitter | Moderate bot label |
+| Name                  | Delay       | Description             | Learning Impact    |
+|-----------------------|-------------|-------------------------|--------------------|
+| `throttle`            | 500-5000ms  | Moderate, risk-scaled   | Moderate bot label |
+| `throttle-gentle`     | 200-1000ms  | High jitter             | Weak bot label     |
+| `throttle-moderate`   | 500-5000ms  | Risk-scaled             | Moderate bot label |
+| `throttle-aggressive` | 1-30s       | Exponential backoff     | Strong bot label   |
+| `throttle-stealth`    | 500-10000ms | No headers, high jitter | Moderate bot label |
 
 ### Challenge Policies
 
-| Name | Type | Description | Learning Impact |
-|------|------|-------------|-----------------|
-| `challenge` | Redirect | Default redirect challenge | Based on result |
-| `challenge-captcha` | CAPTCHA | reCAPTCHA/hCaptcha | Based on result |
-| `challenge-js` | JavaScript | Browser verification | Based on result |
-| `challenge-pow` | Proof of Work | Computational puzzle | Based on result |
+| Name                | Type          | Description                | Learning Impact |
+|---------------------|---------------|----------------------------|-----------------|
+| `challenge`         | Redirect      | Default redirect challenge | Based on result |
+| `challenge-captcha` | CAPTCHA       | reCAPTCHA/hCaptcha         | Based on result |
+| `challenge-js`      | JavaScript    | Browser verification       | Based on result |
+| `challenge-pow`     | Proof of Work | Computational puzzle       | Based on result |
 
 ### Redirect Policies
 
-| Name | Target | Description | Learning Impact |
-|------|--------|-------------|-----------------|
-| `redirect` | /blocked | Simple redirect | Strong bot label |
-| `redirect-honeypot` | /honeypot | Silent trap | Strong bot label |
-| `redirect-tarpit` | /tarpit | Slow response | Strong bot label |
-| `redirect-error` | /error | Error page with info | Strong bot label |
+| Name                | Target    | Description          | Learning Impact  |
+|---------------------|-----------|----------------------|------------------|
+| `redirect`          | /blocked  | Simple redirect      | Strong bot label |
+| `redirect-honeypot` | /honeypot | Silent trap          | Strong bot label |
+| `redirect-tarpit`   | /tarpit   | Slow response        | Strong bot label |
+| `redirect-error`    | /error    | Error page with info | Strong bot label |
 
 ### Log-Only Policies
 
-| Name | Level | Description | Learning Impact |
-|------|-------|-------------|-----------------|
-| `logonly` | Info | Log and allow | Observation only |
-| `shadow` | Info | Shadow mode with headers | Observation only |
-| `debug` | Debug | Full evidence logging | Observation only |
+| Name      | Level | Description              | Learning Impact  |
+|-----------|-------|--------------------------|------------------|
+| `logonly` | Info  | Log and allow            | Observation only |
+| `shadow`  | Info  | Shadow mode with headers | Observation only |
+| `debug`   | Debug | Full evidence logging    | Observation only |
 
 ---
 
@@ -235,14 +237,14 @@ flowchart LR
 
 **Configuration Options:**
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `StatusCode` | int | 403 | HTTP status code (403, 429, etc.) |
-| `Message` | string | "Access denied" | Response body message |
-| `ContentType` | string | "application/json" | Response content type |
-| `IncludeRiskScore` | bool | false | Include risk details in body |
-| `IncludeHeaders` | bool | false | Add X-Bot-* headers |
-| `Headers` | dict | {} | Additional custom headers |
+| Option             | Type   | Default            | Description                       |
+|--------------------|--------|--------------------|-----------------------------------|
+| `StatusCode`       | int    | 403                | HTTP status code (403, 429, etc.) |
+| `Message`          | string | "Access denied"    | Response body message             |
+| `ContentType`      | string | "application/json" | Response content type             |
+| `IncludeRiskScore` | bool   | false              | Include risk details in body      |
+| `IncludeHeaders`   | bool   | false              | Add X-Bot-* headers               |
+| `Headers`          | dict   | {}                 | Additional custom headers         |
 
 **JSON Configuration:**
 
@@ -312,6 +314,7 @@ flowchart LR
 ```
 
 **Example:**
+
 ```
 BaseDelay = 500ms, MaxDelay = 10000ms, Risk = 0.8, Jitter = 0.25
 ScaledDelay = 500 + (10000 - 500) × 0.8 = 8100ms
@@ -321,19 +324,19 @@ FinalDelay = 8100 ± random(2025) = 6075ms to 10125ms
 
 **Configuration Options:**
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `BaseDelayMs` | int | 500 | Base delay in milliseconds |
-| `MinDelayMs` | int | 100 | Minimum delay after jitter |
-| `MaxDelayMs` | int | 5000 | Maximum delay |
-| `JitterPercent` | double | 0.25 | Jitter range (0.0-1.0) |
-| `ScaleByRisk` | bool | true | Scale delay by risk score |
-| `ExponentialBackoff` | bool | false | Increase delay per request |
-| `BackoffFactor` | double | 2.0 | Backoff multiplier |
-| `ReturnStatus` | bool | false | Return 429 vs continue |
-| `StatusCode` | int | 429 | Status if ReturnStatus=true |
-| `IncludeHeaders` | bool | false | Include X-Throttle-* headers |
-| `IncludeRetryAfter` | bool | true | Include Retry-After header |
+| Option               | Type   | Default | Description                  |
+|----------------------|--------|---------|------------------------------|
+| `BaseDelayMs`        | int    | 500     | Base delay in milliseconds   |
+| `MinDelayMs`         | int    | 100     | Minimum delay after jitter   |
+| `MaxDelayMs`         | int    | 5000    | Maximum delay                |
+| `JitterPercent`      | double | 0.25    | Jitter range (0.0-1.0)       |
+| `ScaleByRisk`        | bool   | true    | Scale delay by risk score    |
+| `ExponentialBackoff` | bool   | false   | Increase delay per request   |
+| `BackoffFactor`      | double | 2.0     | Backoff multiplier           |
+| `ReturnStatus`       | bool   | false   | Return 429 vs continue       |
+| `StatusCode`         | int    | 429     | Status if ReturnStatus=true  |
+| `IncludeHeaders`     | bool   | false   | Include X-Throttle-* headers |
+| `IncludeRetryAfter`  | bool   | true    | Include Retry-After header   |
 
 **JSON Configuration:**
 
@@ -398,32 +401,33 @@ flowchart TB
 
 **Challenge Types:**
 
-| Type | Description | Difficulty | User Impact |
-|------|-------------|------------|-------------|
-| `Redirect` | Redirect to challenge page | Low | Page refresh |
-| `Inline` | Render challenge HTML inline | Low | Page content |
-| `JavaScript` | Browser capability test | Medium | Invisible |
-| `Captcha` | reCAPTCHA/hCaptcha | High | User action |
-| `ProofOfWork` | Computational puzzle | Variable | CPU time |
+| Type          | Description                  | Difficulty | User Impact  |
+|---------------|------------------------------|------------|--------------|
+| `Redirect`    | Redirect to challenge page   | Low        | Page refresh |
+| `Inline`      | Render challenge HTML inline | Low        | Page content |
+| `JavaScript`  | Browser capability test      | Medium     | Invisible    |
+| `Captcha`     | reCAPTCHA/hCaptcha           | High       | User action  |
+| `ProofOfWork` | Computational puzzle         | Variable   | CPU time     |
 
 **Proof-of-Work Difficulty:**
+
 - Risk 0.5 = 3 leading zeros (~4K hashes, ~10ms)
 - Risk 0.7 = 4 leading zeros (~65K hashes, ~100ms)
 - Risk 1.0 = 5 leading zeros (~1M hashes, ~1-2s)
 
 **Configuration Options:**
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `ChallengeType` | string | "Redirect" | Type of challenge |
-| `ChallengeUrl` | string | "/challenge" | Challenge page URL |
-| `ReturnUrlParam` | string | "returnUrl" | Return URL parameter |
-| `UseTokens` | bool | true | Track with cookies |
-| `TokenCookieName` | string | "bot_challenge_token" | Cookie name |
-| `TokenValidityMinutes` | int | 30 | Token lifetime |
-| `ChallengeScript` | string | "/scripts/bot-challenge.js" | JS challenge |
-| `CaptchaSiteKey` | string | null | reCAPTCHA site key |
-| `CaptchaSecretKey` | string | null | reCAPTCHA secret |
+| Option                 | Type   | Default                     | Description          |
+|------------------------|--------|-----------------------------|----------------------|
+| `ChallengeType`        | string | "Redirect"                  | Type of challenge    |
+| `ChallengeUrl`         | string | "/challenge"                | Challenge page URL   |
+| `ReturnUrlParam`       | string | "returnUrl"                 | Return URL parameter |
+| `UseTokens`            | bool   | true                        | Track with cookies   |
+| `TokenCookieName`      | string | "bot_challenge_token"       | Cookie name          |
+| `TokenValidityMinutes` | int    | 30                          | Token lifetime       |
+| `ChallengeScript`      | string | "/scripts/bot-challenge.js" | JS challenge         |
+| `CaptchaSiteKey`       | string | null                        | reCAPTCHA site key   |
+| `CaptchaSecretKey`     | string | null                        | reCAPTCHA secret     |
 
 **JSON Configuration:**
 
@@ -467,23 +471,23 @@ flowchart LR
 
 **URL Template Variables:**
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `{risk}` | Risk score (0.000-1.000) | 0.847 |
-| `{riskBand}` | Risk band name | High |
-| `{policy}` | Policy name | strict |
-| `{originalPath}` | Original request path | /api/data |
+| Variable         | Description              | Example   |
+|------------------|--------------------------|-----------|
+| `{risk}`         | Risk score (0.000-1.000) | 0.847     |
+| `{riskBand}`     | Risk band name           | High      |
+| `{policy}`       | Policy name              | strict    |
+| `{originalPath}` | Original request path    | /api/data |
 
 **Configuration Options:**
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `TargetUrl` | string | "/blocked" | Redirect URL (supports templates) |
-| `Permanent` | bool | false | 301 vs 302 redirect |
-| `PreserveQueryString` | bool | false | Keep original query |
-| `IncludeReturnUrl` | bool | false | Add returnUrl param |
-| `ReturnUrlParam` | string | "returnUrl" | Return URL param name |
-| `AddMetadata` | bool | false | Add X-Bot-* headers |
+| Option                | Type   | Default     | Description                       |
+|-----------------------|--------|-------------|-----------------------------------|
+| `TargetUrl`           | string | "/blocked"  | Redirect URL (supports templates) |
+| `Permanent`           | bool   | false       | 301 vs 302 redirect               |
+| `PreserveQueryString` | bool   | false       | Keep original query               |
+| `IncludeReturnUrl`    | bool   | false       | Add returnUrl param               |
+| `ReturnUrlParam`      | string | "returnUrl" | Return URL param name             |
+| `AddMetadata`         | bool   | false       | Add X-Bot-* headers               |
 
 **JSON Configuration:**
 
@@ -534,15 +538,15 @@ flowchart LR
 
 **Configuration Options:**
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `LogLevel` | string | "Information" | Log level |
-| `LogFullEvidence` | bool | false | Include all evidence |
-| `AddResponseHeaders` | bool | false | Add X-Bot-* headers |
-| `IncludeDetailedHeaders` | bool | false | Full detail headers |
-| `AddToContextItems` | bool | true | Add to HttpContext.Items |
-| `WouldBlockThreshold` | double | 0.85 | Log "would block" above |
-| `MetricName` | string | null | Custom metric name |
+| Option                   | Type   | Default       | Description              |
+|--------------------------|--------|---------------|--------------------------|
+| `LogLevel`               | string | "Information" | Log level                |
+| `LogFullEvidence`        | bool   | false         | Include all evidence     |
+| `AddResponseHeaders`     | bool   | false         | Add X-Bot-* headers      |
+| `IncludeDetailedHeaders` | bool   | false         | Full detail headers      |
+| `AddToContextItems`      | bool   | true          | Add to HttpContext.Items |
+| `WouldBlockThreshold`    | double | 0.85          | Log "would block" above  |
+| `MetricName`             | string | null          | Custom metric name       |
 
 **JSON Configuration:**
 
@@ -582,14 +586,16 @@ flowchart LR
 
 **Full-Log Demo Policy:**
 
-The `full-log` policy is a ready-to-use configuration for demos and development that exposes maximum visibility into the detection process:
+The `full-log` policy is a ready-to-use configuration for demos and development that exposes maximum visibility into the
+detection process:
 
 - **Debug-level logging** with full evidence details
 - **Response headers** showing all detection metadata (X-Bot-Risk-Score, X-Bot-Detectors, X-Bot-Name, etc.)
 - **HttpContext.Items** populated for downstream middleware access
 - **"Would block" indicator** at 0.7 threshold for shadow mode comparison
 
-This is used in the `Mostlylucid.BotDetection.Demo` project. Check the `/api/mode` endpoint to see if the policy is active and inspect response headers in browser dev tools.
+This is used in the `Mostlylucid.BotDetection.Demo` project. Check the `/api/mode` endpoint to see if the policy is
+active and inspect response headers in browser dev tools.
 
 **Code Configuration (using preset):**
 
@@ -608,13 +614,13 @@ services.AddBotDetection(options =>
 
 **Available Presets:**
 
-| Preset | LogLevel | FullEvidence | Headers | Use Case |
-|--------|----------|--------------|---------|----------|
-| `LogOnlyActionOptions.Minimal` | Info | No | No | Basic shadow mode |
-| `LogOnlyActionOptions.Debug` | Debug | Yes | Yes | Development |
-| `LogOnlyActionOptions.ShadowWithHeaders` | Info | No | Yes | Production shadow with visibility |
-| `LogOnlyActionOptions.HighRiskOnly` | Warning | No | No | Quiet, high-risk alerts only |
-| `LogOnlyActionOptions.FullLog` | Debug | Yes | Yes (detailed) | Demos, full visibility |
+| Preset                                   | LogLevel | FullEvidence | Headers        | Use Case                          |
+|------------------------------------------|----------|--------------|----------------|-----------------------------------|
+| `LogOnlyActionOptions.Minimal`           | Info     | No           | No             | Basic shadow mode                 |
+| `LogOnlyActionOptions.Debug`             | Debug    | Yes          | Yes            | Development                       |
+| `LogOnlyActionOptions.ShadowWithHeaders` | Info     | No           | Yes            | Production shadow with visibility |
+| `LogOnlyActionOptions.HighRiskOnly`      | Warning  | No           | No             | Quiet, high-risk alerts only      |
+| `LogOnlyActionOptions.FullLog`           | Debug    | Yes          | Yes (detailed) | Demos, full visibility            |
 
 ### Extended LogOnly Policy Types
 
@@ -645,6 +651,7 @@ Writes detection events to JSON Lines files for playback and forensic analysis:
 ```
 
 Use this to:
+
 - Debug false positives by replaying exact request characteristics
 - Analyze bot patterns over time
 - Generate exception rules from logged data
@@ -689,6 +696,7 @@ Forwards full detection data to a backend service (honeypot, analytics, SIEM):
 ```
 
 Use this to:
+
 - Feed honeypots with real bot traffic for characterization
 - Aggregate detection events in a central analytics platform
 - Send to SIEM systems for correlation with other security events
@@ -727,6 +735,7 @@ Allows known-good traffic through while still logging for monitoring:
 ```
 
 Use this to:
+
 - Fix false positives without code changes
 - Allow known automation/monitoring services
 - Exempt internal services while still tracking them
@@ -752,6 +761,7 @@ Test detection rules before enforcement:
 ```
 
 Use this to:
+
 - Safely test detection rules in production
 - Compare "would block" vs actual traffic
 - Tune thresholds before enforcement

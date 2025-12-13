@@ -1,11 +1,10 @@
+using System.Net;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Engines;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using Mostlylucid.BotDetection.Extensions;
-using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Orchestration;
 
 namespace Mostlylucid.BotDetection.Benchmarks;
@@ -19,11 +18,11 @@ namespace Mostlylucid.BotDetection.Benchmarks;
 [SimpleJob(RunStrategy.Throughput, warmupCount: 3, iterationCount: 10)]
 public class DetectionPipelineBenchmarks
 {
-    private BlackboardOrchestrator _orchestrator = null!;
-    private HttpContext _humanContext = null!;
     private HttpContext _botContext = null!;
-    private HttpContext _searchBotContext = null!;
     private HttpContext _datacenterContext = null!;
+    private HttpContext _humanContext = null!;
+    private BlackboardOrchestrator _orchestrator = null!;
+    private HttpContext _searchBotContext = null!;
 
     [GlobalSetup]
     public void GlobalSetup()
@@ -61,12 +60,13 @@ public class DetectionPipelineBenchmarks
     private HttpContext CreateHumanContext()
     {
         var context = new DefaultHttpContext();
-        context.Request.Headers.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+        context.Request.Headers.UserAgent =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
         context.Request.Headers.Accept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
         context.Request.Headers.AcceptLanguage = "en-US,en;q=0.9";
         context.Request.Headers.AcceptEncoding = "gzip, deflate, br";
         context.Request.Headers.Referer = "https://google.com";
-        context.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("203.0.113.42"); // Non-datacenter IP
+        context.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.42"); // Non-datacenter IP
         context.Request.Method = "GET";
         context.Request.Path = "/";
         return context;
@@ -77,7 +77,7 @@ public class DetectionPipelineBenchmarks
         var context = new DefaultHttpContext();
         context.Request.Headers.UserAgent = "curl/8.4.0";
         context.Request.Headers.Accept = "*/*";
-        context.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("198.51.100.50"); // Non-datacenter IP
+        context.Connection.RemoteIpAddress = IPAddress.Parse("198.51.100.50"); // Non-datacenter IP
         context.Request.Method = "GET";
         context.Request.Path = "/api/data";
         return context;
@@ -88,7 +88,7 @@ public class DetectionPipelineBenchmarks
         var context = new DefaultHttpContext();
         context.Request.Headers.UserAgent = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
         context.Request.Headers.Accept = "text/html";
-        context.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("66.249.64.1"); // Google IP
+        context.Connection.RemoteIpAddress = IPAddress.Parse("66.249.64.1"); // Google IP
         context.Request.Method = "GET";
         context.Request.Path = "/";
         return context;
@@ -99,7 +99,7 @@ public class DetectionPipelineBenchmarks
         var context = new DefaultHttpContext();
         context.Request.Headers.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
         context.Request.Headers.Accept = "text/html";
-        context.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("3.5.140.2"); // AWS IP
+        context.Connection.RemoteIpAddress = IPAddress.Parse("3.5.140.2"); // AWS IP
         context.Request.Method = "GET";
         context.Request.Path = "/";
         return context;

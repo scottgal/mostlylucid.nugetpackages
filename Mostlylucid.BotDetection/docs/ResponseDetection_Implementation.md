@@ -2,7 +2,8 @@
 
 ## Overview
 
-The Response Detection system provides **out-of-request analysis** of HTTP responses to detect bot-like patterns that emerge from server responses rather than request characteristics. This complements request-side detection by analyzing:
+The Response Detection system provides **out-of-request analysis** of HTTP responses to detect bot-like patterns that
+emerge from server responses rather than request characteristics. This complements request-side detection by analyzing:
 
 - Status code patterns (404 scans, 5xx cascades, auth failures)
 - Response body patterns (error templates, stack traces, rate limit messages)
@@ -13,7 +14,8 @@ The Response Detection system provides **out-of-request analysis** of HTTP respo
 
 ### Key Design Principles
 
-1. **Out-of-Request Processing**: Response analysis happens AFTER the response is sent (async) or inline for critical paths
+1. **Out-of-Request Processing**: Response analysis happens AFTER the response is sent (async) or inline for critical
+   paths
 2. **Zero PII Storage**: Only pattern names and aggregated metrics are stored, never full response bodies
 3. **Heuristic Feedback Loop**: Response scores feed back into request-side heuristics for next request
 4. **Fast Signature Matching**: Cheap triggers decide if full response analysis should activate
@@ -67,6 +69,7 @@ var signal = new ResponseSignal
 ```
 
 **Key Points**:
+
 - NO full response body stored
 - Only symbolic pattern names (NOT actual content)
 - Client ID is hashed (privacy-preserving)
@@ -78,6 +81,7 @@ var signal = new ResponseSignal
 **File**: `Orchestration/ResponseCoordinator.cs`
 
 **Architecture**:
+
 - Uses `SlidingCacheAtom<string, ClientResponseTrackingAtom>` for TTL + LRU client tracking
 - Uses `KeyedSequentialAtom` for per-client sequential processing
 - Maintains sliding window of responses per client (default: 200 responses, 10 min window)
@@ -144,6 +148,7 @@ bool shouldAnalyze = trigger.ShouldAnalyze(
 **Purpose**: Aggregated response metrics for a single client
 
 **Computed Metrics**:
+
 - Status code distribution (2xx, 3xx, 4xx, 5xx counts)
 - 404 scan indicators (count + unique paths)
 - Auth failure count (401/403 responses)
@@ -187,6 +192,7 @@ var responseCoordinator = new ResponseCoordinator(
 ```
 
 **Flow**:
+
 1. Request 1 from client X: Request-side detects 60% bot probability
 2. Response 1: 404 on `/wp-admin` → ResponseCoordinator records
 3. Response 2: 404 on `/.git/config` → High scan score (0.8)
@@ -228,24 +234,24 @@ public interface IResponseDetector
 ### Example Detectors
 
 1. **StatusCodeDetector**: Analyzes status code patterns
-   - 404 scan detection
-   - 5xx cascade detection
-   - Auth failure patterns
+    - 404 scan detection
+    - 5xx cascade detection
+    - Auth failure patterns
 
 2. **BodyPatternDetector**: Matches response body patterns
-   - Stack trace markers
-   - Error template patterns
-   - Rate limit messages
+    - Stack trace markers
+    - Error template patterns
+    - Rate limit messages
 
 3. **HoneypotDetector**: Detects honeypot interactions
-   - Paths that should never be accessed
-   - Hidden form fields submitted
-   - Trap links followed
+    - Paths that should never be accessed
+    - Hidden form fields submitted
+    - Trap links followed
 
 4. **AuthFlowDetector**: Analyzes authentication patterns
-   - Repeated 401/403 responses
-   - Timing between auth attempts
-   - Auth endpoint enumeration
+    - Repeated 401/403 responses
+    - Timing between auth attempts
+    - Auth endpoint enumeration
 
 ## Configuration
 
@@ -573,33 +579,35 @@ curl http://localhost:5000/__test-hp
 ## Future Enhancements
 
 1. **LLM-Based Semantic Analysis** (Optional, Enterprise)
-   - Analyze error message semantics
-   - Detect probing questions vs genuine errors
-   - Requires opt-in, privacy-focused implementation
+    - Analyze error message semantics
+    - Detect probing questions vs genuine errors
+    - Requires opt-in, privacy-focused implementation
 
 2. **Response Timing Correlation**
-   - Correlate response times with request patterns
-   - Detect timing-based probing
+    - Correlate response times with request patterns
+    - Detect timing-based probing
 
 3. **Content Similarity Clustering**
-   - Group similar error responses
-   - Detect automated tools by error signature
+    - Group similar error responses
+    - Detect automated tools by error signature
 
 4. **Cross-Client Response Patterns**
-   - Detect coordinated scanning across multiple IPs
-   - Identify bot networks by response patterns
+    - Detect coordinated scanning across multiple IPs
+    - Identify bot networks by response patterns
 
 ## Privacy & Safety
 
 ### PII Protection
 
 ✅ **NEVER STORED**:
+
 - Full response bodies
 - Actual error messages (user data)
 - Stack traces (may contain sensitive info)
 - URLs with user IDs or tokens
 
 ✅ **ONLY STORED**:
+
 - Symbolic pattern names ("stack_trace_marker")
 - Status code counts
 - Path patterns (no query strings with PII)
@@ -622,4 +630,5 @@ The Response Detection system provides:
 4. **Fast Triggering**: Cheap signature checks avoid unnecessary work
 5. **Complementary Detection**: Catches bots missed by request-side analysis
 
-**Key Insight**: Many bots reveal themselves through the responses they receive (404 scans, error probing, honeypot hits) rather than their requests. This system captures that signal WITHOUT storing sensitive response data.
+**Key Insight**: Many bots reveal themselves through the responses they receive (404 scans, error probing, honeypot
+hits) rather than their requests. This system captures that signal WITHOUT storing sensitive response data.

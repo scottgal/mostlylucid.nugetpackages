@@ -1,15 +1,14 @@
 using Microsoft.AspNetCore.SignalR;
-using Mostlylucid.BotDetection.UI.Models;
 
 namespace Mostlylucid.BotDetection.UI.Hubs;
 
 /// <summary>
-/// SignalR hub for broadcasting real-time bot detection events to dashboard clients.
+///     SignalR hub for broadcasting real-time bot detection events to dashboard clients.
 /// </summary>
 public class StyloBotDashboardHub : Hub<IStyloBotDashboardHub>
 {
     /// <summary>
-    /// Client connects and joins the dashboard group.
+    ///     Client connects and joins the dashboard group.
     /// </summary>
     public override async Task OnConnectedAsync()
     {
@@ -18,7 +17,7 @@ public class StyloBotDashboardHub : Hub<IStyloBotDashboardHub>
     }
 
     /// <summary>
-    /// Client disconnects.
+    ///     Client disconnects.
     /// </summary>
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
@@ -27,7 +26,7 @@ public class StyloBotDashboardHub : Hub<IStyloBotDashboardHub>
     }
 
     /// <summary>
-    /// Client requests current summary statistics.
+    ///     Client requests current summary statistics.
     /// </summary>
     public Task RequestSummary()
     {

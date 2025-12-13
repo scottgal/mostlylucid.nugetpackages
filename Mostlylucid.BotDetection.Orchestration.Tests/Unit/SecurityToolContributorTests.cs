@@ -4,9 +4,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Models;
-using Mostlylucid.BotDetection.Orchestration;
 using Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
-using Xunit;
 
 namespace Mostlylucid.BotDetection.Orchestration.Tests.Unit;
 
@@ -16,8 +14,8 @@ namespace Mostlylucid.BotDetection.Orchestration.Tests.Unit;
 /// </summary>
 public class SecurityToolContributorTests
 {
-    private readonly Mock<ILogger<SecurityToolContributor>> _loggerMock;
     private readonly Mock<IBotListFetcher> _fetcherMock;
+    private readonly Mock<ILogger<SecurityToolContributor>> _loggerMock;
     private readonly BotDetectionOptions _options;
 
     public SecurityToolContributorTests()
@@ -370,7 +368,7 @@ public class SecurityToolContributorTests
             new() { Pattern = "masscan", Name = "Masscan", Category = "PortScanner", IsRegex = false },
             new() { Pattern = "nuclei", Name = "Nuclei", Category = "VulnerabilityScanner", IsRegex = false },
             new() { Pattern = "metasploit", Name = "Metasploit", Category = "ExploitFramework", IsRegex = false },
-            new() { Pattern = "hydra", Name = "Hydra", Category = "CredentialAttack", IsRegex = false },
+            new() { Pattern = "hydra", Name = "Hydra", Category = "CredentialAttack", IsRegex = false }
         };
 
         _fetcherMock.Setup(f => f.GetSecurityToolPatternsAsync(It.IsAny<CancellationToken>()))

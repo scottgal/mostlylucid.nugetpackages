@@ -12,25 +12,23 @@ namespace Mostlylucid.BotDetection.Detectors;
 /// <summary>
 ///     Detects security/penetration testing tools based on User-Agent signatures.
 ///     Identifies common scanners, vulnerability assessment tools, and hacking frameworks.
-///
-///     Patterns are fetched from external sources via <see cref="IBotListFetcher"/>:
+///     Patterns are fetched from external sources via <see cref="IBotListFetcher" />:
 ///     - digininja/scanner_user_agents (JSON with metadata)
 ///     - OWASP CoreRuleSet scanners (text format)
-///
 ///     Part of the security detection layer for API honeypot integration.
 /// </summary>
 public class SecurityToolDetector : IDetector
 {
-    private readonly ILogger<SecurityToolDetector> _logger;
-    private readonly BotDetectionOptions _options;
-    private readonly BotDetectionMetrics? _metrics;
+    private static readonly TimeSpan PatternRefreshInterval = TimeSpan.FromHours(1);
     private readonly IBotListFetcher _fetcher;
+    private readonly ILogger<SecurityToolDetector> _logger;
+    private readonly BotDetectionMetrics? _metrics;
+    private readonly BotDetectionOptions _options;
+    private readonly object _patternLock = new();
 
     // Cached compiled patterns
     private volatile IReadOnlyList<CompiledSecurityPattern>? _compiledPatterns;
     private DateTime _patternsLastUpdated = DateTime.MinValue;
-    private static readonly TimeSpan PatternRefreshInterval = TimeSpan.FromHours(1);
-    private readonly object _patternLock = new();
 
     public SecurityToolDetector(
         ILogger<SecurityToolDetector> logger,
@@ -55,23 +53,14 @@ public class SecurityToolDetector : IDetector
 
         try
         {
-            if (string.IsNullOrWhiteSpace(userAgent))
-            {
-                return result;
-            }
+            if (string.IsNullOrWhiteSpace(userAgent)) return result;
 
             // Check if security tool detection is enabled
-            if (!_options.SecurityTools.Enabled)
-            {
-                return result;
-            }
+            if (!_options.SecurityTools.Enabled) return result;
 
             // Get or refresh patterns
             var patterns = await GetPatternsAsync(cancellationToken);
-            if (patterns.Count == 0)
-            {
-                return result;
-            }
+            if (patterns.Count == 0) return result;
 
             // Check all patterns
             foreach (var pattern in patterns)
@@ -79,7 +68,6 @@ public class SecurityToolDetector : IDetector
                 bool matched;
 
                 if (pattern.CompiledRegex != null)
-                {
                     // Regex pattern
                     try
                     {
@@ -90,12 +78,9 @@ public class SecurityToolDetector : IDetector
                         _logger.LogDebug("Regex timeout for pattern: {Pattern}", pattern.Original.Pattern);
                         continue;
                     }
-                }
                 else
-                {
                     // Simple substring match
                     matched = userAgent.Contains(pattern.Original.Pattern, StringComparison.OrdinalIgnoreCase);
-                }
 
                 if (matched)
                 {
@@ -105,7 +90,8 @@ public class SecurityToolDetector : IDetector
                     result.Reasons.Add(new DetectionReason
                     {
                         Category = "SecurityTool",
-                        Detail = $"Security tool detected: {pattern.Original.Name ?? pattern.Original.Pattern} (Category: {pattern.Original.Category})",
+                        Detail =
+                            $"Security tool detected: {pattern.Original.Name ?? pattern.Original.Pattern} (Category: {pattern.Original.Category})",
                         ConfidenceImpact = 0.95
                     });
 
@@ -135,17 +121,13 @@ public class SecurityToolDetector : IDetector
     {
         // Check if patterns need refresh
         if (_compiledPatterns != null && DateTime.UtcNow - _patternsLastUpdated < PatternRefreshInterval)
-        {
             return _compiledPatterns;
-        }
 
         lock (_patternLock)
         {
             // Double-check inside lock
             if (_compiledPatterns != null && DateTime.UtcNow - _patternsLastUpdated < PatternRefreshInterval)
-            {
                 return _compiledPatterns;
-            }
         }
 
         try
@@ -178,7 +160,6 @@ public class SecurityToolDetector : IDetector
             Regex? regex = null;
 
             if (pattern.IsRegex)
-            {
                 try
                 {
                     regex = new Regex(
@@ -190,7 +171,6 @@ public class SecurityToolDetector : IDetector
                 {
                     // Fall back to substring match
                 }
-            }
 
             compiled.Add(new CompiledSecurityPattern(pattern, regex));
         }

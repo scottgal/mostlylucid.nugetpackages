@@ -102,9 +102,7 @@ public class ChallengeActionPolicy : IActionPolicy
 
         // Use custom handler if provided
         if (_challengeHandler != null)
-        {
             return await _challengeHandler.HandleChallengeAsync(context, evidence, _options, cancellationToken);
-        }
 
         // Default challenge handling
         return _options.ChallengeType switch
@@ -123,11 +121,9 @@ public class ChallengeActionPolicy : IActionPolicy
         if (!_options.UseTokens) return false;
 
         if (context.Request.Cookies.TryGetValue(_options.TokenCookieName, out var token))
-        {
             // In a real implementation, validate the token signature and expiry
             // This is a simplified check
             return !string.IsNullOrEmpty(token);
-        }
 
         return false;
     }
@@ -206,7 +202,7 @@ public class ChallengeActionPolicy : IActionPolicy
 <html>
 <head>
     <title>Human Verification Required</title>
-    {(!string.IsNullOrEmpty(_options.CaptchaSiteKey) ? $@"<script src=""https://www.google.com/recaptcha/api.js"" async defer></script>" : "")}
+    {(!string.IsNullOrEmpty(_options.CaptchaSiteKey) ? @"<script src=""https://www.google.com/recaptcha/api.js"" async defer></script>" : "")}
 </head>
 <body>
     <div style=""max-width: 400px; margin: 100px auto; text-align: center;"">
@@ -357,7 +353,7 @@ public enum ChallengeType
 }
 
 /// <summary>
-///     Configuration options for <see cref="ChallengeActionPolicy"/>.
+///     Configuration options for <see cref="ChallengeActionPolicy" />.
 /// </summary>
 public class ChallengeActionOptions
 {
@@ -450,7 +446,7 @@ public interface IChallengeHandler
 }
 
 /// <summary>
-///     Factory for creating <see cref="ChallengeActionPolicy"/> from configuration.
+///     Factory for creating <see cref="ChallengeActionPolicy" /> from configuration.
 /// </summary>
 public class ChallengeActionPolicyFactory : IActionPolicyFactory
 {
@@ -474,10 +470,8 @@ public class ChallengeActionPolicyFactory : IActionPolicyFactory
         var challengeOptions = new ChallengeActionOptions();
 
         if (options.TryGetValue("ChallengeType", out var challengeType))
-        {
             if (Enum.TryParse<ChallengeType>(challengeType?.ToString(), true, out var ct))
                 challengeOptions.ChallengeType = ct;
-        }
 
         if (options.TryGetValue("ChallengeUrl", out var url))
             challengeOptions.ChallengeUrl = url?.ToString() ?? challengeOptions.ChallengeUrl;

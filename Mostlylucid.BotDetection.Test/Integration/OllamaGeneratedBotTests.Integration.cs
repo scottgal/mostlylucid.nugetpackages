@@ -2,11 +2,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Detectors;
 using Mostlylucid.BotDetection.Models;
 using OllamaSharp;
@@ -17,11 +14,9 @@ namespace Mostlylucid.BotDetection.Test.Integration;
 ///     Long-running integration tests that use Ollama (ministral:8b) to generate
 ///     synthetic bot and human user-agent strings, then verify the detection system
 ///     correctly classifies them.
-///
 ///     These tests require:
 ///     - Ollama running locally on http://localhost:11434
 ///     - The ministral:8b model installed (ollama pull ministral:8b)
-///
 ///     Run with: dotnet test --filter "Category=LongRunning"
 /// </summary>
 [Trait("Category", "Integration")]
@@ -32,11 +27,11 @@ public class OllamaGeneratedBotTests : IAsyncLifetime
     private const string OllamaEndpoint = "http://localhost:11434";
     private const string OllamaModel = "ministral-3:8b";
     private const int GenerationTimeoutMs = 30000;
+    private readonly HttpClient _httpClient = new();
+    private List<string> _downloadedBotPatterns = new();
 
     private OllamaApiClient? _ollama;
     private bool _ollamaAvailable;
-    private List<string> _downloadedBotPatterns = new();
-    private readonly HttpClient _httpClient = new();
 
     public async Task InitializeAsync()
     {
@@ -44,12 +39,10 @@ public class OllamaGeneratedBotTests : IAsyncLifetime
         _ollamaAvailable = await CheckOllamaAvailableAsync();
 
         if (_ollamaAvailable)
-        {
             _ollama = new OllamaApiClient(OllamaEndpoint)
             {
                 SelectedModel = OllamaModel
             };
-        }
 
         // Download bot patterns for validation
         await DownloadBotPatternsAsync();
@@ -84,7 +77,7 @@ public class OllamaGeneratedBotTests : IAsyncLifetime
         {
             var url = "https://raw.githubusercontent.com/omrilotan/isbot/main/src/patterns.json";
             var json = await _httpClient.GetStringAsync(url);
-            _downloadedBotPatterns = JsonSerializer.Deserialize<List<string>>(json) ?? new();
+            _downloadedBotPatterns = JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
         }
         catch
         {
@@ -98,6 +91,97 @@ public class OllamaGeneratedBotTests : IAsyncLifetime
         }
     }
 
+    #region Adversarial Tests
+
+    [Fact]
+    public async Task Ollama_GeneratesEvasiveBots_TestsDetectionRobustness()
+    {
+        if (Skip.If(!_ollamaAvailable, "Ollama not available or ministral:8b not installed")) return;
+
+        // Arrange - Generate bot UAs designed to evade detection
+        var evasiveBots = new List<string>();
+
+        // Act
+        for (var i = 0; i < 5; i++)
+        {
+            var evasiveBot = await GenerateEvasiveBotUserAgentAsync();
+            if (!string.IsNullOrEmpty(evasiveBot)) evasiveBots.Add(evasiveBot);
+        }
+
+        // Assert & Report
+        var detectionResults = evasiveBots
+            .Select(ua => (UserAgent: ua, Detected: IsDetectedAsBot(ua)))
+            .ToList();
+
+        var detectedCount = detectionResults.Count(r => r.Detected);
+
+        Console.WriteLine($"Evasive bot detection rate: {detectedCount}/{evasiveBots.Count}");
+        foreach (var result in detectionResults)
+            Console.WriteLine($"  {(result.Detected ? "[DETECTED]" : "[EVADED]")} {result.UserAgent}");
+
+        // Note: This test documents evasion success rate, not a pass/fail
+        // High evasion rate indicates the detection system needs improvement
+    }
+
+    #endregion
+
+    #region Bulk Generation Tests
+
+    [Fact]
+    public async Task Ollama_BulkGenerateBotUserAgents_50Samples()
+    {
+        if (Skip.If(!_ollamaAvailable, "Ollama not available or ministral:8b not installed")) return;
+
+        // Arrange
+        var samples = new List<(string UserAgent, string Type, bool Detected)>();
+        var types = new[] { "bot", "human" };
+
+        // Act - Generate 25 of each type
+        foreach (var type in types)
+            for (var i = 0; i < 25; i++)
+            {
+                var ua = type == "bot"
+                    ? await GenerateBotUserAgentAsync()
+                    : await GenerateHumanUserAgentAsync();
+
+                if (!string.IsNullOrEmpty(ua)) samples.Add((ua, type, IsDetectedAsBot(ua)));
+            }
+
+        // Assert & Report
+        var botSamples = samples.Where(s => s.Type == "bot").ToList();
+        var humanSamples = samples.Where(s => s.Type == "human").ToList();
+
+        var truePositives = botSamples.Count(s => s.Detected);
+        var falsePositives = humanSamples.Count(s => s.Detected);
+        var trueNegatives = humanSamples.Count(s => !s.Detected);
+        var falseNegatives = botSamples.Count(s => !s.Detected);
+
+        var precision = truePositives > 0
+            ? (double)truePositives / (truePositives + falsePositives)
+            : 0;
+        var recall = truePositives > 0
+            ? (double)truePositives / (truePositives + falseNegatives)
+            : 0;
+        var f1 = precision + recall > 0
+            ? 2 * (precision * recall) / (precision + recall)
+            : 0;
+
+        Console.WriteLine($"=== Detection Metrics (n={samples.Count}) ===");
+        Console.WriteLine($"True Positives (bots detected): {truePositives}");
+        Console.WriteLine($"False Positives (humans flagged): {falsePositives}");
+        Console.WriteLine($"True Negatives (humans passed): {trueNegatives}");
+        Console.WriteLine($"False Negatives (bots missed): {falseNegatives}");
+        Console.WriteLine($"Precision: {precision:P1}");
+        Console.WriteLine($"Recall: {recall:P1}");
+        Console.WriteLine($"F1 Score: {f1:P1}");
+
+        // Assert reasonable performance
+        Assert.True(precision >= 0.6, $"Precision should be >=60%, got {precision:P1}");
+        Assert.True(recall >= 0.6, $"Recall should be >=60%, got {recall:P1}");
+    }
+
+    #endregion
+
     #region Bot User-Agent Generation Tests
 
     [Fact]
@@ -110,7 +194,7 @@ public class OllamaGeneratedBotTests : IAsyncLifetime
         var detectionResults = new List<(string UserAgent, bool Detected)>();
 
         // Act - Generate 10 bot user-agents
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             var botUserAgent = await GenerateBotUserAgentAsync();
             if (!string.IsNullOrEmpty(botUserAgent))
@@ -142,7 +226,7 @@ public class OllamaGeneratedBotTests : IAsyncLifetime
         var detectionResults = new List<(string UserAgent, bool Detected)>();
 
         // Act - Generate 10 human user-agents
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             var humanUserAgent = await GenerateHumanUserAgentAsync();
             if (!string.IsNullOrEmpty(humanUserAgent))
@@ -178,28 +262,20 @@ public class OllamaGeneratedBotTests : IAsyncLifetime
         {
             generatedByType[botType] = new List<string>();
 
-            for (int i = 0; i < 2; i++)
+            for (var i = 0; i < 2; i++)
             {
                 var userAgent = await GenerateSpecificBotTypeAsync(botType);
-                if (!string.IsNullOrEmpty(userAgent))
-                {
-                    generatedByType[botType].Add(userAgent);
-                }
+                if (!string.IsNullOrEmpty(userAgent)) generatedByType[botType].Add(userAgent);
             }
         }
 
         // Assert - Each type should generate at least 1 UA
         foreach (var botType in botTypes)
-        {
             Assert.True(generatedByType[botType].Count >= 1,
                 $"Should generate at least 1 {botType} UA, got {generatedByType[botType].Count}");
-        }
 
         // Output for inspection
-        foreach (var kvp in generatedByType)
-        {
-            Console.WriteLine($"{kvp.Key}: {string.Join(" | ", kvp.Value)}");
-        }
+        foreach (var kvp in generatedByType) Console.WriteLine($"{kvp.Key}: {string.Join(" | ", kvp.Value)}");
     }
 
     #endregion
@@ -293,9 +369,7 @@ public class OllamaGeneratedBotTests : IAsyncLifetime
         Console.WriteLine($"Detection result: Confidence={result.Confidence}");
         Console.WriteLine($"Reasons count: {result.Reasons.Count}");
         foreach (var reason in result.Reasons)
-        {
             Console.WriteLine($"  - {reason.Category}: {reason.Detail} (impact: {reason.ConfidenceImpact})");
-        }
 
         // The detector should return a valid response with reasons
         // For human classification: Reasons.Count > 0 with negative ConfidenceImpact
@@ -339,119 +413,13 @@ public class OllamaGeneratedBotTests : IAsyncLifetime
         // Assert
         Console.WriteLine($"curl/8.4.0 detection: Confidence={result.Confidence}");
         foreach (var reason in result.Reasons)
-        {
             Console.WriteLine($"  - {reason.Category}: {reason.Detail} (impact: {reason.ConfidenceImpact})");
-        }
 
         // curl should be detected as a bot
         Assert.True(result.Reasons.Count > 0, "LLM should return reasons for curl user-agent");
         // For bot detection, confidence impact should be positive
         var llmReason = result.Reasons.FirstOrDefault(r => r.Category == "LLM Analysis");
-        if (llmReason != null)
-        {
-            Console.WriteLine($"LLM classified as bot: {llmReason.ConfidenceImpact > 0}");
-        }
-    }
-
-    #endregion
-
-    #region Adversarial Tests
-
-    [Fact]
-    public async Task Ollama_GeneratesEvasiveBots_TestsDetectionRobustness()
-    {
-        if (Skip.If(!_ollamaAvailable, "Ollama not available or ministral:8b not installed")) return;
-
-        // Arrange - Generate bot UAs designed to evade detection
-        var evasiveBots = new List<string>();
-
-        // Act
-        for (int i = 0; i < 5; i++)
-        {
-            var evasiveBot = await GenerateEvasiveBotUserAgentAsync();
-            if (!string.IsNullOrEmpty(evasiveBot))
-            {
-                evasiveBots.Add(evasiveBot);
-            }
-        }
-
-        // Assert & Report
-        var detectionResults = evasiveBots
-            .Select(ua => (UserAgent: ua, Detected: IsDetectedAsBot(ua)))
-            .ToList();
-
-        var detectedCount = detectionResults.Count(r => r.Detected);
-
-        Console.WriteLine($"Evasive bot detection rate: {detectedCount}/{evasiveBots.Count}");
-        foreach (var result in detectionResults)
-        {
-            Console.WriteLine($"  {(result.Detected ? "[DETECTED]" : "[EVADED]")} {result.UserAgent}");
-        }
-
-        // Note: This test documents evasion success rate, not a pass/fail
-        // High evasion rate indicates the detection system needs improvement
-    }
-
-    #endregion
-
-    #region Bulk Generation Tests
-
-    [Fact]
-    public async Task Ollama_BulkGenerateBotUserAgents_50Samples()
-    {
-        if (Skip.If(!_ollamaAvailable, "Ollama not available or ministral:8b not installed")) return;
-
-        // Arrange
-        var samples = new List<(string UserAgent, string Type, bool Detected)>();
-        var types = new[] { "bot", "human" };
-
-        // Act - Generate 25 of each type
-        foreach (var type in types)
-        {
-            for (int i = 0; i < 25; i++)
-            {
-                var ua = type == "bot"
-                    ? await GenerateBotUserAgentAsync()
-                    : await GenerateHumanUserAgentAsync();
-
-                if (!string.IsNullOrEmpty(ua))
-                {
-                    samples.Add((ua, type, IsDetectedAsBot(ua)));
-                }
-            }
-        }
-
-        // Assert & Report
-        var botSamples = samples.Where(s => s.Type == "bot").ToList();
-        var humanSamples = samples.Where(s => s.Type == "human").ToList();
-
-        var truePositives = botSamples.Count(s => s.Detected);
-        var falsePositives = humanSamples.Count(s => s.Detected);
-        var trueNegatives = humanSamples.Count(s => !s.Detected);
-        var falseNegatives = botSamples.Count(s => !s.Detected);
-
-        var precision = truePositives > 0
-            ? (double)truePositives / (truePositives + falsePositives)
-            : 0;
-        var recall = truePositives > 0
-            ? (double)truePositives / (truePositives + falseNegatives)
-            : 0;
-        var f1 = precision + recall > 0
-            ? 2 * (precision * recall) / (precision + recall)
-            : 0;
-
-        Console.WriteLine($"=== Detection Metrics (n={samples.Count}) ===");
-        Console.WriteLine($"True Positives (bots detected): {truePositives}");
-        Console.WriteLine($"False Positives (humans flagged): {falsePositives}");
-        Console.WriteLine($"True Negatives (humans passed): {trueNegatives}");
-        Console.WriteLine($"False Negatives (bots missed): {falseNegatives}");
-        Console.WriteLine($"Precision: {precision:P1}");
-        Console.WriteLine($"Recall: {recall:P1}");
-        Console.WriteLine($"F1 Score: {f1:P1}");
-
-        // Assert reasonable performance
-        Assert.True(precision >= 0.6, $"Precision should be >=60%, got {precision:P1}");
-        Assert.True(recall >= 0.6, $"Recall should be >=60%, got {recall:P1}");
+        if (llmReason != null) Console.WriteLine($"LLM classified as bot: {llmReason.ConfidenceImpact > 0}");
     }
 
     #endregion
@@ -496,10 +464,12 @@ Return ONLY the User-Agent string, NO prefix or explanation.";
         if (example.Contains("python") || example.Contains("requests")) return "Python HTTP client";
         if (example.Contains("Scrapy")) return "web scraper";
         if (example.Contains("curl") || example.Contains("wget")) return "command-line tool";
-        if (example.Contains("Go-") || example.Contains("Apache") || example.Contains("okhttp")) return "HTTP client library";
+        if (example.Contains("Go-") || example.Contains("Apache") || example.Contains("okhttp"))
+            return "HTTP client library";
         if (example.Contains("axios") || example.Contains("node-fetch")) return "JavaScript HTTP client";
         if (example.Contains("Googlebot") || example.Contains("Bingbot")) return "search engine crawler";
-        if (example.Contains("facebook") || example.Contains("Twitter") || example.Contains("LinkedIn") || example.Contains("Slack")) return "social media bot";
+        if (example.Contains("facebook") || example.Contains("Twitter") || example.Contains("LinkedIn") ||
+            example.Contains("Slack")) return "social media bot";
         return "web crawler";
     }
 
@@ -539,7 +509,8 @@ Return ONLY the User-Agent string, NO prefix or explanation.";
     private static string GetBrowserType(string example)
     {
         if (example.Contains("Firefox")) return "Firefox browser";
-        if (example.Contains("Safari") && example.Contains("Macintosh") && !example.Contains("Chrome")) return "Safari on macOS";
+        if (example.Contains("Safari") && example.Contains("Macintosh") && !example.Contains("Chrome"))
+            return "Safari on macOS";
         if (example.Contains("Safari") && example.Contains("iPhone")) return "Safari on iPhone";
         if (example.Contains("Safari") && example.Contains("iPad")) return "Safari on iPad";
         if (example.Contains("Android")) return "Chrome on Android";
@@ -583,10 +554,7 @@ User-Agent:";
             var chat = new Chat(_ollama);
             var responseBuilder = new StringBuilder();
 
-            await foreach (var token in chat.SendAsync(prompt, cts.Token))
-            {
-                responseBuilder.Append(token);
-            }
+            await foreach (var token in chat.SendAsync(prompt, cts.Token)) responseBuilder.Append(token);
 
             var response = responseBuilder.ToString().Trim();
 
@@ -676,10 +644,8 @@ public static class Skip
     public static bool If(bool condition, string reason)
     {
         if (condition)
-        {
             // Output skip reason to test results
             Console.WriteLine($"[SKIPPED] {reason}");
-        }
         return condition;
     }
 }

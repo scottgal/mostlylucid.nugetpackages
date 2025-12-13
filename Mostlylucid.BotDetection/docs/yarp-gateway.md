@@ -2,11 +2,13 @@
 
 A lightweight, Docker-first YARP reverse proxy gateway - the companion project to Mostlylucid.BotDetection.
 
-> **Full Documentation**: See the [Mostlylucid.YarpGateway README](../../Mostlylucid.YarpGateway/README.md) for complete documentation.
+> **Full Documentation**: See the [Mostlylucid.YarpGateway README](../../Mostlylucid.YarpGateway/README.md) for complete
+> documentation.
 
 ## Overview
 
 Mostlylucid.YarpGateway is a standalone Docker image that provides:
+
 - Zero-config reverse proxy (just set `DEFAULT_UPSTREAM`)
 - YARP-based routing with hot-reload configuration
 - Admin API for health checks, config inspection, and metrics
@@ -40,16 +42,16 @@ Internet → YarpGateway → Your App (with BotDetection)
 ### Deployment Pattern
 
 1. **YarpGateway** handles:
-   - Edge routing and load balancing
-   - TLS termination
-   - Request forwarding
-   - Health monitoring
+    - Edge routing and load balancing
+    - TLS termination
+    - Request forwarding
+    - Health monitoring
 
 2. **BotDetection** handles:
-   - Bot classification
-   - Rate limiting
-   - Challenge/response
-   - Learning and adaptation
+    - Bot classification
+    - Rate limiting
+    - Challenge/response
+    - Learning and adaptation
 
 ### Docker Compose Example
 
@@ -73,6 +75,7 @@ services:
 ```
 
 With `yarp.json`:
+
 ```json
 {
   "ReverseProxy": {
@@ -110,23 +113,25 @@ docker run -d --name gateway \
 ```
 
 See the [full Pi documentation](../../Mostlylucid.YarpGateway/README.md#raspberry-pi-deployment) for:
+
 - Memory-optimized settings
 - Performance tips
 - Home network routing examples
 
 ## Key Features
 
-| Feature | Description |
-|---------|-------------|
-| **Zero-config** | Single env var to get started |
-| **Hot reload** | Config changes without restart |
-| **Admin API** | `/admin/health`, `/admin/routes`, `/admin/metrics` |
-| **Multi-arch** | amd64, arm64, arm/v7 |
-| **Lightweight** | ~90MB Alpine-based image |
+| Feature         | Description                                        |
+|-----------------|----------------------------------------------------|
+| **Zero-config** | Single env var to get started                      |
+| **Hot reload**  | Config changes without restart                     |
+| **Admin API**   | `/admin/health`, `/admin/routes`, `/admin/metrics` |
+| **Multi-arch**  | amd64, arm64, arm/v7                               |
+| **Lightweight** | ~90MB Alpine-based image                           |
 
 ## Configuration Reference
 
 For complete configuration options including:
+
 - Environment variables (`GATEWAY_HTTP_PORT`, `DEFAULT_UPSTREAM`, `ADMIN_SECRET`, etc.)
 - Volume mounts (`/app/config`, `/app/data`, `/app/logs`, `/app/plugins`)
 - YARP routing configuration (`yarp.json`)
@@ -138,6 +143,7 @@ For complete configuration options including:
 ## Available Tags
 
 The Docker image is published with multiple tags:
+
 - `scottgal/mostlylucid.yarpgateway:latest` - Latest release
 - `scottgal/mostlylucid.yarpgateway:X.Y.Z[-previewN]` - Specific version (e.g., `1.0.0-preview1`)
 - `scottgal/mostlylucid.yarpgateway:YYYYMMDD` - Date-based (e.g., `20231203`)

@@ -4,7 +4,6 @@ namespace Mostlylucid.BotDetection.Behavioral;
 
 /// <summary>
 ///     Behavioral Description Format (BDF) - Root scenario object.
-///
 ///     A declarative description of how a client behaves over time, used for:
 ///     - Describing behavior patterns (not just single requests, but shape over time)
 ///     - Replaying behavior through load generators/test harnesses
@@ -45,14 +44,11 @@ public sealed record BdfScenario
 /// <summary>Scenario metadata (authorship, creation time, tags)</summary>
 public sealed record ScenarioMetadata
 {
-    [JsonPropertyName("author")]
-    public string? Author { get; init; }
+    [JsonPropertyName("author")] public string? Author { get; init; }
 
-    [JsonPropertyName("createdUtc")]
-    public DateTime? CreatedUtc { get; init; }
+    [JsonPropertyName("createdUtc")] public DateTime? CreatedUtc { get; init; }
 
-    [JsonPropertyName("tags")]
-    public IReadOnlyList<string>? Tags { get; init; }
+    [JsonPropertyName("tags")] public IReadOnlyList<string>? Tags { get; init; }
 }
 
 /// <summary>Client identity configuration (IP, UA, headers, signature)</summary>
@@ -101,7 +97,6 @@ public sealed record ExpectationConfig
 
 /// <summary>
 ///     Behavior phase - a time-bounded or request-bounded behavior mode.
-///
 ///     Represents a chunk of behavior with specific characteristics:
 ///     - Timing patterns (fixed, jittered, bursty)
 ///     - Navigation style (UI graph, sequential, random, scanner)
@@ -222,11 +217,9 @@ public sealed record PathTemplate
 /// <summary>ID range for parameterized path templates</summary>
 public sealed record IdRange
 {
-    [JsonPropertyName("min")]
-    public int Min { get; init; }
+    [JsonPropertyName("min")] public int Min { get; init; }
 
-    [JsonPropertyName("max")]
-    public int Max { get; init; }
+    [JsonPropertyName("max")] public int Max { get; init; }
 }
 
 /// <summary>Error interaction configuration - how client responds to HTTP errors</summary>

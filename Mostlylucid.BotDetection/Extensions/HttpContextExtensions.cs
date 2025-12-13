@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Mostlylucid.BotDetection.Middleware;
 using Mostlylucid.BotDetection.Models;
@@ -200,10 +201,10 @@ public static class HttpContextExtensions
         // Score-based risk assessment
         return result.ConfidenceScore switch
         {
-            >= 0.9 => RiskBand.High,     // Very confident bot
-            >= 0.7 => RiskBand.Medium,   // Likely bot
+            >= 0.9 => RiskBand.High, // Very confident bot
+            >= 0.7 => RiskBand.Medium, // Likely bot
             >= 0.5 => RiskBand.Elevated, // Possibly bot, challenge recommended
-            _ => RiskBand.Low            // Probably human
+            _ => RiskBand.Low // Probably human
         };
     }
 
@@ -282,7 +283,7 @@ public static class HttpContextExtensions
             return null;
 
         // Parse score from detail string like "Low browser integrity score: 45/100"
-        var match = System.Text.RegularExpressions.Regex.Match(
+        var match = Regex.Match(
             clientSideReason.Detail, @"(\d+)/100");
 
         if (match.Success && int.TryParse(match.Groups[1].Value, out var score))
@@ -305,7 +306,7 @@ public static class HttpContextExtensions
             return null;
 
         // Parse likelihood from detail string like "Headless browser detected (likelihood: 0.85)"
-        var match = System.Text.RegularExpressions.Regex.Match(
+        var match = Regex.Match(
             headlessReason.Detail, @"likelihood:\s*([\d.]+)");
 
         if (match.Success && double.TryParse(match.Groups[1].Value, out var likelihood))

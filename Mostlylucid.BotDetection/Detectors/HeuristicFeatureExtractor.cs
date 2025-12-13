@@ -102,9 +102,13 @@ public static class HeuristicFeatureExtractor
         features["hdr:referer"] = headers.ContainsKey("Referer") ? 1f : 0f;
         features["hdr:origin"] = headers.ContainsKey("Origin") ? 1f : 0f;
         features["hdr:x-requested-with"] = headers["X-Requested-With"].ToString()
-            .Equals("XMLHttpRequest", StringComparison.OrdinalIgnoreCase) ? 1f : 0f;
+            .Equals("XMLHttpRequest", StringComparison.OrdinalIgnoreCase)
+            ? 1f
+            : 0f;
         features["hdr:connection-close"] = headers.Connection.ToString()
-            .Equals("close", StringComparison.OrdinalIgnoreCase) ? 1f : 0f;
+            .Equals("close", StringComparison.OrdinalIgnoreCase)
+            ? 1f
+            : 0f;
 
         // User-Agent pattern features (dynamic based on content)
         var uaLower = userAgent.ToLowerInvariant();
@@ -147,10 +151,7 @@ public static class HeuristicFeatureExtractor
                 g => (float)g.Max(c => c.ConfidenceDelta),
                 StringComparer.OrdinalIgnoreCase);
 
-        foreach (var (key, value) in detectorResults)
-        {
-            features[key] = value;
-        }
+        foreach (var (key, value) in detectorResults) features[key] = value;
 
         // Also store absolute confidence for ranking
         var absResults = evidence.Contributions
@@ -160,10 +161,7 @@ public static class HeuristicFeatureExtractor
                 g => (float)g.Max(c => Math.Abs(c.ConfidenceDelta)),
                 StringComparer.OrdinalIgnoreCase);
 
-        foreach (var (key, value) in absResults)
-        {
-            features[key] = value;
-        }
+        foreach (var (key, value) in absResults) features[key] = value;
     }
 
     /// <summary>
@@ -337,14 +335,10 @@ public static class HeuristicFeatureExtractor
         features["result:risk_band"] = (int)evidence.RiskBand / 5f;
 
         if (evidence.PrimaryBotType.HasValue)
-        {
             features[$"bottype:{evidence.PrimaryBotType.Value.ToString().ToLowerInvariant()}"] = 1f;
-        }
 
         if (!string.IsNullOrEmpty(evidence.PrimaryBotName))
-        {
             features[$"botname:{NormalizeKey(evidence.PrimaryBotName)}"] = 1f;
-        }
     }
 
     /// <summary>

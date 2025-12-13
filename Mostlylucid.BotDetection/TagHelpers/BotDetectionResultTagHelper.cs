@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -16,20 +17,18 @@ namespace Mostlylucid.BotDetection.TagHelpers;
 /// </summary>
 /// <example>
 ///     &lt;bot-detection-result /&gt;
-///
 ///     Renders:
 ///     &lt;script&gt;
 ///     window.__botDetection = {
-///       risk: 0.15,
-///       confidence: 0.92,
-///       riskBand: "Low",
-///       policy: "default",
-///       isBot: false,
-///       detectors: ["UserAgent", "Header", "Ip"],
-///       categories: { "UserAgent": -0.2, "Header": -0.1 }
+///     risk: 0.15,
+///     confidence: 0.92,
+///     riskBand: "Low",
+///     policy: "default",
+///     isBot: false,
+///     detectors: ["UserAgent", "Header", "Ip"],
+///     categories: { "UserAgent": -0.2, "Header": -0.1 }
 ///     };
 ///     &lt;/script&gt;
-///
 ///     Or with custom variable name:
 ///     &lt;bot-detection-result variable-name="botResult" /&gt;
 /// </example>
@@ -98,18 +97,12 @@ public class BotDetectionResultTagHelper : TagHelper
         object resultObject;
 
         if (aggregated != null)
-        {
             resultObject = CreateResultFromAggregated(aggregated, policyName, policyAction);
-        }
         else if (legacy != null)
-        {
             resultObject = CreateResultFromLegacy(legacy, policyName);
-        }
         else
-        {
             // No detection result available
             resultObject = new { error = "No bot detection result available", detected = false };
-        }
 
         // Output as data attributes
         if (!string.IsNullOrEmpty(DataPrefix))
@@ -140,7 +133,6 @@ public class BotDetectionResultTagHelper : TagHelper
         PolicyAction? policyAction)
     {
         if (FullResult)
-        {
             return new
             {
                 risk = evidence.BotProbability,
@@ -173,7 +165,6 @@ public class BotDetectionResultTagHelper : TagHelper
                 botName = evidence.PrimaryBotName,
                 botType = evidence.PrimaryBotType?.ToString()
             };
-        }
 
         // Summary only
         return new
@@ -194,7 +185,6 @@ public class BotDetectionResultTagHelper : TagHelper
     private object CreateResultFromLegacy(BotDetectionResult result, string policyName)
     {
         if (FullResult)
-        {
             return new
             {
                 risk = result.ConfidenceScore,
@@ -210,7 +200,6 @@ public class BotDetectionResultTagHelper : TagHelper
                     impact = r.ConfidenceImpact
                 })
             };
-        }
 
         return new
         {
@@ -254,7 +243,7 @@ public class BotDetectionResultTagHelper : TagHelper
     {
         if (string.IsNullOrEmpty(input)) return input;
 
-        var result = new System.Text.StringBuilder();
+        var result = new StringBuilder();
         for (var i = 0; i < input.Length; i++)
         {
             var c = input[i];

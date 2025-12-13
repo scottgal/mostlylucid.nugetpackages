@@ -1,9 +1,9 @@
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Data;
@@ -21,11 +21,11 @@ namespace Mostlylucid.BotDetection.Test.Integration;
 public class BotListIntegrationTests : IAsyncLifetime
 {
     private readonly HttpClient _httpClient = new();
-    private List<string> _isBotPatterns = new();
-    private List<CrawlerUserAgent> _crawlerUserAgents = new();
     private List<string> _awsIpRanges = new();
-    private List<string> _gcpIpRanges = new();
     private List<string> _cloudflareIpRanges = new();
+    private List<CrawlerUserAgent> _crawlerUserAgents = new();
+    private List<string> _gcpIpRanges = new();
+    private List<string> _isBotPatterns = new();
 
     public async Task InitializeAsync()
     {
@@ -48,6 +48,51 @@ public class BotListIntegrationTests : IAsyncLifetime
         return Task.CompletedTask;
     }
 
+    #region End-to-End Detection Tests
+
+    [Theory]
+    [InlineData("Googlebot/2.1", true)]
+    [InlineData("bingbot/2.0", true)]
+    [InlineData("curl/7.68.0", true)]
+    [InlineData("python-requests/2.25.1", true)]
+    [InlineData("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0", false)]
+    public async Task EndToEnd_DetectsBotsCorrectly(string userAgent, bool expectBot)
+    {
+        // Arrange
+        var fetcher = CreateBotListFetcher();
+        var patterns = await fetcher.GetBotPatternsAsync();
+
+        // Act
+        var isBot = patterns.Any(pattern =>
+        {
+            try
+            {
+                return Regex.IsMatch(userAgent, pattern, RegexOptions.IgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        });
+
+        // Assert
+        Assert.Equal(expectBot, isBot);
+    }
+
+    #endregion
+
+    #region Test Helpers
+
+    private class TestHttpClientFactory : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name)
+        {
+            return new HttpClient();
+        }
+    }
+
+    #endregion
+
     #region Download Methods
 
     private async Task DownloadIsBotPatternsAsync()
@@ -56,7 +101,7 @@ public class BotListIntegrationTests : IAsyncLifetime
         {
             var url = "https://raw.githubusercontent.com/omrilotan/isbot/main/src/patterns.json";
             var json = await _httpClient.GetStringAsync(url);
-            _isBotPatterns = JsonSerializer.Deserialize<List<string>>(json) ?? new();
+            _isBotPatterns = JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
         }
         catch (Exception ex)
         {
@@ -72,7 +117,7 @@ public class BotListIntegrationTests : IAsyncLifetime
             var url = "https://raw.githubusercontent.com/monperrus/crawler-user-agents/master/crawler-user-agents.json";
             var json = await _httpClient.GetStringAsync(url);
             _crawlerUserAgents = JsonSerializer.Deserialize<List<CrawlerUserAgent>>(json,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<CrawlerUserAgent>();
         }
         catch (Exception ex)
         {
@@ -92,7 +137,7 @@ public class BotListIntegrationTests : IAsyncLifetime
                 .Where(p => !string.IsNullOrEmpty(p.IpPrefix))
                 .Select(p => p.IpPrefix!)
                 .Take(100) // Limit for test performance
-                .ToList() ?? new();
+                .ToList() ?? new List<string>();
         }
         catch (Exception ex)
         {
@@ -112,7 +157,7 @@ public class BotListIntegrationTests : IAsyncLifetime
                 .Where(p => !string.IsNullOrEmpty(p.Ipv4Prefix))
                 .Select(p => p.Ipv4Prefix!)
                 .Take(100)
-                .ToList() ?? new();
+                .ToList() ?? new List<string>();
         }
         catch (Exception ex)
         {
@@ -155,7 +200,6 @@ public class BotListIntegrationTests : IAsyncLifetime
         var invalidPatterns = new List<string>();
 
         foreach (var pattern in _isBotPatterns)
-        {
             try
             {
                 _ = new Regex(pattern, RegexOptions.IgnoreCase);
@@ -164,7 +208,6 @@ public class BotListIntegrationTests : IAsyncLifetime
             {
                 invalidPatterns.Add(pattern);
             }
-        }
 
         Assert.Empty(invalidPatterns);
     }
@@ -194,9 +237,12 @@ public class BotListIntegrationTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")]
-    [InlineData("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15")]
-    [InlineData("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1")]
+    [InlineData(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")]
+    [InlineData(
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15")]
+    [InlineData(
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1")]
     public void IsBotPatterns_DoNotMatchRealBrowsers(string userAgent)
     {
         var matchedPatterns = _isBotPatterns
@@ -302,12 +348,8 @@ public class BotListIntegrationTests : IAsyncLifetime
         var invalidRanges = new List<string>();
 
         foreach (var range in allRanges)
-        {
             if (!IsValidCidr(range))
-            {
                 invalidRanges.Add(range);
-            }
-        }
 
         Assert.Empty(invalidRanges);
     }
@@ -317,7 +359,7 @@ public class BotListIntegrationTests : IAsyncLifetime
         var parts = cidr.Split('/');
         if (parts.Length != 2) return false;
 
-        if (!System.Net.IPAddress.TryParse(parts[0], out _)) return false;
+        if (!IPAddress.TryParse(parts[0], out _)) return false;
 
         if (!int.TryParse(parts[1], out var prefix)) return false;
 
@@ -377,7 +419,8 @@ public class BotListIntegrationTests : IAsyncLifetime
 
     [Theory]
     [InlineData("Scrapy/2.5.0 (+https://scrapy.org)")] // Contains "scrapy" in MaliciousBotPatterns
-    [InlineData("Apache-HttpClient/4.5.13 (Java/11.0.11)")] // Contains "HttpClient" in AutomationFrameworks + "Java/" in MaliciousBotPatterns
+    [InlineData(
+        "Apache-HttpClient/4.5.13 (Java/11.0.11)")] // Contains "HttpClient" in AutomationFrameworks + "Java/" in MaliciousBotPatterns
     [InlineData("Go-http-client/1.1")] // Contains "go-http-client" in MaliciousBotPatterns
     public async Task UserAgentDetector_DetectsSuspiciousHttpLibraries(string userAgent)
     {
@@ -476,39 +519,6 @@ public class BotListIntegrationTests : IAsyncLifetime
 
     #endregion
 
-    #region End-to-End Detection Tests
-
-    [Theory]
-    [InlineData("Googlebot/2.1", true)]
-    [InlineData("bingbot/2.0", true)]
-    [InlineData("curl/7.68.0", true)]
-    [InlineData("python-requests/2.25.1", true)]
-    [InlineData("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0", false)]
-    public async Task EndToEnd_DetectsBotsCorrectly(string userAgent, bool expectBot)
-    {
-        // Arrange
-        var fetcher = CreateBotListFetcher();
-        var patterns = await fetcher.GetBotPatternsAsync();
-
-        // Act
-        var isBot = patterns.Any(pattern =>
-        {
-            try
-            {
-                return Regex.IsMatch(userAgent, pattern, RegexOptions.IgnoreCase);
-            }
-            catch
-            {
-                return false;
-            }
-        });
-
-        // Assert
-        Assert.Equal(expectBot, isBot);
-    }
-
-    #endregion
-
     #region Helper Methods
 
     private UserAgentDetector CreateUserAgentDetector()
@@ -596,14 +606,11 @@ public class BotListIntegrationTests : IAsyncLifetime
 
     private class AwsPrefix
     {
-        [JsonPropertyName("ip_prefix")]
-        public string? IpPrefix { get; set; }
+        [JsonPropertyName("ip_prefix")] public string? IpPrefix { get; set; }
 
-        [JsonPropertyName("region")]
-        public string? Region { get; set; }
+        [JsonPropertyName("region")] public string? Region { get; set; }
 
-        [JsonPropertyName("service")]
-        public string? Service { get; set; }
+        [JsonPropertyName("service")] public string? Service { get; set; }
     }
 
     private class GcpIpRangesResponse
@@ -613,20 +620,9 @@ public class BotListIntegrationTests : IAsyncLifetime
 
     private class GcpPrefix
     {
-        [JsonPropertyName("ipv4Prefix")]
-        public string? Ipv4Prefix { get; set; }
+        [JsonPropertyName("ipv4Prefix")] public string? Ipv4Prefix { get; set; }
 
-        [JsonPropertyName("ipv6Prefix")]
-        public string? Ipv6Prefix { get; set; }
-    }
-
-    #endregion
-
-    #region Test Helpers
-
-    private class TestHttpClientFactory : IHttpClientFactory
-    {
-        public HttpClient CreateClient(string name) => new();
+        [JsonPropertyName("ipv6Prefix")] public string? Ipv6Prefix { get; set; }
     }
 
     #endregion

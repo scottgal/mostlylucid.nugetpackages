@@ -1,7 +1,5 @@
 using Microsoft.Extensions.Logging;
-using Mostlylucid.Ephemeral;
 using Mostlylucid.Ephemeral.Atoms.SlidingCache;
-using Mostlylucid.BotDetection.Orchestration.Signals;
 
 namespace Mostlylucid.BotDetection.Orchestration;
 
@@ -22,19 +20,25 @@ public sealed class SignatureResponseCoordinatorCache : IAsyncDisposable
         _logger = logger;
 
         _cache = new SlidingCacheAtom<string, SignatureResponseCoordinator>(
-            factory: async (signature, ct) =>
+            async (signature, ct) =>
             {
                 _logger.LogDebug("Creating SignatureResponseCoordinator for {Signature}", signature);
 
                 // Create coordinator with its own sink (TIGHT coupling)
                 return new SignatureResponseCoordinator(signature, logger);
             },
-            slidingExpiration: ttl ?? TimeSpan.FromMinutes(30),
-            absoluteExpiration: (ttl ?? TimeSpan.FromMinutes(30)) * 2,
-            maxSize: maxSignatures,
-            maxConcurrency: Environment.ProcessorCount,
-            sampleRate: 10,
-            signals: null); // No external signals
+            ttl ?? TimeSpan.FromMinutes(30),
+            (ttl ?? TimeSpan.FromMinutes(30)) * 2,
+            maxSignatures,
+            Environment.ProcessorCount,
+            10,
+            null); // No external signals
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _cache.DisposeAsync();
+        _logger.LogInformation("SignatureResponseCoordinatorCache disposed");
     }
 
     public async Task<SignatureResponseCoordinator> GetOrCreateAsync(
@@ -42,11 +46,5 @@ public sealed class SignatureResponseCoordinatorCache : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         return await _cache.GetOrComputeAsync(signature, cancellationToken);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        await _cache.DisposeAsync();
-        _logger.LogInformation("SignatureResponseCoordinatorCache disposed");
     }
 }

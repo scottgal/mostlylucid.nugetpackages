@@ -8,14 +8,12 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// <summary>
 ///     HTTP/2 fingerprinting contributor using AKAMAI-style fingerprinting.
 ///     Analyzes HTTP/2 frame sequences, settings, and priority to detect automation.
-///
 ///     Best-in-breed approach:
 ///     - HTTP/2 SETTINGS frame analysis
 ///     - WINDOW_UPDATE patterns
 ///     - Stream priority patterns
 ///     - Header compression (HPACK) usage patterns
 ///     - Pseudoheader order fingerprinting
-///
 ///     Raises signals for behavioral waveform:
 ///     - h2.settings_fingerprint
 ///     - h2.priority_pattern
@@ -25,8 +23,6 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// </summary>
 public class Http2FingerprintContributor : ContributingDetectorBase
 {
-    private readonly ILogger<Http2FingerprintContributor> _logger;
-
     // Known HTTP/2 fingerprints for different clients
     // Format: settings_frame values (key:value pairs)
     // Based on AKAMAI HTTP/2 fingerprinting research
@@ -99,6 +95,8 @@ public class Http2FingerprintContributor : ContributingDetectorBase
         { "4:1", "Bare_Minimum_Settings" }
     };
 
+    private readonly ILogger<Http2FingerprintContributor> _logger;
+
     public Http2FingerprintContributor(ILogger<Http2FingerprintContributor> logger)
     {
         _logger = logger;
@@ -132,7 +130,6 @@ public class Http2FingerprintContributor : ContributingDetectorBase
                 // HTTP/1.x usage could be legitimate or suspicious depending on context
                 // Modern browsers support HTTP/2, but some automation tools don't
                 if (protocol.StartsWith("HTTP/1"))
-                {
                     contributions.Add(new DetectionContribution
                     {
                         DetectorName = Name,
@@ -142,7 +139,6 @@ public class Http2FingerprintContributor : ContributingDetectorBase
                         Reason = $"Using {protocol} instead of HTTP/2 (common for bots)",
                         Signals = signals.ToImmutable()
                     });
-                }
 
                 return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
             }
@@ -160,15 +156,12 @@ public class Http2FingerprintContributor : ContributingDetectorBase
                     signals.Add("h2.client_type", matchedClient);
 
                     if (matchedClient.Contains("Bot") || matchedClient.Contains("HTTP2_Client"))
-                    {
                         contributions.Add(DetectionContribution.Bot(
                             Name, "HTTP/2", 0.7,
                             $"HTTP/2 fingerprint matches known automation client: {matchedClient}",
                             BotType.Scraper,
                             weight: 1.6));
-                    }
                     else
-                    {
                         // Known browser
                         contributions.Add(new DetectionContribution
                         {
@@ -179,7 +172,6 @@ public class Http2FingerprintContributor : ContributingDetectorBase
                             Reason = $"HTTP/2 fingerprint matches browser: {matchedClient}",
                             Signals = signals.ToImmutable()
                         });
-                    }
                 }
                 else
                 {
@@ -199,7 +191,6 @@ public class Http2FingerprintContributor : ContributingDetectorBase
                 if (pseudoHeaderOrder != "method,path,authority,scheme" &&
                     pseudoHeaderOrder != "method,path,scheme,authority" &&
                     pseudoHeaderOrder != "method,scheme,authority,path")
-                {
                     contributions.Add(new DetectionContribution
                     {
                         DetectorName = Name,
@@ -209,7 +200,6 @@ public class Http2FingerprintContributor : ContributingDetectorBase
                         Reason = $"Non-standard HTTP/2 pseudoheader order: {pseudoHeaderOrder}",
                         Signals = signals.ToImmutable()
                     });
-                }
             }
 
             // Check for HTTP/2 stream priority usage
@@ -245,7 +235,6 @@ public class Http2FingerprintContributor : ContributingDetectorBase
                     signals.Add("h2.window_update_count", updateCount);
 
                     if (updateCount == 0)
-                    {
                         // No window updates is unusual for browsers
                         contributions.Add(new DetectionContribution
                         {
@@ -256,7 +245,6 @@ public class Http2FingerprintContributor : ContributingDetectorBase
                             Reason = "No HTTP/2 WINDOW_UPDATE frames (unusual for browsers)",
                             Signals = signals.ToImmutable()
                         });
-                    }
                 }
             }
 
@@ -267,7 +255,6 @@ public class Http2FingerprintContributor : ContributingDetectorBase
                 signals.Add("h2.push_enabled", supportsPush);
 
                 if (!supportsPush)
-                {
                     // Many bots disable push
                     contributions.Add(new DetectionContribution
                     {
@@ -278,7 +265,6 @@ public class Http2FingerprintContributor : ContributingDetectorBase
                         Reason = "HTTP/2 Server Push disabled (common for bots)",
                         Signals = signals.ToImmutable()
                     });
-                }
             }
 
             // Analyze connection preface
@@ -288,16 +274,13 @@ public class Http2FingerprintContributor : ContributingDetectorBase
                 signals.Add("h2.preface_valid", valid);
 
                 if (!valid)
-                {
                     // Invalid preface = definitely suspicious
                     contributions.Add(DetectionContribution.Bot(
                         Name, "HTTP/2", 0.8,
                         "Invalid HTTP/2 connection preface",
                         BotType.Scraper,
                         weight: 1.8));
-                }
             }
-
         }
         catch (Exception ex)
         {
@@ -334,12 +317,9 @@ public class Http2FingerprintContributor : ContributingDetectorBase
     private string? MatchFingerprint(string settings)
     {
         foreach (var (fingerprint, client) in KnownFingerprints)
-        {
             if (settings.Contains(fingerprint, StringComparison.OrdinalIgnoreCase))
-            {
                 return client;
-            }
-        }
+
         return null;
     }
 
@@ -349,10 +329,7 @@ public class Http2FingerprintContributor : ContributingDetectorBase
         // Note: ASP.NET Core doesn't expose raw HTTP/2 frames directly
         // This would need to be captured by reverse proxy and passed via header
 
-        if (context.Request.Headers.TryGetValue("X-HTTP2-Pseudoheader-Order", out var order))
-        {
-            return order.ToString();
-        }
+        if (context.Request.Headers.TryGetValue("X-HTTP2-Pseudoheader-Order", out var order)) return order.ToString();
 
         // Fallback: infer from standard headers presence
         var parts = new List<string>();

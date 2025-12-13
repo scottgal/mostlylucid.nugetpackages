@@ -19,11 +19,11 @@ namespace Mostlylucid.BotDetection.Actions;
 ///     <para>
 ///         Built-in action policies:
 ///         <list type="bullet">
-///             <item><see cref="BlockActionPolicy"/> - Returns HTTP error status codes</item>
-///             <item><see cref="ThrottleActionPolicy"/> - Rate limits with configurable delays and jitter</item>
-///             <item><see cref="ChallengeActionPolicy"/> - Presents CAPTCHA or proof-of-work challenges</item>
-///             <item><see cref="RedirectActionPolicy"/> - Redirects to a different URL</item>
-///             <item><see cref="LogOnlyActionPolicy"/> - Logs but doesn't block (shadow mode)</item>
+///             <item><see cref="BlockActionPolicy" /> - Returns HTTP error status codes</item>
+///             <item><see cref="ThrottleActionPolicy" /> - Rate limits with configurable delays and jitter</item>
+///             <item><see cref="ChallengeActionPolicy" /> - Presents CAPTCHA or proof-of-work challenges</item>
+///             <item><see cref="RedirectActionPolicy" /> - Redirects to a different URL</item>
+///             <item><see cref="LogOnlyActionPolicy" /> - Logs but doesn't block (shadow mode)</item>
 ///         </list>
 ///     </para>
 /// </remarks>
@@ -82,20 +82,26 @@ public sealed record ActionResult
     /// <summary>
     ///     Creates a result indicating the request was blocked.
     /// </summary>
-    public static ActionResult Blocked(int statusCode, string description) =>
-        new() { Continue = false, StatusCode = statusCode, Description = description };
+    public static ActionResult Blocked(int statusCode, string description)
+    {
+        return new ActionResult { Continue = false, StatusCode = statusCode, Description = description };
+    }
 
     /// <summary>
     ///     Creates a result indicating the request should continue.
     /// </summary>
-    public static ActionResult Allowed(string? description = null) =>
-        new() { Continue = true, StatusCode = 200, Description = description ?? "Allowed" };
+    public static ActionResult Allowed(string? description = null)
+    {
+        return new ActionResult { Continue = true, StatusCode = 200, Description = description ?? "Allowed" };
+    }
 
     /// <summary>
     ///     Creates a result indicating a redirect was issued.
     /// </summary>
-    public static ActionResult Redirected(string url) =>
-        new() { Continue = false, StatusCode = 302, Description = $"Redirected to {url}" };
+    public static ActionResult Redirected(string url)
+    {
+        return new ActionResult { Continue = false, StatusCode = 302, Description = $"Redirected to {url}" };
+    }
 }
 
 /// <summary>

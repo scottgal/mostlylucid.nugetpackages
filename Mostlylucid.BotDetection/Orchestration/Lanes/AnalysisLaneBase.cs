@@ -17,7 +17,8 @@ public abstract class AnalysisLaneBase : IAnalysisLane
 
     public abstract string Name { get; }
 
-    public abstract Task AnalyzeAsync(IReadOnlyList<OperationCompleteSignal> window, CancellationToken cancellationToken = default);
+    public abstract Task AnalyzeAsync(IReadOnlyList<OperationCompleteSignal> window,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Emit a score signal for this lane.

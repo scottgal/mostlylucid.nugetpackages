@@ -1,11 +1,9 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Moq;
 using Mostlylucid.BotDetection.Detectors;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Services;
-using Xunit;
 
 namespace Mostlylucid.BotDetection.Test.Detectors;
 
@@ -23,9 +21,9 @@ public class VersionAgeDetectorTests
 
         // Setup mock to return current browser versions
         mockVersionService.Setup(s => s.GetLatestVersionAsync("Chrome", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(143);  // Current Chrome version
+            .ReturnsAsync(143); // Current Chrome version
         mockVersionService.Setup(s => s.GetLatestVersionAsync("Firefox", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(146);  // Current Firefox version
+            .ReturnsAsync(146); // Current Firefox version
         mockVersionService.Setup(s => s.GetLatestVersionAsync("Safari", It.IsAny<CancellationToken>()))
             .ReturnsAsync(26);
         mockVersionService.Setup(s => s.GetLatestVersionAsync("Edge", It.IsAny<CancellationToken>()))
@@ -39,9 +37,9 @@ public class VersionAgeDetectorTests
 
     [Theory]
     [InlineData("Chrome/140.0.0.0", false)] // Recent version (within threshold)
-    [InlineData("Chrome/50.0.0.0", true)]   // Old version (2016)
-    [InlineData("Firefox/140.0", false)]    // Recent version (within threshold)
-    [InlineData("Firefox/40.0", true)]      // Old version (2015)
+    [InlineData("Chrome/50.0.0.0", true)] // Old version (2016)
+    [InlineData("Firefox/140.0", false)] // Recent version (within threshold)
+    [InlineData("Firefox/40.0", true)] // Old version (2015)
     public async Task DetectAsync_IdentifiesOldBrowserVersions(string userAgent, bool shouldDetect)
     {
         // Arrange
@@ -61,9 +59,8 @@ public class VersionAgeDetectorTests
         {
             // Either null or low confidence (< 0.15) for recent versions
             if (result != null)
-            {
-                Assert.True(result.Confidence < 0.15, $"Expected low/no confidence for recent version, got {result.Confidence}");
-            }
+                Assert.True(result.Confidence < 0.15,
+                    $"Expected low/no confidence for recent version, got {result.Confidence}");
         }
     }
 
@@ -81,9 +78,8 @@ public class VersionAgeDetectorTests
         // Assert
         // Either null or low confidence for recent versions
         if (result != null)
-        {
-            Assert.True(result.Confidence < 0.5, $"Expected low confidence for recent versions, got {result.Confidence}");
-        }
+            Assert.True(result.Confidence < 0.5,
+                $"Expected low confidence for recent versions, got {result.Confidence}");
     }
 
     [Fact]
@@ -97,16 +93,13 @@ public class VersionAgeDetectorTests
 
         // Assert
         // Should return null or empty result with no confidence
-        if (result != null)
-        {
-            Assert.Equal(0, result.Confidence);
-        }
+        if (result != null) Assert.Equal(0, result.Confidence);
     }
 
     [Theory]
-    [InlineData("IE/6.0")]     // Very old IE
-    [InlineData("IE/8.0")]     // Old IE
-    [InlineData("MSIE 9.0")]   // Old IE format
+    [InlineData("IE/6.0")] // Very old IE
+    [InlineData("IE/8.0")] // Old IE
+    [InlineData("MSIE 9.0")] // Old IE format
     public async Task DetectAsync_DetectsVeryOldInternetExplorer(string userAgent)
     {
         // Arrange
@@ -117,10 +110,7 @@ public class VersionAgeDetectorTests
 
         // Assert
         // May or may not detect depending on IE regex patterns available
-        if (result != null)
-        {
-            Assert.True(result.Confidence >= 0);
-        }
+        if (result != null) Assert.True(result.Confidence >= 0);
     }
 
     [Fact]

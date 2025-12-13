@@ -2,7 +2,8 @@
 
 ## Overview
 
-The bot detection system uses **multi-factor signatures** to track patterns while handling real-world scenarios like dynamic IPs, browser updates, and ISP changes, all while maintaining **zero-PII architecture**.
+The bot detection system uses **multi-factor signatures** to track patterns while handling real-world scenarios like
+dynamic IPs, browser updates, and ISP changes, all while maintaining **zero-PII architecture**.
 
 ## The Problem
 
@@ -44,6 +45,7 @@ Match Rules:
 ## Signature Factors
 
 ### 1. Primary Signature (IP + UA)
+
 ```
 SignatureId: HMAC-SHA256(IP + UA)
 ```
@@ -55,6 +57,7 @@ SignatureId: HMAC-SHA256(IP + UA)
 **Stability**: Low (changes with IP or browser updates)
 
 **Example**:
+
 ```
 IP: "203.0.113.42"
 UA: "Mozilla/5.0 Chrome/120.0.0.0"
@@ -62,6 +65,7 @@ UA: "Mozilla/5.0 Chrome/120.0.0.0"
 ```
 
 ### 2. IP Signature
+
 ```
 IpSignature: HMAC-SHA256(IP)
 ```
@@ -73,11 +77,13 @@ IpSignature: HMAC-SHA256(IP)
 **Stability**: Medium (stable within ISP session, days-weeks for static IPs)
 
 **Use Case**:
+
 - User updates Chrome 119 → 120
 - UA changes, but IP remains same
 - IP signature still matches → likely same user
 
 ### 3. UA Signature
+
 ```
 UaSignature: HMAC-SHA256(UserAgent)
 ```
@@ -89,11 +95,13 @@ UaSignature: HMAC-SHA256(UserAgent)
 **Stability**: Medium-High (stable until browser updates)
 
 **Use Case**:
+
 - Mobile user moves between WiFi and cellular
 - IP changes frequently, but UA remains same
 - UA signature still matches → likely same device
 
 ### 4. Client-Side Signature
+
 ```
 ClientSideSignature: HMAC-SHA256(Canvas + WebGL + AudioContext + Screen + Timezone + ...)
 ```
@@ -105,6 +113,7 @@ ClientSideSignature: HMAC-SHA256(Canvas + WebGL + AudioContext + Screen + Timezo
 **Stability**: High (survives IP and UA changes)
 
 **Components**:
+
 - Canvas fingerprint (GPU rendering variations)
 - WebGL fingerprint (GPU capabilities)
 - AudioContext fingerprint (audio processing)
@@ -114,11 +123,13 @@ ClientSideSignature: HMAC-SHA256(Canvas + WebGL + AudioContext + Screen + Timezo
 - Plugin list
 
 **Use Case**:
+
 - User travels (IP changes across countries)
 - Browser auto-updates (UA changes)
 - Client-side signature remains stable → same physical device
 
 **Implementation**:
+
 ```javascript
 // Client-side JS sends fingerprint in header
 const fingerprint = await generateBrowserFingerprint();
@@ -130,6 +141,7 @@ fetch('/api', {
 ```
 
 ### 5. Plugin Signature
+
 ```
 PluginSignature: HMAC-SHA256(Plugins + Extensions + Fonts + AcceptLanguage + AcceptEncoding)
 ```
@@ -141,6 +153,7 @@ PluginSignature: HMAC-SHA256(Plugins + Extensions + Fonts + AcceptLanguage + Acc
 **Stability**: High (rarely changes)
 
 **Components**:
+
 - Installed plugins/extensions
 - Installed fonts
 - Accept-Language header
@@ -148,11 +161,13 @@ PluginSignature: HMAC-SHA256(Plugins + Extensions + Fonts + AcceptLanguage + Acc
 - DNT (Do Not Track) preference
 
 **Use Case**:
+
 - User has unique plugin configuration (e.g., specific ad blocker + privacy extensions)
 - Even if IP and UA change, plugin signature remains stable
 - High confidence same user
 
 ### 6. IP Subnet Signature
+
 ```
 IpSubnetSignature: HMAC-SHA256(IP /24 subnet)
 ```
@@ -164,6 +179,7 @@ IpSubnetSignature: HMAC-SHA256(IP /24 subnet)
 **Stability**: Medium (stable within ISP allocation)
 
 **Use Case**:
+
 - Detect coordinated attacks from same datacenter
 - Group traffic from same corporate network
 - Less specific than full IP, more stable
@@ -546,6 +562,7 @@ ALTER COLUMN user_agent SET DEFAULT NULL;
 5. **Zero-PII**: ALL signatures are HMAC hashes, NO raw data stored ✅
 
 **Key Benefits:**
+
 - Handles legitimate user behavior (mobile, updates)
 - Detects sophisticated bots (proxy rotation)
 - Maintains privacy (non-reversible hashes)

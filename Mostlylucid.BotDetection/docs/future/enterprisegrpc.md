@@ -113,7 +113,8 @@ You can even let enterprise export their current config as files:
 stylobot export --tenant contoso > contoso.policy.yaml
 ```
 
-So the story is: *free = you edit this file yourself; enterprise = you click sliders that ultimately map to the same structure*.
+So the story is: *free = you edit this file yourself; enterprise = you click sliders that ultimately map to the same
+structure*.
 
 ---
 
@@ -137,6 +138,8 @@ So the story is: *free = you edit this file yourself; enterprise = you click sli
         * versioned
         * auditable.
 
-So you don’t get bankrupted by REST users, and you don’t lose your “edge, config, hacker-friendly” aesthetics. Power is there, but it’s **explicit and manual**, never magical.
+So you don’t get bankrupted by REST users, and you don’t lose your “edge, config, hacker-friendly” aesthetics. Power is
+there, but it’s **explicit and manual**, never magical.
 
-If you want, I can sketch an actual `stylobot.settings.yaml` + `default.policy.yaml` pair that matches your existing detectors and risk bands, so you’ve got a concrete starting point for the file format.
+If you want, I can sketch an actual `stylobot.settings.yaml` + `default.policy.yaml` pair that matches your existing
+detectors and risk bands, so you’ve got a concrete starting point for the file format.

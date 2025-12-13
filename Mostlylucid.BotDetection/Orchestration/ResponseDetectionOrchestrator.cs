@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Models;
@@ -15,10 +14,10 @@ namespace Mostlylucid.BotDetection.Orchestration;
 /// </summary>
 public sealed class ResponseDetectionOrchestrator : IAsyncDisposable
 {
-    private readonly ILogger<ResponseDetectionOrchestrator> _logger;
-    private readonly ResponseCoordinatorOptions _options;
-    private readonly SignalSink _operationSignalSink; // SHARED with request orchestrator (operation-scoped)
     private readonly SignalSink _globalSignalSink; // Global sink for signature-level coordination
+    private readonly ILogger<ResponseDetectionOrchestrator> _logger;
+    private readonly SignalSink _operationSignalSink; // SHARED with request orchestrator (operation-scoped)
+    private readonly ResponseCoordinatorOptions _options;
     private readonly IEnumerable<IResponseDetector> _responseDetectors;
 
     public ResponseDetectionOrchestrator(
@@ -37,6 +36,12 @@ public sealed class ResponseDetectionOrchestrator : IAsyncDisposable
         _logger.LogInformation(
             "ResponseDetectionOrchestrator initialized with {DetectorCount} detectors",
             _responseDetectors.Count());
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _logger.LogInformation("ResponseDetectionOrchestrator disposed");
+        await ValueTask.CompletedTask;
     }
 
     /// <summary>
@@ -155,7 +160,7 @@ public sealed class ResponseDetectionOrchestrator : IAsyncDisposable
 
             // Use EphemeralWorkCoordinator for parallel execution with signal preservation
             await using var coordinator = new EphemeralWorkCoordinator<IResponseDetector>(
-                body: async (detector, ct) =>
+                async (detector, ct) =>
                 {
                     try
                     {
@@ -170,7 +175,8 @@ public sealed class ResponseDetectionOrchestrator : IAsyncDisposable
                             }
 
                             // Emit contribution signal to operation sink (notification pattern)
-                            _operationSignalSink.Raise($"response.detector.{detector.Name}", contribution.Score.ToString("F4"));
+                            _operationSignalSink.Raise($"response.detector.{detector.Name}",
+                                contribution.Score.ToString("F4"));
                         }
 
                         lock (state.CompletedDetectors)
@@ -190,17 +196,14 @@ public sealed class ResponseDetectionOrchestrator : IAsyncDisposable
                         }
                     }
                 },
-                options: new EphemeralOptions
+                new EphemeralOptions
                 {
                     MaxConcurrency = Environment.ProcessorCount,
                     Signals = _operationSignalSink
                 });
 
             // Enqueue all detectors
-            foreach (var detector in waveDetectors)
-            {
-                await coordinator.EnqueueAsync(detector, cancellationToken);
-            }
+            foreach (var detector in waveDetectors) await coordinator.EnqueueAsync(detector, cancellationToken);
 
             // Drain coordinator (wait for all to complete)
             await coordinator.DrainAsync(cancellationToken);
@@ -230,7 +233,6 @@ public sealed class ResponseDetectionOrchestrator : IAsyncDisposable
         TimeSpan elapsed)
     {
         if (state.Contributions.Count == 0)
-        {
             return new ResponseDetectionResult
             {
                 RequestId = state.RequestId,
@@ -241,7 +243,6 @@ public sealed class ResponseDetectionOrchestrator : IAsyncDisposable
                 TopReasons = Array.Empty<string>(),
                 ProcessingTimeMs = elapsed.TotalMilliseconds
             };
-        }
 
         // Weighted average of contributions
         var totalWeight = state.Contributions.Sum(c => c.Weight);
@@ -273,12 +274,6 @@ public sealed class ResponseDetectionOrchestrator : IAsyncDisposable
             DetectorCount = state.CompletedDetectors.Count,
             FailedDetectorCount = state.FailedDetectors.Count
         };
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        _logger.LogInformation("ResponseDetectionOrchestrator disposed");
-        await ValueTask.CompletedTask;
     }
 }
 
@@ -342,8 +337,10 @@ public sealed class ResponseBlackboardState
     /// <summary>
     ///     Get a signal from response-side blackboard
     /// </summary>
-    public T? GetSignal<T>(string key) =>
-        Signals.TryGetValue(key, out var value) && value is T typed ? typed : default;
+    public T? GetSignal<T>(string key)
+    {
+        return Signals.TryGetValue(key, out var value) && value is T typed ? typed : default;
+    }
 
     /// <summary>
     ///     Get a signal from REQUEST-side via operation sink (same sink, different lifecycle).
@@ -369,7 +366,9 @@ public sealed class ResponseBlackboardState
             if (typeof(T) == typeof(bool) && bool.TryParse(latest.Key, out var b))
                 return (T)(object)b;
         }
-        catch { }
+        catch
+        {
+        }
 
         return default;
     }
@@ -420,7 +419,6 @@ public sealed record OperationSummarySignal
     /// <summary>Trigger signals from request-side (for context)</summary>
     public required IReadOnlyDictionary<string, object> TriggerSignals { get; init; }
 }
-
 
 /// <summary>
 ///     Response detector interface (similar to IContributingDetector but for responses).

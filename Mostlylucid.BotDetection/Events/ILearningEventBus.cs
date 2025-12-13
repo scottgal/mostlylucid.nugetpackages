@@ -1,5 +1,4 @@
 using System.Threading.Channels;
-using Mostlylucid.BotDetection.Models;
 
 namespace Mostlylucid.BotDetection.Events;
 
@@ -11,14 +10,14 @@ namespace Mostlylucid.BotDetection.Events;
 public interface ILearningEventBus
 {
     /// <summary>
-    ///     Publish a learning event (non-blocking, fire-and-forget)
-    /// </summary>
-    bool TryPublish(LearningEvent evt);
-
-    /// <summary>
     ///     Get the event reader for background processing
     /// </summary>
     ChannelReader<LearningEvent> Reader { get; }
+
+    /// <summary>
+    ///     Publish a learning event (non-blocking, fire-and-forget)
+    /// </summary>
+    bool TryPublish(LearningEvent evt);
 
     /// <summary>
     ///     Complete the bus (for shutdown)
@@ -135,10 +134,17 @@ public sealed class LearningEventBus : ILearningEventBus, IDisposable
         _channel = Channel.CreateBounded<LearningEvent>(new BoundedChannelOptions(capacity)
         {
             FullMode = BoundedChannelFullMode.DropOldest, // Drop oldest if full
-            SingleReader = true,  // Single background processor
+            SingleReader = true, // Single background processor
             SingleWriter = false, // Multiple requests can publish
             AllowSynchronousContinuations = false // Don't block request threads
         });
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        Complete();
     }
 
     public bool TryPublish(LearningEvent evt)
@@ -152,12 +158,5 @@ public sealed class LearningEventBus : ILearningEventBus, IDisposable
     public void Complete()
     {
         _channel.Writer.TryComplete();
-    }
-
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-        Complete();
     }
 }

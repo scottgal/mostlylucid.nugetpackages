@@ -1,11 +1,13 @@
 {
   "$schema": "./action-policy.schema.json",
   "_comment": "Built-in Challenge action policies. These are compiled into the library.",
-
   "challenge": {
     "Type": "Challenge",
     "Description": "Default challenge - redirect to challenge page",
-    "Tags": ["default", "verification"],
+    "Tags": [
+      "default",
+      "verification"
+    ],
     "ChallengeType": "Redirect",
     "ChallengeUrl": "/challenge",
     "UseTokens": true,
@@ -13,43 +15,54 @@
     "TokenValidityMinutes": 30,
     "ReturnUrlParam": "returnUrl"
   },
-
   "challenge-captcha": {
     "Type": "Challenge",
     "Extends": "challenge",
     "Description": "CAPTCHA challenge - requires human verification",
-    "Tags": ["captcha", "verification", "strong"],
+    "Tags": [
+      "captcha",
+      "verification",
+      "strong"
+    ],
     "ChallengeType": "Captcha",
     "ChallengeTitle": "Verification Required",
     "ChallengeMessage": "Please complete the CAPTCHA to continue."
   },
-
   "challenge-js": {
     "Type": "Challenge",
     "Extends": "challenge",
     "Description": "JavaScript challenge - lightweight browser verification",
-    "Tags": ["javascript", "verification", "lightweight"],
+    "Tags": [
+      "javascript",
+      "verification",
+      "lightweight"
+    ],
     "ChallengeType": "JavaScript",
     "ChallengeScript": "/scripts/bot-challenge.js",
     "ChallengeTitle": "Verifying...",
     "ChallengeMessage": "Please wait while we verify your browser."
   },
-
   "challenge-pow": {
     "Type": "Challenge",
     "Extends": "challenge",
     "Description": "Proof-of-Work challenge - computational puzzle (expensive for bots)",
-    "Tags": ["pow", "verification", "anti-automation"],
+    "Tags": [
+      "pow",
+      "verification",
+      "anti-automation"
+    ],
     "ChallengeType": "ProofOfWork",
     "ChallengeTitle": "Security Check",
     "ChallengeMessage": "Completing security verification..."
   },
-
   "challenge-inline": {
     "Type": "Challenge",
     "Extends": "challenge",
     "Description": "Inline challenge - renders challenge directly in response",
-    "Tags": ["inline", "verification"],
+    "Tags": [
+      "inline",
+      "verification"
+    ],
     "ChallengeType": "Inline",
     "ChallengeStatusCode": 403,
     "ChallengeTitle": "Access Restricted",

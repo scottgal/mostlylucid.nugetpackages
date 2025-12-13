@@ -15,14 +15,14 @@ Real browsers send a consistent set of headers with specific patterns. The heade
 
 Real browsers typically send:
 
-| Header | Purpose | Absence Impact |
-|--------|---------|----------------|
-| Accept | Content types accepted | +0.15 |
-| Accept-Encoding | Compression support | +0.15 |
-| Accept-Language | User language preference | +0.2 |
-| Cache-Control | Caching directives | +0.15 |
-| Connection | Connection handling | +0.15 |
-| Upgrade-Insecure-Requests | HTTPS preference | +0.15 |
+| Header                    | Purpose                  | Absence Impact |
+|---------------------------|--------------------------|----------------|
+| Accept                    | Content types accepted   | +0.15          |
+| Accept-Encoding           | Compression support      | +0.15          |
+| Accept-Language           | User language preference | +0.2           |
+| Cache-Control             | Caching directives       | +0.15          |
+| Connection                | Connection handling      | +0.15          |
+| Upgrade-Insecure-Requests | HTTPS preference         | +0.15          |
 
 Missing multiple headers compounds: up to +0.6 confidence.
 
@@ -51,11 +51,11 @@ Accept: */*                                                               (bot +
 
 Direct markers of automation tools:
 
-| Header | Indicates | Impact |
-|--------|-----------|--------|
-| X-Requested-With | XMLHttpRequest/automation | +0.4 |
-| X-Automation | Automation framework | +0.4 |
-| X-Bot | Self-identified bot | +0.4 |
+| Header           | Indicates                 | Impact |
+|------------------|---------------------------|--------|
+| X-Requested-With | XMLHttpRequest/automation | +0.4   |
+| X-Automation     | Automation framework      | +0.4   |
+| X-Bot            | Self-identified bot       | +0.4   |
 
 ### Header Ordering
 
@@ -95,17 +95,18 @@ Header detection is enabled by default with comprehensive bot detection.
 
 Header signals feed into inconsistency detection:
 
-| Inconsistency | Example | Impact |
-|---------------|---------|--------|
-| Chrome UA without sec-ch-ua | Modern Chrome sends Client Hints | +0.4 |
-| Browser UA without Accept-Language | All browsers send locale | +0.5 |
-| Mobile UA with desktop viewport | Mismatch in claims | +0.3 |
+| Inconsistency                      | Example                          | Impact |
+|------------------------------------|----------------------------------|--------|
+| Chrome UA without sec-ch-ua        | Modern Chrome sends Client Hints | +0.4   |
+| Browser UA without Accept-Language | All browsers send locale         | +0.5   |
+| Mobile UA with desktop viewport    | Mismatch in claims               | +0.3   |
 
 ## Modern Browser Features
 
 Modern browsers add security headers that bots often miss:
 
 ### Sec-Fetch Headers (Chrome 76+)
+
 ```
 Sec-Fetch-Dest: document
 Sec-Fetch-Mode: navigate
@@ -114,6 +115,7 @@ Sec-Fetch-User: ?1
 ```
 
 ### Client Hints (Chrome 89+)
+
 ```
 sec-ch-ua: "Google Chrome";v="119", "Chromium";v="119"
 sec-ch-ua-mobile: ?0
@@ -126,12 +128,12 @@ Absence of these with modern User-Agent is suspicious.
 
 Header detection is very fast:
 
-| Operation | Typical Time |
-|-----------|--------------|
-| Header presence check | < 0.01ms |
-| Value analysis | < 0.1ms |
-| Order analysis | < 0.05ms |
-| **Total** | **< 0.2ms** |
+| Operation             | Typical Time |
+|-----------------------|--------------|
+| Header presence check | < 0.01ms     |
+| Value analysis        | < 0.1ms      |
+| Order analysis        | < 0.05ms     |
+| **Total**             | **< 0.2ms**  |
 
 ## Accessing Results
 

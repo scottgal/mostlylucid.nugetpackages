@@ -7,7 +7,6 @@ namespace Mostlylucid.BotDetection.Orchestration;
 /// <summary>
 ///     First-class evidence object emitted by detectors.
 ///     Immutable, auditable, and composable.
-///
 ///     Detectors emit contributions (evidence), not verdicts.
 ///     The orchestrator aggregates contributions into a final risk decision.
 /// </summary>
@@ -98,16 +97,19 @@ public sealed record DetectionContribution
         string reason,
         BotType? botType = null,
         string? botName = null,
-        double weight = 1.0) => new()
+        double weight = 1.0)
     {
-        DetectorName = detector,
-        Category = category,
-        ConfidenceDelta = Math.Clamp(confidence, 0, 1),
-        Weight = weight,
-        Reason = reason,
-        BotType = botType,
-        BotName = botName
-    };
+        return new DetectionContribution
+        {
+            DetectorName = detector,
+            Category = category,
+            ConfidenceDelta = Math.Clamp(confidence, 0, 1),
+            Weight = weight,
+            Reason = reason,
+            BotType = botType,
+            BotName = botName
+        };
+    }
 
     /// <summary>
     ///     Helper to create a human evidence contribution
@@ -117,14 +119,17 @@ public sealed record DetectionContribution
         string category,
         double confidence,
         string reason,
-        double weight = 1.0) => new()
+        double weight = 1.0)
     {
-        DetectorName = detector,
-        Category = category,
-        ConfidenceDelta = -Math.Clamp(confidence, 0, 1),
-        Weight = weight,
-        Reason = reason
-    };
+        return new DetectionContribution
+        {
+            DetectorName = detector,
+            Category = category,
+            ConfidenceDelta = -Math.Clamp(confidence, 0, 1),
+            Weight = weight,
+            Reason = reason
+        };
+    }
 
     /// <summary>
     ///     Helper to create a neutral/informational contribution
@@ -133,15 +138,18 @@ public sealed record DetectionContribution
         string detector,
         string category,
         string reason,
-        ImmutableDictionary<string, object>? signals = null) => new()
+        ImmutableDictionary<string, object>? signals = null)
     {
-        DetectorName = detector,
-        Category = category,
-        ConfidenceDelta = 0,
-        Weight = 0,
-        Reason = reason,
-        Signals = signals ?? ImmutableDictionary<string, object>.Empty
-    };
+        return new DetectionContribution
+        {
+            DetectorName = detector,
+            Category = category,
+            ConfidenceDelta = 0,
+            Weight = 0,
+            Reason = reason,
+            Signals = signals ?? ImmutableDictionary<string, object>.Empty
+        };
+    }
 
     /// <summary>
     ///     Helper to create a neutral contribution (no impact, just reports detector ran)
@@ -149,15 +157,18 @@ public sealed record DetectionContribution
     public static DetectionContribution Neutral(
         string detector,
         string reason,
-        ImmutableDictionary<string, object>? signals = null) => new()
+        ImmutableDictionary<string, object>? signals = null)
     {
-        DetectorName = detector,
-        Category = detector,
-        ConfidenceDelta = 0,
-        Weight = 0,
-        Reason = reason,
-        Signals = signals ?? ImmutableDictionary<string, object>.Empty
-    };
+        return new DetectionContribution
+        {
+            DetectorName = detector,
+            Category = detector,
+            ConfidenceDelta = 0,
+            Weight = 0,
+            Reason = reason,
+            Signals = signals ?? ImmutableDictionary<string, object>.Empty
+        };
+    }
 
     /// <summary>
     ///     Helper to create an early exit contribution (verified good bot)
@@ -165,18 +176,21 @@ public sealed record DetectionContribution
     public static DetectionContribution VerifiedGoodBot(
         string detector,
         string botName,
-        string reason) => new()
+        string reason)
     {
-        DetectorName = detector,
-        Category = "Verification",
-        ConfidenceDelta = 0,
-        Weight = 0,
-        Reason = reason,
-        BotName = botName,
-        BotType = Models.BotType.SearchEngine,
-        TriggerEarlyExit = true,
-        EarlyExitVerdict = Orchestration.EarlyExitVerdict.VerifiedGoodBot
-    };
+        return new DetectionContribution
+        {
+            DetectorName = detector,
+            Category = "Verification",
+            ConfidenceDelta = 0,
+            Weight = 0,
+            Reason = reason,
+            BotName = botName,
+            BotType = Models.BotType.SearchEngine,
+            TriggerEarlyExit = true,
+            EarlyExitVerdict = Orchestration.EarlyExitVerdict.VerifiedGoodBot
+        };
+    }
 
     /// <summary>
     ///     Helper to create an early exit contribution (verified bad bot)
@@ -185,18 +199,21 @@ public sealed record DetectionContribution
         string detector,
         string botName,
         string reason,
-        BotType botType = Models.BotType.MaliciousBot) => new()
+        BotType botType = Models.BotType.MaliciousBot)
     {
-        DetectorName = detector,
-        Category = "Verification",
-        ConfidenceDelta = 1.0,
-        Weight = 10.0, // High weight for verified bad
-        Reason = reason,
-        BotName = botName,
-        BotType = botType,
-        TriggerEarlyExit = true,
-        EarlyExitVerdict = Orchestration.EarlyExitVerdict.VerifiedBadBot
-    };
+        return new DetectionContribution
+        {
+            DetectorName = detector,
+            Category = "Verification",
+            ConfidenceDelta = 1.0,
+            Weight = 10.0, // High weight for verified bad
+            Reason = reason,
+            BotName = botName,
+            BotType = botType,
+            TriggerEarlyExit = true,
+            EarlyExitVerdict = Orchestration.EarlyExitVerdict.VerifiedBadBot
+        };
+    }
 }
 
 /// <summary>
@@ -386,45 +403,11 @@ public enum RecommendedAction
 public class EvidenceAggregator
 {
     private readonly List<DetectionContribution> _contributions = new();
-    private readonly Dictionary<string, object> _signals = new();
     private readonly HashSet<string> _failedDetectors = new();
     private readonly object _lock = new();
+    private readonly Dictionary<string, object> _signals = new();
 
     private DetectionContribution? _earlyExitContribution;
-
-    /// <summary>
-    ///     Add a contribution from a detector
-    /// </summary>
-    public void AddContribution(DetectionContribution contribution)
-    {
-        lock (_lock)
-        {
-            _contributions.Add(contribution);
-
-            // Merge signals
-            foreach (var signal in contribution.Signals)
-            {
-                _signals[signal.Key] = signal.Value;
-            }
-
-            // Check for early exit
-            if (contribution.TriggerEarlyExit && _earlyExitContribution == null)
-            {
-                _earlyExitContribution = contribution;
-            }
-        }
-    }
-
-    /// <summary>
-    ///     Record a failed detector
-    /// </summary>
-    public void RecordFailure(string detectorName)
-    {
-        lock (_lock)
-        {
-            _failedDetectors.Add(detectorName);
-        }
-    }
 
     /// <summary>
     ///     Check if early exit should be triggered
@@ -469,6 +452,34 @@ public class EvidenceAggregator
     }
 
     /// <summary>
+    ///     Add a contribution from a detector
+    /// </summary>
+    public void AddContribution(DetectionContribution contribution)
+    {
+        lock (_lock)
+        {
+            _contributions.Add(contribution);
+
+            // Merge signals
+            foreach (var signal in contribution.Signals) _signals[signal.Key] = signal.Value;
+
+            // Check for early exit
+            if (contribution.TriggerEarlyExit && _earlyExitContribution == null) _earlyExitContribution = contribution;
+        }
+    }
+
+    /// <summary>
+    ///     Record a failed detector
+    /// </summary>
+    public void RecordFailure(string detectorName)
+    {
+        lock (_lock)
+        {
+            _failedDetectors.Add(detectorName);
+        }
+    }
+
+    /// <summary>
     ///     Aggregate all contributions into a final result
     /// </summary>
     public AggregatedEvidence Aggregate()
@@ -481,10 +492,7 @@ public class EvidenceAggregator
             var aiRan = detectorNames.Any(d => aiDetectors.Contains(d));
 
             // Handle early exit
-            if (_earlyExitContribution != null)
-            {
-                return CreateEarlyExitResult(_earlyExitContribution, aiRan);
-            }
+            if (_earlyExitContribution != null) return CreateEarlyExitResult(_earlyExitContribution, aiRan);
 
             // Calculate weighted score
             var (rawBotProbability, rawConfidence) = CalculateWeightedScore();
@@ -558,7 +566,7 @@ public class EvidenceAggregator
         Add("Behavioral", 1.0);
         Add("VersionAge", 0.8);
         Add("Inconsistency", 0.8);
-        Add("Heuristic", 2.0);  // Meta-layer that consumes all evidence
+        Add("Heuristic", 2.0); // Meta-layer that consumes all evidence
 
         // AI/LLM is worth a lot for confidence (escalation)
         if (aiRan)
@@ -654,7 +662,6 @@ public class EvidenceAggregator
         // AI-aware risk mapping
         // VeryLow is ONLY possible with AI confirmation
         if (aiRan)
-        {
             return botProbability switch
             {
                 < 0.05 => RiskBand.VeryLow, // AI confirms very human
@@ -663,20 +670,17 @@ public class EvidenceAggregator
                 < 0.8 => RiskBand.High,
                 _ => RiskBand.VeryHigh
             };
-        }
-        else
+
+        // Without AI, we can't confidently say VeryLow
+        // The probability is already clamped to 0.20-0.80, so these thresholds
+        // mean we'll rarely go below Medium without AI
+        return botProbability switch
         {
-            // Without AI, we can't confidently say VeryLow
-            // The probability is already clamped to 0.20-0.80, so these thresholds
-            // mean we'll rarely go below Medium without AI
-            return botProbability switch
-            {
-                < 0.25 => RiskBand.Low, // Best we can say without AI
-                < 0.55 => RiskBand.Medium,
-                < 0.75 => RiskBand.High,
-                _ => RiskBand.VeryHigh
-            };
-        }
+            < 0.25 => RiskBand.Low, // Best we can say without AI
+            < 0.55 => RiskBand.Medium,
+            < 0.75 => RiskBand.High,
+            _ => RiskBand.VeryHigh
+        };
     }
 
     private (BotType?, string?) FindPrimaryBot()

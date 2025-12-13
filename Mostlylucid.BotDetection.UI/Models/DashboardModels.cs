@@ -1,8 +1,8 @@
 namespace Mostlylucid.BotDetection.UI.Models;
 
 /// <summary>
-/// Real-time detection event for dashboard display.
-/// Sent via SignalR when a new detection occurs.
+///     Real-time detection event for dashboard display.
+///     Sent via SignalR when a new detection occurs.
 /// </summary>
 public sealed record DashboardDetectionEvent
 {
@@ -27,8 +27,8 @@ public sealed record DashboardDetectionEvent
 }
 
 /// <summary>
-/// Signature observation for the scrolling feed.
-/// Shows unique signatures being seen in real-time.
+///     Signature observation for the scrolling feed.
+///     Shows unique signatures being seen in real-time.
 /// </summary>
 public sealed record DashboardSignatureEvent
 {
@@ -46,8 +46,8 @@ public sealed record DashboardSignatureEvent
 }
 
 /// <summary>
-/// Summary statistics for dashboard overview.
-/// Updated periodically and sent to clients.
+///     Summary statistics for dashboard overview.
+///     Updated periodically and sent to clients.
 /// </summary>
 public sealed record DashboardSummary
 {
@@ -56,6 +56,7 @@ public sealed record DashboardSummary
     public required int BotRequests { get; init; }
     public required int HumanRequests { get; init; }
     public required int UncertainRequests { get; init; }
+
     public double BotPercentage => TotalRequests > 0
         ? (double)BotRequests / TotalRequests * 100
         : 0;
@@ -68,7 +69,7 @@ public sealed record DashboardSummary
 }
 
 /// <summary>
-/// Time-series data point for charts.
+///     Time-series data point for charts.
 /// </summary>
 public sealed record DashboardTimeSeriesPoint
 {
@@ -80,7 +81,7 @@ public sealed record DashboardTimeSeriesPoint
 }
 
 /// <summary>
-/// Filter criteria for dashboard queries.
+///     Filter criteria for dashboard queries.
 /// </summary>
 public sealed record DashboardFilter
 {

@@ -5,11 +5,9 @@ namespace Mostlylucid.BotDetection.Dashboard;
 
 /// <summary>
 ///     ZERO-PII signature generator using keyed HMAC-SHA256.
-///
 ///     This is NOT "nice hashing for logs" - this is the core of Stylobot's ability to claim
 ///     "we store literally zero PII". Raw IP/UA/location never touches disk - only
 ///     non-reversible, keyed signatures are persisted.
-///
 ///     Uses HMAC-SHA-256 with hardware-grade random keys (optionally derived via HKDF
 ///     for time-bounded or per-tenant isolation).
 /// </summary>
@@ -48,7 +46,7 @@ public sealed class PiiHasher
     /// </summary>
     public static byte[] GenerateKey()
     {
-        var key = new byte[32];  // 256 bits
+        var key = new byte[32]; // 256 bits
         RandomNumberGenerator.Fill(key);
         return key;
     }
@@ -118,7 +116,7 @@ public sealed class PiiHasher
         // Extract subnet (simple implementation for IPv4)
         var parts = ip.Split('.');
         if (parts.Length != 4)
-            return HashIp(ip);  // Fallback for IPv6 or invalid
+            return HashIp(ip); // Fallback for IPv6 or invalid
 
         var subnet = prefixLength switch
         {
@@ -139,15 +137,14 @@ public sealed class PiiHasher
         // Truncate to 128 bits (16 bytes) for compact, collision-resistant IDs
         // Still cryptographically strong, but shorter for storage/display
         return Convert.ToBase64String(hash[..16])
-            .TrimEnd('=')  // Remove padding
-            .Replace('+', '-')  // URL-safe (RFC 4648 base64url)
+            .TrimEnd('=') // Remove padding
+            .Replace('+', '-') // URL-safe (RFC 4648 base64url)
             .Replace('/', '_');
     }
 
     /// <summary>
     ///     Hash pure behavioral features (no PII).
     ///     These signatures are "zero-PII by construction" - they never touch identifying data.
-    ///
     ///     Examples:
     ///     - Timing patterns (inter-request intervals, jitter)
     ///     - Header presence patterns (accept, sec-ch-ua, combinations)
@@ -163,7 +160,6 @@ public sealed class PiiHasher
     /// <summary>
     ///     Create a derived key for time-bounded tracking.
     ///     Enables correlation within a time window, but not across periods.
-    ///
     ///     Example: Daily rotation prevents long-term tracking even with master key.
     /// </summary>
     public static PiiHasher WithDailyRotation(byte[] masterKey, DateTime date)
@@ -172,7 +168,7 @@ public sealed class PiiHasher
         var dailyKey = HKDF.DeriveKey(
             HashAlgorithmName.SHA256,
             masterKey,
-            outputLength: 32,
+            32,
             info: Encoding.UTF8.GetBytes(info),
             salt: null);
 
@@ -189,7 +185,7 @@ public sealed class PiiHasher
         var tenantKey = HKDF.DeriveKey(
             HashAlgorithmName.SHA256,
             masterKey,
-            outputLength: 32,
+            32,
             info: Encoding.UTF8.GetBytes(info),
             salt: null);
 

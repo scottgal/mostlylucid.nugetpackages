@@ -1,8 +1,4 @@
-using System.Security.Cryptography;
-using System.Text;
-using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Models;
@@ -13,7 +9,6 @@ namespace Mostlylucid.BotDetection.ClientSide;
 ///     Tag helper that injects a lightweight browser fingerprinting script.
 ///     The script collects minimal, non-invasive signals to detect headless browsers
 ///     and automation frameworks, then posts results to a server endpoint.
-///
 ///     Usage:
 ///     <![CDATA[
 ///     <bot-detection-script />
@@ -24,8 +19,8 @@ namespace Mostlylucid.BotDetection.ClientSide;
 [HtmlTargetElement("bot-detection-script")]
 public class BotDetectionTagHelper : TagHelper
 {
-    private readonly BotDetectionOptions _options;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly BotDetectionOptions _options;
     private readonly IBrowserTokenService _tokenService;
 
     public BotDetectionTagHelper(

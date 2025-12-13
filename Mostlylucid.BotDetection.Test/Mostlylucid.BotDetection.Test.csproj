@@ -24,7 +24,7 @@
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="OllamaSharp" Version="5.4.12" />
+        <PackageReference Include="OllamaSharp" Version="5.4.12"/>
     </ItemGroup>
 
     <ItemGroup>

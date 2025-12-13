@@ -3,9 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Mostlylucid.BotDetection.Models;
-using Mostlylucid.BotDetection.Orchestration;
 using Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
-using Xunit;
 
 namespace Mostlylucid.BotDetection.Orchestration.Tests.Unit;
 
@@ -44,10 +42,7 @@ public class ProjectHoneypotContributorTests
         var httpContext = new DefaultHttpContext();
         var signals = new Dictionary<string, object>();
 
-        if (clientIp != null)
-        {
-            signals[SignalKeys.ClientIp] = clientIp;
-        }
+        if (clientIp != null) signals[SignalKeys.ClientIp] = clientIp;
         signals[SignalKeys.IpIsLocal] = isLocal;
 
         return new BlackboardState
@@ -154,7 +149,7 @@ public class ProjectHoneypotContributorTests
     {
         // Arrange
         var contributor = CreateContributor();
-        var state = CreateState("192.168.1.1", isLocal: true);
+        var state = CreateState("192.168.1.1", true);
 
         // Act
         var contributions = await contributor.ContributeAsync(state);
@@ -363,13 +358,13 @@ public class HoneypotResponseParsingTests
     }
 
     [Theory]
-    [InlineData(0, 0.30)]     // No threat
-    [InlineData(5, 0.40)]     // Low threat
-    [InlineData(10, 0.55)]    // Low-medium threat
-    [InlineData(25, 0.70)]    // Medium threat
-    [InlineData(50, 0.85)]    // High threat
-    [InlineData(100, 0.95)]   // Very high threat
-    [InlineData(255, 0.95)]   // Maximum threat
+    [InlineData(0, 0.30)] // No threat
+    [InlineData(5, 0.40)] // Low threat
+    [InlineData(10, 0.55)] // Low-medium threat
+    [InlineData(25, 0.70)] // Medium threat
+    [InlineData(50, 0.85)] // High threat
+    [InlineData(100, 0.95)] // Very high threat
+    [InlineData(255, 0.95)] // Maximum threat
     public void CalculateConfidence_ThreatScore_ReturnsCorrectBase(int threatScore, double expectedBase)
     {
         // This tests the base confidence before age/type adjustments
@@ -382,12 +377,12 @@ public class HoneypotResponseParsingTests
     }
 
     [Theory]
-    [InlineData(0, 1.0)]      // Today
-    [InlineData(7, 0.95)]     // Last week
-    [InlineData(30, 0.85)]    // Last month
-    [InlineData(90, 0.70)]    // Last quarter
-    [InlineData(180, 0.50)]   // Last 6 months
-    [InlineData(365, 0.30)]   // Older
+    [InlineData(0, 1.0)] // Today
+    [InlineData(7, 0.95)] // Last week
+    [InlineData(30, 0.85)] // Last month
+    [InlineData(90, 0.70)] // Last quarter
+    [InlineData(180, 0.50)] // Last 6 months
+    [InlineData(365, 0.30)] // Older
     public void CalculateConfidence_Age_ReducesConfidence(int daysAgo, double ageFactor)
     {
         // With threat score 100 (base 0.95) and Suspicious type (1.05x)
@@ -401,7 +396,8 @@ public class HoneypotResponseParsingTests
     {
         // CommentSpammer adds 10%
         var withoutSpammer = CalculateConfidencePublic(50, 0, HoneypotVisitorType.Harvester);
-        var withSpammer = CalculateConfidencePublic(50, 0, HoneypotVisitorType.Harvester | HoneypotVisitorType.CommentSpammer);
+        var withSpammer =
+            CalculateConfidencePublic(50, 0, HoneypotVisitorType.Harvester | HoneypotVisitorType.CommentSpammer);
 
         Assert.True(withSpammer > withoutSpammer);
     }

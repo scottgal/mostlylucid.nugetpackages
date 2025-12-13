@@ -41,40 +41,20 @@ public readonly record struct QuorumVerdict(
 /// </summary>
 public class EphemeralDetectionOrchestrator : IAsyncDisposable
 {
-    private readonly ILogger<EphemeralDetectionOrchestrator> _logger;
-    private readonly OrchestratorOptions _options;
-    private readonly IEnumerable<IContributingDetector> _detectors;
-    private readonly ILearningEventBus? _learningBus;
-    private readonly IPolicyRegistry? _policyRegistry;
-    private readonly IPolicyEvaluator? _policyEvaluator;
-
-    // Global signal sink for observability across requests
-    private readonly SignalSink _globalSignals;
-
-    // Typed signal sink for contribution payloads
-    private readonly TypedSignalSink<ContributionPayload> _contributionSignals;
-
     // Decaying reputation window for circuit breaker (failures decay over time)
     private readonly DecayingReputationWindow<string> _circuitBreakerScores;
 
-    // Signal keys for type-safe signal emission
-    public static class SignalKeys
-    {
-        public static readonly SignalKey DetectorStarted = new("detector.started");
-        public static readonly SignalKey DetectorCompleted = new("detector.completed");
-        public static readonly SignalKey DetectorFailed = new("detector.failed");
-        public static readonly SignalKey DetectorTimeout = new("detector.timeout");
-        public static readonly SignalKey WaveStarted = new("wave.started");
-        public static readonly SignalKey WaveCompleted = new("wave.completed");
-        public static readonly SignalKey EarlyExit = new("detection.early_exit");
-        public static readonly SignalKey PipelineCompleted = new("detection.completed");
-        public static readonly SignalKey CircuitOpen = new("circuit.open");
-        public static readonly SignalKey CircuitHalfOpen = new("circuit.half_open");
-        public static readonly SignalKey CircuitClosed = new("circuit.closed");
+    // Typed signal sink for contribution payloads
+    private readonly TypedSignalSink<ContributionPayload> _contributionSignals;
+    private readonly IEnumerable<IContributingDetector> _detectors;
 
-        // Typed key for contributions
-        public static readonly SignalKey<ContributionPayload> Contribution = new("contribution");
-    }
+    // Global signal sink for observability across requests
+    private readonly SignalSink _globalSignals;
+    private readonly ILearningEventBus? _learningBus;
+    private readonly ILogger<EphemeralDetectionOrchestrator> _logger;
+    private readonly OrchestratorOptions _options;
+    private readonly IPolicyEvaluator? _policyEvaluator;
+    private readonly IPolicyRegistry? _policyRegistry;
 
     public EphemeralDetectionOrchestrator(
         ILogger<EphemeralDetectionOrchestrator> logger,
@@ -93,8 +73,8 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
 
         // Global signal sink for observability (configurable)
         _globalSignals = new SignalSink(
-            maxCapacity: _options.SignalSinkMaxCapacity,
-            maxAge: _options.SignalSinkMaxAge);
+            _options.SignalSinkMaxCapacity,
+            _options.SignalSinkMaxAge);
 
         // Typed signal sink for contributions (configurable)
         _contributionSignals = new TypedSignalSink<ContributionPayload>(
@@ -103,20 +83,35 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
 
         // Circuit breaker with decay - failures decay over time (configurable)
         _circuitBreakerScores = new DecayingReputationWindow<string>(
-            halfLife: _options.CircuitBreakerResetTime,
-            maxSize: _options.CircuitBreakerMaxEntries);
+            _options.CircuitBreakerResetTime,
+            _options.CircuitBreakerMaxEntries);
+    }
+
+    /// <summary>
+    ///     Check if any detector circuit is currently open.
+    /// </summary>
+    public bool HasOpenCircuits => _globalSignals.Detect(s => s.StartsWith("circuit.open"));
+
+    public ValueTask DisposeAsync()
+    {
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>
     ///     Get recent signals from the global signal sink for observability.
     /// </summary>
-    public IReadOnlyList<SignalEvent> GetRecentSignals() => _globalSignals.Sense();
+    public IReadOnlyList<SignalEvent> GetRecentSignals()
+    {
+        return _globalSignals.Sense();
+    }
 
     /// <summary>
     ///     Get recent contribution signals with typed payloads.
     /// </summary>
-    public IReadOnlyList<SignalEvent<ContributionPayload>> GetContributions() =>
-        _contributionSignals.Sense();
+    public IReadOnlyList<SignalEvent<ContributionPayload>> GetContributions()
+    {
+        return _contributionSignals.Sense();
+    }
 
     /// <summary>
     ///     Get contribution aggregation (total delta, weighted average, etc.)
@@ -133,11 +128,6 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
 
         return (totalDelta, weightedAvg, contributions.Count);
     }
-
-    /// <summary>
-    ///     Check if any detector circuit is currently open.
-    /// </summary>
-    public bool HasOpenCircuits => _globalSignals.Detect(s => s.StartsWith("circuit.open"));
 
     /// <summary>
     ///     Run the full detection pipeline and aggregate results.
@@ -177,8 +167,8 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
 
         // Per-request signal sink (configurable)
         var requestSignals = new SignalSink(
-            maxCapacity: _options.RequestSignalSinkCapacity,
-            maxAge: _options.RequestSignalSinkMaxAge);
+            _options.RequestSignalSinkCapacity,
+            _options.RequestSignalSinkMaxAge);
 
         // Use policy timeout if shorter than orchestrator timeout
         var timeout = policy.Timeout < _options.TotalTimeout ? policy.Timeout : _options.TotalTimeout;
@@ -348,7 +338,8 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
                 // Evaluate policy transitions
                 if (_policyEvaluator != null)
                 {
-                    var evalState = BuildState(httpContext, signals, contributorTracker, aggregator, requestId, stopwatch.Elapsed);
+                    var evalState = BuildState(httpContext, signals, contributorTracker, aggregator, requestId,
+                        stopwatch.Elapsed);
                     var evalResult = _policyEvaluator.Evaluate(policy, evalState);
 
                     if (!evalResult.ShouldContinue)
@@ -394,23 +385,18 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
                         if (!string.IsNullOrEmpty(evalResult.NextPolicy) && _policyRegistry != null)
                         {
                             var nextPolicy = _policyRegistry.GetPolicy(evalResult.NextPolicy);
-                            if (nextPolicy != null)
-                            {
-                                policy = nextPolicy;
-                            }
+                            if (nextPolicy != null) policy = nextPolicy;
                         }
                     }
                 }
 
                 waveNumber++;
 
-                if (waveNumber < _options.MaxWaves)
-                {
-                    await Task.Delay(_options.WaveInterval, cts.Token);
-                }
+                if (waveNumber < _options.MaxWaves) await Task.Delay(_options.WaveInterval, cts.Token);
             }
         }
-        catch (OperationCanceledException) when (cts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (cts.IsCancellationRequested &&
+                                                 !cancellationToken.IsCancellationRequested)
         {
             _logger.LogWarning(
                 "Detection timed out after {Elapsed}ms for {RequestId}",
@@ -425,7 +411,6 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
                            result.ContributingDetectors.Count < 9;
 
         if (finalAction.HasValue || !string.IsNullOrEmpty(triggeredActionPolicyName))
-        {
             result = result with
             {
                 PolicyAction = finalAction,
@@ -435,15 +420,12 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
                 EarlyExit = wasEarlyExit || result.EarlyExit,
                 EarlyExitVerdict = wasEarlyExit ? EarlyExitVerdict.PolicyAllowed : result.EarlyExitVerdict
             };
-        }
         else
-        {
             result = result with
             {
                 PolicyName = policy.Name,
                 TotalProcessingTimeMs = actualProcessingTimeMs
             };
-        }
 
         // Emit pipeline complete signal
         _globalSignals.Raise(
@@ -530,8 +512,8 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
 
         // Wait for quorum OR timeout
         var quorumResult = await tracker.WaitForQuorumAsync(
-            minCompleted: Math.Min(_options.MinDetectorsForVerdict, detectors.Count),
-            timeout: _options.QuorumTimeout,
+            Math.Min(_options.MinDetectorsForVerdict, detectors.Count),
+            _options.QuorumTimeout,
             cancellationToken);
 
         // Evaluate quorum verdict
@@ -546,22 +528,22 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
             if (avgScore >= _options.QuorumBotThreshold)
             {
                 verdict = new QuorumVerdict(
-                    Verdict: "DefinitelyBot",
-                    AverageScore: avgScore,
-                    CompletedCount: quorumResult.CompletedCount,
-                    ExpectedCount: detectors.Count,
-                    ShouldExit: true,
-                    ShouldEscalateToAi: false);
+                    "DefinitelyBot",
+                    avgScore,
+                    quorumResult.CompletedCount,
+                    detectors.Count,
+                    true,
+                    false);
             }
             else if (avgScore <= _options.QuorumHumanThreshold)
             {
                 verdict = new QuorumVerdict(
-                    Verdict: "DefinitelyHuman",
-                    AverageScore: avgScore,
-                    CompletedCount: quorumResult.CompletedCount,
-                    ExpectedCount: detectors.Count,
-                    ShouldExit: true,
-                    ShouldEscalateToAi: false);
+                    "DefinitelyHuman",
+                    avgScore,
+                    quorumResult.CompletedCount,
+                    detectors.Count,
+                    true,
+                    false);
             }
             else
             {
@@ -570,21 +552,18 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
                     .Count(c => c.ConfidenceDelta > -0.1 && c.ConfidenceDelta < 0.1);
 
                 if (uncertainCount >= _options.UncertainQuorumForAiEscalation)
-                {
                     verdict = new QuorumVerdict(
-                        Verdict: "Uncertain",
-                        AverageScore: avgScore,
-                        CompletedCount: quorumResult.CompletedCount,
-                        ExpectedCount: detectors.Count,
-                        ShouldExit: false,
-                        ShouldEscalateToAi: true);
-                }
+                        "Uncertain",
+                        avgScore,
+                        quorumResult.CompletedCount,
+                        detectors.Count,
+                        false,
+                        true);
             }
         }
 
         // If we got a definitive verdict, we can skip waiting for remaining detectors
         if (verdict?.ShouldExit != true)
-        {
             // Wait for remaining detectors to complete
             try
             {
@@ -594,7 +573,6 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
             {
                 // Expected if we're cancelling
             }
-        }
 
         return verdict;
     }
@@ -626,6 +604,7 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
                 if (aggregator.ShouldEarlyExit)
                     break;
             }
+
             return;
         }
 
@@ -706,10 +685,7 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
                         contribution.Weight,
                         stopwatch.ElapsedMilliseconds));
 
-                foreach (var signal in contribution.Signals)
-                {
-                    signals[signal.Key] = signal.Value;
-                }
+                foreach (var signal in contribution.Signals) signals[signal.Key] = signal.Value;
             }
 
             // Report success to tracker
@@ -726,7 +702,7 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
                 "detection",
                 tracker.CompletedCount,
                 tracker.ExpectedCount,
-                sampleRate: 1);
+                1);
 
             _logger.LogDebug(
                 "Detector {Name} completed in {Elapsed}ms with {ContributionCount} contributions",
@@ -736,14 +712,16 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
         {
             stopwatch.Stop();
             tracker.Fail(detector.Name, new TimeoutException("Detector timed out"));
-            HandleDetectorFailure(detector, aggregator, requestSignals, "Timeout", stopwatch.ElapsedMilliseconds, requestId);
+            HandleDetectorFailure(detector, aggregator, requestSignals, "Timeout", stopwatch.ElapsedMilliseconds,
+                requestId);
             requestSignals.Raise($"detector.timeout:{detector.Name}", requestId);
         }
         catch (Exception ex)
         {
             stopwatch.Stop();
             tracker.Fail(detector.Name, ex);
-            HandleDetectorFailure(detector, aggregator, requestSignals, ex.Message, stopwatch.ElapsedMilliseconds, requestId);
+            HandleDetectorFailure(detector, aggregator, requestSignals, ex.Message, stopwatch.ElapsedMilliseconds,
+                requestId);
 
             _logger.LogWarning(ex,
                 "Detector {Name} failed after {Elapsed}ms: {Message}",
@@ -766,11 +744,9 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
         _globalSignals.Raise($"detector.failed:{detector.Name}", requestId);
 
         if (!detector.IsOptional)
-        {
             _logger.LogError(
                 "Required detector {Name} failed: {Reason}",
                 detector.Name, reason);
-        }
     }
 
     private static bool CanRun(IContributingDetector detector, IReadOnlyDictionary<string, object> signals)
@@ -805,56 +781,6 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
         };
     }
 
-    #region Circuit Breaker (with decaying reputation window)
-
-    private bool IsCircuitClosed(string detectorName)
-    {
-        var failureScore = _circuitBreakerScores.GetScore(detectorName);
-
-        // Score decays toward 0 over time
-        // Circuit opens when score >= threshold
-        if (failureScore >= _options.CircuitBreakerThreshold)
-        {
-            // Check if we should try half-open (configurable multiplier)
-            if (failureScore < _options.CircuitBreakerThreshold * _options.CircuitBreakerHalfOpenMultiplier)
-            {
-                _globalSignals.Raise($"circuit.half_open:{detectorName}");
-                return true; // Allow one attempt
-            }
-
-            return false; // Circuit open
-        }
-
-        return true; // Circuit closed
-    }
-
-    private void RecordSuccess(string detectorName)
-    {
-        // Reduce failure score on success (configurable heal amount)
-        _circuitBreakerScores.Update(detectorName, _options.CircuitBreakerSuccessHealAmount);
-
-        if (_circuitBreakerScores.GetScore(detectorName) < 0)
-        {
-            _globalSignals.Raise($"circuit.closed:{detectorName}");
-        }
-    }
-
-    private void RecordFailure(string detectorName)
-    {
-        // Increase failure score on failure (configurable penalty)
-        var newScore = _circuitBreakerScores.Update(detectorName, _options.CircuitBreakerFailurePenalty);
-
-        if (newScore >= _options.CircuitBreakerThreshold)
-        {
-            _globalSignals.Raise($"circuit.open:{detectorName}");
-            _logger.LogWarning(
-                "Circuit breaker opened for detector {Name}, failure score: {Score:F1}",
-                detectorName, newScore);
-        }
-    }
-
-    #endregion
-
     #region Learning Events
 
     private void PublishLearningEvent(
@@ -867,7 +793,7 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
 
         var isHighConfidenceBot = result.BotProbability >= 0.8;
         var isHighConfidenceHuman = result.BotProbability <= 0.2;
-        var eventType = (isHighConfidenceBot || isHighConfidenceHuman)
+        var eventType = isHighConfidenceBot || isHighConfidenceHuman
             ? LearningEventType.HighConfidenceDetection
             : LearningEventType.FullDetection;
 
@@ -903,8 +829,69 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
 
     #endregion
 
-    public ValueTask DisposeAsync()
+    // Signal keys for type-safe signal emission
+    public static class SignalKeys
     {
-        return ValueTask.CompletedTask;
+        public static readonly SignalKey DetectorStarted = new("detector.started");
+        public static readonly SignalKey DetectorCompleted = new("detector.completed");
+        public static readonly SignalKey DetectorFailed = new("detector.failed");
+        public static readonly SignalKey DetectorTimeout = new("detector.timeout");
+        public static readonly SignalKey WaveStarted = new("wave.started");
+        public static readonly SignalKey WaveCompleted = new("wave.completed");
+        public static readonly SignalKey EarlyExit = new("detection.early_exit");
+        public static readonly SignalKey PipelineCompleted = new("detection.completed");
+        public static readonly SignalKey CircuitOpen = new("circuit.open");
+        public static readonly SignalKey CircuitHalfOpen = new("circuit.half_open");
+        public static readonly SignalKey CircuitClosed = new("circuit.closed");
+
+        // Typed key for contributions
+        public static readonly SignalKey<ContributionPayload> Contribution = new("contribution");
     }
+
+    #region Circuit Breaker (with decaying reputation window)
+
+    private bool IsCircuitClosed(string detectorName)
+    {
+        var failureScore = _circuitBreakerScores.GetScore(detectorName);
+
+        // Score decays toward 0 over time
+        // Circuit opens when score >= threshold
+        if (failureScore >= _options.CircuitBreakerThreshold)
+        {
+            // Check if we should try half-open (configurable multiplier)
+            if (failureScore < _options.CircuitBreakerThreshold * _options.CircuitBreakerHalfOpenMultiplier)
+            {
+                _globalSignals.Raise($"circuit.half_open:{detectorName}");
+                return true; // Allow one attempt
+            }
+
+            return false; // Circuit open
+        }
+
+        return true; // Circuit closed
+    }
+
+    private void RecordSuccess(string detectorName)
+    {
+        // Reduce failure score on success (configurable heal amount)
+        _circuitBreakerScores.Update(detectorName, _options.CircuitBreakerSuccessHealAmount);
+
+        if (_circuitBreakerScores.GetScore(detectorName) < 0) _globalSignals.Raise($"circuit.closed:{detectorName}");
+    }
+
+    private void RecordFailure(string detectorName)
+    {
+        // Increase failure score on failure (configurable penalty)
+        var newScore = _circuitBreakerScores.Update(detectorName, _options.CircuitBreakerFailurePenalty);
+
+        if (newScore >= _options.CircuitBreakerThreshold)
+        {
+            _globalSignals.Raise($"circuit.open:{detectorName}");
+            _logger.LogWarning(
+                "Circuit breaker opened for detector {Name}, failure score: {Score:F1}",
+                detectorName, newScore);
+        }
+    }
+
+    #endregion
 }

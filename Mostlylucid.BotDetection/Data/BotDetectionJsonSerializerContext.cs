@@ -35,8 +35,8 @@ namespace Mostlylucid.BotDetection.Data;
 [JsonSerializable(typeof(List<BotListFetcher.CrawlerEntry>))]
 [JsonSerializable(typeof(List<BotListFetcher.ScannerUserAgentEntry>))]
 // Common User Agent types
-[JsonSerializable(typeof(List<System.Text.Json.JsonElement>))]
-[JsonSerializable(typeof(System.Text.Json.JsonElement))]
+[JsonSerializable(typeof(List<JsonElement>))]
+[JsonSerializable(typeof(JsonElement))]
 internal partial class BotDetectionJsonSerializerContext : JsonSerializerContext
 {
 }

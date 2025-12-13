@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Models;
 
@@ -8,14 +7,12 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// <summary>
 ///     TCP/IP stack fingerprinting contributor.
 ///     Analyzes TCP/IP layer characteristics to detect OS and identify automation.
-///
 ///     Best-in-breed approach:
 ///     - TCP window size analysis
 ///     - TTL (Time To Live) analysis
 ///     - TCP options and flags
 ///     - IP fragmentation patterns
 ///     - Similar to p0f (passive OS fingerprinting)
-///
 ///     Raises signals for behavioral waveform correlation:
 ///     - tcp.window_size
 ///     - tcp.ttl
@@ -25,8 +22,6 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// </summary>
 public class TcpIpFingerprintContributor : ContributingDetectorBase
 {
-    private readonly ILogger<TcpIpFingerprintContributor> _logger;
-
     // Known TCP window sizes for different systems
     // Based on p0f database and real-world observations
     private static readonly Dictionary<int, string[]> WindowSizePatterns = new()
@@ -130,6 +125,8 @@ public class TcpIpFingerprintContributor : ContributingDetectorBase
         { 200, new[] { "Bot", "Unusual_TTL_200" } }
     };
 
+    private readonly ILogger<TcpIpFingerprintContributor> _logger;
+
     public TcpIpFingerprintContributor(ILogger<TcpIpFingerprintContributor> logger)
     {
         _logger = logger;
@@ -192,7 +189,6 @@ public class TcpIpFingerprintContributor : ContributingDetectorBase
 
                 // Modern systems set DF flag, old/custom stacks may not
                 if (!dontFragment)
-                {
                     contributions.Add(new DetectionContribution
                     {
                         DetectorName = Name,
@@ -202,7 +198,6 @@ public class TcpIpFingerprintContributor : ContributingDetectorBase
                         Reason = "IP Don't Fragment flag not set (unusual for modern systems)",
                         Signals = signals.ToImmutable()
                     });
-                }
             }
 
             // Check for IP ID patterns (sequential = Windows, random = Linux/BSD)
@@ -211,13 +206,8 @@ public class TcpIpFingerprintContributor : ContributingDetectorBase
                 signals.Add("ip.id_pattern", ipIdPattern.ToString());
 
                 if (ipIdPattern == "sequential")
-                {
                     signals.Add("tcp.os_hint", "Windows");
-                }
-                else if (ipIdPattern == "random")
-                {
-                    signals.Add("tcp.os_hint", "Linux/BSD");
-                }
+                else if (ipIdPattern == "random") signals.Add("tcp.os_hint", "Linux/BSD");
             }
 
             // Analyze connection reuse patterns
@@ -225,7 +215,6 @@ public class TcpIpFingerprintContributor : ContributingDetectorBase
             signals.Add("tcp.connection_header", connectionHeader);
 
             if (string.IsNullOrEmpty(connectionHeader))
-            {
                 contributions.Add(new DetectionContribution
                 {
                     DetectorName = Name,
@@ -235,9 +224,7 @@ public class TcpIpFingerprintContributor : ContributingDetectorBase
                     Reason = "Missing Connection header (unusual for modern clients)",
                     Signals = signals.ToImmutable()
                 });
-            }
             else if (connectionHeader.Equals("close", StringComparison.OrdinalIgnoreCase))
-            {
                 // Bots often use Connection: close to avoid keep-alive
                 contributions.Add(new DetectionContribution
                 {
@@ -248,14 +235,10 @@ public class TcpIpFingerprintContributor : ContributingDetectorBase
                     Reason = "Connection: close (bots often avoid keep-alive)",
                     Signals = signals.ToImmutable()
                 });
-            }
 
             // Check for pipelining support (modern feature)
             if (state.HttpContext.Request.Headers.TryGetValue("X-HTTP-Pipelining", out var pipelining))
-            {
                 signals.Add("http.pipelining_supported", pipelining == "1");
-            }
-
         }
         catch (Exception ex)
         {
@@ -298,19 +281,16 @@ public class TcpIpFingerprintContributor : ContributingDetectorBase
             signals.Add("tcp.os_hint_window", pattern);
 
             if (patterns.Any(p => p.Contains("Bot")))
-            {
                 contributions.Add(DetectionContribution.Bot(
                     Name, "TCP/IP", 0.55,
                     $"TCP window size matches known bot pattern: {windowSize} ({pattern})",
                     BotType.Scraper,
                     weight: 1.3));
-            }
         }
         else
         {
             // Unusual window size
             if (windowSize < 1024 || windowSize > 65535 || !IsPowerOfTwo(windowSize))
-            {
                 contributions.Add(new DetectionContribution
                 {
                     DetectorName = Name,
@@ -320,7 +300,6 @@ public class TcpIpFingerprintContributor : ContributingDetectorBase
                     Reason = $"Unusual TCP window size: {windowSize}",
                     Signals = signals.ToImmutable()
                 });
-            }
         }
     }
 
@@ -333,19 +312,16 @@ public class TcpIpFingerprintContributor : ContributingDetectorBase
             signals.Add("tcp.os_hint_ttl", pattern);
 
             if (patterns.Any(p => p.Contains("Bot")))
-            {
                 contributions.Add(DetectionContribution.Bot(
                     Name, "TCP/IP", 0.6,
                     $"Unusual TTL value for web client: {ttl}",
                     BotType.Scraper,
                     weight: 1.4));
-            }
         }
         else
         {
             // TTL not matching standard patterns
             if (ttl < 30 || ttl > 255 || (ttl != 64 && ttl != 128 && ttl != 255))
-            {
                 contributions.Add(new DetectionContribution
                 {
                     DetectorName = Name,
@@ -355,7 +331,6 @@ public class TcpIpFingerprintContributor : ContributingDetectorBase
                     Reason = $"Non-standard TTL value: {ttl}",
                     Signals = signals.ToImmutable()
                 });
-            }
         }
     }
 
@@ -378,7 +353,6 @@ public class TcpIpFingerprintContributor : ContributingDetectorBase
         signals.Add("tcp.modern_options", modernOptions);
 
         if (!modernOptions)
-        {
             contributions.Add(new DetectionContribution
             {
                 DetectorName = Name,
@@ -388,11 +362,9 @@ public class TcpIpFingerprintContributor : ContributingDetectorBase
                 Reason = "Missing modern TCP options (TS/SACK/WS)",
                 Signals = signals.ToImmutable()
             });
-        }
 
         // Very minimal options = likely bot/old client
         if (options.Split(',').Length <= 2)
-        {
             contributions.Add(new DetectionContribution
             {
                 DetectorName = Name,
@@ -402,7 +374,6 @@ public class TcpIpFingerprintContributor : ContributingDetectorBase
                 Reason = "Minimal TCP options (typical for automation tools)",
                 Signals = signals.ToImmutable()
             });
-        }
     }
 
     private void AnalyzeMss(int mss, List<DetectionContribution> contributions,
@@ -411,7 +382,6 @@ public class TcpIpFingerprintContributor : ContributingDetectorBase
         // Standard MSS values: 1460 (Ethernet), 1440 (PPPoE), 536 (default)
 
         if (mss == 536)
-        {
             // Very old default or custom stack
             contributions.Add(new DetectionContribution
             {
@@ -422,9 +392,7 @@ public class TcpIpFingerprintContributor : ContributingDetectorBase
                 Reason = "Default/minimal MSS value (536) - indicates old or custom TCP stack",
                 Signals = signals.ToImmutable()
             });
-        }
         else if (mss < 536 || mss > 1460)
-        {
             // Unusual MSS
             contributions.Add(new DetectionContribution
             {
@@ -435,8 +403,10 @@ public class TcpIpFingerprintContributor : ContributingDetectorBase
                 Reason = $"Non-standard MSS value: {mss}",
                 Signals = signals.ToImmutable()
             });
-        }
     }
 
-    private static bool IsPowerOfTwo(int n) => (n & (n - 1)) == 0 && n != 0;
+    private static bool IsPowerOfTwo(int n)
+    {
+        return (n & (n - 1)) == 0 && n != 0;
+    }
 }

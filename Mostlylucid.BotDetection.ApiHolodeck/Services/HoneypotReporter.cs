@@ -26,16 +26,15 @@ namespace Mostlylucid.BotDetection.ApiHolodeck.Services;
 /// </remarks>
 public class HoneypotReporter : BackgroundService
 {
-    private readonly ILogger<HoneypotReporter> _logger;
-    private readonly HolodeckOptions _options;
-    private readonly ILearningEventBus? _learningEventBus;
-
     // Queue of IPs to report
     private static readonly ConcurrentQueue<ReportEntry> _reportQueue = new();
 
     // Rate limiting
-    private static int _reportsThisHour = 0;
+    private static int _reportsThisHour;
     private static DateTime _hourStart = DateTime.UtcNow;
+    private readonly ILearningEventBus? _learningEventBus;
+    private readonly ILogger<HoneypotReporter> _logger;
+    private readonly HolodeckOptions _options;
 
     public HoneypotReporter(
         ILogger<HoneypotReporter> logger,
@@ -46,6 +45,11 @@ public class HoneypotReporter : BackgroundService
         _options = options.Value;
         _learningEventBus = learningEventBus;
     }
+
+    /// <summary>
+    ///     Get the current queue size.
+    /// </summary>
+    public static int QueueSize => _reportQueue.Count;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -67,10 +71,7 @@ public class HoneypotReporter : BackgroundService
             _options.MaxReportsPerHour);
 
         // Process learning events and queue for reporting
-        if (_learningEventBus != null)
-        {
-            _ = ProcessLearningEventsAsync(stoppingToken);
-        }
+        if (_learningEventBus != null) _ = ProcessLearningEventsAsync(stoppingToken);
 
         // Process queue periodically
         while (!stoppingToken.IsCancellationRequested)
@@ -85,13 +86,9 @@ public class HoneypotReporter : BackgroundService
         try
         {
             await foreach (var evt in _learningEventBus!.Reader.ReadAllAsync(stoppingToken))
-            {
                 if (evt.Type == LearningEventType.HighConfidenceDetection ||
                     evt.Type == LearningEventType.FullDetection)
-                {
                     ProcessLearningEvent(evt);
-                }
-            }
         }
         catch (OperationCanceledException)
         {
@@ -163,10 +160,7 @@ public class HoneypotReporter : BackgroundService
         var batch = new List<ReportEntry>();
         var maxBatchSize = Math.Min(10, _options.MaxReportsPerHour - _reportsThisHour);
 
-        while (batch.Count < maxBatchSize && _reportQueue.TryDequeue(out var entry))
-        {
-            batch.Add(entry);
-        }
+        while (batch.Count < maxBatchSize && _reportQueue.TryDequeue(out var entry)) batch.Add(entry);
 
         if (batch.Count == 0)
             return;
@@ -248,11 +242,9 @@ public class HoneypotReporter : BackgroundService
         // Check bot name from pattern
         var pattern = evt.Pattern;
         if (!string.IsNullOrEmpty(pattern))
-        {
             if (pattern.Contains("scraper", StringComparison.OrdinalIgnoreCase) ||
                 pattern.Contains("harvester", StringComparison.OrdinalIgnoreCase))
                 return ReportableVisitorType.Harvester;
-        }
 
         return ReportableVisitorType.Suspicious;
     }
@@ -288,11 +280,6 @@ public class HoneypotReporter : BackgroundService
             Timestamp = DateTime.UtcNow
         });
     }
-
-    /// <summary>
-    ///     Get the current queue size.
-    /// </summary>
-    public static int QueueSize => _reportQueue.Count;
 
     private class ReportEntry
     {

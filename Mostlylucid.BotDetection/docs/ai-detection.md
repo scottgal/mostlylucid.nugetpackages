@@ -1,6 +1,7 @@
 # AI Detection
 
-The AI detection system provides machine learning-based bot classification using a learned heuristic model and optional LLM inference. This is a **key feature** that enables continuous learning and adaptive detection.
+The AI detection system provides machine learning-based bot classification using a learned heuristic model and optional
+LLM inference. This is a **key feature** that enables continuous learning and adaptive detection.
 
 ## Architecture Overview
 
@@ -78,7 +79,8 @@ services.AddAdvancedBotDetection();
 
 ## Heuristic Detection (Recommended)
 
-The heuristic detector provides fast, learned classification using a lightweight logistic regression model. This is the **recommended** provider for production.
+The heuristic detector provides fast, learned classification using a lightweight logistic regression model. This is the
+**recommended** provider for production.
 
 ### How It Works
 
@@ -110,7 +112,9 @@ sequenceDiagram
 
 The heuristic model uses a **fully dynamic key-value feature dictionary** from `HeuristicFeatureExtractor`.
 
-**Key Innovation:** Features are NOT a fixed-size vector. Instead, they are a dictionary of `name → value` pairs where feature names are discovered at runtime based on:
+**Key Innovation:** Features are NOT a fixed-size vector. Instead, they are a dictionary of `name → value` pairs where
+feature names are discovered at runtime based on:
+
 - Detector names that contributed
 - Category names that were scored
 - Signal types that were detected
@@ -122,21 +126,21 @@ This means **new detectors automatically create new features** without any code 
 
 Features use prefixes to indicate their source:
 
-| Prefix | Source | Example |
-|--------|--------|---------|
-| `req:` | Request metadata | `req:ua_length`, `req:is_https` |
-| `hdr:` | Header presence | `hdr:accept-language`, `hdr:referer` |
-| `ua:` | User-Agent patterns | `ua:contains_bot`, `ua:chrome` |
-| `accept:` | Accept header patterns | `accept:wildcard`, `accept:html` |
-| `det:` | Detector results | `det:user_agent_detector`, `det:ip_detector` |
-| `det_abs:` | Detector absolute scores | `det_abs:behavioral_detector` |
-| `cat:` | Category breakdown | `cat:suspicious:score`, `cat:verified:count` |
-| `sig:` | Signal presence | `sig:known_bot_pattern`, `sig:cloud_ip` |
-| `fail:` | Failed detectors | `fail:llm_detector` |
-| `stat:` | Aggregated statistics | `stat:detector_max`, `stat:category_avg` |
-| `result:` | Final results | `result:bot_probability`, `result:confidence` |
-| `bottype:` | Bot type classification | `bottype:searchengine`, `bottype:scraper` |
-| `botname:` | Specific bot name | `botname:googlebot`, `botname:gptbot` |
+| Prefix     | Source                   | Example                                       |
+|------------|--------------------------|-----------------------------------------------|
+| `req:`     | Request metadata         | `req:ua_length`, `req:is_https`               |
+| `hdr:`     | Header presence          | `hdr:accept-language`, `hdr:referer`          |
+| `ua:`      | User-Agent patterns      | `ua:contains_bot`, `ua:chrome`                |
+| `accept:`  | Accept header patterns   | `accept:wildcard`, `accept:html`              |
+| `det:`     | Detector results         | `det:user_agent_detector`, `det:ip_detector`  |
+| `det_abs:` | Detector absolute scores | `det_abs:behavioral_detector`                 |
+| `cat:`     | Category breakdown       | `cat:suspicious:score`, `cat:verified:count`  |
+| `sig:`     | Signal presence          | `sig:known_bot_pattern`, `sig:cloud_ip`       |
+| `fail:`    | Failed detectors         | `fail:llm_detector`                           |
+| `stat:`    | Aggregated statistics    | `stat:detector_max`, `stat:category_avg`      |
+| `result:`  | Final results            | `result:bot_probability`, `result:confidence` |
+| `bottype:` | Bot type classification  | `bottype:searchengine`, `bottype:scraper`     |
+| `botname:` | Specific bot name        | `botname:googlebot`, `botname:gptbot`         |
 
 #### Example Feature Extraction
 
@@ -163,14 +167,14 @@ For a request from Googlebot, the extracted features might include:
 ### Two Modes of Operation
 
 1. **Early Mode** - When the heuristic detector runs before other detectors:
-   - Uses only `req:*`, `hdr:*`, `ua:*`, and `accept:*` features
-   - Fast, pattern-based classification from request metadata
-   - Good for quick preliminary decisions
+    - Uses only `req:*`, `hdr:*`, `ua:*`, and `accept:*` features
+    - Fast, pattern-based classification from request metadata
+    - Good for quick preliminary decisions
 
 2. **Full Mode** - When `AggregatedEvidence` is available:
-   - Uses all feature types including `det:*`, `cat:*`, `sig:*`, etc.
-   - Leverages results from all detectors in the pipeline
-   - Best accuracy through ensemble learning
+    - Uses all feature types including `det:*`, `cat:*`, `sig:*`, etc.
+    - Leverages results from all detectors in the pipeline
+    - Best accuracy through ensemble learning
 
 ### Dynamic Weight Learning
 
@@ -213,14 +217,14 @@ Because features are dynamic, weights are also dynamic:
 }
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `Enabled` | bool | `true` | Enable heuristic detection |
-| `LoadLearnedWeights` | bool | `true` | Load weights from database on startup |
-| `EnableWeightLearning` | bool | `true` | Update weights from detection feedback |
-| `MinConfidenceForLearning` | double | `0.8` | Minimum confidence for weight updates |
-| `LearningRate` | double | `0.01` | Learning rate for weight adjustments |
-| `WeightReloadIntervalMinutes` | int | `60` | How often to reload weights from store |
+| Option                        | Type   | Default | Description                            |
+|-------------------------------|--------|---------|----------------------------------------|
+| `Enabled`                     | bool   | `true`  | Enable heuristic detection             |
+| `LoadLearnedWeights`          | bool   | `true`  | Load weights from database on startup  |
+| `EnableWeightLearning`        | bool   | `true`  | Update weights from detection feedback |
+| `MinConfidenceForLearning`    | double | `0.8`   | Minimum confidence for weight updates  |
+| `LearningRate`                | double | `0.01`  | Learning rate for weight adjustments   |
+| `WeightReloadIntervalMinutes` | int    | `60`    | How often to reload weights from store |
 
 ### Continuous Learning
 
@@ -363,28 +367,28 @@ sequenceDiagram
 }
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `Endpoint` | string | `http://localhost:11434` | Ollama API endpoint |
-| `Model` | string | `gemma3:4b` | Model name |
-| `UseJsonMode` | bool | `true` | Request JSON output |
-| `Temperature` | double | `0.1` | Randomness (0.0-1.0) |
-| `MaxTokens` | int | `256` | Max response tokens |
-| `CustomPrompt` | string | null | Custom analysis prompt |
-| `SystemPrompt` | string | null | System context prompt |
-| `RetryCount` | int | `2` | Retries on failure |
-| `RetryDelayMs` | int | `100` | Delay between retries |
+| Option         | Type   | Default                  | Description            |
+|----------------|--------|--------------------------|------------------------|
+| `Endpoint`     | string | `http://localhost:11434` | Ollama API endpoint    |
+| `Model`        | string | `gemma3:4b`              | Model name             |
+| `UseJsonMode`  | bool   | `true`                   | Request JSON output    |
+| `Temperature`  | double | `0.1`                    | Randomness (0.0-1.0)   |
+| `MaxTokens`    | int    | `256`                    | Max response tokens    |
+| `CustomPrompt` | string | null                     | Custom analysis prompt |
+| `SystemPrompt` | string | null                     | System context prompt  |
+| `RetryCount`   | int    | `2`                      | Retries on failure     |
+| `RetryDelayMs` | int    | `100`                    | Delay between retries  |
 
 ### Recommended Models
 
-| Model | Size | Context | Speed | Accuracy | Use Case |
-|-------|------|---------|-------|----------|----------|
-| `gemma3:4b` | 4B | 8K | ~100ms | Best | **Default - best accuracy** |
-| `gemma3:1b` | 1B | 8K | ~50ms | Good | High throughput |
-| `tinyllama` | 1.1B | 2K | ~20ms | Basic | Very high throughput |
-| `qwen2.5:1.5b` | 1.5B | 32K | ~80ms | Better | Complex patterns |
-| `phi3:mini` | 3.8B | 4K | ~150ms | Best | Low volume, high accuracy |
-| `llama3.2:3b` | 3B | 8K | ~200ms | Best | Research/analysis |
+| Model          | Size | Context | Speed  | Accuracy | Use Case                    |
+|----------------|------|---------|--------|----------|-----------------------------|
+| `gemma3:4b`    | 4B   | 8K      | ~100ms | Best     | **Default - best accuracy** |
+| `gemma3:1b`    | 1B   | 8K      | ~50ms  | Good     | High throughput             |
+| `tinyllama`    | 1.1B | 2K      | ~20ms  | Basic    | Very high throughput        |
+| `qwen2.5:1.5b` | 1.5B | 32K     | ~80ms  | Better   | Complex patterns            |
+| `phi3:mini`    | 3.8B | 4K      | ~150ms | Best     | Low volume, high accuracy   |
+| `llama3.2:3b`  | 3B   | 8K      | ~200ms | Best     | Research/analysis           |
 
 ---
 
@@ -411,14 +415,14 @@ flowchart LR
     Decision -->|Escalation| Ollama
 ```
 
-| Feature | Heuristic | Ollama |
-|---------|-----------|--------|
-| **Latency** | <1ms | 50-500ms |
-| **Accuracy** | Good (pattern-based + learning) | Best (full reasoning) |
-| **Resources** | ~10KB memory | 1-4GB RAM |
-| **Dependencies** | None (in-process) | Ollama server |
-| **Offline** | Yes | Yes (local) |
-| **Learning** | Continuous | Static |
+| Feature          | Heuristic                       | Ollama                |
+|------------------|---------------------------------|-----------------------|
+| **Latency**      | <1ms                            | 50-500ms              |
+| **Accuracy**     | Good (pattern-based + learning) | Best (full reasoning) |
+| **Resources**    | ~10KB memory                    | 1-4GB RAM             |
+| **Dependencies** | None (in-process)               | Ollama server         |
+| **Offline**      | Yes                             | Yes (local)           |
+| **Learning**     | Continuous                      | Static                |
 
 ### Recommendation
 
@@ -459,7 +463,8 @@ flowchart LR
 
 ## HeuristicLate Contributor (Post-AI Refinement)
 
-The `HeuristicLateContributor` runs **after** the AI/LLM detectors to provide a final classification layer that incorporates all prior evidence, including AI results.
+The `HeuristicLateContributor` runs **after** the AI/LLM detectors to provide a final classification layer that
+incorporates all prior evidence, including AI results.
 
 ### Detection Pipeline Flow
 
@@ -525,18 +530,18 @@ The late heuristic is automatically included in policies that use the AI path:
 
 ### When It Runs
 
-| Scenario | HeuristicLate Behavior |
-|----------|----------------------|
-| AI ran and completed | Runs with AI signals in feature vector |
+| Scenario               | HeuristicLate Behavior                      |
+|------------------------|---------------------------------------------|
+| AI ran and completed   | Runs with AI signals in feature vector      |
 | AI escalation disabled | Runs after 5+ detectors complete (fallback) |
-| All detectors skipped | Does not run (no trigger satisfied) |
+| All detectors skipped  | Does not run (no trigger satisfied)         |
 
 ### Signals Emitted
 
-| Signal Key | Type | Description |
-|------------|------|-------------|
+| Signal Key             | Type   | Description      |
+|------------------------|--------|------------------|
 | `heuristic.prediction` | string | "bot" or "human" |
-| `heuristic.confidence` | double | 0.0 to 1.0 |
+| `heuristic.confidence` | double | 0.0 to 1.0       |
 
 ### Reason Label
 
@@ -569,6 +574,7 @@ flowchart TB
 ```
 
 **Guarantees:**
+
 - AI detection **never blocks** the pipeline
 - Timeouts are logged, not thrown
 - Default weights always available
@@ -631,6 +637,7 @@ Warning: Failed to load weights from store, using defaults
 ```
 
 **Solutions:**
+
 1. Check database connection
 2. Verify `WeightStore` is registered
 3. Check `LoadLearnedWeights` is true
@@ -643,6 +650,7 @@ Error: Failed to connect to Ollama at http://localhost:11434
 ```
 
 **Solutions:**
+
 1. Start Ollama: `ollama serve`
 2. Check endpoint URL
 3. Verify firewall settings
@@ -655,6 +663,7 @@ Debug: No weight store available, skipping weight update
 ```
 
 **Solutions:**
+
 1. Ensure `IWeightStore` is registered
 2. Check `EnableWeightLearning` is true
 3. Verify `MinConfidenceForLearning` threshold

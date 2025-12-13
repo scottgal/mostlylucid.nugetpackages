@@ -154,7 +154,7 @@ public static class SignatureTypes
 
     /// <summary>
     ///     Heuristic detector feature weights.
-    ///     Used by <see cref="Detectors.HeuristicDetector"/> for learned classification.
+    ///     Used by <see cref="Detectors.HeuristicDetector" /> for learned classification.
     /// </summary>
     public const string HeuristicFeature = "heuristic_feature";
 }
@@ -168,41 +168,26 @@ public static class SignatureTypes
 /// </summary>
 public class SqliteWeightStore : IWeightStore, IAsyncDisposable, IDisposable
 {
-    private readonly ILogger<SqliteWeightStore> _logger;
-    private readonly BotDetectionMetrics? _metrics;
-    private readonly string _connectionString;
-    private readonly int _cacheSize;
-    private readonly TimeSpan _slidingExpiration;
-    private readonly SemaphoreSlim _initLock = new(1, 1);
+    private const string TableName = "learned_weights";
 
     // Memory cache with sliding expiration - auto-evicts least recently used entries
     private readonly MemoryCache _cache;
+    private readonly int _cacheSize;
+    private readonly string _connectionString;
+    private readonly TimeSpan _flushInterval = TimeSpan.FromMilliseconds(500);
+    private readonly SemaphoreSlim _flushLock = new(1, 1);
+    private readonly Timer _flushTimer;
+    private readonly SemaphoreSlim _initLock = new(1, 1);
+    private readonly ILogger<SqliteWeightStore> _logger;
+    private readonly BotDetectionMetrics? _metrics;
 
     // Write-behind queue for batched SQLite persistence
     // Cache holds current state, SQLite is persisted async every 500ms
     private readonly ConcurrentDictionary<string, PendingWrite> _pendingWrites = new();
-    private readonly Timer _flushTimer;
-    private readonly TimeSpan _flushInterval = TimeSpan.FromMilliseconds(500);
-    private readonly SemaphoreSlim _flushLock = new(1, 1);
-
-    private bool _initialized;
+    private readonly TimeSpan _slidingExpiration;
     private bool _disposed;
 
-    private const string TableName = "learned_weights";
-
-    /// <summary>
-    ///     Represents a pending write operation to be flushed to SQLite.
-    ///     Cache holds the current computed values; this just persists them.
-    /// </summary>
-    private record PendingWrite
-    {
-        public required string SignatureType { get; init; }
-        public required string Signature { get; init; }
-        public required double Weight { get; init; }
-        public required double Confidence { get; init; }
-        public required int ObservationCount { get; init; }
-        public required DateTimeOffset Timestamp { get; init; }
-    }
+    private bool _initialized;
 
     public SqliteWeightStore(
         ILogger<SqliteWeightStore> logger,
@@ -234,188 +219,40 @@ public class SqliteWeightStore : IWeightStore, IAsyncDisposable, IDisposable
         // Start background flush timer for write-behind pattern
         _flushTimer = new Timer(FlushPendingWritesCallback, null, _flushInterval, _flushInterval);
 
-        _logger.LogDebug("WeightStore initialized with sliding cache (size={CacheSize}, expiration={Expiration}min, flush={Flush}s)",
+        _logger.LogDebug(
+            "WeightStore initialized with sliding cache (size={CacheSize}, expiration={Expiration}min, flush={Flush}s)",
             _cacheSize, _slidingExpiration.TotalMinutes, _flushInterval.TotalSeconds);
     }
 
-    /// <summary>
-    ///     Creates a cache key for a signature type and signature.
-    /// </summary>
-    private static string CacheKey(string signatureType, string signature) => $"{signatureType}:{signature}";
-
-    /// <summary>
-    ///     Creates a tag key for a signature type (for bulk eviction).
-    /// </summary>
-    private static string TagKey(string signatureType) => $"tag:{signatureType}";
-
-    /// <summary>
-    ///     Gets cache entry options with sliding expiration and size.
-    /// </summary>
-    private MemoryCacheEntryOptions GetCacheEntryOptions()
+    public async ValueTask DisposeAsync()
     {
-        return new MemoryCacheEntryOptions()
-            .SetSlidingExpiration(_slidingExpiration)
-            .SetSize(1); // Each entry counts as 1 toward size limit
-    }
+        if (_disposed) return;
+        _disposed = true;
 
-    /// <summary>
-    ///     Timer callback for flushing pending writes to SQLite.
-    /// </summary>
-    private void FlushPendingWritesCallback(object? state)
-    {
-        // Fire and forget - errors are logged but don't crash the timer
-        _ = FlushPendingWritesAsync(CancellationToken.None);
-    }
+        // Stop the timer
+        await _flushTimer.DisposeAsync();
 
-    /// <summary>
-    ///     Flushes all pending writes to SQLite in a single batch.
-    ///     Called periodically by the timer and on dispose.
-    /// </summary>
-    public async Task FlushPendingWritesAsync(CancellationToken ct = default)
-    {
-        if (_pendingWrites.IsEmpty) return;
-
-        // Only one flush at a time
-        if (!await _flushLock.WaitAsync(0, ct)) return;
-
-        var sw = Stopwatch.StartNew();
-        var batchSize = 0;
-        var success = false;
-
+        // Flush remaining writes
         try
         {
-            await EnsureInitializedAsync(ct);
-
-            // Snapshot and clear pending writes atomically
-            var writes = new List<PendingWrite>();
-            foreach (var key in _pendingWrites.Keys.ToList())
-            {
-                if (_pendingWrites.TryRemove(key, out var write))
-                {
-                    writes.Add(write);
-                }
-            }
-
-            if (writes.Count == 0) return;
-            batchSize = writes.Count;
-
-            _metrics?.UpdatePendingWrites(_pendingWrites.Count);
-
-            await using var conn = new SqliteConnection(_connectionString);
-            await conn.OpenAsync(ct);
-
-            // Use transaction for batch write
-            await using var transaction = await conn.BeginTransactionAsync(ct);
-
-            try
-            {
-                // Single SQL statement for all writes (cache holds final computed values)
-                var sql = $@"
-                    INSERT INTO {TableName} (signature_type, signature, weight, confidence, observation_count, first_seen, last_seen)
-                    VALUES (@type, @sig, @weight, @conf, @count, @now, @now)
-                    ON CONFLICT(signature_type, signature) DO UPDATE SET
-                        weight = @weight,
-                        confidence = @conf,
-                        observation_count = @count,
-                        last_seen = @now
-                ";
-
-                foreach (var write in writes)
-                {
-                    var now = write.Timestamp.ToString("O");
-
-                    await using var cmd = new SqliteCommand(sql, conn, (SqliteTransaction)transaction);
-                    cmd.Parameters.AddWithValue("@type", write.SignatureType);
-                    cmd.Parameters.AddWithValue("@sig", write.Signature);
-                    cmd.Parameters.AddWithValue("@weight", write.Weight);
-                    cmd.Parameters.AddWithValue("@conf", write.Confidence);
-                    cmd.Parameters.AddWithValue("@count", write.ObservationCount);
-                    cmd.Parameters.AddWithValue("@now", now);
-                    await cmd.ExecuteNonQueryAsync(ct);
-                }
-
-                await transaction.CommitAsync(ct);
-                success = true;
-                _logger.LogDebug("Flushed {Count} pending writes to SQLite in {Duration:F1}ms", writes.Count, sw.ElapsedMilliseconds);
-            }
-            catch
-            {
-                await transaction.RollbackAsync(ct);
-                throw;
-            }
+            await FlushPendingWritesAsync(CancellationToken.None);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to flush pending writes to SQLite");
+            _logger.LogWarning(ex, "Failed to flush pending writes during async dispose");
         }
-        finally
-        {
-            sw.Stop();
-            _metrics?.RecordFlush(batchSize, sw.Elapsed, success);
-            _flushLock.Release();
-        }
+
+        _cache.Dispose();
+        _flushLock.Dispose();
+        _initLock.Dispose();
+
+        GC.SuppressFinalize(this);
     }
 
-    /// <summary>
-    ///     Queues a write operation for background persistence.
-    ///     Latest write wins - if multiple updates happen before flush, only the final value persists.
-    /// </summary>
-    private void QueueWrite(string signatureType, string signature, double weight, double confidence, int observationCount)
+    public void Dispose()
     {
-        var key = CacheKey(signatureType, signature);
-        _pendingWrites[key] = new PendingWrite
-        {
-            SignatureType = signatureType,
-            Signature = signature,
-            Weight = weight,
-            Confidence = confidence,
-            ObservationCount = observationCount,
-            Timestamp = DateTimeOffset.UtcNow
-        };
-
-        _metrics?.RecordCacheWrite(signatureType);
-        _metrics?.UpdatePendingWrites(_pendingWrites.Count);
-    }
-
-    private async Task EnsureInitializedAsync(CancellationToken ct)
-    {
-        if (_initialized) return;
-
-        await _initLock.WaitAsync(ct);
-        try
-        {
-            if (_initialized) return;
-
-            await using var conn = new SqliteConnection(_connectionString);
-            await conn.OpenAsync(ct);
-
-            var sql = $@"
-                CREATE TABLE IF NOT EXISTS {TableName} (
-                    signature_type TEXT NOT NULL,
-                    signature TEXT NOT NULL,
-                    weight REAL NOT NULL,
-                    confidence REAL NOT NULL,
-                    observation_count INTEGER NOT NULL DEFAULT 1,
-                    first_seen TEXT NOT NULL,
-                    last_seen TEXT NOT NULL,
-                    PRIMARY KEY (signature_type, signature)
-                );
-
-                CREATE INDEX IF NOT EXISTS idx_signature_type ON {TableName}(signature_type);
-                CREATE INDEX IF NOT EXISTS idx_confidence ON {TableName}(confidence);
-                CREATE INDEX IF NOT EXISTS idx_last_seen ON {TableName}(last_seen);
-            ";
-
-            await using var cmd = new SqliteCommand(sql, conn);
-            await cmd.ExecuteNonQueryAsync(ct);
-
-            _initialized = true;
-            _logger.LogDebug("Weight store initialized");
-        }
-        finally
-        {
-            _initLock.Release();
-        }
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
 
     public async Task<double> GetWeightAsync(string signatureType, string signature, CancellationToken ct = default)
@@ -499,7 +336,7 @@ public class SqliteWeightStore : IWeightStore, IAsyncDisposable, IDisposable
             return result;
 
         // Record cache misses for missing items
-        for (int i = 0; i < missing.Count; i++)
+        for (var i = 0; i < missing.Count; i++)
             _metrics?.RecordCacheMiss(signatureType);
 
         await EnsureInitializedAsync(ct);
@@ -516,10 +353,7 @@ public class SqliteWeightStore : IWeightStore, IAsyncDisposable, IDisposable
 
         await using var cmd = new SqliteCommand(sql, conn);
         cmd.Parameters.AddWithValue("@type", signatureType);
-        for (int i = 0; i < missing.Count; i++)
-        {
-            cmd.Parameters.AddWithValue($"@sig{i}", missing[i]);
-        }
+        for (var i = 0; i < missing.Count; i++) cmd.Parameters.AddWithValue($"@sig{i}", missing[i]);
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         var cacheOptions = GetCacheEntryOptions();
@@ -703,7 +537,6 @@ public class SqliteWeightStore : IWeightStore, IAsyncDisposable, IDisposable
         await using var reader = await cmd.ExecuteReaderAsync(ct);
 
         if (await reader.ReadAsync(ct))
-        {
             return new WeightStoreStats
             {
                 TotalWeights = reader.IsDBNull(0) ? 0 : reader.GetInt32(0),
@@ -717,7 +550,6 @@ public class SqliteWeightStore : IWeightStore, IAsyncDisposable, IDisposable
                 OldestWeight = reader.IsDBNull(8) ? null : DateTimeOffset.Parse(reader.GetString(8)),
                 NewestWeight = reader.IsDBNull(9) ? null : DateTimeOffset.Parse(reader.GetString(9))
             };
-        }
 
         return new WeightStoreStats();
     }
@@ -766,6 +598,190 @@ public class SqliteWeightStore : IWeightStore, IAsyncDisposable, IDisposable
     }
 
     /// <summary>
+    ///     Creates a cache key for a signature type and signature.
+    /// </summary>
+    private static string CacheKey(string signatureType, string signature)
+    {
+        return $"{signatureType}:{signature}";
+    }
+
+    /// <summary>
+    ///     Creates a tag key for a signature type (for bulk eviction).
+    /// </summary>
+    private static string TagKey(string signatureType)
+    {
+        return $"tag:{signatureType}";
+    }
+
+    /// <summary>
+    ///     Gets cache entry options with sliding expiration and size.
+    /// </summary>
+    private MemoryCacheEntryOptions GetCacheEntryOptions()
+    {
+        return new MemoryCacheEntryOptions()
+            .SetSlidingExpiration(_slidingExpiration)
+            .SetSize(1); // Each entry counts as 1 toward size limit
+    }
+
+    /// <summary>
+    ///     Timer callback for flushing pending writes to SQLite.
+    /// </summary>
+    private void FlushPendingWritesCallback(object? state)
+    {
+        // Fire and forget - errors are logged but don't crash the timer
+        _ = FlushPendingWritesAsync(CancellationToken.None);
+    }
+
+    /// <summary>
+    ///     Flushes all pending writes to SQLite in a single batch.
+    ///     Called periodically by the timer and on dispose.
+    /// </summary>
+    public async Task FlushPendingWritesAsync(CancellationToken ct = default)
+    {
+        if (_pendingWrites.IsEmpty) return;
+
+        // Only one flush at a time
+        if (!await _flushLock.WaitAsync(0, ct)) return;
+
+        var sw = Stopwatch.StartNew();
+        var batchSize = 0;
+        var success = false;
+
+        try
+        {
+            await EnsureInitializedAsync(ct);
+
+            // Snapshot and clear pending writes atomically
+            var writes = new List<PendingWrite>();
+            foreach (var key in _pendingWrites.Keys.ToList())
+                if (_pendingWrites.TryRemove(key, out var write))
+                    writes.Add(write);
+
+            if (writes.Count == 0) return;
+            batchSize = writes.Count;
+
+            _metrics?.UpdatePendingWrites(_pendingWrites.Count);
+
+            await using var conn = new SqliteConnection(_connectionString);
+            await conn.OpenAsync(ct);
+
+            // Use transaction for batch write
+            await using var transaction = await conn.BeginTransactionAsync(ct);
+
+            try
+            {
+                // Single SQL statement for all writes (cache holds final computed values)
+                var sql = $@"
+                    INSERT INTO {TableName} (signature_type, signature, weight, confidence, observation_count, first_seen, last_seen)
+                    VALUES (@type, @sig, @weight, @conf, @count, @now, @now)
+                    ON CONFLICT(signature_type, signature) DO UPDATE SET
+                        weight = @weight,
+                        confidence = @conf,
+                        observation_count = @count,
+                        last_seen = @now
+                ";
+
+                foreach (var write in writes)
+                {
+                    var now = write.Timestamp.ToString("O");
+
+                    await using var cmd = new SqliteCommand(sql, conn, (SqliteTransaction)transaction);
+                    cmd.Parameters.AddWithValue("@type", write.SignatureType);
+                    cmd.Parameters.AddWithValue("@sig", write.Signature);
+                    cmd.Parameters.AddWithValue("@weight", write.Weight);
+                    cmd.Parameters.AddWithValue("@conf", write.Confidence);
+                    cmd.Parameters.AddWithValue("@count", write.ObservationCount);
+                    cmd.Parameters.AddWithValue("@now", now);
+                    await cmd.ExecuteNonQueryAsync(ct);
+                }
+
+                await transaction.CommitAsync(ct);
+                success = true;
+                _logger.LogDebug("Flushed {Count} pending writes to SQLite in {Duration:F1}ms", writes.Count,
+                    sw.ElapsedMilliseconds);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(ct);
+                throw;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to flush pending writes to SQLite");
+        }
+        finally
+        {
+            sw.Stop();
+            _metrics?.RecordFlush(batchSize, sw.Elapsed, success);
+            _flushLock.Release();
+        }
+    }
+
+    /// <summary>
+    ///     Queues a write operation for background persistence.
+    ///     Latest write wins - if multiple updates happen before flush, only the final value persists.
+    /// </summary>
+    private void QueueWrite(string signatureType, string signature, double weight, double confidence,
+        int observationCount)
+    {
+        var key = CacheKey(signatureType, signature);
+        _pendingWrites[key] = new PendingWrite
+        {
+            SignatureType = signatureType,
+            Signature = signature,
+            Weight = weight,
+            Confidence = confidence,
+            ObservationCount = observationCount,
+            Timestamp = DateTimeOffset.UtcNow
+        };
+
+        _metrics?.RecordCacheWrite(signatureType);
+        _metrics?.UpdatePendingWrites(_pendingWrites.Count);
+    }
+
+    private async Task EnsureInitializedAsync(CancellationToken ct)
+    {
+        if (_initialized) return;
+
+        await _initLock.WaitAsync(ct);
+        try
+        {
+            if (_initialized) return;
+
+            await using var conn = new SqliteConnection(_connectionString);
+            await conn.OpenAsync(ct);
+
+            var sql = $@"
+                CREATE TABLE IF NOT EXISTS {TableName} (
+                    signature_type TEXT NOT NULL,
+                    signature TEXT NOT NULL,
+                    weight REAL NOT NULL,
+                    confidence REAL NOT NULL,
+                    observation_count INTEGER NOT NULL DEFAULT 1,
+                    first_seen TEXT NOT NULL,
+                    last_seen TEXT NOT NULL,
+                    PRIMARY KEY (signature_type, signature)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_signature_type ON {TableName}(signature_type);
+                CREATE INDEX IF NOT EXISTS idx_confidence ON {TableName}(confidence);
+                CREATE INDEX IF NOT EXISTS idx_last_seen ON {TableName}(last_seen);
+            ";
+
+            await using var cmd = new SqliteCommand(sql, conn);
+            await cmd.ExecuteNonQueryAsync(ct);
+
+            _initialized = true;
+            _logger.LogDebug("Weight store initialized");
+        }
+        finally
+        {
+            _initLock.Release();
+        }
+    }
+
+    /// <summary>
     ///     Evicts all cached entries for a specific signature type (tag-based eviction).
     /// </summary>
     public void EvictByTag(string signatureType)
@@ -774,12 +790,6 @@ public class SqliteWeightStore : IWeightStore, IAsyncDisposable, IDisposable
         // For now, just compact - sliding expiration will handle stale entries
         _cache.Compact(0.1);
         _logger.LogDebug("Compacted cache for signature type: {SignatureType}", signatureType);
-    }
-
-    public void Dispose()
-    {
-        Dispose(true);
-        GC.SuppressFinalize(this);
     }
 
     protected virtual void Dispose(bool disposing)
@@ -808,28 +818,17 @@ public class SqliteWeightStore : IWeightStore, IAsyncDisposable, IDisposable
         }
     }
 
-    public async ValueTask DisposeAsync()
+    /// <summary>
+    ///     Represents a pending write operation to be flushed to SQLite.
+    ///     Cache holds the current computed values; this just persists them.
+    /// </summary>
+    private record PendingWrite
     {
-        if (_disposed) return;
-        _disposed = true;
-
-        // Stop the timer
-        await _flushTimer.DisposeAsync();
-
-        // Flush remaining writes
-        try
-        {
-            await FlushPendingWritesAsync(CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to flush pending writes during async dispose");
-        }
-
-        _cache.Dispose();
-        _flushLock.Dispose();
-        _initLock.Dispose();
-
-        GC.SuppressFinalize(this);
+        public required string SignatureType { get; init; }
+        public required string Signature { get; init; }
+        public required double Weight { get; init; }
+        public required double Confidence { get; init; }
+        public required int ObservationCount { get; init; }
+        public required DateTimeOffset Timestamp { get; init; }
     }
 }

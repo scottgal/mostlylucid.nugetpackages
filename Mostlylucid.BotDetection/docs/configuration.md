@@ -439,32 +439,33 @@ Complete reference with all available options:
 
 ## Core Settings
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `BotThreshold` | double | `0.7` | Confidence threshold to classify as bot (0.0-1.0) |
-| `EnableUserAgentDetection` | bool | `true` | Enable User-Agent pattern matching |
-| `EnableHeaderAnalysis` | bool | `true` | Enable HTTP header inspection |
-| `EnableIpDetection` | bool | `true` | Enable IP-based detection |
-| `EnableBehavioralAnalysis` | bool | `true` | Enable behavioral rate analysis |
-| `EnableAiDetection` | bool | `true` | **Enable AI-based classification (RECOMMENDED)** |
-| `EnableLlmDetection` | bool | `true` | Enable LLM escalation for uncertain cases |
-| `EnableTestMode` | bool | `false` | Enable test mode headers (dev only!) |
-| `MaxRequestsPerMinute` | int | `60` | Rate limit threshold (1-10000) |
-| `CacheDurationSeconds` | int | `300` | Cache duration for results (0-86400) |
+| Option                     | Type   | Default | Description                                       |
+|----------------------------|--------|---------|---------------------------------------------------|
+| `BotThreshold`             | double | `0.7`   | Confidence threshold to classify as bot (0.0-1.0) |
+| `EnableUserAgentDetection` | bool   | `true`  | Enable User-Agent pattern matching                |
+| `EnableHeaderAnalysis`     | bool   | `true`  | Enable HTTP header inspection                     |
+| `EnableIpDetection`        | bool   | `true`  | Enable IP-based detection                         |
+| `EnableBehavioralAnalysis` | bool   | `true`  | Enable behavioral rate analysis                   |
+| `EnableAiDetection`        | bool   | `true`  | **Enable AI-based classification (RECOMMENDED)**  |
+| `EnableLlmDetection`       | bool   | `true`  | Enable LLM escalation for uncertain cases         |
+| `EnableTestMode`           | bool   | `false` | Enable test mode headers (dev only!)              |
+| `MaxRequestsPerMinute`     | int    | `60`    | Rate limit threshold (1-10000)                    |
+| `CacheDurationSeconds`     | int    | `300`   | Cache duration for results (0-86400)              |
 
 ---
 
 ## AI Detection Settings (KEY FEATURE)
 
-AI detection provides machine learning-based classification with continuous learning. **This is a key differentiator** - the system improves over time.
+AI detection provides machine learning-based classification with continuous learning. **This is a key differentiator** -
+the system improves over time.
 
 ### Providers
 
-| Provider | Description | Latency | Use Case |
-|----------|-------------|---------|----------|
-| `Heuristic` | Feature-weighted logistic regression with learning | <1ms | **Default - fast, learns** |
-| `Ollama` | LLM-based analysis with full reasoning | 50-500ms | Escalation for complex cases |
-| `HeuristicWithEscalation` | Heuristic first, LLM for uncertain | <1ms + escalation | Best accuracy |
+| Provider                  | Description                                        | Latency           | Use Case                     |
+|---------------------------|----------------------------------------------------|-------------------|------------------------------|
+| `Heuristic`               | Feature-weighted logistic regression with learning | <1ms              | **Default - fast, learns**   |
+| `Ollama`                  | LLM-based analysis with full reasoning             | 50-500ms          | Escalation for complex cases |
+| `HeuristicWithEscalation` | Heuristic first, LLM for uncertain                 | <1ms + escalation | Best accuracy                |
 
 ### Heuristic Provider (Recommended)
 
@@ -489,14 +490,14 @@ AI detection provides machine learning-based classification with continuous lear
 }
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `Enabled` | bool | `true` | Enable heuristic detection |
-| `LoadLearnedWeights` | bool | `true` | Load weights from database on startup |
-| `EnableWeightLearning` | bool | `true` | Update weights from detection feedback |
-| `MinConfidenceForLearning` | double | `0.8` | Minimum confidence for weight updates |
-| `LearningRate` | double | `0.01` | Learning rate for weight adjustments |
-| `WeightReloadIntervalMinutes` | int | `60` | How often to reload weights from store |
+| Option                        | Type   | Default | Description                            |
+|-------------------------------|--------|---------|----------------------------------------|
+| `Enabled`                     | bool   | `true`  | Enable heuristic detection             |
+| `LoadLearnedWeights`          | bool   | `true`  | Load weights from database on startup  |
+| `EnableWeightLearning`        | bool   | `true`  | Update weights from detection feedback |
+| `MinConfidenceForLearning`    | double | `0.8`   | Minimum confidence for weight updates  |
+| `LearningRate`                | double | `0.01`  | Learning rate for weight adjustments   |
+| `WeightReloadIntervalMinutes` | int    | `60`    | How often to reload weights from store |
 
 ### Ollama Provider (LLM Escalation)
 
@@ -520,13 +521,13 @@ AI detection provides machine learning-based classification with continuous lear
 }
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `Endpoint` | string | `http://localhost:11434` | Ollama API endpoint |
-| `Model` | string | `gemma3:4b` | Model name (gemma3:4b recommended) |
-| `UseJsonMode` | bool | `true` | Request JSON output |
-| `Temperature` | double | `0.1` | Randomness (0.0-1.0) |
-| `MaxTokens` | int | `256` | Max response tokens |
+| Option        | Type   | Default                  | Description                        |
+|---------------|--------|--------------------------|------------------------------------|
+| `Endpoint`    | string | `http://localhost:11434` | Ollama API endpoint                |
+| `Model`       | string | `gemma3:4b`              | Model name (gemma3:4b recommended) |
+| `UseJsonMode` | bool   | `true`                   | Request JSON output                |
+| `Temperature` | double | `0.1`                    | Randomness (0.0-1.0)               |
+| `MaxTokens`   | int    | `256`                    | Max response tokens                |
 
 See [ai-detection.md](ai-detection.md) for full details on models and learning.
 
@@ -534,7 +535,8 @@ See [ai-detection.md](ai-detection.md) for full details on models and learning.
 
 ## Learning System Settings (KEY FEATURE)
 
-The learning system enables continuous improvement. Patterns are tracked, reputations evolve, and the model improves over time.
+The learning system enables continuous improvement. Patterns are tracked, reputations evolve, and the model improves
+over time.
 
 ```json
 {
@@ -558,21 +560,21 @@ The learning system enables continuous improvement. Patterns are tracked, reputa
 }
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `Enabled` | bool | `true` | **Enable learning (RECOMMENDED)** |
-| `LearningRate` | double | `0.1` | EMA learning rate (0.01-0.5) |
-| `MaxSupport` | int | `1000` | Max effective sample count |
-| `ScoreDecayTauHours` | int | `168` | Score decay time constant (7 days) |
-| `SupportDecayTauHours` | int | `336` | Support decay time constant (14 days) |
-| `Prior` | double | `0.5` | Neutral prior for new patterns |
-| `PromoteToBadScore` | double | `0.9` | Score to promote to ConfirmedBad |
-| `PromoteToBadSupport` | int | `50` | Support to promote to ConfirmedBad |
-| `DemoteFromBadScore` | double | `0.7` | Score to demote from ConfirmedBad |
-| `DemoteFromBadSupport` | int | `100` | Support to demote (hysteresis) |
-| `GcEligibleDays` | int | `90` | Days before pattern GC eligible |
-| `EnableDriftDetection` | bool | `true` | Detect concept drift |
-| `DriftThreshold` | double | `0.05` | Drift alert threshold |
+| Option                 | Type   | Default | Description                           |
+|------------------------|--------|---------|---------------------------------------|
+| `Enabled`              | bool   | `true`  | **Enable learning (RECOMMENDED)**     |
+| `LearningRate`         | double | `0.1`   | EMA learning rate (0.01-0.5)          |
+| `MaxSupport`           | int    | `1000`  | Max effective sample count            |
+| `ScoreDecayTauHours`   | int    | `168`   | Score decay time constant (7 days)    |
+| `SupportDecayTauHours` | int    | `336`   | Support decay time constant (14 days) |
+| `Prior`                | double | `0.5`   | Neutral prior for new patterns        |
+| `PromoteToBadScore`    | double | `0.9`   | Score to promote to ConfirmedBad      |
+| `PromoteToBadSupport`  | int    | `50`    | Support to promote to ConfirmedBad    |
+| `DemoteFromBadScore`   | double | `0.7`   | Score to demote from ConfirmedBad     |
+| `DemoteFromBadSupport` | int    | `100`   | Support to demote (hysteresis)        |
+| `GcEligibleDays`       | int    | `90`    | Days before pattern GC eligible       |
+| `EnableDriftDetection` | bool   | `true`  | Detect concept drift                  |
+| `DriftThreshold`       | double | `0.05`  | Drift alert threshold                 |
 
 See [learning-and-reputation.md](learning-and-reputation.md) for full details.
 
@@ -580,16 +582,16 @@ See [learning-and-reputation.md](learning-and-reputation.md) for full details.
 
 ## Blocking Settings
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `BlockDetectedBots` | bool | `false` | Enable automatic blocking |
-| `BlockStatusCode` | int | `403` | HTTP status when blocking |
-| `BlockMessage` | string | `"Access denied"` | Response message |
-| `MinConfidenceToBlock` | double | `0.8` | Confidence required to block |
-| `AllowVerifiedSearchEngines` | bool | `true` | Let Googlebot, Bingbot through |
-| `AllowSocialMediaBots` | bool | `true` | Let Facebook, Twitter through |
-| `AllowMonitoringBots` | bool | `true` | Let UptimeRobot, Pingdom through |
-| `DefaultActionPolicyName` | string | `"block"` | Default action policy |
+| Option                       | Type   | Default           | Description                      |
+|------------------------------|--------|-------------------|----------------------------------|
+| `BlockDetectedBots`          | bool   | `false`           | Enable automatic blocking        |
+| `BlockStatusCode`            | int    | `403`             | HTTP status when blocking        |
+| `BlockMessage`               | string | `"Access denied"` | Response message                 |
+| `MinConfidenceToBlock`       | double | `0.8`             | Confidence required to block     |
+| `AllowVerifiedSearchEngines` | bool   | `true`            | Let Googlebot, Bingbot through   |
+| `AllowSocialMediaBots`       | bool   | `true`            | Let Facebook, Twitter through    |
+| `AllowMonitoringBots`        | bool   | `true`            | Let UptimeRobot, Pingdom through |
+| `DefaultActionPolicyName`    | string | `"block"`         | Default action policy            |
 
 ---
 
@@ -610,12 +612,12 @@ Detects outdated browser and OS versions that are suspicious.
 }
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `Enabled` | bool | `true` | Enable version age detection |
-| `CheckBrowserVersion` | bool | `true` | Check browser version freshness |
-| `CheckOsVersion` | bool | `true` | Check OS version freshness |
-| `MaxBrowserVersionAge` | int | `10` | Max browser major versions old |
+| Option                 | Type | Default | Description                     |
+|------------------------|------|---------|---------------------------------|
+| `Enabled`              | bool | `true`  | Enable version age detection    |
+| `CheckBrowserVersion`  | bool | `true`  | Check browser version freshness |
+| `CheckOsVersion`       | bool | `true`  | Check OS version freshness      |
+| `MaxBrowserVersionAge` | int  | `10`    | Max browser major versions old  |
 
 ---
 
@@ -639,15 +641,15 @@ Detects security scanners, exploit frameworks, and hacking tools.
 }
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `Enabled` | bool | `true` | Enable security tool detection |
-| `BlockSecurityTools` | bool | `true` | Block security tools immediately |
-| `LogDetections` | bool | `true` | Log at Warning level |
-| `CustomPatterns` | string[] | `[]` | Custom tool patterns to add |
-| `ExcludedPatterns` | string[] | `[]` | Patterns to allow |
-| `EnabledCategories` | string[] | `[]` | Categories to detect (empty = all) |
-| `HoneypotRedirectUrl` | string | `null` | Redirect to honeypot instead of blocking |
+| Option                | Type     | Default | Description                              |
+|-----------------------|----------|---------|------------------------------------------|
+| `Enabled`             | bool     | `true`  | Enable security tool detection           |
+| `BlockSecurityTools`  | bool     | `true`  | Block security tools immediately         |
+| `LogDetections`       | bool     | `true`  | Log at Warning level                     |
+| `CustomPatterns`      | string[] | `[]`    | Custom tool patterns to add              |
+| `ExcludedPatterns`    | string[] | `[]`    | Patterns to allow                        |
+| `EnabledCategories`   | string[] | `[]`    | Categories to detect (empty = all)       |
+| `HoneypotRedirectUrl` | string   | `null`  | Redirect to honeypot instead of blocking |
 
 See [security-tools-detection.md](security-tools-detection.md) for details.
 
@@ -655,7 +657,8 @@ See [security-tools-detection.md](security-tools-detection.md) for details.
 
 ## Project Honeypot Settings
 
-Uses HTTP:BL DNS lookups for IP reputation. Requires a FREE API key from [projecthoneypot.org](https://www.projecthoneypot.org/).
+Uses HTTP:BL DNS lookups for IP reputation. Requires a FREE API key
+from [projecthoneypot.org](https://www.projecthoneypot.org/).
 
 ```json
 {
@@ -676,18 +679,18 @@ Uses HTTP:BL DNS lookups for IP reputation. Requires a FREE API key from [projec
 }
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `Enabled` | bool | `false` | Enable HTTP:BL lookups |
-| `AccessKey` | string | `null` | Your 12-char API key |
-| `HighThreatThreshold` | int | `25` | Threat score for high threat |
-| `MaxDaysAge` | int | `90` | Max age for relevance |
-| `TimeoutMs` | int | `1000` | DNS lookup timeout |
-| `CacheDurationSeconds` | int | `1800` | Cache duration (30 min) |
-| `SkipLocalIps` | bool | `true` | Skip private IPs |
-| `TreatHarvestersAsMalicious` | bool | `true` | Flag email scrapers |
-| `TreatCommentSpammersAsMalicious` | bool | `true` | Flag comment spammers |
-| `TreatSuspiciousAsSuspicious` | bool | `true` | Flag suspicious IPs |
+| Option                            | Type   | Default | Description                  |
+|-----------------------------------|--------|---------|------------------------------|
+| `Enabled`                         | bool   | `false` | Enable HTTP:BL lookups       |
+| `AccessKey`                       | string | `null`  | Your 12-char API key         |
+| `HighThreatThreshold`             | int    | `25`    | Threat score for high threat |
+| `MaxDaysAge`                      | int    | `90`    | Max age for relevance        |
+| `TimeoutMs`                       | int    | `1000`  | DNS lookup timeout           |
+| `CacheDurationSeconds`            | int    | `1800`  | Cache duration (30 min)      |
+| `SkipLocalIps`                    | bool   | `true`  | Skip private IPs             |
+| `TreatHarvestersAsMalicious`      | bool   | `true`  | Flag email scrapers          |
+| `TreatCommentSpammersAsMalicious` | bool   | `true`  | Flag comment spammers        |
+| `TreatSuspiciousAsSuspicious`     | bool   | `true`  | Flag suspicious IPs          |
 
 See [project-honeypot.md](project-honeypot.md) for details.
 
@@ -761,29 +764,29 @@ Add detection results to response headers for debugging and integration.
 }
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `Enabled` | bool | `false` | Enable response headers |
-| `HeaderPrefix` | string | `"X-Bot-"` | Prefix for all headers |
-| `IncludePolicyName` | bool | `true` | Include policy name |
-| `IncludeConfidence` | bool | `true` | Include confidence score |
-| `IncludeDetectors` | bool | `true` | Include detector list |
-| `IncludeProcessingTime` | bool | `true` | Include timing |
-| `IncludeBotName` | bool | `true` | Include bot name |
-| `IncludeFullJson` | bool | `false` | Include full JSON (verbose) |
+| Option                  | Type   | Default    | Description                 |
+|-------------------------|--------|------------|-----------------------------|
+| `Enabled`               | bool   | `false`    | Enable response headers     |
+| `HeaderPrefix`          | string | `"X-Bot-"` | Prefix for all headers      |
+| `IncludePolicyName`     | bool   | `true`     | Include policy name         |
+| `IncludeConfidence`     | bool   | `true`     | Include confidence score    |
+| `IncludeDetectors`      | bool   | `true`     | Include detector list       |
+| `IncludeProcessingTime` | bool   | `true`     | Include timing              |
+| `IncludeBotName`        | bool   | `true`     | Include bot name            |
+| `IncludeFullJson`       | bool   | `false`    | Include full JSON (verbose) |
 
 ---
 
 ## Background Update Settings
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `EnableBackgroundUpdates` | bool | `true` | Enable automatic list updates |
-| `UpdateIntervalHours` | int | `24` | Hours between updates (1-168) |
-| `UpdateCheckIntervalMinutes` | int | `60` | Minutes between update checks |
-| `StartupDelaySeconds` | int | `5` | Delay before first update |
-| `ListDownloadTimeoutSeconds` | int | `30` | Timeout per download |
-| `MaxDownloadRetries` | int | `3` | Retries before giving up |
+| Option                       | Type | Default | Description                   |
+|------------------------------|------|---------|-------------------------------|
+| `EnableBackgroundUpdates`    | bool | `true`  | Enable automatic list updates |
+| `UpdateIntervalHours`        | int  | `24`    | Hours between updates (1-168) |
+| `UpdateCheckIntervalMinutes` | int  | `60`    | Minutes between update checks |
+| `StartupDelaySeconds`        | int  | `5`     | Delay before first update     |
+| `ListDownloadTimeoutSeconds` | int  | `30`    | Timeout per download          |
+| `MaxDownloadRetries`         | int  | `3`     | Retries before giving up      |
 
 ---
 
@@ -806,34 +809,36 @@ Adds artificial delay to slow down detected bots.
 }
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `Enabled` | bool | `false` | Enable throttling for detected bots |
-| `MinConfidenceToThrottle` | double | `0.5` | Minimum confidence to apply throttling |
-| `BaseDelayMs` | int | `1000` | Base delay in milliseconds |
-| `MaxDelayMs` | int | `10000` | Maximum delay in milliseconds |
-| `EnableJitter` | bool | `true` | Add random jitter (less detectable) |
-| `JitterPercentage` | double | `0.2` | Jitter amount (0.0-1.0) |
+| Option                    | Type   | Default | Description                            |
+|---------------------------|--------|---------|----------------------------------------|
+| `Enabled`                 | bool   | `false` | Enable throttling for detected bots    |
+| `MinConfidenceToThrottle` | double | `0.5`   | Minimum confidence to apply throttling |
+| `BaseDelayMs`             | int    | `1000`  | Base delay in milliseconds             |
+| `MaxDelayMs`              | int    | `10000` | Maximum delay in milliseconds          |
+| `EnableJitter`            | bool   | `true`  | Add random jitter (less detectable)    |
+| `JitterPercentage`        | double | `0.2`   | Jitter amount (0.0-1.0)                |
 
 ---
 
 ## SQLite Database
 
-BotDetection uses SQLite to store bot patterns, datacenter IP ranges, learned weights, and reputation data. The database is automatically created and initialized on first use.
+BotDetection uses SQLite to store bot patterns, datacenter IP ranges, learned weights, and reputation data. The database
+is automatically created and initialized on first use.
 
 ### What's Stored in the Database
 
-| Table | Purpose |
-|-------|---------|
-| `bot_patterns` | User-Agent regex patterns from configured sources |
-| `datacenter_ips` | Cloud provider IP ranges (AWS, GCP, Azure, Oracle) |
-| `list_updates` | Last update timestamps for each data source |
-| `learned_weights` | Heuristic model weights from continuous learning |
-| `reputation_patterns` | Pattern reputation scores and states |
+| Table                 | Purpose                                            |
+|-----------------------|----------------------------------------------------|
+| `bot_patterns`        | User-Agent regex patterns from configured sources  |
+| `datacenter_ips`      | Cloud provider IP ranges (AWS, GCP, Azure, Oracle) |
+| `list_updates`        | Last update timestamps for each data source        |
+| `learned_weights`     | Heuristic model weights from continuous learning   |
+| `reputation_patterns` | Pattern reputation scores and states               |
 
 ### Default Behavior
 
 By default, the database is created at:
+
 ```
 {AppContext.BaseDirectory}/botdetection.db
 ```
@@ -851,10 +856,10 @@ For ASP.NET applications, this is typically in the application's root directory.
 }
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `DatabasePath` | string | `null` | Custom path to SQLite database |
-| `EnableDatabaseWalMode` | bool | `true` | Enable WAL mode for better concurrency |
+| Option                  | Type   | Default | Description                            |
+|-------------------------|--------|---------|----------------------------------------|
+| `DatabasePath`          | string | `null`  | Custom path to SQLite database         |
+| `EnableDatabaseWalMode` | bool   | `true`  | Enable WAL mode for better concurrency |
 
 ### Docker / Container Deployments
 
@@ -894,9 +899,11 @@ SQLite with WAL mode supports multiple readers but only one writer. For high-ava
 ### Database Maintenance
 
 The database is self-maintaining:
+
 - **Auto-updates**: Bot lists refresh every 24 hours (configurable via `UpdateIntervalHours`)
 - **Stale data check**: On startup, if data is >24 hours old, it refreshes automatically
-- **Learned weights**: Periodic consolidation removes low-impact patterns (configurable via `PatternConsolidationIntervalHours`)
+- **Learned weights**: Periodic consolidation removes low-impact patterns (configurable via
+  `PatternConsolidationIntervalHours`)
 - **WAL checkpointing**: SQLite handles this automatically
 
 ### Troubleshooting
@@ -929,18 +936,19 @@ rm botdetection.db
 }
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `EnablePatternLearning` | bool | `false` | Enable automatic pattern learning |
-| `MinConfidenceToLearn` | double | `0.9` | Minimum confidence to learn a pattern |
-| `MaxLearnedPatterns` | int | `1000` | Maximum patterns to store |
-| `PatternConsolidationIntervalHours` | int | `24` | Cleanup interval |
+| Option                              | Type   | Default | Description                           |
+|-------------------------------------|--------|---------|---------------------------------------|
+| `EnablePatternLearning`             | bool   | `false` | Enable automatic pattern learning     |
+| `MinConfidenceToLearn`              | double | `0.9`   | Minimum confidence to learn a pattern |
+| `MaxLearnedPatterns`                | int    | `1000`  | Maximum patterns to store             |
+| `PatternConsolidationIntervalHours` | int    | `24`    | Cleanup interval                      |
 
 ---
 
 ## Logging Settings
 
-BotDetection uses standard ASP.NET Core `ILogger`. Logs go to wherever your application is configured to send them (console, file, etc.).
+BotDetection uses standard ASP.NET Core `ILogger`. Logs go to wherever your application is configured to send them (
+console, file, etc.).
 
 ### Recommended Configuration (Default)
 
@@ -1055,13 +1063,13 @@ Control specific components:
 
 These options control what data is included in log messages:
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `LogAllRequests` | bool | `false` | Log all requests (verbose, not recommended for production) |
-| `LogDetailedReasons` | bool | `true` | Include detection reasons in logs |
-| `LogPerformanceMetrics` | bool | `false` | Include timing and cache statistics |
-| `LogIpAddresses` | bool | `true` | Include IP addresses (disable for GDPR compliance) |
-| `LogUserAgents` | bool | `true` | Include User-Agent strings (disable for privacy) |
+| Option                  | Type | Default | Description                                                |
+|-------------------------|------|---------|------------------------------------------------------------|
+| `LogAllRequests`        | bool | `false` | Log all requests (verbose, not recommended for production) |
+| `LogDetailedReasons`    | bool | `true`  | Include detection reasons in logs                          |
+| `LogPerformanceMetrics` | bool | `false` | Include timing and cache statistics                        |
+| `LogIpAddresses`        | bool | `true`  | Include IP addresses (disable for GDPR compliance)         |
+| `LogUserAgents`         | bool | `true`  | Include User-Agent strings (disable for privacy)           |
 
 ---
 
@@ -1186,6 +1194,7 @@ When `EnableTestMode` is true, you can simulate different bot types with the `ml
 ```
 
 Usage:
+
 ```bash
 curl -H "ml-bot-test-mode: googlebot" http://localhost/api/test
 ```

@@ -28,10 +28,7 @@ public class DefinitionLoader
         var resourceNames = assembly.GetManifestResourceNames()
             .Where(n => n.Contains("Definitions.Actions") && n.EndsWith(".json") && !n.EndsWith(".schema.json"));
 
-        foreach (var resourceName in resourceNames)
-        {
-            LoadDefinitionsFromResource(assembly, resourceName);
-        }
+        foreach (var resourceName in resourceNames) LoadDefinitionsFromResource(assembly, resourceName);
 
         // Resolve inheritance for all definitions
         ResolveAllInheritance();
@@ -98,10 +95,7 @@ public class DefinitionLoader
     {
         var resolving = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var name in _rawDefinitions.Keys)
-        {
-            ResolveDefinition(name, resolving);
-        }
+        foreach (var name in _rawDefinitions.Keys) ResolveDefinition(name, resolving);
     }
 
     private ResolvedDefinition ResolveDefinition(string name, HashSet<string> resolving)
@@ -118,19 +112,14 @@ public class DefinitionLoader
         }
 
         if (!_rawDefinitions.TryGetValue(name, out var element))
-        {
             throw new KeyNotFoundException($"Definition not found: {name}");
-        }
 
         var inheritanceChain = new List<string> { name };
         var mergedProperties = new Dictionary<string, JsonElement>();
 
         // Check for Extends
         string? parentName = null;
-        if (element.TryGetProperty("Extends", out var extendsElement))
-        {
-            parentName = extendsElement.GetString();
-        }
+        if (element.TryGetProperty("Extends", out var extendsElement)) parentName = extendsElement.GetString();
 
         // Resolve parent first
         if (!string.IsNullOrEmpty(parentName))
@@ -139,10 +128,7 @@ public class DefinitionLoader
             inheritanceChain.AddRange(parent.InheritanceChain);
 
             // Copy parent properties
-            foreach (var (key, value) in parent.Properties)
-            {
-                mergedProperties[key] = value;
-            }
+            foreach (var (key, value) in parent.Properties) mergedProperties[key] = value;
         }
 
         // Apply this definition's properties (override parent)
@@ -287,10 +273,8 @@ public class ResolvedDefinition
 
         var dict = new Dictionary<string, string>();
         foreach (var prop in el.EnumerateObject())
-        {
             if (prop.Value.ValueKind == JsonValueKind.String)
                 dict[prop.Name] = prop.Value.GetString()!;
-        }
         return dict;
     }
 

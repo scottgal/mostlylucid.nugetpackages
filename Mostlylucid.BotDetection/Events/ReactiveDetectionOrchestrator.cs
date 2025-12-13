@@ -2,7 +2,6 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Detectors;
-using Mostlylucid.BotDetection.Models;
 
 namespace Mostlylucid.BotDetection.Events;
 
@@ -58,16 +57,12 @@ public class ReactiveDetectionOrchestrator
             var phase1Tasks = new List<Task>();
 
             foreach (var detector in noDeps)
-            {
                 phase1Tasks.Add(RunReactiveDetectorAsync(
                     detector, context, signalBus, results, timeoutCts.Token));
-            }
 
             foreach (var detector in legacyDetectors)
-            {
                 phase1Tasks.Add(RunLegacyDetectorAsync(
                     detector, context, signalBus, results, timeoutCts.Token));
-            }
 
             await Task.WhenAll(phase1Tasks);
 
@@ -82,7 +77,8 @@ public class ReactiveDetectionOrchestrator
 
             signalBus.Complete();
         }
-        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested &&
+                                                 !cancellationToken.IsCancellationRequested)
         {
             _logger.LogWarning("Detection pipeline timed out after {Timeout}", _overallTimeout);
         }
@@ -148,14 +144,12 @@ public class ReactiveDetectionOrchestrator
             });
 
             if (result.BotType.HasValue)
-            {
                 signalBus.Publish(new DetectionSignal
                 {
                     Key = $"legacy.{detector.Name.ToLowerInvariant().Replace(" ", "_")}.bot_type",
                     Value = result.BotType.Value,
                     SourceDetector = detector.Name
                 });
-            }
 
             _logger.LogDebug("Legacy {Detector} completed: confidence={Confidence:F2}",
                 detector.Name, result.Confidence);

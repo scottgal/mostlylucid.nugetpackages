@@ -1,7 +1,8 @@
 ﻿## Feature Spec: Sensitivity-Aware Dynamic Content Blocking
 
 **Name:** `SensitivityAwareContentRouting`
-**Role:** Orchestrator that decides *when* to run **blocking content detectors** based on **signature sensitivity** and real-time request context.
+**Role:** Orchestrator that decides *when* to run **blocking content detectors** based on **signature sensitivity** and
+real-time request context.
 **Status:** Draft – ready to implement.
 
 ---
@@ -383,16 +384,19 @@ If you like, I can next:
 * sketch the actual C# interface for the `SensitivityProfileStore` and `SensitivityRoutingAtom`, or
 * draw a little mermaid diagram of the whole request→signal→response flow.
 
-Nice, yes, this slots really naturally into pure ASP.NET too — you just move the “response sub-coordinator” into middleware.
+Nice, yes, this slots really naturally into pure ASP.NET too — you just move the “response sub-coordinator” into
+middleware.
 
-Here’s an **add-on spec section** you can paste under the existing “SensitivityAwareContentRouting / ContentContributor” spec:
+Here’s an **add-on spec section** you can paste under the existing “SensitivityAwareContentRouting / ContentContributor”
+spec:
 
 ---
 
 ## 11. ASP.NET Core Middleware Integration
 
 **Goal:**
-Allow all the sensitivity-aware, blocking/async content detection to run **inside a normal ASP.NET Core app**, *even without YARP*, by plugging into the **response pipeline**.
+Allow all the sensitivity-aware, blocking/async content detection to run **inside a normal ASP.NET Core app**, *even
+without YARP*, by plugging into the **response pipeline**.
 
 The middleware:
 
@@ -403,7 +407,8 @@ The middleware:
 It works whether:
 
 * Kestrel is directly exposed to the internet, or
-* Kestrel sits behind Nginx, Caddy, Traefik, etc., as long as **TLS terminates at Kestrel or upstream** and the app sees plaintext HTTP.
+* Kestrel sits behind Nginx, Caddy, Traefik, etc., as long as **TLS terminates at Kestrel or upstream** and the app sees
+  plaintext HTTP.
 
 ---
 
@@ -412,7 +417,8 @@ It works whether:
 For each request, the middleware must:
 
 1. Generate or retrieve a **RequestId** (and `SignatureId` if available from context).
-2. Optionally resolve **SensitivityProfile** and emit a `SensitivitySignal` (if you want to keep the same “request decides for response” design).
+2. Optionally resolve **SensitivityProfile** and emit a `SensitivitySignal` (if you want to keep the same “request
+   decides for response” design).
 3. Wrap the **response body stream** in a buffering wrapper:
 
     * capture up to `maxBufferBytes` for potential inspection,
@@ -436,7 +442,8 @@ The same **Content Detection Contributor** implementation is used; only the plum
 
 ### 11.2 Registration & Ordering
 
-Add the middleware late in the pipeline, after routing and endpoint execution, but **before** any final response filters that might compress/encrypt body.
+Add the middleware late in the pipeline, after routing and endpoint execution, but **before** any final response filters
+that might compress/encrypt body.
 
 Typical ordering:
 
@@ -458,7 +465,8 @@ app.MapControllers();
 app.Run();
 ```
 
-You can combine sensitivity routing and content inspection into a single middleware if you like, but conceptually they’re two pieces.
+You can combine sensitivity routing and content inspection into a single middleware if you like, but conceptually
+they’re two pieces.
 
 ---
 
@@ -702,7 +710,8 @@ This keeps the **ContentSignal** consistent with your other detectors.
 
         * content inspection **must** happen in the first TLS terminator (whichever that is).
 
-The middleware spec itself doesn’t care which; it just assumes it’s running in a place where it can see plaintext HTTP responses.
+The middleware spec itself doesn’t care which; it just assumes it’s running in a place where it can see plaintext HTTP
+responses.
 
 ---
 

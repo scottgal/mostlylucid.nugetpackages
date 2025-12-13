@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Detectors;
 using Mostlylucid.BotDetection.Models;
-using Xunit;
 
 namespace Mostlylucid.BotDetection.Test.Detectors;
 
@@ -34,9 +33,8 @@ public class InconsistencyDetectorTests
 
         // Assert - Either null or low confidence (< 0.3)
         if (result != null)
-        {
-            Assert.True(result.Confidence < 0.3, $"Expected low confidence for consistent headers, got {result.Confidence}");
-        }
+            Assert.True(result.Confidence < 0.3,
+                $"Expected low confidence for consistent headers, got {result.Confidence}");
     }
 
     [Fact]
@@ -52,10 +50,7 @@ public class InconsistencyDetectorTests
         // Assert
         // May or may not detect - language alone isn't a strong signal
         // Just verify no exceptions and valid result structure
-        if (result != null)
-        {
-            Assert.True(result.Confidence >= 0);
-        }
+        if (result != null) Assert.True(result.Confidence >= 0);
     }
 
     [Fact]
@@ -70,10 +65,7 @@ public class InconsistencyDetectorTests
 
         // Assert
         // May or may not detect - depends on which headers detector checks
-        if (result != null)
-        {
-            Assert.True(result.Confidence >= 0);
-        }
+        if (result != null) Assert.True(result.Confidence >= 0);
     }
 
     [Fact]
@@ -87,10 +79,7 @@ public class InconsistencyDetectorTests
         var result = await _detector.DetectAsync(_context);
 
         // Assert
-        if (result != null)
-        {
-            Assert.True(result.Confidence > 0);
-        }
+        if (result != null) Assert.True(result.Confidence > 0);
     }
 
     [Fact]
@@ -105,10 +94,7 @@ public class InconsistencyDetectorTests
 
         // Assert
         // May or may not detect - depends on which headers detector parses
-        if (result != null)
-        {
-            Assert.True(result.Confidence >= 0);
-        }
+        if (result != null) Assert.True(result.Confidence >= 0);
     }
 
     [Fact]
@@ -137,10 +123,7 @@ public class InconsistencyDetectorTests
 
         // Assert
         // May or may not detect - depends on header parsing implementation
-        if (result != null)
-        {
-            Assert.True(result.Confidence >= 0);
-        }
+        if (result != null) Assert.True(result.Confidence >= 0);
     }
 
     [Fact]

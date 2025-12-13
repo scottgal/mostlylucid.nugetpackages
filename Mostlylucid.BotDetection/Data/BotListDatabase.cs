@@ -169,7 +169,8 @@ public class BotListDatabase : IBotListDatabase, IDisposable
         await connection.OpenAsync(cancellationToken);
 
         await using var cmd = connection.CreateCommand();
-        cmd.CommandText = $"SELECT name, pattern, category, url, is_verified FROM bot_patterns LIMIT {MaxPatternsPerQuery}";
+        cmd.CommandText =
+            $"SELECT name, pattern, category, url, is_verified FROM bot_patterns LIMIT {MaxPatternsPerQuery}";
 
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
@@ -387,7 +388,6 @@ public class BotListDatabase : IBotListDatabase, IDisposable
     public async Task<IReadOnlyList<string>> GetBotPatternsAsync(CancellationToken cancellationToken = default)
     {
         if (!_initialized)
-        {
             try
             {
                 await InitializeAsync(cancellationToken);
@@ -396,7 +396,6 @@ public class BotListDatabase : IBotListDatabase, IDisposable
             {
                 return Array.Empty<string>();
             }
-        }
 
         var patterns = new List<string>();
 
@@ -412,10 +411,7 @@ public class BotListDatabase : IBotListDatabase, IDisposable
             while (await reader.ReadAsync(cancellationToken))
             {
                 var pattern = reader.GetString(0);
-                if (!string.IsNullOrWhiteSpace(pattern))
-                {
-                    patterns.Add(pattern);
-                }
+                if (!string.IsNullOrWhiteSpace(pattern)) patterns.Add(pattern);
             }
 
             _logger.LogDebug("Retrieved {Count} bot patterns from database", patterns.Count);
@@ -431,7 +427,6 @@ public class BotListDatabase : IBotListDatabase, IDisposable
     public async Task<IReadOnlyList<string>> GetDatacenterIpRangesAsync(CancellationToken cancellationToken = default)
     {
         if (!_initialized)
-        {
             try
             {
                 await InitializeAsync(cancellationToken);
@@ -440,7 +435,6 @@ public class BotListDatabase : IBotListDatabase, IDisposable
             {
                 return Array.Empty<string>();
             }
-        }
 
         var ranges = new List<string>();
 
@@ -450,16 +444,14 @@ public class BotListDatabase : IBotListDatabase, IDisposable
             await connection.OpenAsync(cancellationToken);
 
             await using var cmd = connection.CreateCommand();
-            cmd.CommandText = "SELECT DISTINCT ip_range FROM datacenter_ips WHERE ip_range IS NOT NULL AND ip_range != ''";
+            cmd.CommandText =
+                "SELECT DISTINCT ip_range FROM datacenter_ips WHERE ip_range IS NOT NULL AND ip_range != ''";
 
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
                 var range = reader.GetString(0);
-                if (!string.IsNullOrWhiteSpace(range))
-                {
-                    ranges.Add(range);
-                }
+                if (!string.IsNullOrWhiteSpace(range)) ranges.Add(range);
             }
 
             _logger.LogDebug("Retrieved {Count} IP ranges from database", ranges.Count);

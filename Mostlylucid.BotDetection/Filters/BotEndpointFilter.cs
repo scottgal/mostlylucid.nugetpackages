@@ -9,16 +9,15 @@ namespace Mostlylucid.BotDetection.Filters;
 /// </summary>
 /// <example>
 ///     app.MapGet("/api/sensitive", () => "data")
-///        .AddEndpointFilter(new BlockBotsEndpointFilter());
-///
+///     .AddEndpointFilter(new BlockBotsEndpointFilter());
 ///     // Or use the extension method:
 ///     app.MapGet("/api/sensitive", () => "data")
-///        .BlockBots();
+///     .BlockBots();
 /// </example>
 public class BlockBotsEndpointFilter : IEndpointFilter
 {
-    private readonly bool _allowVerifiedBots;
     private readonly bool _allowSearchEngines;
+    private readonly bool _allowVerifiedBots;
     private readonly double _minConfidence;
     private readonly int _statusCode;
 
@@ -38,21 +37,13 @@ public class BlockBotsEndpointFilter : IEndpointFilter
     {
         var result = context.HttpContext.GetBotDetectionResult();
 
-        if (result == null || !result.IsBot || result.ConfidenceScore < _minConfidence)
-        {
-            return await next(context);
-        }
+        if (result == null || !result.IsBot || result.ConfidenceScore < _minConfidence) return await next(context);
 
         // Check if we should allow this type of bot
-        if (_allowVerifiedBots && result.BotType == BotType.VerifiedBot)
-        {
-            return await next(context);
-        }
+        if (_allowVerifiedBots && result.BotType == BotType.VerifiedBot) return await next(context);
 
         if (_allowSearchEngines && (result.BotType == BotType.SearchEngine || result.BotType == BotType.VerifiedBot))
-        {
             return await next(context);
-        }
 
         return Results.Json(new
         {
@@ -80,10 +71,7 @@ public class RequireHumanEndpointFilter : IEndpointFilter
     {
         var result = context.HttpContext.GetBotDetectionResult();
 
-        if (result == null || !result.IsBot)
-        {
-            return await next(context);
-        }
+        if (result == null || !result.IsBot) return await next(context);
 
         return Results.Json(new
         {

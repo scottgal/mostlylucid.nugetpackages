@@ -1,5 +1,4 @@
 using Mostlylucid.BotDetection.Orchestration;
-using Xunit;
 
 namespace Mostlylucid.BotDetection.Test.Orchestration;
 

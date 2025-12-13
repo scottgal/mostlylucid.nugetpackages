@@ -2,7 +2,6 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Metrics;
@@ -43,10 +42,7 @@ public static class BrowserFingerprintEndpointExtensions
     {
         var opts = options.Value;
 
-        if (!opts.ClientSide.Enabled)
-        {
-            return Results.NotFound();
-        }
+        if (!opts.ClientSide.Enabled) return Results.NotFound();
 
         // Validate token from header
         var token = context.Request.Headers["X-ML-BotD-Token"].FirstOrDefault();
@@ -67,10 +63,7 @@ public static class BrowserFingerprintEndpointExtensions
                 context.Request.Body,
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
-            if (data == null)
-            {
-                return Results.BadRequest(new { error = "Invalid data" });
-            }
+            if (data == null) return Results.BadRequest(new { error = "Invalid data" });
         }
         catch (JsonException ex)
         {
@@ -106,4 +99,6 @@ public static class BrowserFingerprintEndpointExtensions
 /// <summary>
 ///     Marker class for logging in the fingerprint endpoint.
 /// </summary>
-public class BrowserFingerprintEndpoint { }
+public class BrowserFingerprintEndpoint
+{
+}

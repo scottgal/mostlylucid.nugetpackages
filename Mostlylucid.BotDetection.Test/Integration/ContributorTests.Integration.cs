@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Net;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -151,7 +152,7 @@ public class ContributorIntegrationTests
         var c = GetContributor("ProjectHoneypot");
         var ctx = new DefaultHttpContext();
         ctx.Request.Headers.UserAgent = testUserAgent;
-        ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("192.168.1.1");
+        ctx.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.1");
 
         var state = new BlackboardState
         {
@@ -212,7 +213,7 @@ public class ContributorIntegrationTests
         ctx.Request.Headers.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0";
         ctx.Request.Headers.Accept = "text/html";
         ctx.Request.Headers.AcceptLanguage = "en-US";
-        ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("192.168.1.1");
+        ctx.Connection.RemoteIpAddress = IPAddress.Parse("192.168.1.1");
 
         var state = new BlackboardState
         {
@@ -280,14 +281,16 @@ public class ContributorIntegrationTests
         Assert.InRange(options.ProjectHoneypot.HighThreatThreshold, 10, 50);
     }
 
-    private IContributingDetector GetContributor(string name) =>
-        _sp.GetServices<IContributingDetector>().First(c => c.Name == name);
+    private IContributingDetector GetContributor(string name)
+    {
+        return _sp.GetServices<IContributingDetector>().First(c => c.Name == name);
+    }
 
     private static BlackboardState CreateState(string ua, string ip, Dictionary<string, object>? signals = null)
     {
         var ctx = new DefaultHttpContext();
         ctx.Request.Headers.UserAgent = ua;
-        ctx.Connection.RemoteIpAddress = System.Net.IPAddress.TryParse(ip, out var addr) ? addr : null;
+        ctx.Connection.RemoteIpAddress = IPAddress.TryParse(ip, out var addr) ? addr : null;
 
         return new BlackboardState
         {

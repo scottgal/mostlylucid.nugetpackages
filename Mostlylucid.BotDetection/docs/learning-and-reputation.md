@@ -1,13 +1,15 @@
 # Learning and Reputation System
 
-The learning and reputation system enables the bot detector to adapt over time, learning new patterns while gracefully forgetting stale ones. This prevents the system from becoming overly paranoid as infrastructure changes.
+The learning and reputation system enables the bot detector to adapt over time, learning new patterns while gracefully
+forgetting stale ones. This prevents the system from becoming overly paranoid as infrastructure changes.
 
 ## Overview
 
 The system operates on **four levels**:
 
 1. **Fast-Path Reputation (Instant Abort)** - Known bad patterns trigger instant blocking before any analysis
-2. **Intra-Request (Blackboard Architecture)** - Detectors share signals within a single request, enabling reactive and coordinated detection
+2. **Intra-Request (Blackboard Architecture)** - Detectors share signals within a single request, enabling reactive and
+   coordinated detection
 3. **Inter-Request (Reputation System)** - Patterns are tracked across requests with online learning and time decay
 4. **Feedback Loop (Weight Store)** - Detector weights are continuously adjusted based on detection outcomes
 
@@ -45,6 +47,7 @@ flowchart TB
 ```
 
 **See also:**
+
 - [AI Detection](ai-detection.md) - Heuristic model and LLM detection
 - [Detection Strategies](detection-strategies.md) - Wave-based detection flow
 - [Configuration](configuration.md) - Full configuration reference
@@ -54,6 +57,7 @@ flowchart TB
 **New in 0.5.0-preview1**
 
 The blackboard architecture enables event-driven, parallel detection where detectors:
+
 - Run concurrently when independent
 - Emit evidence (contributions), not verdicts
 - Trigger other detectors based on signals
@@ -110,6 +114,7 @@ public sealed record DetectionContribution
 ```
 
 Key properties:
+
 - **ConfidenceDelta**: Positive = more likely bot, negative = more likely human
 - **Weight**: Influence on final score (default 1.0)
 - **Signals**: Data emitted for other detectors to consume
@@ -132,6 +137,7 @@ public class MyContributor : ContributingDetectorBase
 ```
 
 Available triggers:
+
 - `WhenSignalExists(key)` - Signal present in blackboard
 - `WhenSignalEquals(key, value)` - Signal has specific value
 - `WhenRiskExceeds(threshold)` - Current risk above threshold
@@ -159,11 +165,13 @@ Early exit skips remaining detectors and returns immediately.
 
 **New in 1.0.1**
 
-The reputation feedback loop is closed by two specialized contributors that query the `IPatternReputationCache` to apply learned patterns during detection.
+The reputation feedback loop is closed by two specialized contributors that query the `IPatternReputationCache` to apply
+learned patterns during detection.
 
 ### FastPathReputationContributor (Instant Abort)
 
-The `FastPathReputationContributor` runs **first** (Priority 3, Wave 0, no dependencies) to enable instant abort for known bad actors before any expensive analysis.
+The `FastPathReputationContributor` runs **first** (Priority 3, Wave 0, no dependencies) to enable instant abort for
+known bad actors before any expensive analysis.
 
 ```mermaid
 flowchart LR
@@ -174,6 +182,7 @@ flowchart LR
 ```
 
 **Key characteristics:**
+
 - **Priority 3** - Runs before all other detectors
 - **No trigger conditions** - Runs immediately in Wave 0
 - **Only checks abort-eligible patterns** - `ConfirmedBad` and `ManuallyBlocked`
@@ -227,7 +236,8 @@ public override Task<IReadOnlyList<DetectionContribution>> ContributeAsync(
 
 ### ReputationBiasContributor (Scoring Bias)
 
-The `ReputationBiasContributor` runs **after** Wave 0 signal extraction but **before** the Heuristic model to provide learned bias.
+The `ReputationBiasContributor` runs **after** Wave 0 signal extraction but **before** the Heuristic model to provide
+learned bias.
 
 ```mermaid
 flowchart LR
@@ -239,26 +249,28 @@ flowchart LR
 ```
 
 **Key characteristics:**
+
 - **Priority 45** - Runs after Wave 0, before Heuristic (50)
 - **Triggers on `SignalKeys.UserAgent`** - Waits for signal extraction
 - **Checks all reputation states** - Not just abort-eligible
 - **Provides weighted bias** - Influences final scoring
 
 **Pattern types checked:**
+
 1. **User-Agent hash** - Normalized UA indicators
 2. **IP range** - CIDR /24 for IPv4, /48 for IPv6
 3. **Combined signature** - UA + IP + Path hash (highest weight)
 
 **Bias weights by state:**
 
-| State | FastPathWeight | Weight Multiplier | Effect |
-|-------|---------------|-------------------|--------|
-| `Neutral` | `BotScore × 0.1` | 0.1 | Minimal |
-| `Suspect` | `BotScore × 0.5` | 0.5 | Moderate |
-| `ConfirmedBad` | `BotScore × 1.0` | 1.0 | Full |
-| `ConfirmedGood` | `-0.2` | 0.2 | Reduces suspicion |
-| `ManuallyBlocked` | `1.0` | 2.5 | Always max |
-| `ManuallyAllowed` | `-1.0` | 2.5 | Always trusted |
+| State             | FastPathWeight   | Weight Multiplier | Effect            |
+|-------------------|------------------|-------------------|-------------------|
+| `Neutral`         | `BotScore × 0.1` | 0.1               | Minimal           |
+| `Suspect`         | `BotScore × 0.5` | 0.5               | Moderate          |
+| `ConfirmedBad`    | `BotScore × 1.0` | 1.0               | Full              |
+| `ConfirmedGood`   | `-0.2`           | 0.2               | Reduces suspicion |
+| `ManuallyBlocked` | `1.0`            | 2.5               | Always max        |
+| `ManuallyAllowed` | `-1.0`           | 2.5               | Always trusted    |
 
 **Code example:**
 
@@ -303,11 +315,11 @@ public override Task<IReadOnlyList<DetectionContribution>> ContributeAsync(
 
 ### Signal Keys for Reputation
 
-| Signal Key | Type | Description |
-|------------|------|-------------|
-| `reputation.bias_applied` | bool | True if any reputation bias was applied |
-| `reputation.bias_count` | int | Number of reputation patterns matched |
-| `reputation.can_abort` | bool | True if any pattern can trigger fast abort |
+| Signal Key                | Type | Description                                          |
+|---------------------------|------|------------------------------------------------------|
+| `reputation.bias_applied` | bool | True if any reputation bias was applied              |
+| `reputation.bias_count`   | int  | Number of reputation patterns matched                |
+| `reputation.can_abort`    | bool | True if any pattern can trigger fast abort           |
 | `reputation.fastpath_hit` | bool | True if fast-path found ConfirmedBad/ManuallyBlocked |
 
 ### Complete Detection Flow with Reputation
@@ -385,12 +397,12 @@ Patterns (UA strings, IP ranges, fingerprints) have reputation scores that evolv
 
 ### Reputation Properties
 
-| Property | Description |
-|----------|-------------|
+| Property   | Description                               |
+|------------|-------------------------------------------|
 | `BotScore` | 0.0 (human) to 1.0 (bot) - current belief |
-| `Support` | Effective sample count (decays over time) |
-| `State` | Neutral → Suspect → ConfirmedBad |
-| `LastSeen` | For time decay when pattern goes quiet |
+| `Support`  | Effective sample count (decays over time) |
+| `State`    | Neutral → Suspect → ConfirmedBad          |
+| `LastSeen` | For time decay when pattern goes quiet    |
 
 ### State Machine
 
@@ -407,7 +419,8 @@ stateDiagram-v2
     ConfirmedBad --> ManuallyBlocked : admin override
 ```
 
-**Note**: Hysteresis ensures it's harder to forgive (100 samples) than accuse (50 samples). Manual overrides never auto-downgrade.
+**Note**: Hysteresis ensures it's harder to forgive (100 samples) than accuse (50 samples). Manual overrides never
+auto-downgrade.
 
 ### Online Updates
 
@@ -418,6 +431,7 @@ BotScore_new = (1 - α) × BotScore_old + α × label
 ```
 
 Where:
+
 - `α` = learning rate (default 0.1)
 - `label` = 1.0 for bot, 0.0 for human
 
@@ -431,11 +445,13 @@ Support_new = Support_old × e^(-Δt/τ_support)
 ```
 
 Where:
+
 - `prior` = 0.5 (neutral)
 - `τ` = 7 days (score decay time constant)
 - `τ_support` = 14 days (support decay time constant)
 
 This ensures:
+
 - Inactive patterns gradually lose influence
 - Once-bad patterns can be rehabilitated
 - System doesn't accumulate stale data
@@ -443,6 +459,7 @@ This ensures:
 ### Garbage Collection
 
 Patterns are eligible for removal when:
+
 - `LastSeen` > 90 days ago
 - `Support` < 1.0
 - `State` = Neutral
@@ -474,14 +491,14 @@ The inter-request learning bus handles async pattern learning:
 
 ### Event Types
 
-| Event | Description | Handler |
-|-------|-------------|---------|
+| Event                     | Description                       | Handler                  |
+|---------------------------|-----------------------------------|--------------------------|
 | `HighConfidenceDetection` | Bot detected with >0.9 confidence | Training data collection |
-| `PatternDiscovered` | AI found new pattern | Pattern store update |
-| `InconsistencyDetected` | Cross-signal mismatch | Reputation adjustment |
-| `UserFeedback` | Admin confirmed/denied | Strong reputation update |
-| `InferenceRequest` | Request async AI analysis | Heuristic/LLM inference |
-| `DriftDetected` | Pattern behavior changed | Alert/relearn |
+| `PatternDiscovered`       | AI found new pattern              | Pattern store update     |
+| `InconsistencyDetected`   | Cross-signal mismatch             | Reputation adjustment    |
+| `UserFeedback`            | Admin confirmed/denied            | Strong reputation update |
+| `InferenceRequest`        | Request async AI analysis         | Heuristic/LLM inference  |
+| `DriftDetected`           | Pattern behavior changed          | Alert/relearn            |
 
 ### Publishing Events
 
@@ -602,7 +619,8 @@ var suspects = await _reputationStore.GetByStateAsync(ReputationState.Suspect);
 
 ## Weight Store (Feedback Loop)
 
-The Weight Store provides persistent storage for learned detector weights, enabling the system to improve detection accuracy over time based on outcomes.
+The Weight Store provides persistent storage for learned detector weights, enabling the system to improve detection
+accuracy over time based on outcomes.
 
 ### Architecture
 
@@ -620,13 +638,13 @@ SQLite Store
 
 The system tracks weights for multiple signature types:
 
-| Type | Description | Example |
-|------|-------------|---------|
-| `UaPattern` | User-Agent substrings | `HeadlessChrome`, `python-requests` |
-| `IpRange` | IP CIDR ranges | `34.64.0.0/10` (Google Cloud) |
-| `PathPattern` | Request path patterns | `/api/login`, `/wp-admin/*` |
-| `BehaviorHash` | Behavioral fingerprint | Rate + timing + path entropy |
-| `Combined` | Multi-signal signature | UA + IP + behavior combined |
+| Type           | Description            | Example                             |
+|----------------|------------------------|-------------------------------------|
+| `UaPattern`    | User-Agent substrings  | `HeadlessChrome`, `python-requests` |
+| `IpRange`      | IP CIDR ranges         | `34.64.0.0/10` (Google Cloud)       |
+| `PathPattern`  | Request path patterns  | `/api/login`, `/wp-admin/*`         |
+| `BehaviorHash` | Behavioral fingerprint | Rate + timing + path entropy        |
+| `Combined`     | Multi-signal signature | UA + IP + behavior combined         |
 
 ### How Weights Are Updated
 
@@ -637,6 +655,7 @@ weight_new = (1 - α) × weight_old + α × outcome
 ```
 
 Where:
+
 - `α` = learning rate (default 0.1)
 - `outcome` = 1.0 for confirmed bot, 0.0 for confirmed human
 
@@ -670,14 +689,14 @@ This prevents old patterns from having outsized influence.
 }
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `DatabasePath` | string | `data/weights.db` | SQLite database path |
-| `LearningRate` | double | `0.1` | EMA alpha for weight updates |
-| `DecayTauHours` | int | `168` | Time constant for weight decay (7 days) |
-| `MinSampleCount` | int | `5` | Minimum samples before weight is applied |
-| `MaxWeight` | double | `2.0` | Maximum weight multiplier |
-| `MinWeight` | double | `0.1` | Minimum weight multiplier |
+| Option           | Type   | Default           | Description                              |
+|------------------|--------|-------------------|------------------------------------------|
+| `DatabasePath`   | string | `data/weights.db` | SQLite database path                     |
+| `LearningRate`   | double | `0.1`             | EMA alpha for weight updates             |
+| `DecayTauHours`  | int    | `168`             | Time constant for weight decay (7 days)  |
+| `MinSampleCount` | int    | `5`               | Minimum samples before weight is applied |
+| `MaxWeight`      | double | `2.0`             | Maximum weight multiplier                |
+| `MinWeight`      | double | `0.1`             | Minimum weight multiplier                |
 
 ### Weight Store API
 
@@ -723,11 +742,11 @@ sequenceDiagram
 
 ### Event Types Handled
 
-| Event | Action |
-|-------|--------|
+| Event                     | Action                                      |
+|---------------------------|---------------------------------------------|
 | `HighConfidenceDetection` | Update weights for all extracted signatures |
-| `UserFeedback` | Strong weight update (confirmed by admin) |
-| `PatternDiscovered` | Add new signature with initial weight |
+| `UserFeedback`            | Strong weight update (confirmed by admin)   |
+| `PatternDiscovered`       | Add new signature with initial weight       |
 
 ### Signature Extraction
 
@@ -779,7 +798,8 @@ Request → Detectors → Evidence → Feature Extractor
                                Heuristic Model
 ```
 
-The feature extractor pulls top contribution weights (sorted by impact) into the feature vector, allowing the Heuristic model to incorporate learned patterns.
+The feature extractor pulls top contribution weights (sorted by impact) into the feature vector, allowing the Heuristic
+model to incorporate learned patterns.
 
 ## Monitoring the Learning System
 

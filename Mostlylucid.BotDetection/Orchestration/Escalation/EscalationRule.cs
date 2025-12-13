@@ -6,15 +6,14 @@ namespace Mostlylucid.BotDetection.Orchestration.Escalation;
 /// </summary>
 public sealed class EscalationRule
 {
-    public required string Name { get; init; }
-    public required int Priority { get; init; }
-    public required string Condition { get; init; }  // Expression: "risk > 0.8"
-    public required bool ShouldStore { get; init; }
-    public required bool ShouldAlert { get; init; }
-    public required string Reason { get; init; }  // Template: "High risk: {risk}"
-
     private Func<Dictionary<string, object>, bool>? _compiledCondition;
     private Func<Dictionary<string, object>, string>? _compiledReason;
+    public required string Name { get; init; }
+    public required int Priority { get; init; }
+    public required string Condition { get; init; } // Expression: "risk > 0.8"
+    public required bool ShouldStore { get; init; }
+    public required bool ShouldAlert { get; init; }
+    public required string Reason { get; init; } // Template: "High risk: {risk}"
 
     /// <summary>
     ///     Check if this rule should escalate based on signals.
@@ -53,9 +52,7 @@ public sealed class EscalationRule
                 {
                     var key = parts[0].Trim();
                     if (double.TryParse(parts[1].Trim(), out var threshold))
-                    {
                         if (signals.TryGetValue(key, out var val))
-                        {
                             return val switch
                             {
                                 double d => d > threshold,
@@ -63,8 +60,6 @@ public sealed class EscalationRule
                                 float f => f > threshold,
                                 _ => false
                             };
-                        }
-                    }
                 }
             }
 
@@ -118,10 +113,7 @@ public sealed class EscalationRule
         return signals =>
         {
             var result = reason;
-            foreach (var (key, value) in signals)
-            {
-                result = result.Replace($"{{{key}}}", value?.ToString() ?? "null");
-            }
+            foreach (var (key, value) in signals) result = result.Replace($"{{{key}}}", value?.ToString() ?? "null");
             return result;
         };
     }

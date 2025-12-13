@@ -14,21 +14,26 @@ Mostlylucid.BotDetection uses multiple detection strategies that work together t
 10. **Risk Assessment** – Signal aggregation into risk bands
 11. **AI Detection** – ML-based classification (optional)
 
-> **How it works:** Strategies 1–7 generate raw signals; strategies 8–9 combine those signals into risk bands and AI-assisted decisions.
+> **How it works:** Strategies 1–7 generate raw signals; strategies 8–9 combine those signals into risk bands and
+> AI-assisted decisions.
 
 ## Architecture Overview
 
 Detection runs on a **signal-driven, event-based architecture** with two execution paths:
 
 ### Fast Path (Synchronous)
+
 Low-latency detectors that run inline with the request:
+
 - User-Agent, Header, IP, Behavioral analysis
 - Completes in <100ms
 - Uses consensus-based finalisation (all detectors report before scoring)
 - Can trigger early exit if confidence exceeds threshold
 
 ### Slow Path (Asynchronous)
+
 Background processing for heavier analysis:
+
 - Heuristic/LLM AI classification
 - Learning and pattern discovery
 - Runs via inter-request event bus (non-blocking)
@@ -152,25 +157,30 @@ Monitors request patterns at multiple identity levels:
 ### What Behavioral Analysis Detects
 
 **Volume anomalies:**
+
 - Excessive request rate per IP/fingerprint/API key/user
 - Sudden request spikes (5x normal rate by default)
 - Accessing many new endpoints suddenly
 
 **Timing anomalies:**
+
 - Rapid sequential requests (<100ms between requests)
 - Suspiciously regular timing (low standard deviation in intervals)
 
 **Session anomalies:**
+
 - Missing cookies across multiple requests
 - Missing referrer on non-initial requests
 
 ## 6. Client-Side Fingerprinting
 
-JavaScript-based browser integrity checking that detects headless browsers and automation frameworks. Uses a signed token system (like XSRF) to prevent spoofing.
+JavaScript-based browser integrity checking that detects headless browsers and automation frameworks. Uses a signed
+token system (like XSRF) to prevent spoofing.
 
 ### Setup
 
 1. Enable in configuration:
+
 ```json
 {
   "BotDetection": {
@@ -186,11 +196,13 @@ JavaScript-based browser integrity checking that detects headless browsers and a
 ```
 
 2. Add the Tag Helper to your `_ViewImports.cshtml`:
+
 ```cshtml
 @addTagHelper *, Mostlylucid.BotDetection
 ```
 
 3. Add the script to your layout:
+
 ```html
 <bot-detection-script />
 <!-- or with options -->
@@ -198,6 +210,7 @@ JavaScript-based browser integrity checking that detects headless browsers and a
 ```
 
 4. Map the fingerprint endpoint in `Program.cs`:
+
 ```csharp
 app.MapBotDetectionFingerprintEndpoint();
 ```
@@ -234,18 +247,19 @@ Catches bots that spoof one signal but forget others:
 - Referer from internal/localhost addresses
 - HTTP/1.1 Connection header from modern browser
 
-All of these contribute to an internal inconsistency score (0–100), exposed via `context.GetInconsistencyScore()` and included in the overall risk band calculation.
+All of these contribute to an internal inconsistency score (0–100), exposed via `context.GetInconsistencyScore()` and
+included in the overall risk band calculation.
 
 ## 8. Risk Assessment
 
 Aggregates signals from strategies 1–7 into actionable risk bands:
 
-| Risk Band | Meaning | Typical Action |
-|-----------|---------|----------------|
-| `Low` | Looks human | Allow |
-| `Elevated` | Slightly suspicious | Allow or throttle |
-| `Medium` | Clearly suspicious | Challenge recommended |
-| `High` | Strong bot signal | Block |
+| Risk Band  | Meaning             | Typical Action        |
+|------------|---------------------|-----------------------|
+| `Low`      | Looks human         | Allow                 |
+| `Elevated` | Slightly suspicious | Allow or throttle     |
+| `Medium`   | Clearly suspicious  | Challenge recommended |
+| `High`     | Strong bot signal   | Block                 |
 
 ```csharp
 // Get risk band
@@ -266,7 +280,8 @@ var inconsistencyScore = context.GetInconsistencyScore(); // 0-100
 
 ## 9. AI Detection (Optional)
 
-Use AI Detection when you need to catch sophisticated or evolving bots that evade pure pattern and heuristic-based methods.
+Use AI Detection when you need to catch sophisticated or evolving bots that evade pure pattern and heuristic-based
+methods.
 
 See [ai-detection.md](ai-detection.md) for details on Heuristic and Ollama-based AI detection.
 
@@ -277,12 +292,14 @@ See [ai-detection.md](ai-detection.md) for details on Heuristic and Ollama-based
 Detection uses a dual-bus architecture:
 
 ### Intra-Request Bus (`BotSignalBus`)
+
 - Per-request, short-lived
 - Detectors publish signals as they complete
 - Listeners react to signals in real-time
 - Consensus-based: waits for all detectors before finalising
 
 Signal types:
+
 - `UserAgentAnalyzed` – UA detection complete
 - `HeadersAnalyzed` – Header analysis complete
 - `IpAnalyzed` – IP check complete
@@ -295,11 +312,13 @@ Signal types:
 - `Finalising` – All detectors reported, scoring begins
 
 ### Inter-Request Bus (`LearningEventBus`)
+
 - Long-lived, cross-request
 - Background service processes events asynchronously
 - Used for learning, pattern discovery, and analytics
 
 Learning event types:
+
 - `HighConfidenceDetection` – Bot detected with high confidence (training data)
 - `PatternDiscovered` – New pattern found by AI
 - `InconsistencyDetected` – Cross-signal mismatch found
@@ -368,18 +387,19 @@ services.AddSingleton<ILearningEventHandler, MyLearningHandler>();
 
 ## Pattern Reputation System (Learning + Forgetting)
 
-The system learns new bot patterns AND forgets stale ones. This prevents the system from becoming paranoid over time as infrastructure changes (IP reassignments, proxy rotations, misconfigurations get fixed).
+The system learns new bot patterns AND forgets stale ones. This prevents the system from becoming paranoid over time as
+infrastructure changes (IP reassignments, proxy rotations, misconfigurations get fixed).
 
 ### Core Concepts
 
 Each pattern (UA, IP, fingerprint, behavior cluster) has:
 
-| Property | Description |
-|----------|-------------|
-| `BotScore` | 0.0 (human) to 1.0 (bot) - current belief |
-| `Support` | Effective sample count (decays over time) |
-| `State` | Neutral → Suspect → ConfirmedBad (with hysteresis) |
-| `LastSeen` | For time decay when pattern goes quiet |
+| Property   | Description                                        |
+|------------|----------------------------------------------------|
+| `BotScore` | 0.0 (human) to 1.0 (bot) - current belief          |
+| `Support`  | Effective sample count (decays over time)          |
+| `State`    | Neutral → Suspect → ConfirmedBad (with hysteresis) |
+| `LastSeen` | For time decay when pattern goes quiet             |
 
 ### States and Transitions
 
@@ -407,6 +427,7 @@ BotScore_new = (1 - α) * BotScore_old + α * label
 ```
 
 Where:
+
 - `α` = learning rate (default 0.1)
 - `label` = 1.0 for bot, 0.0 for human
 
@@ -420,6 +441,7 @@ Support_new = Support_old * e^(-Δt/τ_support)
 ```
 
 Where:
+
 - `prior` = 0.5 (neutral)
 - `τ` = 7 days (score decay)
 - `τ_support` = 14 days (support decay)
@@ -427,6 +449,7 @@ Where:
 ### Garbage Collection
 
 Patterns are removed when:
+
 - `LastSeen` > 90 days ago
 - `Support` < 1.0
 - `State` = Neutral
@@ -456,14 +479,14 @@ Patterns are removed when:
 
 The fast path uses reputation state to determine behavior:
 
-| State | Fast Path Behavior |
-|-------|-------------------|
-| `ConfirmedBad` | Can trigger fast-path abort (full UA weight) |
-| `Suspect` | Contributes to score (half weight), can't abort alone |
-| `Neutral` | Minimal contribution (10% weight) |
-| `ConfirmedGood` | Reduces suspicion |
-| `ManuallyBlocked` | Always blocked (admin override) |
-| `ManuallyAllowed` | Always allowed (admin override) |
+| State             | Fast Path Behavior                                    |
+|-------------------|-------------------------------------------------------|
+| `ConfirmedBad`    | Can trigger fast-path abort (full UA weight)          |
+| `Suspect`         | Contributes to score (half weight), can't abort alone |
+| `Neutral`         | Minimal contribution (10% weight)                     |
+| `ConfirmedGood`   | Reduces suspicion                                     |
+| `ManuallyBlocked` | Always blocked (admin override)                       |
+| `ManuallyAllowed` | Always allowed (admin override)                       |
 
 ### Safety Rails
 
@@ -560,7 +583,8 @@ public class MySignalListener : IBotSignalListener, ISignalSubscriber
 
 ### Blackboard Architecture (0.5.0-preview1)
 
-For complex detection scenarios, use the new blackboard architecture where detectors emit evidence and can trigger other detectors:
+For complex detection scenarios, use the new blackboard architecture where detectors emit evidence and can trigger other
+detectors:
 
 ```csharp
 public class MyContributor : ContributingDetectorBase

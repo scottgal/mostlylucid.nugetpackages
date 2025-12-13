@@ -3,63 +3,63 @@ using Microsoft.AspNetCore.Http;
 namespace Mostlylucid.BotDetection.UI.Configuration;
 
 /// <summary>
-/// Configuration options for the Stylobot Dashboard.
+///     Configuration options for the Stylobot Dashboard.
 /// </summary>
 public sealed class StyloBotDashboardOptions
 {
     /// <summary>
-    /// URL path where the dashboard will be accessible.
-    /// Default: "/stylobot"
+    ///     URL path where the dashboard will be accessible.
+    ///     Default: "/stylobot"
     /// </summary>
     public string BasePath { get; set; } = "/stylobot";
 
     /// <summary>
-    /// SignalR hub path for real-time updates.
-    /// Default: "/stylobot/hub"
+    ///     SignalR hub path for real-time updates.
+    ///     Default: "/stylobot/hub"
     /// </summary>
     public string HubPath { get; set; } = "/stylobot/hub";
 
     /// <summary>
-    /// Whether to enable the dashboard.
-    /// Default: true
+    ///     Whether to enable the dashboard.
+    ///     Default: true
     /// </summary>
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// Authorization policy name to require for dashboard access.
-    /// If null, an authorization filter must be configured.
-    /// Default: null (requires manual auth configuration)
+    ///     Authorization policy name to require for dashboard access.
+    ///     If null, an authorization filter must be configured.
+    ///     Default: null (requires manual auth configuration)
     /// </summary>
     public string? RequireAuthorizationPolicy { get; set; }
 
     /// <summary>
-    /// Maximum number of events to keep in memory for history.
-    /// Default: 1000
+    ///     Maximum number of events to keep in memory for history.
+    ///     Default: 1000
     /// </summary>
     public int MaxEventsInMemory { get; set; } = 1000;
 
     /// <summary>
-    /// How often to broadcast summary statistics (in seconds).
-    /// Default: 5 seconds
+    ///     How often to broadcast summary statistics (in seconds).
+    ///     Default: 5 seconds
     /// </summary>
     public int SummaryBroadcastIntervalSeconds { get; set; } = 5;
 
     /// <summary>
-    /// Enable simulator mode for testing (uses LLMApi for mocking).
-    /// Default: false
+    ///     Enable simulator mode for testing (uses LLMApi for mocking).
+    ///     Default: false
     /// </summary>
     public bool EnableSimulator { get; set; } = false;
 
     /// <summary>
-    /// Simulator event generation rate (events per second).
-    /// Default: 2
+    ///     Simulator event generation rate (events per second).
+    ///     Default: 2
     /// </summary>
     public int SimulatorEventsPerSecond { get; set; } = 2;
 
     /// <summary>
-    /// Custom authorization filter (evaluated before policy).
-    /// Signature: Func&lt;HttpContext, Task&lt;bool&gt;&gt;
-    /// Return true to allow access, false to deny.
+    ///     Custom authorization filter (evaluated before policy).
+    ///     Signature: Func&lt;HttpContext, Task&lt;bool&gt;&gt;
+    ///     Return true to allow access, false to deny.
     /// </summary>
     public Func<HttpContext, Task<bool>>? AuthorizationFilter { get; set; }
 }
