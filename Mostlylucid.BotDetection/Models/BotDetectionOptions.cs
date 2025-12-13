@@ -2528,16 +2528,20 @@ public class VersionAgeOptions
     ///     Fallback browser versions to use if API is unavailable.
     ///     Updated periodically - these should be roughly current.
     /// </summary>
-    public Dictionary<string, int> FallbackBrowserVersions { get; set; } = new()
-    {
-        ["Chrome"] = 143,
-        ["Firefox"] = 146,
-        ["Safari"] = 26,
-        ["Edge"] = 143,
-        ["Opera"] = 115,
-        ["Brave"] = 143,
-        ["Vivaldi"] = 7
-    };
+    /// <summary>
+    ///     Fallback browser versions when external API is unavailable.
+    ///     These are ONLY used when the service fails to fetch data from browsers.fyi API.
+    ///     Configure via appsettings.json - DO NOT hardcode versions in code as they go stale.
+    ///     Leave empty {} to disable version age detection when API is unavailable.
+    ///     Example:
+    ///     "FallbackBrowserVersions": {
+    ///       "Chrome": 143,
+    ///       "Firefox": 146
+    ///     }
+    ///     Or leave empty to disable fallback:
+    ///     "FallbackBrowserVersions": {}
+    ///     </summary>
+    public Dictionary<string, int> FallbackBrowserVersions { get; set; } = new();
 
     /// <summary>
     ///     OS version classifications for age detection.

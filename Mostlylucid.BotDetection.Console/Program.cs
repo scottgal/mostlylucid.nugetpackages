@@ -252,7 +252,9 @@ try
     // Example: /stylobot-learning/products -> returns 200
     app.MapFallback("/stylobot-learning/{**path}", (HttpContext context) =>
     {
-        var path = context.Request.RouteValues["path"]?.ToString() ?? "/";
+        var rawPath = context.Request.RouteValues["path"]?.ToString() ?? "";
+        // Normalize path: remove leading/trailing slashes, default to empty string
+        var path = string.IsNullOrWhiteSpace(rawPath) ? "" : rawPath.Trim('/');
         var method = context.Request.Method;
         var userAgent = context.Request.Headers.UserAgent.ToString();
 
@@ -276,8 +278,11 @@ try
             statusReason = "Internal Server Error";
         }
 
-        Log.Information("[LEARNING-MODE] Request handled internally: {Method} /stylobot-learning/{Path} UA={UserAgent} -> {StatusCode}",
-            method, path, userAgent.Length > 50 ? userAgent.Substring(0, 47) + "..." : userAgent, statusCode);
+        // Build normalized URL path (avoid double slashes)
+        var urlPath = string.IsNullOrEmpty(path) ? "/stylobot-learning" : $"/stylobot-learning/{path}";
+
+        Log.Information("[LEARNING-MODE] Request handled internally: {Method} {UrlPath} UA={UserAgent} -> {StatusCode}",
+            method, urlPath, userAgent.Length > 50 ? userAgent.Substring(0, 47) + "..." : userAgent, statusCode);
 
         // Return appropriate response based on status code
         var responseJson = statusCode == 404
@@ -287,7 +292,7 @@ try
   "@type": "WebPage",
   "name": "404 Not Found",
   "description": "The requested resource was not found.",
-  "url": "/stylobot-learning/{{path}}",
+  "url": "{{urlPath}}",
   "metadata": {
     "statusCode": 404,
     "statusText": "Not Found",
@@ -300,7 +305,7 @@ try
   "@context": "https://schema.org",
   "@type": "WebPage",
   "name": "Stylobot Learning Mode",
-  "url": "/stylobot-learning/{{path}}",
+  "url": "{{urlPath}}",
   "description": "This is a synthetic response for bot detection training. No real website was contacted.",
   "provider": {
     "@type": "Organization",
@@ -314,13 +319,13 @@ try
     "temporalCoverage": "{{DateTime.UtcNow:O}}",
     "distribution": {
       "@type": "DataDownload",
-      "contentUrl": "/stylobot-learning/{{path}}",
+      "contentUrl": "{{urlPath}}",
       "encodingFormat": "application/json"
     }
   },
   "metadata": {
     "requestMethod": "{{method}}",
-    "requestPath": "/stylobot-learning/{{path}}",
+    "requestPath": "{{urlPath}}",
     "statusCode": {{statusCode}},
     "statusText": "{{statusReason}}",
     "detectionApplied": true,

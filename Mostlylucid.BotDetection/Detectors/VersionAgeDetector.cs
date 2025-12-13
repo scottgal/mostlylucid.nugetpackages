@@ -154,11 +154,17 @@ public partial class VersionAgeDetector : IDetector
 
         if (!latestVersion.HasValue)
         {
-            _logger.LogDebug("No version data available for browser: {Browser}", browserName);
+            _logger.LogWarning(
+                "No version data available for browser: {Browser}. Version age check skipped. Check if BrowserVersionService is registered and data source is accessible.",
+                browserName);
             return;
         }
 
         var versionAge = latestVersion.Value - browserVersion;
+
+        _logger.LogDebug(
+            "Browser version comparison: {Browser} reported={Version}, latest={Latest}, age={Age}",
+            browserName, browserVersion, latestVersion.Value, versionAge);
 
         if (versionAge > 20)
         {
