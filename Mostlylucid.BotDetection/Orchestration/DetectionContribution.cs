@@ -507,6 +507,12 @@ public class EvidenceAggregator
             // Find primary bot type/name
             var (primaryType, primaryName) = FindPrimaryBot();
 
+            // IMPORTANT: Only set BotType/BotName if we're actually classifying this as a bot
+            // Otherwise we get contradictions like "IsBot: NO, BotType: Scraper"
+            var isActuallyBot = botProbability >= 0.5;
+            var finalBotType = isActuallyBot ? primaryType : null;
+            var finalBotName = isActuallyBot ? primaryName : null;
+
             // Build category breakdown
             var categoryBreakdown = BuildCategoryBreakdown();
 
@@ -517,8 +523,8 @@ public class EvidenceAggregator
                 Confidence = confidence,
                 RiskBand = riskBand,
                 EarlyExit = false,
-                PrimaryBotType = primaryType,
-                PrimaryBotName = primaryName,
+                PrimaryBotType = finalBotType,
+                PrimaryBotName = finalBotName,
                 Signals = new Dictionary<string, object>(_signals),
                 TotalProcessingTimeMs = _contributions.Sum(c => c.ProcessingTimeMs),
                 CategoryBreakdown = categoryBreakdown,
