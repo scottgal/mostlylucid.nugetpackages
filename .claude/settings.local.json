@@ -124,7 +124,8 @@
       "Bash(k6 run:*)",
       "Bash(pkill:*)",
       "Bash(python -m json.tool:*)",
-      "Bash(Remove-Item \"D:\\Source\\mostlylucid.nugetpackages\\Mostlylucid.BotDetection.UI.PostgreSQL\\Class1.cs\" -Force)"
+      "Bash(Remove-Item \"D:\\Source\\mostlylucid.nugetpackages\\Mostlylucid.BotDetection.UI.PostgreSQL\\Class1.cs\" -Force)",
+      "Bash(timeout /t 2:*)"
     ],
     "deny": [],
     "ask": []

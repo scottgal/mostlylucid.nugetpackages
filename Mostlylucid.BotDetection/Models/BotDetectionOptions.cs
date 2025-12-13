@@ -2525,10 +2525,6 @@ public class VersionAgeOptions
     // ==========================================
 
     /// <summary>
-    ///     Fallback browser versions to use if API is unavailable.
-    ///     Updated periodically - these should be roughly current.
-    /// </summary>
-    /// <summary>
     ///     Fallback browser versions when external API is unavailable.
     ///     These are ONLY used when the service fails to fetch data from browsers.fyi API.
     ///     Configure via appsettings.json - DO NOT hardcode versions in code as they go stale.
