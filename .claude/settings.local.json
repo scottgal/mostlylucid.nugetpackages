@@ -131,7 +131,8 @@
       "Bash(Remove-Item \"D:\\Source\\mostlylucid.nugetpackages\\Mostlylucid.BotDetection.Console\\run-with-autorestart.ps1\" -Force)",
       "Bash(Remove-Item \"D:\\Source\\mostlylucid.nugetpackages\\Mostlylucid.BotDetection.Console\\stylobot.service\" -Force)",
       "Bash(Remove-Item \"D:\\Source\\mostlylucid.nugetpackages\\Mostlylucid.BotDetection.Console\\KNOWN_ISSUES.md\" -Force)",
-      "Bash(Remove-Item -Recurse -Force Mostlylucid.Common/bin,Mostlylucid.Common/obj)"
+      "Bash(Remove-Item -Recurse -Force Mostlylucid.Common/bin,Mostlylucid.Common/obj)",
+      "WebFetch(domain:test.stylobot.net)"
     ],
     "deny": [],
     "ask": []

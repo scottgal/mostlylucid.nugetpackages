@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet sln add:*)",
+      "Bash(dir:*)",
+      "Bash(dotnet run:*)"
+    ]
+  }
+}
