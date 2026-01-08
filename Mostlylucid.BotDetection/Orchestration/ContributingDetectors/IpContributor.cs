@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Net;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 

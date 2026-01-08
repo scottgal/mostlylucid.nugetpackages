@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Detectors;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 
@@ -58,7 +59,7 @@ public class ClientSideContributor : ContributingDetectorBase
                     ConfidenceDelta = reason.ConfidenceImpact,
                     Weight = 1.8, // Client-side fingerprint is a very strong signal
                     Reason = reason.Detail,
-                    BotType = result.BotType,
+                    BotType = result.BotType?.ToString(),
                     BotName = result.BotName,
                     Signals = ImmutableDictionary<string, object>.Empty
                         .Add(SignalKeys.FingerprintHeadlessScore, reason.Detail.Contains("Headless") ? 1.0 : 0.0)

@@ -122,7 +122,7 @@ public static class RouteBuilderExtensions
                             kv => kv.Key,
                             kv => new
                             {
-                                score = Math.Round(kv.Value.Score, 4), weight = Math.Round(kv.Value.Weight, 2)
+                                score = Math.Round(kv.Value.Score, 4), weight = Math.Round(kv.Value.TotalWeight, 2)
                             }),
                         // Detailed detector contributions with signals, priority, and timing
                         // Sorted by timestamp for pipeline execution order

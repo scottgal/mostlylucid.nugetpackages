@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Orchestration;
+using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Policies;
 
@@ -124,7 +125,9 @@ public class PolicyEvaluator : IPolicyEvaluator
         var earlyExit = GetEarlyExitContribution(state);
         if (earlyExit != null)
         {
-            var earlyExitAction = MapEarlyExitVerdictToAction(earlyExit.EarlyExitVerdict!.Value);
+            var parsedVerdict = Enum.TryParse<EarlyExitVerdict>(earlyExit.EarlyExitVerdict, true, out var verdict)
+                ? verdict : (EarlyExitVerdict?)null;
+            var earlyExitAction = parsedVerdict.HasValue ? MapEarlyExitVerdictToAction(parsedVerdict.Value) : null;
             if (earlyExitAction.HasValue)
             {
                 _logger.LogDebug(
@@ -240,7 +243,7 @@ public class PolicyEvaluator : IPolicyEvaluator
 
     private static DetectionContribution? GetEarlyExitContribution(BlackboardState state)
     {
-        return state.Contributions.FirstOrDefault(c => c.TriggerEarlyExit && c.EarlyExitVerdict.HasValue);
+        return state.Contributions.FirstOrDefault(c => c.TriggerEarlyExit && !string.IsNullOrEmpty(c.EarlyExitVerdict));
     }
 
     private static PolicyAction? MapEarlyExitVerdictToAction(EarlyExitVerdict verdict)

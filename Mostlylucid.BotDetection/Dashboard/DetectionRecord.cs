@@ -202,7 +202,7 @@ public static class DetectionRecordFactory
                         Weight = g.Sum(c => c.Weight),
                         Contribution = g.Sum(c => c.ConfidenceDelta * c.Weight),
                         Reason = string.Join("; ", g.Select(c => c.Reason).Where(r => !string.IsNullOrEmpty(r))),
-                        SuggestedBotType = g.FirstOrDefault(c => c.BotType.HasValue)?.BotType?.ToString(),
+                        SuggestedBotType = g.FirstOrDefault(c => !string.IsNullOrEmpty(c.BotType))?.BotType,
                         ExecutionTimeMs = g.Sum(c => c.ProcessingTimeMs),
                         Priority = g.First().Priority
                     }),

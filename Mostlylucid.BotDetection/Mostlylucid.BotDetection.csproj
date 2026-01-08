@@ -46,7 +46,16 @@
         <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.2"/>
         <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.1"/>
         <PackageReference Include="System.IO.Hashing" Version="10.0.1"/>
+        <!--
+        For NuGet distribution, uncomment this line:
         <PackageReference Include="mostlylucid.ephemeral.complete" Version="1.7.1"/>
+
+        For local development with taxonomy, use project references:
+        -->
+        <ProjectReference Include="..\..\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral\mostlylucid.ephemeral.csproj"/>
+        <ProjectReference Include="..\..\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral.atoms.taxonomy\mostlylucid.ephemeral.atoms.taxonomy.csproj"/>
+        <ProjectReference Include="..\..\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral.atoms.keyedsequential\mostlylucid.ephemeral.atoms.keyedsequential.csproj"/>
+        <ProjectReference Include="..\..\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral.atoms.slidingcache\mostlylucid.ephemeral.atoms.slidingcache.csproj"/>
         <PackageReference Include="MathNet.Numerics" Version="5.0.0"/>
         <PackageReference Include="MinVer" Version="6.0.0">
             <PrivateAssets>all</PrivateAssets>

@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 
@@ -151,7 +152,7 @@ public class ReputationBiasContributor : ContributingDetectorBase
 
         // Always return at least one contribution so detector shows in list
         if (contributions.Count == 0)
-            contributions.Add(DetectionContribution.Neutral(Name, "No learned reputation patterns matched"));
+            contributions.Add(DetectionContribution.Info(Name, "No learned reputation patterns matched"));
 
         return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
     }
@@ -175,7 +176,7 @@ public class ReputationBiasContributor : ContributingDetectorBase
         {
             signals = signals.Add(SignalKeys.ReputationCanAbort, true);
 
-            return (DetectionContribution.VerifiedBadBot(
+            return (DetectionContribution.VerifiedBot(
                     Name,
                     reputation.PatternId,
                     $"[Reputation] {reason}") with

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 
@@ -44,7 +45,7 @@ public class UserAgentContributor : ContributingDetectorBase
             return Task.FromResult(Single(DetectionContribution.Bot(
                 Name, "UserAgent", 0.8,
                 "Missing User-Agent header",
-                BotType.Unknown)));
+                botType: BotType.Unknown.ToString())));
 
         var contributions = new List<DetectionContribution>();
 
@@ -53,8 +54,8 @@ public class UserAgentContributor : ContributingDetectorBase
         if (isWhitelisted)
             return Task.FromResult(Single(DetectionContribution.VerifiedGoodBot(
                     Name,
-                    whitelistName!,
-                    $"Whitelisted bot pattern: {whitelistName}")
+                    $"Whitelisted bot pattern: {whitelistName}",
+                    whitelistName!)
                 with
                 {
                     Signals = ImmutableDictionary<string, object>.Empty
@@ -71,7 +72,7 @@ public class UserAgentContributor : ContributingDetectorBase
             contributions.Add(DetectionContribution.Bot(
                     Name, "UserAgent", confidence,
                     reason,
-                    botType, botName)
+                    botType: botType?.ToString(), botName: botName)
                 with
                 {
                     Signals = ImmutableDictionary<string, object>.Empty
@@ -230,15 +231,15 @@ public class InconsistencyContributor : ContributingDetectorBase
             contributions.Add(DetectionContribution.Bot(
                 Name, "Inconsistency", 0.7,
                 "Browser User-Agent from datacenter IP",
-                BotType.Unknown,
-                weight: 1.5)); // High weight for this signal
+                weight: 1.5, // High weight for this signal
+                botType: BotType.Unknown.ToString()));
 
         // Check for missing Accept-Language with browser UA
         if (LooksLikeBrowser(userAgent) && !headers.ContainsKey("Accept-Language"))
             contributions.Add(DetectionContribution.Bot(
                 Name, "Inconsistency", 0.5,
                 "Browser User-Agent without Accept-Language header",
-                BotType.Unknown));
+                botType: BotType.Unknown.ToString()));
 
         // Check for Chrome UA without sec-ch-ua headers
         // Note: Service worker, fetch API, and some browser configurations may not send Client Hints
@@ -253,14 +254,14 @@ public class InconsistencyContributor : ContributingDetectorBase
             contributions.Add(DetectionContribution.Bot(
                 Name, "Inconsistency", 0.2,
                 "Chrome User-Agent without Client Hints",
-                BotType.Scraper));
+                botType: BotType.Scraper.ToString()));
 
         // Check for modern browser claiming old version
         if (IsOutdatedBrowser(userAgent))
             contributions.Add(DetectionContribution.Bot(
                 Name, "Inconsistency", 0.3,
                 "Outdated browser version in User-Agent",
-                BotType.Unknown));
+                botType: BotType.Unknown.ToString()));
 
         if (contributions.Count == 0)
             // No inconsistencies found - add negative signal (human indicator)
@@ -338,7 +339,7 @@ public class AiContributor : ContributingDetectorBase
             return Single(DetectionContribution.Bot(
                 Name, "AI", 0.2, // Small adjustment
                 "AI analysis confirms high-risk signals",
-                weight: 0.5));
+                weight: 0.5, botType: null, botName: null));
 
         if (currentRisk > 0.5)
             // Uncertain - AI provides additional signal

@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 
@@ -98,7 +99,7 @@ public class FastPathReputationContributor : ContributingDetectorBase
         if (matchedPattern == null)
             return Task.FromResult<IReadOnlyList<DetectionContribution>>(new[]
             {
-                DetectionContribution.Neutral(Name, "No known patterns in reputation cache")
+                DetectionContribution.Info(Name, "No known patterns in reputation cache")
             });
 
         // FAST PATH HIT - create instant allow or abort contribution
@@ -162,7 +163,7 @@ public class FastPathReputationContributor : ContributingDetectorBase
             .Add($"reputation.fastpath.{matchType.ToLowerInvariant()}.score", matchedPattern.BotScore)
             .Add($"reputation.fastpath.{matchType.ToLowerInvariant()}.support", matchedPattern.Support);
 
-        var contribution = DetectionContribution.VerifiedBadBot(
+        var contribution = DetectionContribution.VerifiedBot(
                 Name,
                 matchedPattern.PatternId,
                 $"[FastPath] Known bad {matchType}: {matchedPattern.State} (score={matchedPattern.BotScore:F2}, support={matchedPattern.Support:F0})")

@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 
@@ -48,7 +49,7 @@ public class HeaderContributor : ContributingDetectorBase
             contributions.Add(DetectionContribution.Bot(
                     Name, "Header", 0.4,
                     "Missing Accept header",
-                    BotType.Unknown)
+                    botType: BotType.Unknown.ToString())
                 with
                 {
                     Signals = signals.ToImmutable()
@@ -64,7 +65,7 @@ public class HeaderContributor : ContributingDetectorBase
             contributions.Add(DetectionContribution.Bot(
                 Name, "Header", 0.5,
                 "Browser User-Agent without Accept-Language",
-                BotType.Scraper));
+                botType: BotType.Scraper.ToString()));
 
         // Check for proxy headers (X-Forwarded-For, Via)
         var hasXForwardedFor = headers.ContainsKey("X-Forwarded-For");
@@ -77,7 +78,7 @@ public class HeaderContributor : ContributingDetectorBase
             contributions.Add(DetectionContribution.Bot(
                 Name, "Header", 0.6,
                 $"Very few headers ({headerCount})",
-                BotType.Scraper));
+                botType: BotType.Scraper.ToString()));
 
         // Check for bot-specific headers
         if (headers.ContainsKey("X-Requested-With") &&
@@ -86,7 +87,7 @@ public class HeaderContributor : ContributingDetectorBase
             contributions.Add(DetectionContribution.Bot(
                 Name, "Header", 0.4,
                 "AJAX request without Accept-Language",
-                BotType.Scraper));
+                botType: BotType.Scraper.ToString()));
 
         // No bot indicators found
         if (contributions.Count == 0)

@@ -9,6 +9,7 @@ using Mostlylucid.BotDetection.Dashboard;
 using Mostlylucid.BotDetection.Events;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Policies;
+using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration;
 
@@ -304,7 +305,7 @@ public class BlackboardOrchestrator
         var pooledState = StatePool.Get();
         try
         {
-            var aggregator = new EvidenceAggregator();
+            var aggregator = new DetectionLedger(requestId);
             var signals = pooledState.Signals;
             var completedDetectors = pooledState.CompletedDetectors;
             var failedDetectors = pooledState.FailedDetectors;
@@ -381,7 +382,7 @@ public class BlackboardOrchestrator
 
                     // Check for early exit - but still run policy evaluation for transitions
                     var earlyExitTriggered = false;
-                    if (aggregator.ShouldEarlyExit)
+                    if (aggregator.EarlyExit)
                     {
                         var exitContrib = aggregator.EarlyExitContribution!;
                         _logger.LogInformation(
@@ -395,7 +396,7 @@ public class BlackboardOrchestrator
 
                     // Update system signals for next wave (or for policy evaluation on early exit)
                     signals[DetectorCountTrigger.CompletedDetectorsSignal] = completedDetectors.Count;
-                    signals[RiskThresholdTrigger.CurrentRiskSignal] = aggregator.Aggregate().BotProbability;
+                    signals[RiskThresholdTrigger.CurrentRiskSignal] = aggregator.BotProbability;
 
                     // Evaluate policy transitions
                     if (_policyEvaluator != null)
@@ -468,7 +469,7 @@ public class BlackboardOrchestrator
                                         signals[DetectorCountTrigger.CompletedDetectorsSignal] =
                                             completedDetectors.Count;
                                         signals[RiskThresholdTrigger.CurrentRiskSignal] =
-                                            aggregator.Aggregate().BotProbability;
+                                            aggregator.BotProbability;
 
                                         // Continue to allow early exit check after AI
                                         waveNumber++;
@@ -516,7 +517,7 @@ public class BlackboardOrchestrator
                     stopwatch.ElapsedMilliseconds, requestId);
             }
 
-            var result = aggregator.Aggregate();
+            var result = aggregator.ToAggregatedEvidence(policy.Name);
 
             // Always use stopwatch for actual wall-clock time (more accurate than sum of contributions)
             var actualProcessingTimeMs = stopwatch.Elapsed.TotalMilliseconds;
@@ -593,7 +594,7 @@ public class BlackboardOrchestrator
     private async Task ExecuteWaveAsync(
         IReadOnlyList<IContributingDetector> detectors,
         BlackboardState state,
-        EvidenceAggregator aggregator,
+        DetectionLedger aggregator,
         ConcurrentDictionary<string, object> signals,
         ConcurrentDictionary<string, bool> completedDetectors,
         ConcurrentDictionary<string, bool> failedDetectors,
@@ -608,7 +609,7 @@ public class BlackboardOrchestrator
                     detector, state, aggregator, signals,
                     completedDetectors, failedDetectors, cancellationToken);
 
-                if (aggregator.ShouldEarlyExit)
+                if (aggregator.EarlyExit)
                     break;
             }
         }
@@ -638,7 +639,7 @@ public class BlackboardOrchestrator
     private async Task ExecuteDetectorAsync(
         IContributingDetector detector,
         BlackboardState state,
-        EvidenceAggregator aggregator,
+        DetectionLedger aggregator,
         ConcurrentDictionary<string, object> signals,
         ConcurrentDictionary<string, bool> completedDetectors,
         ConcurrentDictionary<string, bool> failedDetectors,
@@ -695,7 +696,7 @@ public class BlackboardOrchestrator
 
     private void HandleDetectorFailure(
         IContributingDetector detector,
-        EvidenceAggregator aggregator,
+        DetectionLedger aggregator,
         ConcurrentDictionary<string, bool> failedDetectors,
         string reason,
         double elapsedMs)
@@ -725,11 +726,11 @@ public class BlackboardOrchestrator
         IReadOnlyDictionary<string, object> signals,
         ICollection<string> completedDetectors,
         ICollection<string> failedDetectors,
-        EvidenceAggregator aggregator,
+        DetectionLedger aggregator,
         string requestId,
         TimeSpan elapsed)
     {
-        var aggregated = aggregator.Aggregate();
+        var aggregated = aggregator.ToAggregatedEvidence();
 
         return new BlackboardState
         {

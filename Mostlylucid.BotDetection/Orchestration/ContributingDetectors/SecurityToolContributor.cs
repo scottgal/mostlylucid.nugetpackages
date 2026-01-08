@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 
@@ -94,7 +95,7 @@ public class SecurityToolContributor : ContributingDetectorBase
         }
 
         // No security tool detected - report neutral
-        return Single(DetectionContribution.Neutral(Name, "No security tools detected in User-Agent"));
+        return Single(DetectionContribution.Info(Name, "No security tools detected in User-Agent"));
     }
 
     private async Task<IReadOnlyList<CompiledSecurityPattern>> GetPatternsAsync(CancellationToken cancellationToken)
@@ -165,7 +166,7 @@ public class SecurityToolContributor : ContributingDetectorBase
         string userAgent)
     {
         // Security tools trigger early exit as verified bad bot
-        return DetectionContribution.VerifiedBadBot(
+        return DetectionContribution.VerifiedBot(
                 Name,
                 toolName,
                 $"Security/hacking tool detected: {toolName} (Category: {category})")

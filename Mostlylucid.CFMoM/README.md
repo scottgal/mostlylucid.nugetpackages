@@ -6,7 +6,7 @@
 
 ## What is CFMoM?
 
-CFMoM is a control pattern for systems where multiple probabilistic components (proposers) contribute evidence, but a deterministic component (constrainer) makes all final decisions. This pattern is essential for:
+CFMoM is a control pattern for systems where multiple probabilistic components (proposers) contribute evidence, but a deterministic component (constrainer) makes all final decisions. Thispattern is essential for: 
 
 - Multi-agent AI systems
 - Bot detection pipelines

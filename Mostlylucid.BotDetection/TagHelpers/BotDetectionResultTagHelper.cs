@@ -150,7 +150,7 @@ public class BotDetectionResultTagHelper : TagHelper
                     kv => new
                     {
                         score = kv.Value.Score,
-                        weight = kv.Value.Weight,
+                        weight = kv.Value.TotalWeight,
                         contributions = kv.Value.ContributionCount
                     }),
                 contributions = evidence.Contributions.Select(c => new

@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 
@@ -61,7 +62,7 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
             var reason = !_options.ProjectHoneypot.Enabled
                 ? "Skipped: ProjectHoneypot is disabled in configuration"
                 : "Skipped: ProjectHoneypot AccessKey not configured (get free key at projecthoneypot.org)";
-            return Single(DetectionContribution.Neutral(Name, reason));
+            return Single(DetectionContribution.Info(Name, reason));
         }
 
         var clientIp = state.GetSignal<string>(SignalKeys.ClientIp);
@@ -69,7 +70,7 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
 
         // Skip local/private IPs - they won't be in Project Honeypot
         var isLocal = state.GetSignal<bool>(SignalKeys.IpIsLocal);
-        if (isLocal) return Single(DetectionContribution.Neutral(Name, "Skipped: localhost/private IP"));
+        if (isLocal) return Single(DetectionContribution.Info(Name, "Skipped: localhost/private IP"));
 
         // Parse the IP address
         if (!IPAddress.TryParse(clientIp, out var ipAddress)) return None();
@@ -135,7 +136,7 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
 
             // High threat scores trigger early exit
             if (result.ThreatScore >= _options.ProjectHoneypot.HighThreatThreshold)
-                contributions.Add(DetectionContribution.VerifiedBadBot(
+                contributions.Add(DetectionContribution.VerifiedBot(
                         Name,
                         $"Honeypot Threat ({result.VisitorType})",
                         reason,
@@ -381,7 +382,7 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
 
         // High threat scores trigger verified bad bot
         if (result.ThreatScore >= _options.ProjectHoneypot.HighThreatThreshold)
-            contributions.Add(DetectionContribution.VerifiedBadBot(
+            contributions.Add(DetectionContribution.VerifiedBot(
                     Name,
                     $"Honeypot Threat ({result.VisitorType})",
                     reason,

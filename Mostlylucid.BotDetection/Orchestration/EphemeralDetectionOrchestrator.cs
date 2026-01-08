@@ -7,6 +7,7 @@ using Mostlylucid.BotDetection.Events;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Policies;
 using Mostlylucid.Ephemeral;
+using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration;
 
@@ -175,7 +176,7 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(timeout);
 
-        var aggregator = new EvidenceAggregator();
+        var aggregator = new DetectionLedger(requestId);
         var signals = new ConcurrentDictionary<string, object>();
         PolicyAction? finalAction = null;
         string? triggeredActionPolicyName = null;
@@ -257,7 +258,7 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
                 }
 
                 // Check for detector-level early exit (verified bot, etc.)
-                if (aggregator.ShouldEarlyExit)
+                if (aggregator.EarlyExit)
                 {
                     var exitContrib = aggregator.EarlyExitContribution!;
                     _logger.LogInformation(
@@ -273,14 +274,14 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
 
             // Subsequent waves: Run triggered detectors
             // Skip if quorum already reached a definitive verdict
-            while (!aggregator.ShouldEarlyExit &&
+            while (!aggregator.EarlyExit &&
                    quorumVerdict?.ShouldExit != true &&
                    waveNumber < _options.MaxWaves &&
                    !cts.Token.IsCancellationRequested)
             {
                 // Update system signals
                 signals[DetectorCountTrigger.CompletedDetectorsSignal] = contributorTracker.CompletedCount;
-                signals[RiskThresholdTrigger.CurrentRiskSignal] = aggregator.Aggregate().BotProbability;
+                signals[RiskThresholdTrigger.CurrentRiskSignal] = aggregator.BotProbability;
 
                 // Find detectors ready to run this wave
                 var signalSnapshot = new Dictionary<string, object>(signals);
@@ -321,7 +322,7 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
                 requestSignals.Raise($"wave.completed:{waveNumber}", requestId);
 
                 // Check for early exit
-                if (aggregator.ShouldEarlyExit)
+                if (aggregator.EarlyExit)
                 {
                     var exitContrib = aggregator.EarlyExitContribution!;
                     _logger.LogInformation(
@@ -403,7 +404,7 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
                 stopwatch.ElapsedMilliseconds, requestId);
         }
 
-        var result = aggregator.Aggregate();
+        var result = aggregator.ToAggregatedEvidence(policy.Name);
         var actualProcessingTimeMs = stopwatch.Elapsed.TotalMilliseconds;
 
         var wasEarlyExit = finalAction.HasValue &&
@@ -469,7 +470,7 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
     private async Task<QuorumVerdict?> ExecuteWaveWithQuorumAsync(
         IReadOnlyList<IContributingDetector> detectors,
         HttpContext httpContext,
-        EvidenceAggregator aggregator,
+        DetectionLedger aggregator,
         ConcurrentDictionary<string, object> signals,
         ContributorTracker<IReadOnlyList<DetectionContribution>> tracker,
         SignalSink requestSignals,
@@ -521,7 +522,7 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
 
         if (quorumResult.Reached || quorumResult.CompletedCount > 0)
         {
-            var currentEvidence = aggregator.Aggregate();
+            var currentEvidence = aggregator.ToAggregatedEvidence();
             var avgScore = currentEvidence.BotProbability;
 
             // Check for definitive verdict
@@ -583,7 +584,7 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
     private async Task ExecuteWaveWithTrackerAsync(
         IReadOnlyList<IContributingDetector> detectors,
         HttpContext httpContext,
-        EvidenceAggregator aggregator,
+        DetectionLedger aggregator,
         ConcurrentDictionary<string, object> signals,
         ContributorTracker<IReadOnlyList<DetectionContribution>> tracker,
         SignalSink requestSignals,
@@ -601,7 +602,7 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
                     detector, httpContext, aggregator, signals, tracker,
                     requestSignals, requestId, pipelineStopwatch, cancellationToken);
 
-                if (aggregator.ShouldEarlyExit)
+                if (aggregator.EarlyExit)
                     break;
             }
 
@@ -638,7 +639,7 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
     private async Task ExecuteDetectorWithTrackerAsync(
         IContributingDetector detector,
         HttpContext httpContext,
-        EvidenceAggregator aggregator,
+        DetectionLedger aggregator,
         ConcurrentDictionary<string, object> signals,
         ContributorTracker<IReadOnlyList<DetectionContribution>> tracker,
         SignalSink requestSignals,
@@ -731,7 +732,7 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
 
     private void HandleDetectorFailure(
         IContributingDetector detector,
-        EvidenceAggregator aggregator,
+        DetectionLedger aggregator,
         SignalSink requestSignals,
         string reason,
         double elapsedMs,
@@ -761,11 +762,11 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
         HttpContext httpContext,
         ConcurrentDictionary<string, object> signals,
         ContributorTracker<IReadOnlyList<DetectionContribution>> tracker,
-        EvidenceAggregator aggregator,
+        DetectionLedger aggregator,
         string requestId,
         TimeSpan elapsed)
     {
-        var aggregated = aggregator.Aggregate();
+        var aggregated = aggregator.ToAggregatedEvidence();
         var completedResults = tracker.GetCompletedResults();
 
         return new BlackboardState

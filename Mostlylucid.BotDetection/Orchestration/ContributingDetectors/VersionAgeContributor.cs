@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Detectors;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 
@@ -63,7 +64,7 @@ public class VersionAgeContributor : ContributingDetectorBase
                         ConfidenceDelta = reason.ConfidenceImpact,
                         Weight = 1.2, // Version age is a strong signal
                         Reason = reason.Detail,
-                        BotType = result.BotType,
+                        BotType = result.BotType?.ToString(),
                         Signals = ImmutableDictionary<string, object>.Empty
                             .Add(SignalKeys.VersionAgeAnalyzed, true)
                     });

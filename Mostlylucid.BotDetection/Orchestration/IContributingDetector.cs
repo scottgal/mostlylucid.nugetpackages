@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration;
 
