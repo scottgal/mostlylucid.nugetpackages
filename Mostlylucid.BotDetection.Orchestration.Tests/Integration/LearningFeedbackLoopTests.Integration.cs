@@ -269,15 +269,15 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
             {
                 ["UserAgent"] = new()
                 {
-                    Category = "UserAgent", Score = 0.8, Weight = 1.0, ContributionCount = 1, Reasons = ["Known bot"]
+                    Category = "UserAgent", Score = 0.8, TotalWeight = 1.0, ContributionCount = 1, Reasons = ["Known bot"]
                 },
                 ["Headers"] = new()
                 {
-                    Category = "Headers", Score = 0.3, Weight = 0.8, ContributionCount = 1,
+                    Category = "Headers", Score = 0.3, TotalWeight = 0.8, ContributionCount = 1,
                     Reasons = ["Missing headers"]
                 },
                 ["Version"] = new()
-                    { Category = "Version", Score = 0.5, Weight = 0.6, ContributionCount = 1, Reasons = ["Outdated"] }
+                    { Category = "Version", Score = 0.5, TotalWeight = 0.6, ContributionCount = 1, Reasons = ["Outdated"] }
             },
             Signals = ImmutableDictionary<string, object>.Empty,
             ContributingDetectors = new HashSet<string>
@@ -341,7 +341,7 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
             CategoryBreakdown = new Dictionary<string, CategoryScore>
             {
                 ["Test"] = new()
-                    { Category = "Test", Score = 0.6, Weight = 1.0, ContributionCount = 1, Reasons = ["Test"] }
+                    { Category = "Test", Score = 0.6, TotalWeight = 1.0, ContributionCount = 1, Reasons = ["Test"] }
             },
             Signals = ImmutableDictionary<string, object>.Empty,
             ContributingDetectors = new HashSet<string> { "Single Detector" },
