@@ -14,6 +14,49 @@ taxonomy:
   determinism: deterministic
   persistence: ephemeral
 
+# Input contract - what this detector consumes
+input:
+  accepts:
+    - type: botdetection.request
+      required: true
+      description: HTTP request for security tool pattern matching
+      signal_pattern: request.*
+
+  required_signals:
+    - request.headers.user-agent
+
+  optional_signals:
+    - request.headers.*
+    - request.path
+
+# Output contract - what this detector produces
+output:
+  produces:
+    - type: botdetection.contribution
+      description: Security tool detection contribution (may trigger early exit)
+
+  signals:
+    - key: detection.security_tool.detected
+      entity_type: boolean
+      salience: 1.0
+      description: Whether a security tool was detected
+    - key: detection.security_tool.name
+      entity_type: string
+      salience: 0.95
+      description: Name of detected security tool
+    - key: detection.security_tool.category
+      entity_type: string
+      salience: 0.8
+      description: Category of tool (scanner, exploit, pentest, fuzzer)
+    - key: detection.security_tool.confidence
+      entity_type: number
+      salience: 0.95
+      description: Confidence level for the detection
+    - key: detection.early_exit.block
+      entity_type: boolean
+      salience: 1.0
+      description: Signal to block request immediately
+
 triggers:
   requires: []  # No dependencies - runs first wave
   skip_when:

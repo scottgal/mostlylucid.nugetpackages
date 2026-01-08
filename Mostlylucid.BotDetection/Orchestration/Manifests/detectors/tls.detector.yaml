@@ -14,6 +14,44 @@ taxonomy:
   determinism: deterministic
   persistence: ephemeral
 
+# Input contract - what this detector consumes
+input:
+  accepts:
+    - type: botdetection.request
+      required: true
+      description: HTTP request with TLS context
+      signal_pattern: request.tls.*
+
+  required_signals: []  # TLS data may not be available
+
+  optional_signals:
+    - request.tls.protocol
+    - request.tls.cipher
+    - request.headers.x-ja3-hash
+    - request.headers.x-tls-protocol
+
+# Output contract - what this detector produces
+output:
+  produces:
+    - type: botdetection.contribution
+      description: TLS analysis contribution to detection ledger
+    - type: botdetection.tls_signal
+      description: Detailed TLS fingerprint signals
+
+  signals:
+    - key: detection.tls.confidence
+      entity_type: number
+      salience: 0.8
+      description: Bot confidence from TLS fingerprint
+    - key: detection.tls.ja3_hash
+      entity_type: string
+      salience: 0.9
+      description: JA3 fingerprint hash
+    - key: detection.tls.known_fingerprint
+      entity_type: boolean
+      salience: 0.95
+      description: Whether fingerprint matches known pattern
+
 triggers:
   requires: []  # No dependencies - runs first wave
   skip_when:

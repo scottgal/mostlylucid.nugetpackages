@@ -14,6 +14,43 @@ taxonomy:
   determinism: deterministic
   persistence: ephemeral
 
+# Input contract - what this detector consumes
+input:
+  accepts:
+    - type: botdetection.request
+      required: true
+      description: HTTP request with headers for UA extraction
+      signal_pattern: request.headers.*
+    - type: botdetection.signature
+      required: false
+      description: Existing signature to augment
+      signal_pattern: botdetection.signature.*
+
+  required_signals:
+    - request.headers.user-agent
+
+  optional_signals:
+    - request.headers.accept-language
+    - request.headers.accept-encoding
+
+# Output contract - what this detector produces
+output:
+  produces:
+    - type: botdetection.contribution
+      description: UA analysis contribution to detection ledger
+    - type: botdetection.ua_signal
+      description: Detailed UA analysis signals
+
+  signals:
+    - key: detection.useragent.confidence
+      entity_type: number
+      salience: 0.8
+      description: Bot detection confidence from UA analysis
+    - key: detection.useragent.bot_type
+      entity_type: string
+      salience: 0.9
+      description: Detected bot type if identified
+
 triggers:
   requires: []  # No dependencies - runs first wave
   skip_when:

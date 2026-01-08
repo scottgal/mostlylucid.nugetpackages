@@ -1,34 +1,50 @@
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using YamlDotNet.Serialization;
+using YamlDotNet.Serialization.NamingConventions;
 
 namespace Mostlylucid.BotDetection.Definitions;
 
 /// <summary>
-///     Loads and resolves policy definitions from embedded JSON resources.
-///     Handles inheritance (Extends) and logs the resolution chain.
+///     Loads and resolves policy definitions from embedded JSON and YAML resources.
+///     Handles inheritance (extends) and logs the resolution chain.
 /// </summary>
 public class DefinitionLoader
 {
     private readonly ILogger<DefinitionLoader>? _logger;
     private readonly Dictionary<string, JsonElement> _rawDefinitions = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ResolvedDefinition> _resolved = new(StringComparer.OrdinalIgnoreCase);
+    private readonly IDeserializer _yamlDeserializer;
 
     public DefinitionLoader(ILogger<DefinitionLoader>? logger = null)
     {
         _logger = logger;
+        _yamlDeserializer = new DeserializerBuilder()
+            .WithNamingConvention(UnderscoredNamingConvention.Instance)
+            .Build();
     }
 
     /// <summary>
-    ///     Loads all action policy definitions from embedded resources.
+    ///     Loads all action policy definitions from embedded resources (YAML and JSON).
     /// </summary>
     public Dictionary<string, ResolvedDefinition> LoadActionPolicies()
     {
         var assembly = Assembly.GetExecutingAssembly();
-        var resourceNames = assembly.GetManifestResourceNames()
+
+        // Load YAML files first (preferred format)
+        var yamlResources = assembly.GetManifestResourceNames()
+            .Where(n => n.Contains("Definitions.Actions") && n.EndsWith(".policies.yaml"));
+
+        foreach (var resourceName in yamlResources)
+            LoadDefinitionsFromYamlResource(assembly, resourceName);
+
+        // Also load JSON files for backward compatibility
+        var jsonResources = assembly.GetManifestResourceNames()
             .Where(n => n.Contains("Definitions.Actions") && n.EndsWith(".json") && !n.EndsWith(".schema.json"));
 
-        foreach (var resourceName in resourceNames) LoadDefinitionsFromResource(assembly, resourceName);
+        foreach (var resourceName in jsonResources)
+            LoadDefinitionsFromResource(assembly, resourceName);
 
         // Resolve inheritance for all definitions
         ResolveAllInheritance();
@@ -56,6 +72,81 @@ public class DefinitionLoader
     {
         using var doc = JsonDocument.Parse(json);
         LoadFromJsonDocument(doc, sourceName);
+    }
+
+    /// <summary>
+    ///     Loads definitions from a YAML stream.
+    /// </summary>
+    public void LoadFromYaml(Stream stream, string sourceName)
+    {
+        using var reader = new StreamReader(stream);
+        var yaml = reader.ReadToEnd();
+        LoadFromYamlString(yaml, sourceName);
+    }
+
+    /// <summary>
+    ///     Loads definitions from a YAML string.
+    /// </summary>
+    public void LoadFromYamlString(string yaml, string sourceName)
+    {
+        try
+        {
+            var yamlObject = _yamlDeserializer.Deserialize<Dictionary<string, object>>(yaml);
+            if (yamlObject == null) return;
+
+            // Look for "policies" key (YAML format) or iterate root keys (JSON-like format)
+            if (yamlObject.TryGetValue("policies", out var policiesObj) && policiesObj is Dictionary<object, object> policies)
+            {
+                foreach (var kvp in policies)
+                {
+                    var name = kvp.Key?.ToString();
+                    if (string.IsNullOrEmpty(name) || name.StartsWith("$") || name.StartsWith("_"))
+                        continue;
+
+                    // Convert to JSON for uniform handling
+                    var jsonStr = System.Text.Json.JsonSerializer.Serialize(ConvertToJsonCompatible(kvp.Value));
+                    var jsonElement = JsonDocument.Parse(jsonStr).RootElement.Clone();
+                    _rawDefinitions[name] = jsonElement;
+                    _logger?.LogDebug("Found definition '{Name}' in {Source} (YAML)", name, sourceName);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error parsing YAML from {Source}", sourceName);
+        }
+    }
+
+    private static object? ConvertToJsonCompatible(object? value)
+    {
+        return value switch
+        {
+            null => null,
+            Dictionary<object, object> dict => dict.ToDictionary(
+                kvp => kvp.Key?.ToString() ?? "",
+                kvp => ConvertToJsonCompatible(kvp.Value)),
+            List<object> list => list.Select(ConvertToJsonCompatible).ToList(),
+            _ => value
+        };
+    }
+
+    private void LoadDefinitionsFromYamlResource(Assembly assembly, string resourceName)
+    {
+        try
+        {
+            using var stream = assembly.GetManifestResourceStream(resourceName);
+            if (stream == null)
+            {
+                _logger?.LogWarning("Could not load YAML resource: {Resource}", resourceName);
+                return;
+            }
+
+            LoadFromYaml(stream, resourceName);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error loading definitions from YAML {Resource}", resourceName);
+        }
     }
 
     private void LoadDefinitionsFromResource(Assembly assembly, string resourceName)
@@ -117,9 +208,12 @@ public class DefinitionLoader
         var inheritanceChain = new List<string> { name };
         var mergedProperties = new Dictionary<string, JsonElement>();
 
-        // Check for Extends
+        // Check for Extends/extends (support both JSON PascalCase and YAML snake_case)
         string? parentName = null;
-        if (element.TryGetProperty("Extends", out var extendsElement)) parentName = extendsElement.GetString();
+        if (element.TryGetProperty("Extends", out var extendsElement))
+            parentName = extendsElement.GetString();
+        else if (element.TryGetProperty("extends", out extendsElement))
+            parentName = extendsElement.GetString();
 
         // Resolve parent first
         if (!string.IsNullOrEmpty(parentName))
@@ -134,7 +228,9 @@ public class DefinitionLoader
         // Apply this definition's properties (override parent)
         foreach (var property in element.EnumerateObject())
         {
-            if (property.Name == "Extends" || property.Name.StartsWith("$") || property.Name.StartsWith("_"))
+            // Skip inheritance and meta properties
+            if (property.Name.Equals("Extends", StringComparison.OrdinalIgnoreCase) ||
+                property.Name.StartsWith("$") || property.Name.StartsWith("_"))
                 continue;
 
             mergedProperties[property.Name] = property.Value.Clone();

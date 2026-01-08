@@ -14,6 +14,52 @@ taxonomy:
   determinism: probabilistic
   persistence: direct_write  # Writes learned patterns
 
+# Input contract - what this detector consumes
+input:
+  accepts:
+    - type: botdetection.ledger
+      required: true
+      description: Detection ledger with all contributions
+      signal_pattern: ledger.*
+    - type: botdetection.signature
+      required: true
+      description: Complete bot detection signature
+      signal_pattern: botdetection.*
+
+  required_signals:
+    - detection.useragent
+
+  optional_signals:
+    - detection.header.confidence
+    - detection.ip.confidence
+    - detection.tls.confidence
+    - detection.http2.confidence
+    - detection.behavioral.confidence
+    - detection.version_age.analyzed
+    - detection.security_tool.detected
+
+# Output contract - what this detector produces
+output:
+  produces:
+    - type: botdetection.contribution
+      description: Heuristic aggregation contribution
+    - type: botdetection.result
+      description: Final detection result with classification
+
+  signals:
+    - key: detection.heuristic.score
+      entity_type: number
+      salience: 0.95
+      description: Aggregated bot probability
+    - key: detection.heuristic.confidence
+      entity_type: number
+      salience: 0.9
+      description: Confidence in the prediction
+    - key: detection.heuristic.dominant_category
+      entity_type: string
+      salience: 0.7
+      description: Category contributing most to score
+
 triggers:
   requires:
     - signal: detection.useragent

@@ -14,6 +14,40 @@ taxonomy:
   determinism: deterministic
   persistence: ephemeral  # Uses external cache
 
+# Input contract - what this detector consumes
+input:
+  accepts:
+    - type: botdetection.request
+      required: true
+      description: HTTP request for quick reputation lookup
+      signal_pattern: request.*
+
+  required_signals:
+    - request.headers.user-agent
+    - request.ip
+
+  optional_signals: []
+
+# Output contract - what this detector produces
+output:
+  produces:
+    - type: botdetection.contribution
+      description: FastPath reputation contribution (may trigger early exit)
+
+  signals:
+    - key: detection.fastpath.hit
+      entity_type: boolean
+      salience: 1.0
+      description: Whether a reputation match was found
+    - key: detection.early_exit.allow
+      entity_type: boolean
+      salience: 1.0
+      description: Signal to allow request immediately
+    - key: detection.early_exit.block
+      entity_type: boolean
+      salience: 1.0
+      description: Signal to block request immediately
+
 triggers:
   requires: []  # No dependencies - runs first in Wave 0
   skip_when: []  # Never skip - always runs first

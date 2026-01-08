@@ -14,6 +14,41 @@ taxonomy:
   determinism: deterministic
   persistence: ephemeral
 
+# Input contract - what this detector consumes
+input:
+  accepts:
+    - type: botdetection.request
+      required: true
+      description: HTTP request with HTTP/2 context
+      signal_pattern: request.http2.*
+
+  required_signals: []  # HTTP/2 data may not be available
+
+  optional_signals:
+    - request.http2.settings
+    - request.http2.priority
+    - request.headers.x-http2-fingerprint
+
+# Output contract - what this detector produces
+output:
+  produces:
+    - type: botdetection.contribution
+      description: HTTP/2 fingerprint analysis contribution
+
+  signals:
+    - key: detection.http2.confidence
+      entity_type: number
+      salience: 0.75
+      description: Bot confidence from HTTP/2 fingerprint
+    - key: detection.http2.is_http2
+      entity_type: boolean
+      salience: 0.6
+      description: Whether connection uses HTTP/2
+    - key: detection.http2.known_fingerprint
+      entity_type: string
+      salience: 0.9
+      description: Matched known fingerprint name
+
 triggers:
   requires: []  # No dependencies - runs first wave
   skip_when:

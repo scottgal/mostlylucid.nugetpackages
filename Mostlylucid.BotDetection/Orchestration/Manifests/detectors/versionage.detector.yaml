@@ -14,6 +14,46 @@ taxonomy:
   determinism: deterministic
   persistence: ephemeral
 
+# Input contract - what this detector consumes
+input:
+  accepts:
+    - type: botdetection.request
+      required: true
+      description: HTTP request with user-agent for version analysis
+      signal_pattern: request.headers.user-agent
+
+  required_signals:
+    - detection.useragent.parsed  # Need parsed UA data from UserAgent detector
+
+  optional_signals:
+    - detection.useragent.browser
+    - detection.useragent.os
+    - detection.useragent.version
+
+# Output contract - what this detector produces
+output:
+  produces:
+    - type: botdetection.contribution
+      description: Version age analysis contribution
+
+  signals:
+    - key: detection.version_age.confidence
+      entity_type: number
+      salience: 0.7
+      description: Bot confidence from version age analysis
+    - key: detection.version_age.browser_age
+      entity_type: number
+      salience: 0.5
+      description: Browser version age in major versions
+    - key: detection.version_age.os_age
+      entity_type: number
+      salience: 0.5
+      description: OS version age indicator
+    - key: detection.version_age.issues
+      entity_type: string[]
+      salience: 0.8
+      description: List of version-related issues found
+
 triggers:
   requires:
     - signal: detection.useragent

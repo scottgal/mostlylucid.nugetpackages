@@ -195,6 +195,108 @@ Control HOW to respond to detected bots:
 
 See [action-policies.md](docs/action-policies.md) for full details.
 
+## Architecture: StyloFlow & Entity Types
+
+BotDetection is built on **StyloFlow**, a YAML-driven orchestration framework. Each detector is configured via a manifest file that defines its inputs, outputs, and behavior.
+
+### Entity Types
+
+Entity types define the data contracts between detectors:
+
+| Entity Type | Description | Persistence |
+|-------------|-------------|-------------|
+| `botdetection.request` | HTTP request with all detection signals | Ephemeral |
+| `botdetection.signature` | Aggregated signals for classification | Ephemeral |
+| `botdetection.contribution` | Single detector contribution | Ephemeral |
+| `botdetection.ledger` | Accumulated detection evidence | Ephemeral |
+| `botdetection.result` | Final classification result | JSON |
+| `botdetection.learning_record` | Training data for learning system | Database |
+| `botdetection.embedding` | Vector embedding for similarity search | Embedded |
+| `botdetection.multivector_embedding` | Multi-vector ColBERT-style embedding | Embedded |
+
+### Detector Manifests
+
+Each detector has a YAML manifest defining its input/output contracts:
+
+```yaml
+# useragent.detector.yaml
+name: UserAgentContributor
+priority: 10
+enabled: true
+
+input:
+  accepts:
+    - type: botdetection.request
+      required: true
+      signal_pattern: request.headers.*
+  required_signals:
+    - request.headers.user-agent
+
+output:
+  produces:
+    - type: botdetection.contribution
+    - type: botdetection.ua_signal
+  signals:
+    - key: detection.useragent.confidence
+      entity_type: number
+      salience: 0.8
+
+defaults:
+  weights:
+    bot_signal: 1.5
+    verified: 2.0
+  confidence:
+    bot_detected: 0.3
+    strong_signal: 0.85
+  parameters:
+    min_ua_length: 10
+    verify_known_bots: true
+```
+
+### Overriding Configuration
+
+Override detector defaults via `appsettings.json`:
+
+```json
+{
+  "BotDetection": {
+    "Detectors": {
+      "UserAgentContributor": {
+        "Weights": {
+          "BotSignal": 2.0
+        },
+        "Parameters": {
+          "min_ua_length": 20
+        }
+      }
+    }
+  }
+}
+```
+
+### Multi-Vector Embeddings
+
+For advanced similarity-based detection, embeddings support named vectors:
+
+```yaml
+# In botdetection.entity.yaml
+- type: botdetection.multivector_embedding
+  persistence: embedded
+  schema:
+    properties:
+      vectors:
+        items:
+          properties:
+            name:
+              description: Vector identifier (e.g., "ua", "ip", "tls")
+            vector:
+              type: array
+            weight:
+              description: Relative importance for MaxSim scoring
+      aggregation:
+        enum: [maxsim, avgpool, concat]
+```
+
 ## Documentation
 
 | Feature                        | Description                               | Docs                                                                |

@@ -14,6 +14,51 @@ taxonomy:
   determinism: probabilistic  # Behavior varies
   persistence: stateful  # Tracks request history
 
+# Input contract - what this detector consumes
+input:
+  accepts:
+    - type: botdetection.request
+      required: true
+      description: HTTP request for behavioral analysis
+      signal_pattern: request.*
+    - type: behavioral.signature
+      required: false
+      description: Existing behavioral data from client
+      signal_pattern: behavioral.*
+
+  required_signals:
+    - request.ip
+    - request.path
+
+  optional_signals:
+    - request.timestamp
+    - detection.ip.address
+    - behavioral.timing.*
+    - behavioral.mouse.*
+    - behavioral.keyboard.*
+
+# Output contract - what this detector produces
+output:
+  produces:
+    - type: botdetection.contribution
+      description: Behavioral analysis contribution to detection ledger
+    - type: botdetection.behavioral_signal
+      description: Detailed behavioral signals
+
+  signals:
+    - key: detection.behavioral.confidence
+      entity_type: number
+      salience: 0.8
+      description: Bot confidence from behavioral analysis
+    - key: detection.behavioral.anomaly_detected
+      entity_type: boolean
+      salience: 0.9
+      description: Whether behavioral anomalies detected
+    - key: detection.behavioral.rate_exceeded
+      entity_type: boolean
+      salience: 0.95
+      description: Whether rate limits were exceeded
+
 triggers:
   requires: []  # No dependencies - tracks all requests
   skip_when:

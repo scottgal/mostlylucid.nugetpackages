@@ -14,6 +14,39 @@ taxonomy:
   determinism: deterministic
   persistence: ephemeral
 
+# Input contract - what this detector consumes
+input:
+  accepts:
+    - type: botdetection.request
+      required: true
+      description: HTTP request with client IP
+      signal_pattern: request.ip.*
+
+  required_signals:
+    - request.ip
+
+  optional_signals:
+    - request.headers.x-forwarded-for
+    - request.headers.x-real-ip
+
+# Output contract - what this detector produces
+output:
+  produces:
+    - type: botdetection.contribution
+      description: IP analysis contribution to detection ledger
+    - type: botdetection.ip_signal
+      description: Detailed IP analysis signals
+
+  signals:
+    - key: detection.ip.confidence
+      entity_type: number
+      salience: 0.7
+      description: Bot confidence from IP analysis
+    - key: detection.ip.is_datacenter
+      entity_type: boolean
+      salience: 0.9
+      description: Whether IP is from known datacenter
+
 triggers:
   requires: []  # No dependencies - runs first wave
   skip_when:

@@ -56,6 +56,7 @@
         <ProjectReference Include="..\..\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral.atoms.taxonomy\mostlylucid.ephemeral.atoms.taxonomy.csproj"/>
         <ProjectReference Include="..\..\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral.atoms.keyedsequential\mostlylucid.ephemeral.atoms.keyedsequential.csproj"/>
         <ProjectReference Include="..\..\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral.atoms.slidingcache\mostlylucid.ephemeral.atoms.slidingcache.csproj"/>
+        <ProjectReference Include="..\..\styloflow\src\StyloFlow\StyloFlow.csproj"/>
         <PackageReference Include="MathNet.Numerics" Version="5.0.0"/>
         <PackageReference Include="YamlDotNet" Version="16.3.0"/>
         <PackageReference Include="Vecc.YamlDotNet.Analyzers.StaticGenerator" Version="16.3.0">
@@ -78,15 +79,17 @@
         <EmbeddedResource Include="ClientSide\botdetection.js"/>
     </ItemGroup>
 
-    <!-- Embed policy definition JSON files -->
+    <!-- Embed policy definition YAML files -->
     <ItemGroup>
-        <EmbeddedResource Include="Definitions\Actions\*.json"/>
+        <EmbeddedResource Include="Definitions\Actions\*.yaml"/>
     </ItemGroup>
 
     <!-- Embed detector and pipeline YAML manifests -->
     <ItemGroup>
         <EmbeddedResource Include="Orchestration\Manifests\detectors\*.yaml"/>
         <EmbeddedResource Include="Orchestration\Manifests\pipelines\*.yaml"/>
+        <EmbeddedResource Include="Orchestration\Manifests\entities\*.yaml"/>
+        <EmbeddedResource Include="Orchestration\Manifests\schemas\*.json"/>
     </ItemGroup>
 
     <!-- Include icon and README in NuGet package -->
