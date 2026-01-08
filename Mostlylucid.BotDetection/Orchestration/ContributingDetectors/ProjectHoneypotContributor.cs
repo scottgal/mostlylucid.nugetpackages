@@ -62,7 +62,7 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
             var reason = !_options.ProjectHoneypot.Enabled
                 ? "Skipped: ProjectHoneypot is disabled in configuration"
                 : "Skipped: ProjectHoneypot AccessKey not configured (get free key at projecthoneypot.org)";
-            return Single(DetectionContribution.Info(Name, reason));
+            return Single(DetectionContribution.Info(Name, "ProjectHoneypot", reason));
         }
 
         var clientIp = state.GetSignal<string>(SignalKeys.ClientIp);
@@ -70,7 +70,7 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
 
         // Skip local/private IPs - they won't be in Project Honeypot
         var isLocal = state.GetSignal<bool>(SignalKeys.IpIsLocal);
-        if (isLocal) return Single(DetectionContribution.Info(Name, "Skipped: localhost/private IP"));
+        if (isLocal) return Single(DetectionContribution.Info(Name, "ProjectHoneypot", "Skipped: localhost/private IP"));
 
         // Parse the IP address
         if (!IPAddress.TryParse(clientIp, out var ipAddress)) return None();
@@ -116,8 +116,8 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
                 _logger.LogDebug("IP {Ip} identified as search engine by Project Honeypot", clientIp);
                 contributions.Add(DetectionContribution.VerifiedGoodBot(
                         Name,
-                        "Search Engine (Project Honeypot)",
-                        "IP verified as search engine by Project Honeypot")
+                        "IP verified as search engine by Project Honeypot",
+                        "Search Engine (Project Honeypot)")
                     with
                     {
                         Signals = signals.ToImmutable()
@@ -138,9 +138,9 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
             if (result.ThreatScore >= _options.ProjectHoneypot.HighThreatThreshold)
                 contributions.Add(DetectionContribution.VerifiedBot(
                         Name,
-                        $"Honeypot Threat ({result.VisitorType})",
                         reason,
-                        botType)
+                        botType: botType.ToString(),
+                        botName: $"Honeypot Threat ({result.VisitorType})")
                     with
                     {
                         ConfidenceDelta = confidence,
@@ -153,8 +153,8 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
                         "ProjectHoneypot",
                         confidence,
                         reason,
-                        botType,
-                        weight: 1.5)
+                        weight: 1.5,
+                        botType: botType.ToString())
                     with
                     {
                         Signals = signals.ToImmutable()
@@ -386,7 +386,7 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
                     Name,
                     $"Honeypot Threat ({result.VisitorType})",
                     reason,
-                    botType)
+                    botType.ToString())
                 with
                 {
                     ConfidenceDelta = confidence,
@@ -399,8 +399,8 @@ public class ProjectHoneypotContributor : ContributingDetectorBase
                     "ProjectHoneypot",
                     confidence,
                     reason,
-                    botType,
-                    weight: 1.5)
+                    weight: 1.5,
+                    botType: botType.ToString())
                 with
                 {
                     Signals = signals.ToImmutable()

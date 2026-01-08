@@ -156,8 +156,8 @@ public class ResponseBehaviorContributor : ContributingDetectorBase
         contributions.Add(DetectionContribution.Bot(
             Name, "Response", 0.9,
             $"Client accessed {behavior.HoneypotHits} honeypot path(s) in previous requests",
-            BotType.Scraper,
-            weight: 2.0));
+            weight: 2.0,
+            botType: BotType.Scraper.ToString()));
     }
 
     /// <summary>
@@ -182,8 +182,8 @@ public class ResponseBehaviorContributor : ContributingDetectorBase
             contributions.Add(DetectionContribution.Bot(
                 Name, "Response", confidence,
                 $"Systematic scanning detected: {behavior.Count404} 404s across {behavior.UniqueNotFoundPaths} unique paths",
-                BotType.Scraper,
-                weight: 1.7));
+                weight: 1.7,
+                botType: BotType.Scraper.ToString()));
         }
         // Moderate 404 pattern
         else if (behavior.Count404 > 10 && behavior.UniqueNotFoundPaths > 5)
@@ -217,8 +217,8 @@ public class ResponseBehaviorContributor : ContributingDetectorBase
             contributions.Add(DetectionContribution.Bot(
                 Name, "Response", 0.85,
                 $"Severe auth brute-forcing: {behavior.AuthFailures} authentication failures",
-                BotType.MaliciousBot,
-                weight: 1.9));
+                weight: 1.9,
+                botType: BotType.MaliciousBot.ToString()));
         }
         else if (behavior.AuthFailures > 10)
         {
@@ -273,8 +273,8 @@ public class ResponseBehaviorContributor : ContributingDetectorBase
             contributions.Add(DetectionContribution.Bot(
                 Name, "Response", 0.7,
                 $"Error harvesting detected: {errorPatternCount} error/stack trace patterns",
-                BotType.Scraper,
-                weight: 1.6));
+                weight: 1.6,
+                botType: BotType.Scraper.ToString()));
         }
         else if (errorPatternCount > 5)
         {
@@ -309,8 +309,8 @@ public class ResponseBehaviorContributor : ContributingDetectorBase
             contributions.Add(DetectionContribution.Bot(
                 Name, "Response", 0.75,
                 $"Multiple rate limit violations: {rateLimitCount} occurrences",
-                BotType.Scraper,
-                weight: 1.7));
+                weight: 1.7,
+                botType: BotType.Scraper.ToString()));
         else if (rateLimitCount > 2)
             contributions.Add(new DetectionContribution
             {
@@ -336,8 +336,8 @@ public class ResponseBehaviorContributor : ContributingDetectorBase
             contributions.Add(DetectionContribution.Bot(
                 Name, "Response", 0.85,
                 $"Very high response score: {behavior.ResponseScore:F2}",
-                BotType.MaliciousBot,
-                weight: 1.8));
+                weight: 1.8,
+                botType: BotType.MaliciousBot.ToString()));
         else if (behavior.ResponseScore > 0.6)
             contributions.Add(new DetectionContribution
             {

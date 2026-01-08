@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.BotDetection.Orchestration.Manifests;
 using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
@@ -12,14 +13,13 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 ///     Security/hacking tool detection contributor for the blackboard orchestrator.
 ///     Detects penetration testing tools, vulnerability scanners, and exploit frameworks.
 ///     Runs in first wave (no dependencies) as these tools often reveal themselves immediately in UA.
-///     Patterns are fetched from external sources via <see cref="IBotListFetcher" />:
-///     - digininja/scanner_user_agents (JSON with metadata)
-///     - OWASP CoreRuleSet scanners (text format)
-///     Part of the security detection layer - designed to integrate with future API honeypot systems.
+///     Patterns are fetched from external sources via <see cref="IBotListFetcher" />.
+///
+///     Configuration loaded from: securitytool.detector.yaml
+///     Override via: appsettings.json → BotDetection:Detectors:SecurityToolContributor:*
 /// </summary>
-public class SecurityToolContributor : ContributingDetectorBase
+public class SecurityToolContributor : ConfiguredContributorBase
 {
-    private static readonly TimeSpan PatternRefreshInterval = TimeSpan.FromHours(1);
     private readonly IBotListFetcher _fetcher;
     private readonly ILogger<SecurityToolContributor> _logger;
     private readonly BotDetectionOptions _options;
@@ -32,7 +32,9 @@ public class SecurityToolContributor : ContributingDetectorBase
     public SecurityToolContributor(
         ILogger<SecurityToolContributor> logger,
         IOptions<BotDetectionOptions> options,
-        IBotListFetcher fetcher)
+        IBotListFetcher fetcher,
+        IDetectorConfigProvider configProvider)
+        : base(configProvider)
     {
         _logger = logger;
         _options = options.Value;
@@ -40,7 +42,11 @@ public class SecurityToolContributor : ContributingDetectorBase
     }
 
     public override string Name => "SecurityTool";
-    public override int Priority => 8; // Run very early - security tools are high priority to detect
+    public override int Priority => Manifest?.Priority ?? 8;
+
+    // Config-driven parameters from YAML
+    private TimeSpan PatternRefreshInterval => TimeSpan.FromSeconds(Config.Timing.CacheRefreshSec);
+    private int RegexTimeoutMs => GetParam("regex_timeout_ms", 100);
 
     // No triggers - runs in first wave with UA analysis
     public override IReadOnlyList<TriggerCondition> TriggerConditions => Array.Empty<TriggerCondition>();
@@ -95,7 +101,7 @@ public class SecurityToolContributor : ContributingDetectorBase
         }
 
         // No security tool detected - report neutral
-        return Single(DetectionContribution.Info(Name, "No security tools detected in User-Agent"));
+        return Single(DetectionContribution.Info(Name, "SecurityTool", "No security tools detected in User-Agent"));
     }
 
     private async Task<IReadOnlyList<CompiledSecurityPattern>> GetPatternsAsync(CancellationToken cancellationToken)

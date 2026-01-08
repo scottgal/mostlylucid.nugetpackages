@@ -35,18 +35,15 @@ public readonly record struct QuorumVerdict(
 /// <summary>
 ///     Wave-based parallel orchestrator using ephemeral 1.1 features:
 ///     - ContributorTracker for consensus/quorum tracking
-///     - TypedSignalSink for typed contribution payloads
 ///     - StagedPipelineBuilder for wave-based execution
 ///     - DecayingReputationWindow for circuit breaker with decay
 ///     - EarlyExitResultCoordinator for short-circuit on verdict
+///     - DetectionLedger for contribution accumulation
 /// </summary>
 public class EphemeralDetectionOrchestrator : IAsyncDisposable
 {
     // Decaying reputation window for circuit breaker (failures decay over time)
     private readonly DecayingReputationWindow<string> _circuitBreakerScores;
-
-    // Typed signal sink for contribution payloads
-    private readonly TypedSignalSink<ContributionPayload> _contributionSignals;
     private readonly IEnumerable<IContributingDetector> _detectors;
 
     // Global signal sink for observability across requests
@@ -77,11 +74,6 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
             _options.SignalSinkMaxCapacity,
             _options.SignalSinkMaxAge);
 
-        // Typed signal sink for contributions (configurable)
-        _contributionSignals = new TypedSignalSink<ContributionPayload>(
-            maxCapacity: _options.ContributionSignalSinkMaxCapacity,
-            maxAge: _options.ContributionSignalSinkMaxAge);
-
         // Circuit breaker with decay - failures decay over time (configurable)
         _circuitBreakerScores = new DecayingReputationWindow<string>(
             _options.CircuitBreakerResetTime,
@@ -106,29 +98,6 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
         return _globalSignals.Sense();
     }
 
-    /// <summary>
-    ///     Get recent contribution signals with typed payloads.
-    /// </summary>
-    public IReadOnlyList<SignalEvent<ContributionPayload>> GetContributions()
-    {
-        return _contributionSignals.Sense();
-    }
-
-    /// <summary>
-    ///     Get contribution aggregation (total delta, weighted average, etc.)
-    /// </summary>
-    public (double TotalDelta, double WeightedAverage, int Count) GetContributionSummary()
-    {
-        var contributions = _contributionSignals.Sense();
-        if (contributions.Count == 0)
-            return (0, 0, 0);
-
-        var totalDelta = contributions.Sum(c => c.Payload.ConfidenceDelta * c.Payload.Weight);
-        var totalWeight = contributions.Sum(c => c.Payload.Weight);
-        var weightedAvg = totalWeight > 0 ? totalDelta / totalWeight : 0;
-
-        return (totalDelta, weightedAvg, contributions.Count);
-    }
 
     /// <summary>
     ///     Run the full detection pipeline and aggregate results.
@@ -676,15 +645,10 @@ public class EphemeralDetectionOrchestrator : IAsyncDisposable
                 };
                 aggregator.AddContribution(withMetadata);
 
-                // Emit typed contribution signal
-                _contributionSignals.Raise(
-                    SignalKeys.Contribution,
-                    new ContributionPayload(
-                        detector.Name,
-                        contribution.Category,
-                        contribution.ConfidenceDelta,
-                        contribution.Weight,
-                        stopwatch.ElapsedMilliseconds));
+                // Emit contribution signal to global sink for observability
+                _globalSignals.Raise(
+                    $"contribution.{detector.Name}.{contribution.Category}",
+                    requestId);
 
                 foreach (var signal in contribution.Signals) signals[signal.Key] = signal.Value;
             }

@@ -57,6 +57,11 @@
         <ProjectReference Include="..\..\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral.atoms.keyedsequential\mostlylucid.ephemeral.atoms.keyedsequential.csproj"/>
         <ProjectReference Include="..\..\mostlylucid.atoms\mostlylucid.ephemeral\src\mostlylucid.ephemeral.atoms.slidingcache\mostlylucid.ephemeral.atoms.slidingcache.csproj"/>
         <PackageReference Include="MathNet.Numerics" Version="5.0.0"/>
+        <PackageReference Include="YamlDotNet" Version="16.3.0"/>
+        <PackageReference Include="Vecc.YamlDotNet.Analyzers.StaticGenerator" Version="16.3.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+        </PackageReference>
         <PackageReference Include="MinVer" Version="6.0.0">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -76,6 +81,12 @@
     <!-- Embed policy definition JSON files -->
     <ItemGroup>
         <EmbeddedResource Include="Definitions\Actions\*.json"/>
+    </ItemGroup>
+
+    <!-- Embed detector and pipeline YAML manifests -->
+    <ItemGroup>
+        <EmbeddedResource Include="Orchestration\Manifests\detectors\*.yaml"/>
+        <EmbeddedResource Include="Orchestration\Manifests\pipelines\*.yaml"/>
     </ItemGroup>
 
     <!-- Include icon and README in NuGet package -->

@@ -79,7 +79,7 @@ public class LlmContributor : ContributingDetectorBase
                     ConfidenceDelta = reason.ConfidenceImpact,
                     Weight = 2.5, // LLM predictions are weighted very heavily
                     Reason = reason.Detail,
-                    BotType = result.BotType,
+                    BotType = result.BotType?.ToString(),
                     BotName = result.BotName,
                     Signals = ImmutableDictionary<string, object>.Empty
                         .Add(SignalKeys.AiPrediction, isBot ? "bot" : "human")

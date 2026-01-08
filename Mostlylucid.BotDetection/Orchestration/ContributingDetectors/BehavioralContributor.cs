@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Detectors;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.BotDetection.Orchestration.Manifests;
 using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
@@ -9,25 +10,33 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// <summary>
 ///     Behavioral analysis contributor - detects bots based on request patterns.
 ///     Runs in Wave 0 (no dependencies) to track all requests.
+///
+///     Configuration loaded from: behavioral.detector.yaml
+///     Override via: appsettings.json → BotDetection:Detectors:BehavioralContributor:*
 /// </summary>
-public class BehavioralContributor : ContributingDetectorBase
+public class BehavioralContributor : ConfiguredContributorBase
 {
     private readonly BehavioralDetector _detector;
     private readonly ILogger<BehavioralContributor> _logger;
 
     public BehavioralContributor(
         ILogger<BehavioralContributor> logger,
-        BehavioralDetector detector)
+        BehavioralDetector detector,
+        IDetectorConfigProvider configProvider)
+        : base(configProvider)
     {
         _logger = logger;
         _detector = detector;
     }
 
     public override string Name => "Behavioral";
-    public override int Priority => 20; // Run early but after basic detectors
+    public override int Priority => Manifest?.Priority ?? 20;
 
     // No triggers - runs in first wave to track all requests
     public override IReadOnlyList<TriggerCondition> TriggerConditions => Array.Empty<TriggerCondition>();
+
+    // Config-driven parameters from YAML
+    private double BehavioralWeightMultiplier => GetParam("behavioral_weight_multiplier", 1.5);
 
     public override async Task<IReadOnlyList<DetectionContribution>> ContributeAsync(
         BlackboardState state,
@@ -41,16 +50,14 @@ public class BehavioralContributor : ContributingDetectorBase
 
             if (result.Reasons.Count == 0)
                 // No behavioral issues detected - add negative signal (human indicator)
-                contributions.Add(new DetectionContribution
-                {
-                    DetectorName = Name,
-                    Category = "Behavioral",
-                    ConfidenceDelta = -0.1,
-                    Weight = 1.0,
-                    Reason = "Request patterns appear normal",
-                    Signals = ImmutableDictionary<string, object>.Empty
-                        .Add(SignalKeys.BehavioralAnomalyDetected, false)
-                });
+                contributions.Add(HumanContribution(
+                    "Behavioral",
+                    "Request patterns appear normal")
+                    with
+                    {
+                        Signals = ImmutableDictionary<string, object>.Empty
+                            .Add(SignalKeys.BehavioralAnomalyDetected, false)
+                    });
             else
                 // Convert each reason to a contribution
                 foreach (var reason in result.Reasons)
@@ -59,7 +66,7 @@ public class BehavioralContributor : ContributingDetectorBase
                         DetectorName = Name,
                         Category = reason.Category,
                         ConfidenceDelta = reason.ConfidenceImpact,
-                        Weight = 1.5, // Behavioral is a strong signal
+                        Weight = WeightBase * BehavioralWeightMultiplier,
                         Reason = reason.Detail,
                         BotType = result.BotType?.ToString(),
                         Signals = ImmutableDictionary<string, object>.Empty

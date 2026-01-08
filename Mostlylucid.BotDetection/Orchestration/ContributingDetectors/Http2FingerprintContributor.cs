@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.BotDetection.Orchestration.Manifests;
 using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
@@ -21,8 +22,11 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 ///     - h2.window_update_behavior
 ///     - h2.pseudoheader_order
 ///     - h2.stream_behavior
+///
+///     Configuration loaded from: http2.detector.yaml
+///     Override via: appsettings.json → BotDetection:Detectors:Http2FingerprintContributor:*
 /// </summary>
-public class Http2FingerprintContributor : ContributingDetectorBase
+public class Http2FingerprintContributor : ConfiguredContributorBase
 {
     // Known HTTP/2 fingerprints for different clients
     // Format: settings_frame values (key:value pairs)
@@ -98,15 +102,28 @@ public class Http2FingerprintContributor : ContributingDetectorBase
 
     private readonly ILogger<Http2FingerprintContributor> _logger;
 
-    public Http2FingerprintContributor(ILogger<Http2FingerprintContributor> logger)
+    public Http2FingerprintContributor(
+        ILogger<Http2FingerprintContributor> logger,
+        IDetectorConfigProvider configProvider)
+        : base(configProvider)
     {
         _logger = logger;
     }
 
     public override string Name => "Http2Fingerprint";
-    public override int Priority => 10; // Run early
+    public override int Priority => Manifest?.Priority ?? 10;
 
     public override IReadOnlyList<TriggerCondition> TriggerConditions => Array.Empty<TriggerCondition>();
+
+    // Config-driven parameters from YAML
+    private double Http1PenaltyConfidence => GetParam("http1_penalty_confidence", 0.1);
+    private double BotFingerprintConfidence => GetParam("bot_fingerprint_confidence", 0.7);
+    private double BrowserFingerprintConfidence => GetParam("browser_fingerprint_confidence", -0.2);
+    private double NonStandardPseudoheaderConfidence => GetParam("non_standard_pseudoheader_confidence", 0.3);
+    private double NoPriorityConfidence => GetParam("no_priority_confidence", 0.1);
+    private double NoWindowUpdatesConfidence => GetParam("no_window_updates_confidence", 0.15);
+    private double PushDisabledConfidence => GetParam("push_disabled_confidence", 0.12);
+    private double InvalidPrefaceConfidence => GetParam("invalid_preface_confidence", 0.8);
 
     public override Task<IReadOnlyList<DetectionContribution>> ContributeAsync(
         BlackboardState state,
@@ -131,15 +148,11 @@ public class Http2FingerprintContributor : ContributingDetectorBase
                 // HTTP/1.x usage could be legitimate or suspicious depending on context
                 // Modern browsers support HTTP/2, but some automation tools don't
                 if (protocol.StartsWith("HTTP/1"))
-                    contributions.Add(new DetectionContribution
-                    {
-                        DetectorName = Name,
-                        Category = "HTTP/2",
-                        ConfidenceDelta = 0.1,
-                        Weight = 0.5,
-                        Reason = $"Using {protocol} instead of HTTP/2 (common for bots)",
-                        Signals = signals.ToImmutable()
-                    });
+                    contributions.Add(BotContribution(
+                        "HTTP/2",
+                        $"Using {protocol} instead of HTTP/2 (common for bots)",
+                        confidenceOverride: Http1PenaltyConfidence,
+                        weightMultiplier: 0.5) with { Signals = signals.ToImmutable() });
 
                 return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
             }
@@ -157,22 +170,23 @@ public class Http2FingerprintContributor : ContributingDetectorBase
                     signals.Add("h2.client_type", matchedClient);
 
                     if (matchedClient.Contains("Bot") || matchedClient.Contains("HTTP2_Client"))
-                        contributions.Add(DetectionContribution.Bot(
-                            Name, "HTTP/2", 0.7,
+                        contributions.Add(BotContribution(
+                            "HTTP/2",
                             $"HTTP/2 fingerprint matches known automation client: {matchedClient}",
-                            BotType.Scraper,
-                            weight: 1.6));
+                            confidenceOverride: BotFingerprintConfidence,
+                            weightMultiplier: 1.6,
+                            botType: BotType.Scraper.ToString()));
                     else
                         // Known browser
-                        contributions.Add(new DetectionContribution
-                        {
-                            DetectorName = Name,
-                            Category = "HTTP/2",
-                            ConfidenceDelta = -0.2,
-                            Weight = 1.4,
-                            Reason = $"HTTP/2 fingerprint matches browser: {matchedClient}",
-                            Signals = signals.ToImmutable()
-                        });
+                        contributions.Add(HumanContribution(
+                            "HTTP/2",
+                            $"HTTP/2 fingerprint matches browser: {matchedClient}")
+                            with
+                            {
+                                ConfidenceDelta = BrowserFingerprintConfidence,
+                                Weight = WeightHumanSignal * 1.4,
+                                Signals = signals.ToImmutable()
+                            });
                 }
                 else
                 {
@@ -192,15 +206,11 @@ public class Http2FingerprintContributor : ContributingDetectorBase
                 if (pseudoHeaderOrder != "method,path,authority,scheme" &&
                     pseudoHeaderOrder != "method,path,scheme,authority" &&
                     pseudoHeaderOrder != "method,scheme,authority,path")
-                    contributions.Add(new DetectionContribution
-                    {
-                        DetectorName = Name,
-                        Category = "HTTP/2",
-                        ConfidenceDelta = 0.3,
-                        Weight = 1.2,
-                        Reason = $"Non-standard HTTP/2 pseudoheader order: {pseudoHeaderOrder}",
-                        Signals = signals.ToImmutable()
-                    });
+                    contributions.Add(BotContribution(
+                        "HTTP/2",
+                        $"Non-standard HTTP/2 pseudoheader order: {pseudoHeaderOrder}",
+                        confidenceOverride: NonStandardPseudoheaderConfidence,
+                        weightMultiplier: 1.2) with { Signals = signals.ToImmutable() });
             }
 
             // Check for HTTP/2 stream priority usage
@@ -213,15 +223,11 @@ public class Http2FingerprintContributor : ContributingDetectorBase
             {
                 signals.Add("h2.uses_priority", false);
                 // Lack of priority is slightly suspicious - browsers use it
-                contributions.Add(new DetectionContribution
-                {
-                    DetectorName = Name,
-                    Category = "HTTP/2",
-                    ConfidenceDelta = 0.1,
-                    Weight = 0.6,
-                    Reason = "No HTTP/2 stream priority (browsers typically use this)",
-                    Signals = signals.ToImmutable()
-                });
+                contributions.Add(BotContribution(
+                    "HTTP/2",
+                    "No HTTP/2 stream priority (browsers typically use this)",
+                    confidenceOverride: NoPriorityConfidence,
+                    weightMultiplier: 0.6) with { Signals = signals.ToImmutable() });
             }
 
             // Check for WINDOW_UPDATE behavior patterns
@@ -237,15 +243,11 @@ public class Http2FingerprintContributor : ContributingDetectorBase
 
                     if (updateCount == 0)
                         // No window updates is unusual for browsers
-                        contributions.Add(new DetectionContribution
-                        {
-                            DetectorName = Name,
-                            Category = "HTTP/2",
-                            ConfidenceDelta = 0.15,
-                            Weight = 0.8,
-                            Reason = "No HTTP/2 WINDOW_UPDATE frames (unusual for browsers)",
-                            Signals = signals.ToImmutable()
-                        });
+                        contributions.Add(BotContribution(
+                            "HTTP/2",
+                            "No HTTP/2 WINDOW_UPDATE frames (unusual for browsers)",
+                            confidenceOverride: NoWindowUpdatesConfidence,
+                            weightMultiplier: 0.8) with { Signals = signals.ToImmutable() });
                 }
             }
 
@@ -257,15 +259,11 @@ public class Http2FingerprintContributor : ContributingDetectorBase
 
                 if (!supportsPush)
                     // Many bots disable push
-                    contributions.Add(new DetectionContribution
-                    {
-                        DetectorName = Name,
-                        Category = "HTTP/2",
-                        ConfidenceDelta = 0.12,
-                        Weight = 0.7,
-                        Reason = "HTTP/2 Server Push disabled (common for bots)",
-                        Signals = signals.ToImmutable()
-                    });
+                    contributions.Add(BotContribution(
+                        "HTTP/2",
+                        "HTTP/2 Server Push disabled (common for bots)",
+                        confidenceOverride: PushDisabledConfidence,
+                        weightMultiplier: 0.7) with { Signals = signals.ToImmutable() });
             }
 
             // Analyze connection preface
@@ -276,11 +274,12 @@ public class Http2FingerprintContributor : ContributingDetectorBase
 
                 if (!valid)
                     // Invalid preface = definitely suspicious
-                    contributions.Add(DetectionContribution.Bot(
-                        Name, "HTTP/2", 0.8,
+                    contributions.Add(BotContribution(
+                        "HTTP/2",
                         "Invalid HTTP/2 connection preface",
-                        BotType.Scraper,
-                        weight: 1.8));
+                        confidenceOverride: InvalidPrefaceConfidence,
+                        weightMultiplier: 1.8,
+                        botType: BotType.Scraper.ToString()));
             }
         }
         catch (Exception ex)
@@ -292,15 +291,10 @@ public class Http2FingerprintContributor : ContributingDetectorBase
         // If no contributions yet, add neutral with signals
         if (contributions.Count == 0)
         {
-            contributions.Add(new DetectionContribution
-            {
-                DetectorName = Name,
-                Category = "HTTP/2",
-                ConfidenceDelta = 0.0,
-                Weight = 1.0,
-                Reason = "HTTP/2 analysis complete (no anomalies detected)",
-                Signals = signals.ToImmutable()
-            });
+            contributions.Add(DetectionContribution.Info(
+                Name,
+                "HTTP/2",
+                "HTTP/2 analysis complete (no anomalies detected)") with { Signals = signals.ToImmutable() });
         }
         else
         {

@@ -285,8 +285,8 @@ public class TcpIpFingerprintContributor : ContributingDetectorBase
                 contributions.Add(DetectionContribution.Bot(
                     Name, "TCP/IP", 0.55,
                     $"TCP window size matches known bot pattern: {windowSize} ({pattern})",
-                    BotType.Scraper,
-                    weight: 1.3));
+                    weight: 1.3,
+                    botType: BotType.Scraper.ToString()));
         }
         else
         {
@@ -316,8 +316,8 @@ public class TcpIpFingerprintContributor : ContributingDetectorBase
                 contributions.Add(DetectionContribution.Bot(
                     Name, "TCP/IP", 0.6,
                     $"Unusual TTL value for web client: {ttl}",
-                    BotType.Scraper,
-                    weight: 1.4));
+                    weight: 1.4,
+                    botType: BotType.Scraper.ToString()));
         }
         else
         {

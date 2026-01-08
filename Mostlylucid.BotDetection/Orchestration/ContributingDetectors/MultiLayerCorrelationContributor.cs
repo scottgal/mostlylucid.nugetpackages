@@ -74,8 +74,8 @@ public class MultiLayerCorrelationContributor : ContributingDetectorBase
                 contributions.Add(DetectionContribution.Bot(
                     Name, "Correlation", 0.65,
                     $"OS mismatch detected: TCP indicates {tcpOsHint ?? tcpWindowOsHint}, UA claims {userAgentOs}",
-                    BotType.Scraper,
-                    weight: 1.7));
+                    weight: 1.7,
+                    botType: BotType.Scraper.ToString()));
             }
 
             // 2. Browser Fingerprint Correlation
@@ -88,8 +88,8 @@ public class MultiLayerCorrelationContributor : ContributingDetectorBase
                 contributions.Add(DetectionContribution.Bot(
                     Name, "Correlation", 0.7,
                     $"Browser mismatch: HTTP/2 indicates {h2ClientType}, UA claims {userAgentBrowser}",
-                    BotType.Scraper,
-                    weight: 1.8));
+                    weight: 1.8,
+                    botType: BotType.Scraper.ToString()));
             }
 
             // 3. TLS vs User-Agent Correlation
@@ -139,8 +139,8 @@ public class MultiLayerCorrelationContributor : ContributingDetectorBase
                 contributions.Add(DetectionContribution.Bot(
                     Name, "Correlation", 0.75,
                     $"Datacenter IP with browser User-Agent: {userAgentBrowser}",
-                    BotType.MaliciousBot,
-                    weight: 1.9));
+                    weight: 1.9,
+                    botType: BotType.MaliciousBot.ToString()));
             }
 
             // 6. Calculate overall consistency score
@@ -155,14 +155,14 @@ public class MultiLayerCorrelationContributor : ContributingDetectorBase
                 contributions.Add(DetectionContribution.Bot(
                     Name, "Correlation", 0.85,
                     $"Multiple layer mismatches detected ({anomalyCount}/{totalLayers}): {string.Join(", ", anomalyLayers)}",
-                    BotType.MaliciousBot,
-                    weight: 2.0));
+                    weight: 2.0,
+                    botType: BotType.MaliciousBot.ToString()));
             else if (anomalyCount >= 2)
                 contributions.Add(DetectionContribution.Bot(
                     Name, "Correlation", 0.6,
                     $"Cross-layer inconsistencies: {string.Join(", ", anomalyLayers)}",
-                    BotType.Scraper,
-                    weight: 1.5));
+                    weight: 1.5,
+                    botType: BotType.Scraper.ToString()));
 
             // 7. Perfect consistency across all layers = likely human
             if (anomalyCount == 0 && !string.IsNullOrEmpty(tcpOsHint) && !string.IsNullOrEmpty(userAgentOs))

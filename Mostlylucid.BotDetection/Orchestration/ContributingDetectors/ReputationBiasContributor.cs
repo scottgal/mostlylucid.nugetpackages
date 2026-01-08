@@ -144,15 +144,16 @@ public class ReputationBiasContributor : ContributingDetectorBase
 
             // Update signals on first contribution to contain summary
             if (contributions.Count > 0)
-                contributions[0] = contributions[0] with
-                {
-                    Signals = contributions[0].Signals.AddRange(signals)
-                };
+            {
+                var existingSignals = contributions[0].Signals;
+                var merged = existingSignals.ToImmutableDictionary().SetItems(signals);
+                contributions[0] = contributions[0] with { Signals = merged };
+            }
         }
 
         // Always return at least one contribution so detector shows in list
         if (contributions.Count == 0)
-            contributions.Add(DetectionContribution.Info(Name, "No learned reputation patterns matched"));
+            contributions.Add(DetectionContribution.Info(Name, "ReputationBias", "No learned reputation patterns matched"));
 
         return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
     }
@@ -192,11 +193,11 @@ public class ReputationBiasContributor : ContributingDetectorBase
             // Negligible weight, skip
             return (null, ImmutableDictionary<string, object>.Empty);
 
-        BotType? botType = reputation.State switch
+        string? botType = reputation.State switch
         {
-            ReputationState.ConfirmedBad => BotType.MaliciousBot,
-            ReputationState.Suspect => BotType.Scraper,
-            ReputationState.ManuallyBlocked => BotType.MaliciousBot,
+            ReputationState.ConfirmedBad => BotType.MaliciousBot.ToString(),
+            ReputationState.Suspect => BotType.Scraper.ToString(),
+            ReputationState.ManuallyBlocked => BotType.MaliciousBot.ToString(),
             _ => null
         };
 

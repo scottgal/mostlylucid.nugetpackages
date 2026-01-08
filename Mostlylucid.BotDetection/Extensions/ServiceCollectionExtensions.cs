@@ -15,6 +15,7 @@ using Mostlylucid.BotDetection.Metrics;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Orchestration;
 using Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
+using Mostlylucid.BotDetection.Orchestration.Manifests;
 using Mostlylucid.BotDetection.Persistence;
 using Mostlylucid.BotDetection.Policies;
 using Mostlylucid.BotDetection.Services;
@@ -257,6 +258,18 @@ public static class ServiceCollectionExtensions
 
         // Register bot list update background service
         services.AddHostedService<BotListUpdateService>();
+
+        // Register detector manifest loader (YAML-based configuration)
+        services.TryAddSingleton<DetectorManifestLoader>(sp =>
+        {
+            var loader = new DetectorManifestLoader();
+            // Load embedded manifests on first access
+            loader.LoadEmbeddedManifests();
+            return loader;
+        });
+
+        // Register detector config provider (resolves YAML + appsettings overrides)
+        services.TryAddSingleton<IDetectorConfigProvider, DetectorConfigProvider>();
 
         // Register individual detectors
         // Each detector is responsible for one detection strategy

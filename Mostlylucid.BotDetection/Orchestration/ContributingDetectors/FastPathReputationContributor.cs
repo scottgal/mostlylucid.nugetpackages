@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.BotDetection.Orchestration.Manifests;
 using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
@@ -20,25 +21,33 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 ///     Works in tandem with ReputationBiasContributor:
 ///     - FastPathReputationContributor (Priority 3) - Instant allow/abort for known patterns
 ///     - ReputationBiasContributor (Priority 45) - Bias for scoring after signals extracted
+///
+///     Configuration loaded from: fastpath.detector.yaml
+///     Override via: appsettings.json → BotDetection:Detectors:FastPathReputationContributor:*
 /// </summary>
-public class FastPathReputationContributor : ContributingDetectorBase
+public class FastPathReputationContributor : ConfiguredContributorBase
 {
     private readonly ILogger<FastPathReputationContributor> _logger;
     private readonly IPatternReputationCache _reputationCache;
 
     public FastPathReputationContributor(
         ILogger<FastPathReputationContributor> logger,
-        IPatternReputationCache reputationCache)
+        IPatternReputationCache reputationCache,
+        IDetectorConfigProvider configProvider)
+        : base(configProvider)
     {
         _logger = logger;
         _reputationCache = reputationCache;
     }
 
     public override string Name => "FastPathReputation";
-    public override int Priority => 3; // Run FIRST - before any signal extraction
+    public override int Priority => Manifest?.Priority ?? 3;
 
     // No triggers - runs immediately in Wave 0
     public override IReadOnlyList<TriggerCondition> TriggerConditions => Array.Empty<TriggerCondition>();
+
+    // Config-driven parameters from YAML
+    private double FastAbortWeight => GetParam("fast_abort_weight", 3.0);
 
     public override Task<IReadOnlyList<DetectionContribution>> ContributeAsync(
         BlackboardState state,
@@ -99,7 +108,7 @@ public class FastPathReputationContributor : ContributingDetectorBase
         if (matchedPattern == null)
             return Task.FromResult<IReadOnlyList<DetectionContribution>>(new[]
             {
-                DetectionContribution.Info(Name, "No known patterns in reputation cache")
+                DetectionContribution.Info(Name, "FastPathReputation", "No known patterns in reputation cache")
             });
 
         // FAST PATH HIT - create instant allow or abort contribution
@@ -134,8 +143,8 @@ public class FastPathReputationContributor : ContributingDetectorBase
 
         var contribution = DetectionContribution.VerifiedGoodBot(
                 Name,
-                botName,
-                $"[FastPath] Known good {matchType}: {matchedPattern.State} (score={matchedPattern.BotScore:F2}, support={matchedPattern.Support:F0})")
+                $"[FastPath] Known good {matchType}: {matchedPattern.State} (score={matchedPattern.BotScore:F2}, support={matchedPattern.Support:F0})",
+                botName)
             with
             {
                 Signals = signals
@@ -165,12 +174,12 @@ public class FastPathReputationContributor : ContributingDetectorBase
 
         var contribution = DetectionContribution.VerifiedBot(
                 Name,
-                matchedPattern.PatternId,
-                $"[FastPath] Known bad {matchType}: {matchedPattern.State} (score={matchedPattern.BotScore:F2}, support={matchedPattern.Support:F0})")
+                $"[FastPath] Known bad {matchType}: {matchedPattern.State} (score={matchedPattern.BotScore:F2}, support={matchedPattern.Support:F0})",
+                botName: matchedPattern.PatternId)
             with
             {
                 ConfidenceDelta = matchedPattern.BotScore,
-                Weight = 3.0, // Very high weight for confirmed patterns - instant abort
+                Weight = FastAbortWeight, // Very high weight for confirmed patterns - instant abort
                 Signals = signals
             };
 

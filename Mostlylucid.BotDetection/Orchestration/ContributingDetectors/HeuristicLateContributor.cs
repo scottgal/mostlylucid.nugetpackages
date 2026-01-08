@@ -131,23 +131,14 @@ public class HeuristicLateContributor : ContributingDetectorBase
         var detectorNames = state.Contributions.Select(c => c.DetectorName).ToHashSet();
         var aiRan = detectorNames.Any(d => aiDetectors.Contains(d));
 
-        // Build category breakdown
-        var categoryBreakdown = state.Contributions
-            .GroupBy(c => c.Category)
-            .ToDictionary(
-                g => g.Key,
-                g => new CategoryScore
-                {
-                    Category = g.Key,
-                    Score = g.Sum(c => c.ConfidenceDelta * c.Weight),
-                    Weight = g.Sum(c => c.Weight),
-                    ContributionCount = g.Count(),
-                    Reasons = g.Select(c => c.Reason).ToList()
-                });
+        // Build a DetectionLedger with all contributions
+        var tempLedger = new DetectionLedger("temp-heuristic-late");
+        foreach (var contrib in state.Contributions)
+            tempLedger.AddContribution(contrib);
 
         return new AggregatedEvidence
         {
-            Contributions = state.Contributions,
+            Ledger = tempLedger,
             BotProbability = state.CurrentRiskScore,
             Confidence = 0.5, // Intermediate confidence - will be recalculated
             RiskBand = RiskBand.Medium, // Intermediate - will be recalculated
@@ -155,7 +146,7 @@ public class HeuristicLateContributor : ContributingDetectorBase
             PrimaryBotName = null,
             Signals = signals,
             TotalProcessingTimeMs = state.Elapsed.TotalMilliseconds,
-            CategoryBreakdown = categoryBreakdown,
+            CategoryBreakdown = tempLedger.CategoryBreakdown,
             ContributingDetectors = detectorNames,
             FailedDetectors = state.FailedDetectors,
             AiRan = aiRan

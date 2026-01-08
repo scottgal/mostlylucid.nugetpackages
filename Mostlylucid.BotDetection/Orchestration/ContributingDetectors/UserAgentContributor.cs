@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.BotDetection.Orchestration.Manifests;
 using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
@@ -12,8 +13,11 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 ///     User-Agent based bot detection.
 ///     Runs in the first wave (no dependencies).
 ///     Emits signals for other detectors to consume.
+///
+///     Configuration loaded from: useragent.detector.yaml
+///     Override via: appsettings.json → BotDetection:Detectors:UserAgentContributor:*
 /// </summary>
-public class UserAgentContributor : ContributingDetectorBase
+public class UserAgentContributor : ConfiguredContributorBase
 {
     private readonly ILogger<UserAgentContributor> _logger;
     private readonly BotDetectionOptions _options;
@@ -22,7 +26,9 @@ public class UserAgentContributor : ContributingDetectorBase
     public UserAgentContributor(
         ILogger<UserAgentContributor> logger,
         IOptions<BotDetectionOptions> options,
+        IDetectorConfigProvider configProvider,
         ICompiledPatternCache? patternCache = null)
+        : base(configProvider)
     {
         _logger = logger;
         _options = options.Value;
@@ -30,10 +36,16 @@ public class UserAgentContributor : ContributingDetectorBase
     }
 
     public override string Name => "UserAgent";
-    public override int Priority => 10; // Run early
+    public override int Priority => Manifest?.Priority ?? 10;
 
     // No triggers - runs in first wave
     public override IReadOnlyList<TriggerCondition> TriggerConditions => Array.Empty<TriggerCondition>();
+
+    // Config-driven parameters from YAML
+    private int MinUaLength => GetParam("min_ua_length", 10);
+    private double MissingUaConfidence => GetParam("missing_ua_confidence", 0.8);
+    private double PatternMatchConfidence => GetParam("pattern_match_confidence", 0.9);
+    private double SuspiciousConfidence => GetParam("suspicious_confidence", 0.6);
 
     public override Task<IReadOnlyList<DetectionContribution>> ContributeAsync(
         BlackboardState state,
@@ -42,9 +54,10 @@ public class UserAgentContributor : ContributingDetectorBase
         var userAgent = state.UserAgent;
 
         if (string.IsNullOrWhiteSpace(userAgent))
-            return Task.FromResult(Single(DetectionContribution.Bot(
-                Name, "UserAgent", 0.8,
+            return Task.FromResult(Single(BotContribution(
+                "UserAgent",
                 "Missing User-Agent header",
+                confidenceOverride: MissingUaConfidence,
                 botType: BotType.Unknown.ToString())));
 
         var contributions = new List<DetectionContribution>();
@@ -58,6 +71,7 @@ public class UserAgentContributor : ContributingDetectorBase
                     whitelistName!)
                 with
                 {
+                    Weight = WeightVerified,
                     Signals = ImmutableDictionary<string, object>.Empty
                         .Add(SignalKeys.UserAgent, userAgent)
                         .Add(SignalKeys.UserAgentIsBot, true)
@@ -69,12 +83,15 @@ public class UserAgentContributor : ContributingDetectorBase
         var (isBot, confidence, botType, botName, reason) = AnalyzeUserAgent(userAgent);
 
         if (isBot)
-            contributions.Add(DetectionContribution.Bot(
-                    Name, "UserAgent", confidence,
+            contributions.Add(BotContribution(
+                    "UserAgent",
                     reason,
-                    botType: botType?.ToString(), botName: botName)
+                    confidenceOverride: confidence,
+                    botType: botType?.ToString(),
+                    botName: botName)
                 with
                 {
+                    Weight = WeightBotSignal,
                     Signals = ImmutableDictionary<string, object>.Empty
                         .Add(SignalKeys.UserAgent, userAgent)
                         .Add(SignalKeys.UserAgentIsBot, true)
@@ -83,23 +100,28 @@ public class UserAgentContributor : ContributingDetectorBase
                 });
         else
             // Emit negative contribution (human-like) with signals for other detectors
-            contributions.Add(new DetectionContribution
-            {
-                DetectorName = Name,
-                Category = "UserAgent",
-                ConfidenceDelta = -0.2, // Negative = evidence of human
-                Weight = 1.0,
-                Reason = "User-Agent appears normal",
-                Signals = ImmutableDictionary<string, object>.Empty
-                    .Add(SignalKeys.UserAgent, userAgent)
-                    .Add(SignalKeys.UserAgentIsBot, false)
-            });
+            contributions.Add(HumanContribution(
+                    "UserAgent",
+                    "User-Agent appears normal")
+                with
+                {
+                    Signals = ImmutableDictionary<string, object>.Empty
+                        .Add(SignalKeys.UserAgent, userAgent)
+                        .Add(SignalKeys.UserAgentIsBot, false)
+                });
 
         return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
     }
 
     private (bool isWhitelisted, string? name) CheckWhitelist(string userAgent)
     {
+        // First check YAML config for known bot patterns
+        var knownBotPatterns = GetStringListParam("known_bot_patterns");
+        foreach (var pattern in knownBotPatterns)
+            if (userAgent.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+                return (true, pattern);
+
+        // Then check runtime options
         foreach (var pattern in _options.WhitelistedBotPatterns)
             if (userAgent.Contains(pattern, StringComparison.OrdinalIgnoreCase))
                 return (true, pattern);
@@ -113,16 +135,16 @@ public class UserAgentContributor : ContributingDetectorBase
         // Check compiled patterns from data sources
         if (_patternCache != null)
             if (_patternCache.MatchesAnyPattern(userAgent, out var matchedPattern))
-                return (true, 0.9, BotType.Unknown, null,
+                return (true, PatternMatchConfidence, BotType.Unknown, null,
                     $"Matched pattern: {matchedPattern}");
 
         // Check common bot indicators
         if (IsCommonBotPattern(userAgent, out var botType, out var botName))
-            return (true, 0.9, botType, botName, $"Known bot pattern: {botName}");
+            return (true, PatternMatchConfidence, botType, botName, $"Known bot pattern: {botName}");
 
         // Check for suspicious patterns
         if (IsSuspiciousUserAgent(userAgent, out var suspiciousReason))
-            return (true, 0.6, BotType.Unknown, null, suspiciousReason);
+            return (true, SuspiciousConfidence, BotType.Unknown, null, suspiciousReason);
 
         return (false, 0.0, null, null, "Normal user agent");
     }
@@ -166,12 +188,12 @@ public class UserAgentContributor : ContributingDetectorBase
         return false;
     }
 
-    private static bool IsSuspiciousUserAgent(string userAgent, out string reason)
+    private bool IsSuspiciousUserAgent(string userAgent, out string reason)
     {
-        // Very short user agent
-        if (userAgent.Length < 20)
+        // Very short user agent - threshold from YAML
+        if (userAgent.Length < MinUaLength)
         {
-            reason = "Suspiciously short User-Agent";
+            reason = $"Suspiciously short User-Agent (< {MinUaLength} chars)";
             return true;
         }
 
@@ -197,24 +219,37 @@ public class UserAgentContributor : ContributingDetectorBase
 /// <summary>
 ///     Inconsistency detection that runs after raw signals are collected.
 ///     Looks for mismatches between claimed identity and actual behavior.
+///
+///     Configuration loaded from: inconsistency.detector.yaml
+///     Override via: appsettings.json → BotDetection:Detectors:InconsistencyContributor:*
 /// </summary>
-public class InconsistencyContributor : ContributingDetectorBase
+public class InconsistencyContributor : ConfiguredContributorBase
 {
     private readonly ILogger<InconsistencyContributor> _logger;
 
-    public InconsistencyContributor(ILogger<InconsistencyContributor> logger)
+    public InconsistencyContributor(
+        ILogger<InconsistencyContributor> logger,
+        IDetectorConfigProvider configProvider)
+        : base(configProvider)
     {
         _logger = logger;
     }
 
     public override string Name => "Inconsistency";
-    public override int Priority => 50; // Run after raw signal detectors
+    public override int Priority => Manifest?.Priority ?? 50;
 
     // Wait for UA and IP signals
     public override IReadOnlyList<TriggerCondition> TriggerConditions =>
     [
         Triggers.WhenSignalExists(SignalKeys.UserAgent)
     ];
+
+    // Config-driven parameters from YAML
+    private double DatacenterBrowserConfidence => GetParam("datacenter_browser_confidence", 0.7);
+    private double MissingLanguageConfidence => GetParam("missing_language_confidence", 0.5);
+    private double MissingClientHintsConfidence => GetParam("missing_client_hints_confidence", 0.2);
+    private double OutdatedBrowserConfidence => GetParam("outdated_browser_confidence", 0.3);
+    private int MinChromeVersion => GetParam("min_chrome_version", 90);
 
     public override Task<IReadOnlyList<DetectionContribution>> ContributeAsync(
         BlackboardState state,
@@ -228,17 +263,19 @@ public class InconsistencyContributor : ContributingDetectorBase
 
         // Check for datacenter IP + browser UA (common bot pattern)
         if (isDatacenter && LooksLikeBrowser(userAgent))
-            contributions.Add(DetectionContribution.Bot(
-                Name, "Inconsistency", 0.7,
+            contributions.Add(BotContribution(
+                "Inconsistency",
                 "Browser User-Agent from datacenter IP",
-                weight: 1.5, // High weight for this signal
+                confidenceOverride: DatacenterBrowserConfidence,
+                weightMultiplier: 1.5,
                 botType: BotType.Unknown.ToString()));
 
         // Check for missing Accept-Language with browser UA
         if (LooksLikeBrowser(userAgent) && !headers.ContainsKey("Accept-Language"))
-            contributions.Add(DetectionContribution.Bot(
-                Name, "Inconsistency", 0.5,
+            contributions.Add(BotContribution(
+                "Inconsistency",
                 "Browser User-Agent without Accept-Language header",
+                confidenceOverride: MissingLanguageConfidence,
                 botType: BotType.Unknown.ToString()));
 
         // Check for Chrome UA without sec-ch-ua headers
@@ -250,29 +287,25 @@ public class InconsistencyContributor : ContributingDetectorBase
                                          path.Contains("worker");
 
         if (userAgent.Contains("Chrome/") && !headers.ContainsKey("sec-ch-ua") && !isLegitimateNoHintsRequest)
-            // Reduced from 0.4 - Client Hints are not universally enabled
-            contributions.Add(DetectionContribution.Bot(
-                Name, "Inconsistency", 0.2,
+            contributions.Add(BotContribution(
+                "Inconsistency",
                 "Chrome User-Agent without Client Hints",
+                confidenceOverride: MissingClientHintsConfidence,
                 botType: BotType.Scraper.ToString()));
 
         // Check for modern browser claiming old version
         if (IsOutdatedBrowser(userAgent))
-            contributions.Add(DetectionContribution.Bot(
-                Name, "Inconsistency", 0.3,
+            contributions.Add(BotContribution(
+                "Inconsistency",
                 "Outdated browser version in User-Agent",
+                confidenceOverride: OutdatedBrowserConfidence,
                 botType: BotType.Unknown.ToString()));
 
         if (contributions.Count == 0)
             // No inconsistencies found - add negative signal (human indicator)
-            contributions.Add(new DetectionContribution
-            {
-                DetectorName = Name,
-                Category = "Inconsistency",
-                ConfidenceDelta = -0.05,
-                Weight = 0.8,
-                Reason = "No header/UA inconsistencies detected"
-            });
+            contributions.Add(HumanContribution(
+                "Inconsistency",
+                "No header/UA inconsistencies detected"));
 
         return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
     }
@@ -284,13 +317,12 @@ public class InconsistencyContributor : ContributingDetectorBase
                 userAgent.Contains("Safari") || userAgent.Contains("Edge"));
     }
 
-    private static bool IsOutdatedBrowser(string userAgent)
+    private bool IsOutdatedBrowser(string userAgent)
     {
-        // Check for very old Chrome versions
+        // Check for very old Chrome versions - threshold from YAML
         var chromeMatch = Regex.Match(userAgent, @"Chrome/(\d+)");
         if (chromeMatch.Success && int.TryParse(chromeMatch.Groups[1].Value, out var version))
-            // Chrome versions below 90 are considered very outdated
-            return version < 90;
+            return version < MinChromeVersion;
 
         return false;
     }
@@ -299,26 +331,38 @@ public class InconsistencyContributor : ContributingDetectorBase
 /// <summary>
 ///     Expensive AI-based detector that only runs when risk is elevated.
 ///     Uses trigger conditions to avoid running on obvious humans.
+///
+///     Configuration loaded from: ai.detector.yaml
+///     Override via: appsettings.json → BotDetection:Detectors:AiContributor:*
 /// </summary>
-public class AiContributor : ContributingDetectorBase
+public class AiContributor : ConfiguredContributorBase
 {
     private readonly ILogger<AiContributor> _logger;
 
-    public AiContributor(ILogger<AiContributor> logger)
+    public AiContributor(
+        ILogger<AiContributor> logger,
+        IDetectorConfigProvider configProvider)
+        : base(configProvider)
     {
         _logger = logger;
     }
 
     public override string Name => "AI";
-    public override int Priority => 100; // Run last
-    public override TimeSpan ExecutionTimeout => TimeSpan.FromSeconds(5); // Longer timeout for AI
+    public override int Priority => Manifest?.Priority ?? 100;
+    public override TimeSpan ExecutionTimeout => TimeSpan.FromMilliseconds(Config.Timing.TimeoutMs > 0 ? Config.Timing.TimeoutMs : 5000);
+
+    // Config-driven parameters from YAML
+    private double HighRiskThreshold => GetParam("high_risk_threshold", 0.8);
+    private double MediumRiskThreshold => GetParam("medium_risk_threshold", 0.5);
+    private double HighRiskAdjustment => GetParam("high_risk_adjustment", 0.2);
+    private int MinDetectorCount => GetParam("min_detector_count", 2);
 
     // Only run when risk is medium or higher AND we have signals to analyze
     public override IReadOnlyList<TriggerCondition> TriggerConditions =>
     [
         Triggers.AllOf(
             Triggers.WhenRiskMediumOrHigher,
-            Triggers.WhenDetectorCount(2) // At least 2 other detectors ran
+            Triggers.WhenDetectorCount(MinDetectorCount)
         )
     ];
 
@@ -335,13 +379,14 @@ public class AiContributor : ContributingDetectorBase
         // Example: AI confirms or adjusts the existing risk assessment
         var currentRisk = state.CurrentRiskScore;
 
-        if (currentRisk > 0.8)
-            return Single(DetectionContribution.Bot(
-                Name, "AI", 0.2, // Small adjustment
+        if (currentRisk > HighRiskThreshold)
+            return Single(BotContribution(
+                "AI",
                 "AI analysis confirms high-risk signals",
-                weight: 0.5, botType: null, botName: null));
+                confidenceOverride: HighRiskAdjustment,
+                weightMultiplier: 0.5));
 
-        if (currentRisk > 0.5)
+        if (currentRisk > MediumRiskThreshold)
             // Uncertain - AI provides additional signal
             return Single(DetectionContribution.Info(
                 Name, "AI",

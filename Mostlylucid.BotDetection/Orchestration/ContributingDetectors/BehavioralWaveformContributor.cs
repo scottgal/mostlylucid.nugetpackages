@@ -158,8 +158,8 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
             contributions.Add(DetectionContribution.Bot(
                 Name, "Waveform", 0.7,
                 $"Highly regular timing pattern (CV={cv:F3}) - typical bot behavior",
-                BotType.Scraper,
-                weight: 1.6));
+                weight: 1.6,
+                botType: BotType.Scraper.ToString()));
         // Moderate CV = human-like
         else if (cv >= 0.3 && cv <= 2.0)
             contributions.Add(new DetectionContribution
@@ -182,8 +182,8 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
             contributions.Add(DetectionContribution.Bot(
                 Name, "Waveform", 0.65,
                 $"Burst pattern detected: {recentRequests} requests in 10 seconds",
-                BotType.Scraper,
-                weight: 1.5));
+                weight: 1.5,
+                botType: BotType.Scraper.ToString()));
         }
     }
 
@@ -220,8 +220,8 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
             contributions.Add(DetectionContribution.Bot(
                 Name, "Waveform", 0.6,
                 "Sequential path traversal detected (systematic crawling pattern)",
-                BotType.Scraper,
-                weight: 1.4));
+                weight: 1.4,
+                botType: BotType.Scraper.ToString()));
         }
 
         // Depth-first vs breadth-first traversal analysis
@@ -257,8 +257,8 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
             contributions.Add(DetectionContribution.Bot(
                 Name, "Waveform", 0.75,
                 $"High request rate: {requestRate:F1} requests/minute",
-                BotType.Scraper,
-                weight: 1.7));
+                weight: 1.7,
+                botType: BotType.Scraper.ToString()));
         else if (requestRate > 10) // 10-30 requests/minute
             contributions.Add(new DetectionContribution
             {
@@ -282,8 +282,8 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
             contributions.Add(DetectionContribution.Bot(
                 Name, "Waveform", 0.8,
                 $"User-Agent changed {userAgents} times in session (IP rotation or spoofing)",
-                BotType.MaliciousBot,
-                weight: 1.8));
+                weight: 1.8,
+                botType: BotType.MaliciousBot.ToString()));
 
         // Session duration analysis
         if (history.Count >= 2)
@@ -296,8 +296,8 @@ public class BehavioralWaveformContributor : ContributingDetectorBase
                 contributions.Add(DetectionContribution.Bot(
                     Name, "Waveform", 0.7,
                     $"High-speed session: {history.Count} requests in {sessionDuration:F1} minutes",
-                    BotType.Scraper,
-                    weight: 1.6));
+                    weight: 1.6,
+                    botType: BotType.Scraper.ToString()));
         }
     }
 

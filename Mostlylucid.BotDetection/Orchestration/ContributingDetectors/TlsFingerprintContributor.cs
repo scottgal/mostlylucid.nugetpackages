@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.BotDetection.Orchestration.Manifests;
 using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
@@ -21,8 +22,11 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 ///     IMPORTANT: This contributor relies on reverse proxy (nginx/HAProxy) to extract
 ///     TLS handshake data and pass via headers (X-JA3-Hash, X-TLS-Protocol, X-TLS-Cipher).
 ///     ASP.NET Core's ITlsConnectionFeature has very limited TLS information available.
+///
+///     Configuration loaded from: tls.detector.yaml
+///     Override via: appsettings.json → BotDetection:Detectors:TlsFingerprintContributor:*
 /// </summary>
-public class TlsFingerprintContributor : ContributingDetectorBase
+public class TlsFingerprintContributor : ConfiguredContributorBase
 {
     // Known bot TLS fingerprints (JA3 MD5 hashes)
     // These are sample fingerprints - in production, maintain a database
@@ -62,16 +66,28 @@ public class TlsFingerprintContributor : ContributingDetectorBase
 
     private readonly ILogger<TlsFingerprintContributor> _logger;
 
-    public TlsFingerprintContributor(ILogger<TlsFingerprintContributor> logger)
+    public TlsFingerprintContributor(
+        ILogger<TlsFingerprintContributor> logger,
+        IDetectorConfigProvider configProvider)
+        : base(configProvider)
     {
         _logger = logger;
     }
 
     public override string Name => "TlsFingerprint";
-    public override int Priority => 11; // Run early
+    public override int Priority => Manifest?.Priority ?? 11;
 
     // No triggers - runs in first wave
     public override IReadOnlyList<TriggerCondition> TriggerConditions => Array.Empty<TriggerCondition>();
+
+    // Config-driven parameters from YAML
+    private double HttpConfidencePenalty => GetParam("http_confidence_penalty", 0.05);
+    private double KnownBotFingerprintConfidence => GetParam("known_bot_fingerprint_confidence", 0.85);
+    private double KnownBrowserFingerprintConfidence => GetParam("known_browser_fingerprint_confidence", -0.15);
+    private double WeakCipherPenalty => GetParam("weak_cipher_penalty", 0.4);
+    private double ClientCertPenalty => GetParam("client_cert_penalty", 0.3);
+    private double OutdatedSslPenalty => GetParam("outdated_ssl_penalty", 0.7);
+    private double OldTlsPenalty => GetParam("old_tls_penalty", 0.2);
 
     public override Task<IReadOnlyList<DetectionContribution>> ContributeAsync(
         BlackboardState state,
@@ -90,15 +106,11 @@ public class TlsFingerprintContributor : ContributingDetectorBase
             {
                 // HTTP (not HTTPS) - slight bot indicator
                 signals.Add("tls.available", false);
-                contributions.Add(new DetectionContribution
-                {
-                    DetectorName = Name,
-                    Category = "TLS",
-                    ConfidenceDelta = 0.05,
-                    Weight = 0.3,
-                    Reason = "Using HTTP instead of HTTPS (uncommon for modern browsers)",
-                    Signals = signals.ToImmutable()
-                });
+                contributions.Add(BotContribution(
+                    "TLS",
+                    "Using HTTP instead of HTTPS (uncommon for modern browsers)",
+                    confidenceOverride: HttpConfidencePenalty,
+                    weightMultiplier: 0.3) with { Signals = signals.ToImmutable() });
                 return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
             }
 
@@ -126,21 +138,22 @@ public class TlsFingerprintContributor : ContributingDetectorBase
             {
                 // Check against known fingerprints
                 if (KnownBotFingerprints.Contains(ja3Hash))
-                    contributions.Add(DetectionContribution.Bot(
-                        Name, "TLS", 0.85,
+                    contributions.Add(BotContribution(
+                        "TLS",
                         $"Known bot TLS fingerprint detected: {ja3Hash[..Math.Min(8, ja3Hash.Length)]}...",
-                        BotType.Scraper,
-                        weight: 1.8));
+                        confidenceOverride: KnownBotFingerprintConfidence,
+                        weightMultiplier: 1.8,
+                        botType: BotType.Scraper.ToString()));
                 else if (KnownBrowserFingerprints.Contains(ja3Hash))
-                    contributions.Add(new DetectionContribution
-                    {
-                        DetectorName = Name,
-                        Category = "TLS",
-                        ConfidenceDelta = -0.15,
-                        Weight = 1.5,
-                        Reason = $"Known legitimate browser fingerprint: {ja3Hash[..Math.Min(8, ja3Hash.Length)]}...",
-                        Signals = signals.ToImmutable()
-                    });
+                    contributions.Add(HumanContribution(
+                        "TLS",
+                        $"Known legitimate browser fingerprint: {ja3Hash[..Math.Min(8, ja3Hash.Length)]}...")
+                        with
+                        {
+                            ConfidenceDelta = KnownBrowserFingerprintConfidence,
+                            Weight = WeightHumanSignal * 1.5,
+                            Signals = signals.ToImmutable()
+                        });
                 else
                     signals.Add("tls.fingerprint_known", false);
             }
@@ -152,15 +165,11 @@ public class TlsFingerprintContributor : ContributingDetectorBase
                 signals.Add("tls.client_cert_present", true);
                 signals.Add("tls.client_cert_issuer", tlsFeature.ClientCertificate.Issuer);
 
-                contributions.Add(new DetectionContribution
-                {
-                    DetectorName = Name,
-                    Category = "TLS",
-                    ConfidenceDelta = 0.3,
-                    Weight = 1.2,
-                    Reason = "Client certificate authentication used (uncommon for browsers)",
-                    Signals = signals.ToImmutable()
-                });
+                contributions.Add(BotContribution(
+                    "TLS",
+                    "Client certificate authentication used (uncommon for browsers)",
+                    confidenceOverride: ClientCertPenalty,
+                    weightMultiplier: 1.2) with { Signals = signals.ToImmutable() });
             }
         }
         catch (Exception ex)
@@ -171,15 +180,9 @@ public class TlsFingerprintContributor : ContributingDetectorBase
 
         // If no contributions yet, add neutral
         if (contributions.Count == 0)
-            contributions.Add(new DetectionContribution
-            {
-                DetectorName = Name,
-                Category = "TLS",
-                ConfidenceDelta = -0.05,
-                Weight = 1.0,
-                Reason = "TLS connection appears normal",
-                Signals = signals.ToImmutable()
-            });
+            contributions.Add(HumanContribution(
+                "TLS",
+                "TLS connection appears normal") with { Signals = signals.ToImmutable() });
 
         return Task.FromResult<IReadOnlyList<DetectionContribution>>(contributions);
     }
@@ -189,22 +192,19 @@ public class TlsFingerprintContributor : ContributingDetectorBase
     {
         // Outdated protocols are suspicious
         if (protocol.Contains("SSL", StringComparison.OrdinalIgnoreCase))
-            contributions.Add(DetectionContribution.Bot(
-                Name, "TLS", 0.7,
+            contributions.Add(BotContribution(
+                "TLS",
                 $"Outdated SSL protocol: {protocol}",
-                BotType.Scraper,
-                weight: 1.5));
+                confidenceOverride: OutdatedSslPenalty,
+                weightMultiplier: 1.5,
+                botType: BotType.Scraper.ToString()));
         else if (protocol.Contains("TLSv1.0", StringComparison.OrdinalIgnoreCase) ||
                  protocol.Contains("TLSv1.1", StringComparison.OrdinalIgnoreCase))
-            contributions.Add(new DetectionContribution
-            {
-                DetectorName = Name,
-                Category = "TLS",
-                ConfidenceDelta = 0.2,
-                Weight = 0.8,
-                Reason = $"Old TLS version: {protocol} (modern browsers use TLS 1.2+)",
-                Signals = signals.ToImmutable()
-            });
+            contributions.Add(BotContribution(
+                "TLS",
+                $"Old TLS version: {protocol} (modern browsers use TLS 1.2+)",
+                confidenceOverride: OldTlsPenalty,
+                weightMultiplier: 0.8) with { Signals = signals.ToImmutable() });
         // TLS 1.2+ is normal
     }
 
@@ -215,24 +215,21 @@ public class TlsFingerprintContributor : ContributingDetectorBase
         if (cipherSuite.Contains("NULL", StringComparison.OrdinalIgnoreCase) ||
             cipherSuite.Contains("NONE", StringComparison.OrdinalIgnoreCase) ||
             cipherSuite.Contains("MD5", StringComparison.OrdinalIgnoreCase))
-            contributions.Add(new DetectionContribution
-            {
-                DetectorName = Name,
-                Category = "TLS",
-                ConfidenceDelta = 0.4,
-                Weight = 1.3,
-                Reason = $"Weak cipher suite detected: {cipherSuite}",
-                Signals = signals.ToImmutable()
-            });
+            contributions.Add(BotContribution(
+                "TLS",
+                $"Weak cipher suite detected: {cipherSuite}",
+                confidenceOverride: WeakCipherPenalty,
+                weightMultiplier: 1.3) with { Signals = signals.ToImmutable() });
 
         // Export-grade or DES ciphers
         if (cipherSuite.Contains("DES", StringComparison.OrdinalIgnoreCase) ||
             cipherSuite.Contains("EXPORT", StringComparison.OrdinalIgnoreCase))
-            contributions.Add(DetectionContribution.Bot(
-                Name, "TLS", 0.6,
+            contributions.Add(BotContribution(
+                "TLS",
                 "Export-grade or DES cipher (very outdated)",
-                BotType.Scraper,
-                weight: 1.4));
+                confidenceOverride: OutdatedSslPenalty - 0.1, // Slightly less than full SSL
+                weightMultiplier: 1.4,
+                botType: BotType.Scraper.ToString()));
     }
 
     private string GetJa3Fingerprint(HttpContext context, ImmutableDictionary<string, object>.Builder signals)

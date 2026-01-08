@@ -139,12 +139,11 @@ public sealed class ResponseCoordinator : IAsyncDisposable
     // Per-client sequential processing
     private readonly KeyedSequentialAtom<ResponseSignal, string> _analysisAtom;
 
-    // Signal sinks for observability
-    private readonly TypedSignalSink<ResponseAnalysisSignal> _analysisSignals;
-
     // TTL-aware cache of client response tracking atoms
     private readonly SlidingCacheAtom<string, ClientResponseTrackingAtom> _clientCache;
-    private readonly SignalSink _ephemeralSignals;
+
+    // Internal signal sink owned by this coordinator
+    private readonly SignalSink _signals;
 
     // Feedback callback to heuristic system
     private readonly Action<string, double>? _heuristicFeedback;
@@ -160,14 +159,10 @@ public sealed class ResponseCoordinator : IAsyncDisposable
         _options = options.Value.ResponseCoordinator ?? new ResponseCoordinatorOptions();
         _heuristicFeedback = heuristicFeedback;
 
-        // Initialize signal sinks
-        _ephemeralSignals = new SignalSink(
+        // Initialize internal signal sink owned by this coordinator
+        _signals = new SignalSink(
             _options.MaxClientsInWindow * 10,
             _options.ResponseWindow);
-
-        _analysisSignals = new TypedSignalSink<ResponseAnalysisSignal>(
-            maxCapacity: 10000,
-            maxAge: TimeSpan.FromMinutes(30));
 
         // Initialize client cache with TTL + LRU
         _clientCache = new SlidingCacheAtom<string, ClientResponseTrackingAtom>(
@@ -182,7 +177,7 @@ public sealed class ResponseCoordinator : IAsyncDisposable
             _options.MaxClientsInWindow,
             Environment.ProcessorCount,
             10,
-            _ephemeralSignals);
+            _signals);
 
         // Initialize sequential processing atom
         _analysisAtom = new KeyedSequentialAtom<ResponseSignal, string>(
@@ -191,7 +186,7 @@ public sealed class ResponseCoordinator : IAsyncDisposable
             Environment.ProcessorCount * 2,
             1,
             true,
-            _ephemeralSignals);
+            _signals);
 
         _logger.LogInformation(
             "ResponseCoordinator initialized: window={Window}, maxClients={MaxClients}, ttl={Ttl}",
@@ -253,17 +248,9 @@ public sealed class ResponseCoordinator : IAsyncDisposable
             // Get updated behavior
             var behavior = await atom.GetBehaviorAsync(cancellationToken);
 
-            // Emit analysis signal
+            // Emit analysis signal to coordinator-owned sink
             if (_options.EnableSignals)
-                _analysisSignals.Raise(
-                    "response.analysis",
-                    new ResponseAnalysisSignal(
-                        signal.ClientId,
-                        behavior.ResponseScore,
-                        behavior.TotalResponses,
-                        BuildReasonString(behavior),
-                        DateTime.UtcNow),
-                    signal.ClientId);
+                _signals.Raise($"response.analysis.{signal.ClientId}", signal.ClientId);
 
             // Feed back into heuristic if score is significant
             if (behavior.ResponseScore > 0.3 && _heuristicFeedback != null)
@@ -312,11 +299,11 @@ public sealed class ResponseCoordinator : IAsyncDisposable
     }
 
     /// <summary>
-    ///     Get recent analysis signals
+    ///     Get recent analysis signals from coordinator-owned sink.
     /// </summary>
-    public IReadOnlyList<SignalEvent<ResponseAnalysisSignal>> GetAnalysisSignals()
+    public IReadOnlyList<SignalEvent> GetAnalysisSignals()
     {
-        return _analysisSignals.Sense();
+        return _signals.Sense(e => e.Signal.StartsWith("response.analysis."));
     }
 
     /// <summary>
