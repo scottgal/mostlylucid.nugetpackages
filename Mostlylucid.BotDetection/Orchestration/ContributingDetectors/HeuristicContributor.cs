@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Detectors;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.BotDetection.Orchestration.Manifests;
 using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
@@ -9,22 +10,30 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 /// <summary>
 ///     Heuristic model contributor - uses learned weights for bot classification.
 ///     Runs in Wave 1+ after initial detectors have run.
+///
+///     Configuration loaded from: heuristic.detector.yaml
+///     Override via: appsettings.json → BotDetection:Detectors:HeuristicContributor:*
 /// </summary>
-public class HeuristicContributor : ContributingDetectorBase
+public class HeuristicContributor : ConfiguredContributorBase
 {
     private readonly HeuristicDetector _detector;
     private readonly ILogger<HeuristicContributor> _logger;
 
     public HeuristicContributor(
         ILogger<HeuristicContributor> logger,
-        HeuristicDetector detector)
+        HeuristicDetector detector,
+        IDetectorConfigProvider configProvider)
+        : base(configProvider)
     {
         _logger = logger;
         _detector = detector;
     }
 
     public override string Name => "Heuristic";
-    public override int Priority => 50; // Run after basic detectors
+    public override int Priority => Manifest?.Priority ?? 50;
+
+    // Config-driven parameters from YAML
+    private double HeuristicWeight => GetParam("heuristic_weight", 2.0);
 
     // Trigger when we have enough signals and want heuristic classification
     public override IReadOnlyList<TriggerCondition> TriggerConditions =>
@@ -67,7 +76,7 @@ public class HeuristicContributor : ContributingDetectorBase
                     DetectorName = Name,
                     Category = "HeuristicEarly",
                     ConfidenceDelta = reason.ConfidenceImpact,
-                    Weight = 2.0, // Heuristic predictions are weighted heavily
+                    Weight = HeuristicWeight, // Heuristic predictions are weighted heavily
                     Reason = reason.Detail,
                     BotType = result.BotType?.ToString(),
                     BotName = result.BotName,

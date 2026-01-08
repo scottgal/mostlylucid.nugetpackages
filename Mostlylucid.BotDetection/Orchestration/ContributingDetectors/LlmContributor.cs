@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Detectors;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.BotDetection.Orchestration.Manifests;
 using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
@@ -11,8 +12,11 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 ///     LLM (Ollama) contributor - uses large language model for bot classification.
 ///     Runs in Wave 1+ after initial detectors have run and when AI escalation is triggered.
 ///     This is the most expensive detector and should only run when needed.
+///
+///     Configuration loaded from: llm.detector.yaml
+///     Override via: appsettings.json → BotDetection:Detectors:LlmContributor:*
 /// </summary>
-public class LlmContributor : ContributingDetectorBase
+public class LlmContributor : ConfiguredContributorBase
 {
     private readonly LlmDetector _detector;
     private readonly ILogger<LlmContributor> _logger;
@@ -21,7 +25,9 @@ public class LlmContributor : ContributingDetectorBase
     public LlmContributor(
         ILogger<LlmContributor> logger,
         LlmDetector detector,
-        IOptions<BotDetectionOptions> options)
+        IOptions<BotDetectionOptions> options,
+        IDetectorConfigProvider configProvider)
+        : base(configProvider)
     {
         _logger = logger;
         _detector = detector;
@@ -29,12 +35,16 @@ public class LlmContributor : ContributingDetectorBase
     }
 
     public override string Name => "Llm";
-    public override int Priority => 55; // Run after ONNX
+    public override int Priority => Manifest?.Priority ?? 55;
+
+    // Config-driven parameters from YAML
+    private double LlmWeight => GetParam("llm_weight", 2.5);
+    private int MaxTimeoutMs => GetParam("max_timeout_ms", 30000);
 
     // LLM needs longer timeout for model loading and inference (especially cold start)
-    // Uses AiDetection.TimeoutMs from config (default 15000ms), with 30s as absolute max
+    // Uses AiDetection.TimeoutMs from config (default 15000ms), with max from YAML
     public override TimeSpan ExecutionTimeout => TimeSpan.FromMilliseconds(
-        Math.Min(_options.AiDetection.TimeoutMs * 2, 30000)); // Double the LLM timeout, cap at 30s
+        Math.Min(_options.AiDetection.TimeoutMs * 2, MaxTimeoutMs));
 
     // Trigger when we have enough signals and want AI classification
     public override IReadOnlyList<TriggerCondition> TriggerConditions =>
@@ -77,7 +87,7 @@ public class LlmContributor : ContributingDetectorBase
                     DetectorName = Name,
                     Category = "AI",
                     ConfidenceDelta = reason.ConfidenceImpact,
-                    Weight = 2.5, // LLM predictions are weighted very heavily
+                    Weight = LlmWeight, // LLM predictions are weighted very heavily
                     Reason = reason.Detail,
                     BotType = result.BotType?.ToString(),
                     BotName = result.BotName,

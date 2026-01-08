@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Models;
+using Mostlylucid.BotDetection.Orchestration.Manifests;
 using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
@@ -21,15 +22,20 @@ namespace Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
 ///     - Combined signature (UA + IP + Path)
 ///     Runs in Wave 0 (first wave) with high priority to provide bias before
 ///     other detectors run their analysis.
+///
+///     Configuration loaded from: reputation.detector.yaml
+///     Override via: appsettings.json → BotDetection:Detectors:ReputationBiasContributor:*
 /// </summary>
-public class ReputationBiasContributor : ContributingDetectorBase
+public class ReputationBiasContributor : ConfiguredContributorBase
 {
     private readonly ILogger<ReputationBiasContributor> _logger;
     private readonly IPatternReputationCache _reputationCache;
 
     public ReputationBiasContributor(
         ILogger<ReputationBiasContributor> logger,
-        IPatternReputationCache reputationCache)
+        IPatternReputationCache reputationCache,
+        IDetectorConfigProvider configProvider)
+        : base(configProvider)
     {
         _logger = logger;
         _reputationCache = reputationCache;
@@ -37,8 +43,12 @@ public class ReputationBiasContributor : ContributingDetectorBase
 
     public override string Name => "ReputationBias";
 
-    public override int Priority => 45; // Run AFTER basic detectors have extracted UA/IP/Headers (Wave 0)
-    // But BEFORE Heuristic (50) to provide learned bias to scoring
+    public override int Priority => Manifest?.Priority ?? 45;
+
+    // Config-driven parameters from YAML
+    private double ConfirmedBadWeight => GetParam("confirmed_bad_weight", 2.5);
+    private double CombinedPatternMultiplier => GetParam("combined_pattern_multiplier", 1.5);
+    private double ReputationWeightMultiplier => GetParam("reputation_weight_multiplier", 1.5);
 
     // Trigger when we have the basic signals extracted
     public override IReadOnlyList<TriggerCondition> TriggerConditions =>
@@ -120,7 +130,7 @@ public class ReputationBiasContributor : ContributingDetectorBase
                 if (contribution != null)
                 {
                     // Combined patterns get higher weight as they're more specific
-                    contributions.Add(contribution with { Weight = contribution.Weight * 1.5 });
+                    contributions.Add(contribution with { Weight = contribution.Weight * CombinedPatternMultiplier });
                     signals = signals.AddRange(combinedSignals);
 
                     _logger.LogDebug(
@@ -183,7 +193,7 @@ public class ReputationBiasContributor : ContributingDetectorBase
                     $"[Reputation] {reason}") with
                 {
                     ConfidenceDelta = reputation.BotScore,
-                    Weight = 2.5, // High weight for confirmed bad patterns
+                    Weight = ConfirmedBadWeight, // High weight for confirmed bad patterns
                     Signals = signals
                 }, signals);
         }
@@ -206,7 +216,7 @@ public class ReputationBiasContributor : ContributingDetectorBase
             DetectorName = Name,
             Category = $"Reputation:{category}",
             ConfidenceDelta = weight > 0 ? weight : -Math.Abs(weight),
-            Weight = Math.Abs(weight) * 1.5, // Reputation has decent weight
+            Weight = Math.Abs(weight) * ReputationWeightMultiplier, // Reputation has decent weight
             Reason = $"[Reputation] {reason}",
             BotType = botType,
             Signals = signals

@@ -102,6 +102,9 @@ defaults:
 
   # LLM-specific parameters
   parameters:
+    # Weight and timeout settings
+    llm_weight: 2.5
+    max_timeout_ms: 30000
     # Model configuration
     model_name: "llama3.2:latest"  # Default local model
     temperature: 0.1     # Low for consistent outputs

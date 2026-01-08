@@ -119,6 +119,8 @@ defaults:
 
   # ML/Heuristic-specific parameters
   parameters:
+    # Prediction weight
+    heuristic_weight: 2.0
     # Category weights for scoring (learned/tunable)
     category_weights:
       UserAgent: 1.0

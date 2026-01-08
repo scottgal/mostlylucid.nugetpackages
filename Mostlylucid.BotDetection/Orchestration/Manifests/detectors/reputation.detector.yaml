@@ -88,6 +88,10 @@ defaults:
 
   # Reputation-specific parameters
   parameters:
+    # Weight settings
+    confirmed_bad_weight: 2.5
+    combined_pattern_multiplier: 1.5
+    reputation_weight_multiplier: 1.5
     # States to apply bias from (not fast-path states)
     bias_states:
       - "Suspect"
