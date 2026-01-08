@@ -134,7 +134,8 @@
       "Bash(Remove-Item -Recurse -Force Mostlylucid.Common/bin,Mostlylucid.Common/obj)",
       "WebFetch(domain:test.stylobot.net)",
       "Bash(robocopy:*)",
-      "Bash(xcopy:*)"
+      "Bash(xcopy:*)",
+      "Bash(dotnet sln add:*)"
     ],
     "deny": [],
     "ask": []
