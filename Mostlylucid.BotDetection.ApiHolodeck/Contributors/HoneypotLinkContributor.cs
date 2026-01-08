@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.ApiHolodeck.Models;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Orchestration;
+using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.ApiHolodeck.Contributors;
 

@@ -5,6 +5,8 @@ using Moq;
 using Mostlylucid.BotDetection.Data;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
+using Mostlylucid.BotDetection.Orchestration.Manifests;
+using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.Tests.Unit;
 
@@ -16,12 +18,27 @@ public class SecurityToolContributorTests
 {
     private readonly Mock<IBotListFetcher> _fetcherMock;
     private readonly Mock<ILogger<SecurityToolContributor>> _loggerMock;
+    private readonly Mock<IDetectorConfigProvider> _configProviderMock;
     private readonly BotDetectionOptions _options;
 
     public SecurityToolContributorTests()
     {
         _loggerMock = new Mock<ILogger<SecurityToolContributor>>();
         _fetcherMock = new Mock<IBotListFetcher>();
+        _configProviderMock = new Mock<IDetectorConfigProvider>();
+
+        // Setup default config
+        _configProviderMock.Setup(c => c.GetDefaults(It.IsAny<string>()))
+            .Returns(new DetectorDefaults());
+        _configProviderMock.Setup(c => c.GetManifest(It.IsAny<string>()))
+            .Returns((DetectorManifest?)null);
+        _configProviderMock.Setup(c => c.GetParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()))
+            .Returns((string _, string _, int def) => def);
+        _configProviderMock.Setup(c => c.GetParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double>()))
+            .Returns((string _, string _, double def) => def);
+        _configProviderMock.Setup(c => c.GetParameter(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>()))
+            .Returns((string _, string _, bool def) => def);
+
         _options = new BotDetectionOptions
         {
             SecurityTools = new SecurityToolOptions { Enabled = true }
@@ -33,7 +50,8 @@ public class SecurityToolContributorTests
         return new SecurityToolContributor(
             _loggerMock.Object,
             Options.Create(_options),
-            _fetcherMock.Object);
+            _fetcherMock.Object,
+            _configProviderMock.Object);
     }
 
     private BlackboardState CreateState(string userAgent, string? clientIp = "192.168.1.100")
@@ -88,8 +106,8 @@ public class SecurityToolContributorTests
         Assert.Single(contributions);
         var contribution = contributions[0];
         Assert.True(contribution.TriggerEarlyExit);
-        Assert.Equal(EarlyExitVerdict.VerifiedBadBot, contribution.EarlyExitVerdict);
-        Assert.Equal(BotType.MaliciousBot, contribution.BotType);
+        Assert.Equal("VerifiedBadBot", contribution.EarlyExitVerdict);
+        Assert.Equal(nameof(BotType.MaliciousBot), contribution.BotType);
         Assert.True(contribution.ConfidenceDelta >= 0.9);
         Assert.Contains(expectedToolName.ToLowerInvariant(),
             contribution.BotName?.ToLowerInvariant() ?? "");

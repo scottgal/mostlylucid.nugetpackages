@@ -15,6 +15,7 @@ using Mostlylucid.BotDetection.Extensions;
 using Mostlylucid.BotDetection.Middleware;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Services;
+using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 using Xunit.Abstractions;
 // Resolve ambiguous RiskBand reference
 
@@ -231,36 +232,36 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
         using var host = await CreateTestHost();
         var client = host.GetTestClient();
 
-        // Create mock aggregated evidence
+        // Create mock aggregated evidence with ledger
+        var ledger = new DetectionLedger("test-request");
+        ledger.AddContribution(new DetectionContribution
+        {
+            DetectorName = "User-Agent Detector",
+            Category = "UserAgent",
+            ConfidenceDelta = 0.8,
+            Weight = 1.0,
+            Reason = "Known bot pattern"
+        });
+        ledger.AddContribution(new DetectionContribution
+        {
+            DetectorName = "Header Detector",
+            Category = "Headers",
+            ConfidenceDelta = 0.3,
+            Weight = 0.8,
+            Reason = "Missing Accept-Language"
+        });
+        ledger.AddContribution(new DetectionContribution
+        {
+            DetectorName = "Version Age Detector",
+            Category = "Version",
+            ConfidenceDelta = 0.5,
+            Weight = 0.6,
+            Reason = "Outdated browser version"
+        });
+
         var evidence = new AggregatedEvidence
         {
-            Contributions = new List<DetectionContribution>
-            {
-                new()
-                {
-                    DetectorName = "User-Agent Detector",
-                    Category = "UserAgent",
-                    ConfidenceDelta = 0.8,
-                    Weight = 1.0,
-                    Reason = "Known bot pattern"
-                },
-                new()
-                {
-                    DetectorName = "Header Detector",
-                    Category = "Headers",
-                    ConfidenceDelta = 0.3,
-                    Weight = 0.8,
-                    Reason = "Missing Accept-Language"
-                },
-                new()
-                {
-                    DetectorName = "Version Age Detector",
-                    Category = "Version",
-                    ConfidenceDelta = 0.5,
-                    Weight = 0.6,
-                    Reason = "Outdated browser version"
-                }
-            },
+            Ledger = ledger,
             BotProbability = 0.75,
             Confidence = 0.85,
             RiskBand = RiskBand.High,
@@ -321,19 +322,19 @@ public class LearningFeedbackLoopTests : IAsyncLifetime
         using var host = await CreateTestHost();
 
         // Create minimal evidence with just one detector
+        var ledger2 = new DetectionLedger("test-request-2");
+        ledger2.AddContribution(new DetectionContribution
+        {
+            DetectorName = "Single Detector",
+            Category = "Test",
+            ConfidenceDelta = 0.6,
+            Weight = 1.0,
+            Reason = "Test reason"
+        });
+
         var evidence = new AggregatedEvidence
         {
-            Contributions = new List<DetectionContribution>
-            {
-                new()
-                {
-                    DetectorName = "Single Detector",
-                    Category = "Test",
-                    ConfidenceDelta = 0.6,
-                    Weight = 1.0,
-                    Reason = "Test reason"
-                }
-            },
+            Ledger = ledger2,
             BotProbability = 0.4,
             Confidence = 0.6,
             RiskBand = RiskBand.Medium,

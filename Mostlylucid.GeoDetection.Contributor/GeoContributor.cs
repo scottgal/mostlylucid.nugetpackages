@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Orchestration;
+using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 using Mostlylucid.GeoDetection.Services;
 
 namespace Mostlylucid.GeoDetection.Contributor;

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using Mostlylucid.BotDetection.Models;
 using Mostlylucid.BotDetection.Orchestration.ContributingDetectors;
+using Mostlylucid.Ephemeral.Atoms.Taxonomy.Ledger;
 
 namespace Mostlylucid.BotDetection.Orchestration.Tests.Unit;
 
